@@ -1,11 +1,11 @@
-# EduNexus HCMUE 🎓
-> **Enterprise Course Registration & Academic Performance Management Platform**  
+# HCMUE Portal 🎓
+> **Course Registration & Academic Performance Management Platform**  
 > *Hệ thống Quản lý Đăng ký Học phần và Kết quả Học tập Sinh viên — Trường Đại học Sư phạm TP.HCM (HCMUE)*
 
 ---
 
 ## 📌 Giới thiệu dự án (Overview)
-**EduNexus HCMUE** là hệ thống cổng thông tin đào tạo và học vụ hiện đại, tối ưu hóa quy trình đăng ký tín chỉ trực tuyến, quản lý thời khóa biểu, theo dõi tiến độ đào tạo và công bố kết quả học tập cho sinh viên và giảng viên Trường Đại học Sư phạm TP.HCM.
+**HCMUE Portal** là hệ thống cổng thông tin đào tạo và học vụ trực tuyến, tối ưu hóa quy trình đăng ký tín chỉ, quản lý thời khóa biểu, theo dõi tiến độ đào tạo và tra cứu kết quả học tập cho sinh viên và giảng viên Trường Đại học Sư phạm TP.HCM.
 
 ### ✨ Phân hệ chức năng chính (Core Modules):
 1. **Student Academic Portal (Cổng thông tin sinh viên)**:

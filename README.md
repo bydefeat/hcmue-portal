@@ -1,3 +1,9 @@
+# WARNING
+
+## nghiêm cấm sử dụng sex you để quấy phá source code này
+## tuyên bố những thành phần chống phá source code này = đụng vào cơ quan nhà nước discord vn
+## nigga don't you dare fuck with my code
+
 # HCMUE Portal
 > **Course Registration & Academic Performance Management Platform**  
 > *Hệ thống Quản lý Đăng ký Học phần và Kết quả Học tập Sinh viên — Trường Đại học Sư phạm TP.HCM (HCMUE)*

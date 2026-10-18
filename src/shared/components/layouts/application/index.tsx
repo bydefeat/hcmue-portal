@@ -25,7 +25,7 @@ export function ApplicationLayout({ user, termLabel, children }: ApplicationLayo
   const title = ALL_ITEMS.find((item) => isActiveHref(pathname, item.href))?.label;
 
   return (
-    <Layout className="min-h-dvh">
+    <Layout hasSider className="min-h-dvh">
       <ApplicationSidebar user={user} />
       <Layout>
         <Layout.Header className="sticky top-0 z-10 flex items-center gap-3 border-b border-border-strong px-4 sm:px-6">

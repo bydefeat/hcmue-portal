@@ -25,7 +25,7 @@ Tham khảo tài liệu route groups trong `node_modules/next/dist/docs/01-app/0
 src/
 ├── proxy.ts                         # entry Next bắt buộc: ghép các proxy trong src/proxies/
 ├── proxies/                         # từng proxy nhỏ theo mục đích
-│   └── authentication.ts            # chưa có cookie session → /authentication/sign-in
+│   └── authentication.proxy.ts      # chưa có cookie session → /authentication/sign-in
 │
 ├── app/                             # CHỈ routing: page/layout mỏng, gọi xuống shared + modules
 │   ├── layout.tsx                   # root layout DUY NHẤT: <html>, AntdRegistry, ConfigProvider (theme)
@@ -88,11 +88,11 @@ src/
 │   └── api/auth/[...all]/route.ts   # handler của better-auth
 │
 ├── modules/                         # NGHIỆP VỤ theo domain, dùng chung giữa các portal
-│   ├── announcements/               # mỗi module gồm:
-│   ├── course-registration/         #   schema.ts   bảng Drizzle
-│   ├── schedule/                    #   queries.ts  hàm đọc dữ liệu (server)
-│   ├── grades/                      #   actions.ts  server action, validate bằng zod
-│   ├── curriculum/                  #   components/ UI riêng của module
+│   ├── announcements/               # mỗi module, ví dụ grades/:
+│   ├── course-registration/         #   grades.schema.ts  bảng Drizzle
+│   ├── schedule/                    #   grades.query.ts   hàm đọc dữ liệu (server)
+│   ├── grades/                      #   grades.action.ts  server action, validate bằng zod
+│   ├── curriculum/                  #   components/       UI riêng của module
 │   ├── study-plan/
 │   └── users/
 │
@@ -106,16 +106,38 @@ src/
     │   │   └── administrator/
     │   └── ui/                      # component nhỏ không gắn portal: Logo, PageHeader, EmptyState...
     ├── constants/
-    │   ├── theme.ts                 # bảng màu thương hiệu + antd ThemeConfig (nguồn màu DUY NHẤT)
-    │   ├── navigation.ts            # menu của từng portal (label, href, icon, role)
-    │   └── roles.ts                 # "student" | "lecturer" | "advisor" | "admin" + trang đích sau login
-    ├── hooks/                       # hook client dùng chung: useMediaQuery, useDisclosure...
+    │   ├── theme.constant.ts        # bảng màu thương hiệu + antd ThemeConfig (nguồn màu DUY NHẤT)
+    │   ├── navigation.constant.ts   # menu của từng portal (label, href, icon, role)
+    │   └── role.constant.ts         # "student" | "lecturer" | "advisor" | "admin" + trang đích sau login
+    ├── hooks/                       # hook client dùng chung
+    │   └── media-query.hook.ts      # export useMediaQuery
     ├── libs/
-    │   ├── env.ts                   # parse các biến DEFEAT_* bằng zod
-    │   ├── db/                      # drizzle client + gom schema từ modules
-    │   └── auth/                    # betterAuth(), authClient, getSession(), requireRole()
-    └── stores/                      # zustand store CHỈ cho state UI: sidebar thu gọn, học kỳ đang chọn...
+    │   ├── env.lib.ts               # parse các biến DEFEAT_* bằng zod
+    │   ├── db.lib.ts                # drizzle client + gom schema từ modules
+    │   ├── auth.lib.ts              # betterAuth() (server)
+    │   ├── auth-client.lib.ts       # createAuthClient() (client)
+    │   └── session.lib.ts           # getSession(), requireRole()
+    └── stores/                      # zustand store CHỈ cho state UI
+        └── sidebar.store.ts         # export useSidebarStore
 ```
+
+### Quy ước đặt tên file
+
+Tên file dạng `<tên>.<loại>.ts`, phần `<tên>` viết kebab-case, **số ít**. Nhìn đuôi file là biết loại, không phụ thuộc file nằm ở folder nào.
+
+| Loại | Đuôi | Ví dụ | Export |
+|---|---|---|---|
+| Proxy | `*.proxy.ts` | `authentication.proxy.ts` | `authenticationProxy` |
+| Lib | `*.lib.ts` | `env.lib.ts`, `db.lib.ts` | `env`, `db` |
+| Hook | `*.hook.ts` | `media-query.hook.ts` | `useMediaQuery` |
+| Constant | `*.constant.ts` | `theme.constant.ts` | `THEME`, `BRAND_COLORS` |
+| Store | `*.store.ts` | `sidebar.store.ts` | `useSidebarStore` |
+| Drizzle schema | `*.schema.ts` | `grades.schema.ts` | các bảng `grades`, `gradeItems`... |
+| Query (đọc) | `*.query.ts` | `grades.query.ts` | `getTranscript()` |
+| Server action (ghi) | `*.action.ts` | `grades.action.ts` | `submitGrades()` |
+| Component | `kebab-case.tsx`, **không** có đuôi loại | `sidebar.tsx`, `bottom-tabs.tsx` | `Sidebar`, `BottomTabs` |
+
+Ngoại lệ: file mà Next.js quy định tên (`proxy.ts`, `layout.tsx`, `page.tsx`, `route.ts`...) giữ nguyên tên gốc.
 
 **Hướng import (một chiều):** `app` → `modules` → `shared`. `shared` không import `modules` hay `app`; module không import module khác (cần dữ liệu chéo thì `app` ghép lại).
 
@@ -126,7 +148,7 @@ Thêm vai trò mới (trưởng khoa, phòng khảo thí...) thì làm theo cùn
 ### Nguyên tắc
 
 - **5 layout độc lập**, mỗi layout một folder, **không import lẫn nhau** và không có "BaseLayout" chung. Mỗi portal phục vụ một kiểu công việc khác nhau, nên khung trang khác nhau.
-- **Thứ duy nhất dùng chung là màu sắc:** tất cả đọc từ `shared/constants/theme.ts`. Không hardcode mã màu trong layout.
+- **Thứ duy nhất dùng chung là màu sắc:** tất cả đọc từ `shared/constants/theme.constant.ts`. Không hardcode mã màu trong layout.
 - Phần dùng chung thật sự nhỏ (Logo, avatar menu) đặt ở `shared/components/ui/`, layout chỉ ghép vào.
 - `app/.../layout.tsx` chỉ làm 2 việc: kiểm tra quyền và render layout tương ứng. Toàn bộ giao diện nằm trong `shared/components/layouts/`.
 
@@ -161,28 +183,28 @@ shared/components/layouts/application/
 └── bottom-tabs.tsx        # chỉ application có
 ```
 
-Mỗi folder chỉ export `index.tsx`; các file con là chi tiết nội bộ của layout đó. Menu lấy từ `shared/constants/navigation.ts`, nên muốn thêm trang chỉ cần sửa một chỗ.
+Mỗi folder chỉ export `index.tsx`; các file con là chi tiết nội bộ của layout đó. Menu lấy từ `shared/constants/navigation.constant.ts`, nên muốn thêm trang chỉ cần sửa một chỗ.
 
 ## 4. Quyết định chính
 
 | Vấn đề | Chọn | Lý do |
 |---|---|---|
 | Root layout | Chỉ 1 file `app/layout.tsx` | Nếu mỗi group có root layout riêng, chuyển giữa các portal sẽ phải tải lại toàn trang |
-| Theme | 1 `ConfigProvider` ở root đọc `shared/constants/theme.ts`; layout nào cần chỉnh (ví dụ sidebar đậm của admin) thì lồng `ConfigProvider` con, vẫn lấy màu từ cùng file | Màu chỉ khai báo một chỗ |
+| Theme | 1 `ConfigProvider` ở root đọc `shared/constants/theme.constant.ts`; layout nào cần chỉnh (ví dụ sidebar đậm của admin) thì lồng `ConfigProvider` con, vẫn lấy màu từ cùng file | Màu chỉ khai báo một chỗ |
 | Slug URL | Tiếng Anh (`/application/registration`) | Đồng bộ với tên code, không phải xử lý dấu |
-| Phân quyền | 2 lớp: `src/proxies/authentication.ts` chỉ xem có cookie session hay không; `layout.tsx` của mỗi portal gọi `requireRole()` để kiểm tra session thật trên server | Proxy chỉ nên làm việc nhẹ như redirect |
+| Phân quyền | 2 lớp: `src/proxies/authentication.proxy.ts` chỉ xem có cookie session hay không; `layout.tsx` của mỗi portal gọi `requireRole()` để kiểm tra session thật trên server | Proxy chỉ nên làm việc nhẹ như redirect |
 | `proxy.ts` | Bắt buộc nằm ở `src/proxy.ts` (Next yêu cầu); file này chỉ ghép các proxy trong `src/proxies/` | Giữ được cách chia folder theo mục đích |
 | Vai trò | Plugin `admin` của better-auth; một user có thể có nhiều role (`student`, `lecturer`, `advisor`, `admin`) | Cố vấn luôn là giảng viên, nên nằm trong `(lecturer)` dưới dạng mục `advising/` có kiểm tra role riêng |
-| Sau đăng nhập | Chuyển hướng theo role (khai báo trong `shared/constants/roles.ts`): admin → `/administrator`, lecturer → `/lecturer`, student → `/application/dashboard` | |
+| Sau đăng nhập | Chuyển hướng theo role (khai báo trong `shared/constants/role.constant.ts`): admin → `/administrator`, lecturer → `/lecturer`, student → `/application/dashboard` | |
 | State | Dữ liệu từ server: server component + server action. `zustand` chỉ giữ state UI | Không phải đồng bộ dữ liệu server ở hai nơi |
 | Logic nghiệp vụ | Đặt trong `src/modules/*`, page chỉ ghép UI | Ví dụ "bảng điểm" được dùng ở cả trang SV, GV và cố vấn, viết một lần |
-| Biến môi trường | Tiền tố `DEFEAT_*`, xem `.env.example`, parse ở `shared/libs/env.ts` | better-auth không tự đọc các tên này, phải truyền `secret` và `baseURL` khi khởi tạo |
+| Biến môi trường | Tiền tố `DEFEAT_*`, xem `.env.example`, parse ở `shared/libs/env.lib.ts` | better-auth không tự đọc các tên này, phải truyền `secret` và `baseURL` khi khởi tạo |
 | `cacheComponents` | Đang bật: code đọc `cookies()`/`headers()` (kiểm tra session) phải nằm trong `<Suspense>` | Nếu không, build sẽ lỗi |
 
 ## 5. Lộ trình triển khai
 
-1. **Nền tảng:** `shared/libs/env.ts`, `shared/libs/db`, `drizzle.config.ts`, `shared/constants/theme.ts`, gắn `ConfigProvider` ở root layout.
-2. **Auth:** `shared/libs/auth`, route `api/auth`, `src/proxy.ts` + `src/proxies/authentication.ts`, `requireRole()`, `AuthenticationLayout` và 4 trang sign-in / sign-up / forgot-password / verify.
+1. **Nền tảng:** `env.lib.ts`, `db.lib.ts`, `drizzle.config.ts`, `theme.constant.ts`, gắn `ConfigProvider` ở root layout.
+2. **Auth:** `auth.lib.ts`, `auth-client.lib.ts`, `session.lib.ts`, route `api/auth`, `src/proxy.ts` + `src/proxies/authentication.proxy.ts`, `AuthenticationLayout` và 4 trang sign-in / sign-up / forgot-password / verify.
 3. **Layouts:** dựng 4 layout còn lại cùng `navigation.ts`, mỗi portal có một trang trống để xem layout.
 4. **Public:** trang chủ, thông báo (module `announcements`).
 5. **Dữ liệu danh mục (admin):** chương trình đào tạo, học phần, học kỳ, lớp học phần, người dùng. Phải có dữ liệu này thì sinh viên mới có lớp để đăng ký.

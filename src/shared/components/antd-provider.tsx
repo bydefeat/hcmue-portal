@@ -1,6 +1,5 @@
 "use client";
 
-import "@rc-component/portal";
 import { ConfigProvider } from "antd";
 import viVN from "antd/locale/vi_VN";
 import dayjs from "dayjs";

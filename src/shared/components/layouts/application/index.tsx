@@ -41,7 +41,7 @@ export function ApplicationLayout({ user, termLabel, children }: ApplicationLayo
           {children}
         </Layout.Content>
       </Layout>
-      <BottomTabs />
+
     </Layout>
   );
 }

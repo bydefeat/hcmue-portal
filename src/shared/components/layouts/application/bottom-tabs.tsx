@@ -21,6 +21,12 @@ const TAB_CLASS = "flex h-16 min-w-0 cursor-pointer flex-col items-center justif
 export function BottomTabs() {
   const pathname = usePathname();
   const [isMoreOpen, setIsMoreOpen] = useState(false);
+  const [previousPathname, setPreviousPathname] = useState(pathname);
+
+  if (previousPathname !== pathname) {
+    setPreviousPathname(pathname);
+    setIsMoreOpen(false);
+  }
   const isMoreActive = MORE_ITEMS.some((item) => isActiveHref(pathname, item.href));
 
   return (

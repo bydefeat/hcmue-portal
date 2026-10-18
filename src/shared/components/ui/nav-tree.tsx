@@ -66,7 +66,9 @@ export function NavList({ items, onNavigate }: { items: NavItem[]; onNavigate?: 
               )}
             >
               {Icon && <Icon size={15} aria-hidden className="shrink-0" />}
-              <span className="truncate">{item.label}</span>
+              <span title={item.label} className="truncate">
+                {item.label}
+              </span>
             </Link>
           </li>
         );
@@ -81,17 +83,32 @@ type NavSectionsProps = {
   onNavigate?: () => void;
 };
 
+function activeGroupLabel(groups: NavGroup[], pathname: string) {
+  return groups.find((group) => group.items.some((item) => isActiveHref(pathname, item.href)))?.label;
+}
+
 export function NavSections({ groups, idPrefix, onNavigate }: NavSectionsProps) {
   const pathname = usePathname();
-  const [overrides, setOverrides] = useState<Record<string, { isOpen: boolean; at: string }>>({});
+  const [closedLabels, setClosedLabels] = useState<string[]>([]);
+  const [previousPathname, setPreviousPathname] = useState(pathname);
+
+  if (previousPathname !== pathname) {
+    setPreviousPathname(pathname);
+    const activeLabel = activeGroupLabel(groups, pathname);
+    if (activeLabel && closedLabels.includes(activeLabel)) {
+      setClosedLabels(closedLabels.filter((label) => label !== activeLabel));
+    }
+  }
+
+  const toggle = (label: string) =>
+    setClosedLabels((labels) => (labels.includes(label) ? labels.filter((value) => value !== label) : [...labels, label]));
 
   return (
     <ul className="flex flex-col gap-1">
       {groups.map((group, index) => {
         const SectionIcon = group.icon;
         const hasActive = group.items.some((item) => isActiveHref(pathname, item.href));
-        const override = overrides[group.label];
-        const isOpen = override && override.at === pathname ? override.isOpen : hasActive;
+        const isOpen = !closedLabels.includes(group.label);
         const panelId = `${idPrefix}-${index}`;
 
         return (
@@ -100,14 +117,16 @@ export function NavSections({ groups, idPrefix, onNavigate }: NavSectionsProps) 
               type="button"
               aria-expanded={isOpen}
               aria-controls={panelId}
-              onClick={() => setOverrides((prev) => ({ ...prev, [group.label]: { isOpen: !isOpen, at: pathname } }))}
+              onClick={() => toggle(group.label)}
               className={classes(
                 "flex h-9 w-full cursor-pointer items-center gap-2.5 rounded-lg px-2.5 text-left font-medium transition-colors duration-150",
                 hasActive ? "bg-primary/10 text-primary" : "text-muted hover:bg-item-hover hover:text-foreground",
               )}
             >
               <SectionIcon size={16} aria-hidden className="shrink-0" />
-              <span className="flex-1 truncate">{group.label}</span>
+              <span title={group.label} className="flex-1 truncate">
+                {group.label}
+              </span>
               <ChevronRight
                 size={14}
                 aria-hidden

@@ -15,6 +15,12 @@ export function PublicHeader() {
   const pathname = usePathname();
   const router = useRouter();
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [previousPathname, setPreviousPathname] = useState(pathname);
+
+  if (previousPathname !== pathname) {
+    setPreviousPathname(pathname);
+    setIsDrawerOpen(false);
+  }
 
   const activeKeys = PUBLIC_NAVIGATION.filter((item) => isActiveHref(pathname, item.href)).map((item) => item.href);
   const items = PUBLIC_NAVIGATION.map((item) => ({

@@ -44,7 +44,7 @@ function TreeGuide({ activeIndex, count }: { activeIndex: number; count: number 
   );
 }
 
-export function NavList({ items, onNavigate }: { items: NavItem[]; onNavigate?: () => void }) {
+function NavList({ items, onNavigate }: { items: NavItem[]; onNavigate?: () => void }) {
   const pathname = usePathname();
   const activeIndex = items.findIndex((item) => isActiveHref(pathname, item.href));
 

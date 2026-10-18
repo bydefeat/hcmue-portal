@@ -29,6 +29,8 @@ export type NavGroup = {
   items: NavItem[];
 };
 
+export const PUBLIC_SIGN_IN_HREF = "/authentication/sign-in";
+
 export const PUBLIC_NAVIGATION: NavItem[] = [
   { label: "Trang chủ", href: "/", icon: House },
   { label: "Thông báo", href: "/announcements", icon: Megaphone },

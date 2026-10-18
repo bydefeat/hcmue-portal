@@ -3,13 +3,14 @@
 import { usePathname } from "next/navigation";
 import { Layout } from "antd";
 import { Logo } from "@/shared/components/ui/logo";
+import { MobileNavigation } from "@/shared/components/ui/mobile-navigation";
 import {
+  APPLICATION_BOTTOM_TABS,
   APPLICATION_NAVIGATION,
   APPLICATION_PROFILE,
   isActiveHref,
 } from "@/shared/constants/navigation.constant";
 import { ApplicationSidebar } from "./sidebar";
-import { BottomTabs } from "./bottom-tabs";
 import { UserMenu, type ApplicationUser } from "./user-menu";
 
 type ApplicationLayoutProps = {
@@ -18,7 +19,13 @@ type ApplicationLayoutProps = {
   children: React.ReactNode;
 };
 
-const ALL_ITEMS = [...APPLICATION_NAVIGATION.flatMap((group) => group.items), APPLICATION_PROFILE];
+const NAV_ITEMS = APPLICATION_NAVIGATION.flatMap((group) => group.items);
+const ALL_ITEMS = [...NAV_ITEMS, APPLICATION_PROFILE];
+const DOCK_ITEMS = NAV_ITEMS.filter((item) => APPLICATION_BOTTOM_TABS.includes(item.href));
+const MOBILE_SECTIONS = [
+  ...APPLICATION_NAVIGATION.map((group) => ({ title: group.label, items: group.items })),
+  { title: "Tài khoản", items: [APPLICATION_PROFILE] },
+];
 
 export function ApplicationLayout({ user, termLabel, children }: ApplicationLayoutProps) {
   const pathname = usePathname();
@@ -36,12 +43,17 @@ export function ApplicationLayout({ user, termLabel, children }: ApplicationLayo
             <UserMenu user={user} compact />
           </div>
         </Layout.Header>
-        <Layout.Content className="p-4 pb-24 sm:p-6 sm:pb-24 lg:pb-6">
+        <Layout.Content className="p-4 pb-28 sm:p-6 sm:pb-28 lg:pb-6">
           <h1 className="mb-4 text-xl font-semibold lg:hidden">{title}</h1>
           {children}
         </Layout.Content>
       </Layout>
-      <BottomTabs />
+      <MobileNavigation
+        dockItems={DOCK_ITEMS}
+        sections={MOBILE_SECTIONS}
+        homeHref="/application/dashboard"
+        hideFrom="lg"
+      />
     </Layout>
   );
 }

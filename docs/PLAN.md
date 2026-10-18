@@ -10,7 +10,7 @@ Mỗi dòng ghi nguồn: *đọc code*, *người dùng nói*, *đoán* (cần x
 
 | Hạng mục | Thấy gì | Xử lý |
 |---|---|---|
-| Stack | Next 16.4 (`cacheComponents`), React 19.3, antd 6, Tailwind 4, motion | Giữ |
+| Stack | Next 16.4 (`cacheComponents` tắt, xem ARCHITECTURE.md), React 19.3, antd 6, Tailwind 4, motion | Giữ |
 | Thư viện component | **antd** | Mọi nút, ô nhập, bảng, modal dùng antd; chỉ chỉnh token, không viết lại component |
 | Icon | 3 bộ cùng lúc: `@ant-design/icons`, `defeat-icons-react` (3.424 icon, 18px duo-fill) | **Code app chỉ dùng `defeat-icons-react`**. `@ant-design/icons` chỉ là dependency nội bộ của antd |
 | Font | Geist qua `next/font`, nhưng chỉ nạp subset `latin` → **chữ có dấu tiếng Việt rơi về font khác**; `body` còn đè `Arial` | Thêm subset `vietnamese`, xoá dòng `font-family: Arial` |
@@ -139,7 +139,7 @@ Khoá chính `uuidv7`. Ràng buộc đặt ở DB thay vì ở code:
 - `src/proxy.ts` + `src/proxies/authentication.proxy.ts`: chưa có cookie → `/authentication/sign-in`.
 - Sign-up: *cần chốt* (tự đăng ký hay chỉ kích hoạt tài khoản do trường cấp); mặc định **tắt đăng ký mở** (`disableSignUp`).
 - Áp skill `better-auth-security-best-practices`: rate limit đăng nhập, trusted origins, cookie `secure`.
-- Kiểm: 3 tài khoản seed đăng nhập đúng portal; SV mở `/administrator` bị chặn; build qua với `cacheComponents` (kiểm session nằm trong `<Suspense>`).
+- Kiểm: 3 tài khoản seed đăng nhập đúng portal; SV mở `/administrator` bị chặn; tắt JavaScript vẫn thấy đủ layout (không render phía client).
 
 ### Giai đoạn 4 — Wireframe (evon `U3`) → **cổng chọn**
 - Một file HTML wireframe cho **5 khung layout** và các màn chính ở bảng 2.1, mỗi màn 2–3 phương án khác nhau thật về bố cục, nội dung thật (tên học phần, mã SV thật kiểu HCMUE), đủ 4 trạng thái (có dữ liệu, đang tải, rỗng, lỗi), xem được ở desktop và mobile 375px.

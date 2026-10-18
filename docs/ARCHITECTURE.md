@@ -204,7 +204,7 @@ Mỗi folder chỉ export `index.tsx`; các file con là chi tiết nội bộ c
 | State | Dữ liệu từ server: server component + server action. `zustand` chỉ giữ state UI | Không phải đồng bộ dữ liệu server ở hai nơi |
 | Logic nghiệp vụ | Đặt trong `src/modules/*`, page chỉ ghép UI | Ví dụ "bảng điểm" được dùng ở cả trang SV, GV và cố vấn, viết một lần |
 | Biến môi trường | Tiền tố `DEFEAT_*`, xem `.env.example`, parse ở `shared/libs/env.lib.ts` | better-auth không tự đọc các tên này, phải truyền `secret` và `baseURL` khi khởi tạo |
-| `cacheComponents` | Đang bật: code đọc `cookies()`/`headers()` (kiểm tra session) phải nằm trong `<Suspense>` | Nếu không, build sẽ lỗi |
+| `cacheComponents` | **Tắt** (cùng `partialPrefetching`). Registry antd tự viết ở `shared/components/antd-registry.tsx` | `@ant-design/cssinjs` và `@rc-component/portal` gọi `Date.now()`/`Math.random()` ở cấp module; `cacheComponents` cấm việc đó khi prerender nên buộc bọc cả app trong `<Suspense>`, làm trang render phía client và nháy khi tải lại. Bật lại khi antd sửa hoặc khi Next bắt buộc |
 
 ## 5. Lộ trình triển khai
 

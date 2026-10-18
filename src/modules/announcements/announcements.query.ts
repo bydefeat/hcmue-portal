@@ -1,5 +1,5 @@
 import { dayjs } from "@/shared/libs/date.lib";
-import { mockDelay } from "@/shared/libs/mock.lib";
+import { mockDelay } from "@/shared/libs/mock-request.lib";
 import { ANNOUNCEMENTS } from "./announcements.mock";
 
 function byNewest(a: { publishedAt: string | null }, b: { publishedAt: string | null }) {

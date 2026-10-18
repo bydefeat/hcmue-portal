@@ -1,4 +1,4 @@
-import { mockDelay } from "@/shared/libs/mock.lib";
+import { mockDelay } from "@/shared/libs/mock-request.lib";
 import { KNOWLEDGE_BLOCK_LABEL } from "./curriculum.constant";
 import { COURSES, PROGRAM_COURSES, PROGRAMS } from "./curriculum.mock";
 import type { KnowledgeBlock, ProgramDetail, ProgramSummary } from "./curriculum.type";

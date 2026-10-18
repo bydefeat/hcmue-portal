@@ -1,5 +1,5 @@
 import { dayjs, weekdayOf } from "@/shared/libs/date.lib";
-import { mockDelay } from "@/shared/libs/mock.lib";
+import { mockDelay } from "@/shared/libs/mock-request.lib";
 import { mockAttendanceRecords } from "./schedule.mock";
 import type { AttendanceBook, AttendanceSession, MeetingInput } from "./schedule.type";
 

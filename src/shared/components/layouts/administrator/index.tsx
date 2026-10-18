@@ -51,7 +51,7 @@ export function AdministratorLayout({ user, termLabel, searchEntries, children }
         <Layout.Header className="sticky top-0 z-10 flex h-16 items-center gap-4 border-b border-border-strong px-4 sm:px-6">
           <Logo href={ADMINISTRATOR_HOME_HREF} className="shrink-0 lg:hidden" />
           <Breadcrumb items={breadcrumb} className="hidden min-w-0 shrink lg:block" />
-          <div className="hidden min-w-0 flex-1 justify-end md:flex">
+          <div className="hidden min-w-0 flex-1 justify-end leading-normal md:flex">
             <GlobalSearch entries={searchEntries} />
           </div>
           <span className="hidden shrink-0 text-sm text-muted xl:block">{termLabel}</span>

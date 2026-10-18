@@ -1,5 +1,6 @@
 import { daysUntil, dayjs } from "@/shared/libs/date.lib";
-import { createRandom, mockDate, mockDelay, mockStudentIdentity } from "@/shared/libs/mock.lib";
+import { createRandom, mockDate, mockStudentIdentity } from "@/shared/libs/mock.lib";
+import { mockDelay } from "@/shared/libs/mock-request.lib";
 import { DUE_SOON_DAYS, STANDING_SCALE, toStanding } from "./grades.constant";
 import { abilityOf, DEFAULT_COMPONENTS, GRADE_SHEET_SEEDS, mockTranscriptTerms } from "./grades.mock";
 import type {

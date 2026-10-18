@@ -1,3 +1,5 @@
+"use client";
+
 import { Skeleton } from "antd";
 
 export function PageSkeleton({ rows = 8 }: { rows?: number }) {

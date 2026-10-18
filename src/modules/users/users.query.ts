@@ -1,4 +1,4 @@
-import { mockDelay } from "@/shared/libs/mock.lib";
+import { mockDelay } from "@/shared/libs/mock-request.lib";
 import { ADVISOR_ASSIGNMENTS, CURRENT_LECTURER_ID, LECTURERS, STUDENTS } from "./users.mock";
 
 export async function getStudents() {

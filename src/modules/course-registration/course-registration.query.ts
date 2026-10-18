@@ -1,7 +1,7 @@
-import { periodLabel, weekdayLabel } from "@/shared/constants/period.constant";
-import { dayjs, hoursUntil } from "@/shared/libs/date.lib";
-import { createRandom, mockDelay, mockStudentIdentity } from "@/shared/libs/mock.lib";
-import { CLOSING_SOON_HOURS } from "./course-registration.constant";
+import { dayjs } from "@/shared/libs/date.lib";
+import { createRandom, mockStudentIdentity } from "@/shared/libs/mock.lib";
+import { mockDelay } from "@/shared/libs/mock-request.lib";
+import { conflictsOf, periodState } from "./course-registration.constant";
 import {
   CLASS_SECTIONS,
   FACULTY_MAJOR_INDEX,
@@ -9,54 +9,14 @@ import {
   rosterIndices,
   TERMS,
 } from "./course-registration.mock";
-import type {
-  ClassConflict,
-  ClassMeeting,
-  ClassSection,
-  ClassSectionView,
-  FacultyRegistrationSummary,
-  RegistrationPeriod,
-  RegistrationPeriodView,
-  RosterEntry,
-} from "./course-registration.type";
-
-function overlaps(a: ClassMeeting, b: ClassMeeting) {
-  return a.dayOfWeek === b.dayOfWeek && a.startPeriod <= b.endPeriod && b.startPeriod <= a.endPeriod;
-}
-
-function conflictsOf(section: ClassSection, siblings: ClassSection[]): ClassConflict[] {
-  if (section.status === "cancelled") return [];
-  const conflicts: ClassConflict[] = [];
-  for (const other of siblings) {
-    if (other.id === section.id || other.status === "cancelled") continue;
-    for (const mine of section.meetings) {
-      for (const theirs of other.meetings) {
-        if (!overlaps(mine, theirs)) continue;
-        const when = `${weekdayLabel(mine.dayOfWeek)}, ${periodLabel(theirs.startPeriod, theirs.endPeriod)}`;
-        if (mine.room === theirs.room) {
-          conflicts.push({ kind: "room", withCode: other.code, message: `Trùng phòng ${mine.room} với ${other.code} (${when})` });
-        }
-        if (section.lecturerId && section.lecturerId === other.lecturerId) {
-          conflicts.push({ kind: "lecturer", withCode: other.code, message: `Giảng viên đã dạy ${other.code} cùng giờ (${when})` });
-        }
-      }
-    }
-  }
-  return conflicts;
-}
+import type { ClassSection, ClassSectionView, FacultyRegistrationSummary, RosterEntry } from "./course-registration.type";
 
 function toView(section: ClassSection): ClassSectionView {
   const siblings = CLASS_SECTIONS.filter((entry) => entry.termId === section.termId);
   return { ...section, isFull: section.enrolled >= section.capacity, conflicts: conflictsOf(section, siblings) };
 }
 
-export function periodState(period: RegistrationPeriod): RegistrationPeriodView {
-  const now = dayjs();
-  const hoursLeft = hoursUntil(period.closesAt);
-  if (now.isBefore(period.opensAt)) return { ...period, state: "upcoming", hoursLeft };
-  if (now.isAfter(period.closesAt)) return { ...period, state: "closed", hoursLeft };
-  return { ...period, state: hoursLeft <= CLOSING_SOON_HOURS ? "closing" : "open", hoursLeft };
-}
+export { periodState };
 
 export async function getTerms() {
   await mockDelay();

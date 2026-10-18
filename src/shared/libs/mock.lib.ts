@@ -25,10 +25,6 @@ export function mockDate(offsetDays: number, time = "08:00") {
   return dayjs().startOf("day").add(offsetDays, "day").hour(hour).minute(minute).toISOString();
 }
 
-export function mockDelay(milliseconds = 120) {
-  return new Promise((resolve) => setTimeout(resolve, milliseconds));
-}
-
 const FAMILY_NAMES = ["Nguyễn", "Trần", "Lê", "Phạm", "Hoàng", "Huỳnh", "Phan", "Vũ", "Võ", "Đặng", "Bùi", "Đỗ", "Hồ", "Ngô", "Dương", "Lý"];
 const FEMALE_MIDDLE = ["Thị", "Ngọc", "Thanh", "Minh", "Thu", "Phương", "Bảo", "Khánh", "Thùy", "Mỹ"];
 const MALE_MIDDLE = ["Văn", "Minh", "Quốc", "Hoàng", "Đức", "Gia", "Thành", "Hữu", "Tuấn", "Nhật"];

@@ -6,8 +6,8 @@ Folder có ngoặc như `(administrator)` là **route group**: **không xuất h
 
 Hệ quả:
 - Hai group khác nhau **không được** có cùng đường dẫn. Ví dụ `(application)/dashboard` và `(administrator)/dashboard` đều ra `/dashboard`, Next.js sẽ báo lỗi.
-- Các portal theo vai trò (admin, giảng viên) và trang xác thực phải có thêm một **folder con thật** để tạo tiền tố URL, ví dụ `(administrator)/admin/...` cho ra `/admin/...`.
-- Group `(public)` giữ trang `/`, nên dashboard sinh viên chuyển sang `/dashboard`.
+- **Quy ước:** mọi group (trừ `(public)`) có một **folder con thật cùng tên** để tạo tiền tố URL: `(<tên>)/<tên>/...` → `/<tên>/...`. Ví dụ `(administrator)/administrator/users` → `/administrator/users`.
+- Riêng `(public)` không có tiền tố, giữ trang `/`.
 
 Tham khảo tài liệu route groups trong `node_modules/next/dist/docs/01-app/03-api-reference/03-file-conventions/route-groups.md`.
 
@@ -15,9 +15,9 @@ Tham khảo tài liệu route groups trong `node_modules/next/dist/docs/01-app/0
 |---|---|---|
 | `(public)` | Khách, chưa cần đăng nhập | `/`, `/announcements`, `/about` |
 | `(authentication)` | Đăng nhập, đăng ký, quên mật khẩu, xác minh | `/authentication/...` |
-| `(application)` | Sinh viên | `/dashboard`, `/registration`, ... |
+| `(application)` | Sinh viên | `/application/...` |
 | `(lecturer)` | Giảng viên và cố vấn học tập | `/lecturer/...` |
-| `(administrator)` | Phòng Đào tạo, quản trị | `/admin/...` |
+| `(administrator)` | Phòng Đào tạo, quản trị | `/administrator/...` |
 
 ## 2. Cây thư mục
 
@@ -43,15 +43,16 @@ src/
 │   │       └── verify/page.tsx      # /authentication/verify   xác minh email / OTP
 │   │
 │   ├── (application)/               # SINH VIÊN
-│   │   ├── layout.tsx               # sidebar SV + requireRole("student")
-│   │   ├── dashboard/               # /dashboard       tổng quan
-│   │   ├── registration/            # /registration    đăng ký học phần
-│   │   ├── schedule/                # /schedule        TKB (+ xuất .ics)
-│   │   ├── grades/                  # /grades          bảng điểm, GPA/CPA
-│   │   ├── exams/                   # /exams           lịch thi
-│   │   ├── curriculum/              # /curriculum      tiến độ CTĐT
-│   │   ├── study-plan/              # /study-plan      kế hoạch học tập (gửi cố vấn duyệt)
-│   │   └── profile/
+│   │   └── application/
+│   │       ├── layout.tsx           # sidebar SV + requireRole("student")
+│   │       ├── dashboard/           # /application/dashboard     tổng quan
+│   │       ├── registration/        # /application/registration  đăng ký học phần
+│   │       ├── schedule/            # /application/schedule      TKB (+ xuất .ics)
+│   │       ├── grades/              # /application/grades        bảng điểm, GPA/CPA
+│   │       ├── exams/               # /application/exams         lịch thi
+│   │       ├── curriculum/          # /application/curriculum    tiến độ CTĐT
+│   │       ├── study-plan/          # /application/study-plan    kế hoạch học tập (gửi cố vấn duyệt)
+│   │       └── profile/
 │   │
 │   ├── (lecturer)/                  # GIẢNG VIÊN + CỐ VẤN HỌC TẬP
 │   │   └── lecturer/
@@ -70,9 +71,9 @@ src/
 │   │           └── academic-warnings/
 │   │
 │   ├── (administrator)/             # PHÒNG ĐÀO TẠO / ADMIN
-│   │   └── admin/
+│   │   └── administrator/
 │   │       ├── layout.tsx           # requireRole("admin")
-│   │       ├── page.tsx             # /admin
+│   │       ├── page.tsx             # /administrator
 │   │       ├── announcements/       # đăng thông báo cho (public)
 │   │       ├── programs/            # chương trình đào tạo
 │   │       ├── courses/             # danh mục học phần + môn tiên quyết
@@ -103,10 +104,10 @@ Thêm vai trò mới (trưởng khoa, phòng khảo thí...) thì làm theo cùn
 | Vấn đề | Chọn | Lý do |
 |---|---|---|
 | Root layout | Chỉ 1 file `app/layout.tsx` | Nếu mỗi group có root layout riêng, chuyển giữa các portal sẽ phải tải lại toàn trang |
-| Slug URL | Tiếng Anh (`/registration`) | Đồng bộ với tên code, không phải xử lý dấu |
+| Slug URL | Tiếng Anh (`/application/registration`) | Đồng bộ với tên code, không phải xử lý dấu |
 | Phân quyền | 2 lớp: `proxy.ts` chỉ xem có cookie session hay không; `layout.tsx` của mỗi portal gọi `requireRole()` để kiểm tra session thật trên server | Proxy chỉ nên làm việc nhẹ như redirect |
 | Vai trò | Plugin `admin` của better-auth; một user có thể có nhiều role (`student`, `lecturer`, `advisor`, `admin`) | Cố vấn luôn là giảng viên, nên nằm trong `(lecturer)` dưới dạng mục `advising/` có kiểm tra role riêng |
-| Sau đăng nhập | Chuyển hướng theo role: admin → `/admin`, lecturer → `/lecturer`, student → `/dashboard` | |
+| Sau đăng nhập | Chuyển hướng theo role: admin → `/administrator`, lecturer → `/lecturer`, student → `/application/dashboard` | |
 | Logic nghiệp vụ | Đặt trong `src/modules/*`, page chỉ ghép UI | Ví dụ "bảng điểm" được dùng ở cả trang SV, GV và cố vấn, viết một lần |
 | Biến môi trường | Tiền tố `DEFEAT_*`, xem `.env.example` | better-auth không tự đọc các tên này, phải truyền `secret` và `baseURL` khi khởi tạo |
 

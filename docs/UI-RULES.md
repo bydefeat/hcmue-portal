@@ -29,8 +29,6 @@ Nguồn: plugin `evon:ui-ux` (evondevkit), áp cho stack của dự án (**antd 
 | 17 | Mỗi trạng thái đều gắn badge xanh "Hoạt động" trên mọi dòng (`N3`) | Chỉ ngoại lệ mới có dấu |
 | 18 | Màu để trang trí/phân loại khối: nền xanh nhạt cho khối này, tím cho khối kia (`M4`, `M5`) | Phân loại bằng icon + chữ |
 | 19 | Màu nhấn thứ hai (`M3`) | Chỉ Cerulean. Jasper không phải màu nhấn UI (mục 3) |
-| 20 | Tô màu nhấn mục sidebar/menu đang chọn (`I15`) | Nền xám + chữ đậm |
-| 21 | Nút nguy hiểm đỏ đặc `danger` mặc định của antd (`I4`) | Nền rose mờ + chữ rose-700 (mục 4) |
 | 22 | Ba nút cùng màu nhấn trong một nhóm (`I3`) | Một nút chính, còn lại viền |
 | 23 | Mã hex rải trong markup, `style={{ color: ... }}` (`M24`) | Token (mục 3) |
 | 24 | Spacing, cỡ chữ, bo góc tuỳ hứng: `p-[13px]`, `text-[15px]` (`F14`, `T7`) | Thang ở mục 2 |
@@ -91,30 +89,22 @@ Nguồn màu duy nhất: `src/shared/constants/theme.constant.ts` (sinh CSS vari
 
 ---
 
-## 4. Chỉnh antd cho khớp luật
+## 4. antd: có gì dùng đó, không độ chế
 
-antd là thư viện component của dự án: **dùng component antd, chỉ chỉnh token**, không viết lại.
+> **Luật của chủ dự án, đứng trên mọi luật evon ở trên.** Chỗ nào luật evon khác hành vi mặc định của antd thì **theo antd**.
 
-| Mặc định antd | Vi phạm | Chỉnh trong `ConfigProvider` |
-|---|---|---|
-| Hiệu ứng sóng khi bấm nút | `F22` (animate hình khối) | `wave={{ disabled: true }}` |
-| `borderRadius` 6 | `F1` | `borderRadius: 8`, `borderRadiusLG: 12` |
-| `controlHeight` 32 | nhịp form | `controlHeight: 40` (màn hẹp 44 qua class) |
-| `colorBgLayout` | `M1` | xám nhạt; `colorBgContainer` trắng |
-| `Menu` đang chọn: nền xanh nhạt + chữ màu nhấn | `I15` | `components.Menu`: `itemSelectedBg` xám, `itemSelectedColor` = chữ chính |
-| `Button danger` đỏ đặc | `I4` | Không dùng `danger` đặc; component `DangerButton` mỏng bọc antd `Button` với class nền rose mờ |
-| `Modal maskClosable` true | `I20` | `maskClosable={false}` cho modal có form |
-| `Card` có `boxShadow` khi `hoverable` | `M15` | Không dùng `hoverable` |
-| `fontFamily` hệ thống | `T2` | `var(--font-geist-sans)` |
-| Locale tiếng Anh | `T24` | `locale={viVN}` + `dayjs.locale("vi")` |
-
-Component chỉ gồm antd + class Tailwind cho bố cục; không CSS Module, không styled-components, không `style={{}}` trang trí.
+- **Giữ nguyên hành vi mặc định của antd**: hiệu ứng wave, vòng focus, kích thước, bo góc, màu mục Menu đang chọn, nút ✕ của Drawer/Modal, `danger` của Button/Menu, bóng của lớp nổi.
+- **Không** tắt/ghi đè hành vi antd bằng prop hay class (`wave={{ disabled }}`, `lineWidthFocus: 0`, `outline-hidden` lên component antd, `classNames` để vẽ lại, token component để đổi dáng).
+- `ConfigProvider` chỉ nhận: **màu thương hiệu + màu nền/chữ** (`theme.constant.ts`), font Geist, locale `vi_VN`, và token `Layout` cần để dựng khung (nền header/sider/footer, padding 0).
+- Thiếu component trong antd (ví dụ thanh tab dưới trên điện thoại) mới tự dựng bằng Tailwind.
+- Component chỉ gồm antd + class Tailwind cho bố cục; không CSS Module, không styled-components, không `style={{}}` trang trí.
+- **Source code không có comment.**
 
 ---
 
 ## 5. Kiểm trước khi báo xong
 
-1. Grep phải ra **rỗng**: `gradient|backdrop-blur|shadow-(md|lg|xl|2xl)|scale-1[0-9]|transition-all|border-dashed|dark:|—` trong `src/` (trừ chỗ có comment lý do).
+1. Grep phải ra **rỗng**: `gradient|backdrop-blur|shadow-(md|lg|xl|2xl)|scale-1[0-9]|transition-all|border-dashed|dark:|—` trong `src/`; không còn comment (`//`, `/* */`).
 2. Mở trang ở **1280px và 375px**: không cuộn ngang, chữ có dấu đúng font, ca dài nhất (tên học phần dài nhất, mã dài nhất) vẫn đọc được.
 3. Bật lần lượt **có dữ liệu / đang tải / rỗng / lỗi**: phần tử xung quanh không xê dịch.
 4. Chuyển sang đen trắng (DevTools → Rendering → Emulate vision deficiency: achromatopsia): mọi trạng thái vẫn đọc ra.

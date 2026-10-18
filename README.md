@@ -43,7 +43,7 @@
 npm install
 ```
 
-2. Tạo file môi trường và điền giá trị (`DATABASE_URL`, `BETTER_AUTH_SECRET`, ...):
+2. Tạo file môi trường và điền giá trị (`DEFEAT_POSTGRES_PRIMARY_DATABASE_CONNECTION_URL`, `DEFEAT_BETTER_AUTH_SESSION_SIGNING_SECRET_KEY`, ...):
 ```bash
 cp .env.example .env
 ```

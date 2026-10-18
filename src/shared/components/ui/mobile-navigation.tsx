@@ -146,9 +146,9 @@ export function MobileNavigation({ dockItems, sections, homeHref, hideFrom, acti
         aria-label="Điều hướng"
         inert={!isOpen}
         className={classes(
-          "fixed inset-y-0 left-0 z-50 flex w-[85vw] max-w-sm transform-gpu flex-col bg-surface shadow-2xl transition-transform duration-300",
+          "fixed inset-y-0 left-0 z-50 flex w-[85vw] max-w-sm transform-gpu flex-col bg-surface transition-[translate,box-shadow] duration-300",
           HIDE_CLASS[hideFrom],
-          isOpen ? "translate-x-0" : "-translate-x-full",
+          isOpen ? "translate-x-0 shadow-2xl" : "-translate-x-full",
         )}
       >
         <div className="flex items-center justify-between gap-3 border-b border-border-strong p-5">
@@ -210,12 +210,7 @@ function DockIcon({ icon: Icon, isActive }: { icon: NonNullable<NavItem["icon"]>
   return (
     <>
       <span className="relative flex h-[34px] w-[53px] items-center justify-center">
-        <span
-          className={classes(
-            "inline-flex transition-transform duration-200 group-hover:scale-110",
-            isActive && "[&_*]:[fill-opacity:1] [&_*]:[opacity:1]",
-          )}
-        >
+        <span className="inline-flex transition-transform duration-200 group-hover:scale-110">
           <Icon size={22} aria-hidden />
         </span>
       </span>

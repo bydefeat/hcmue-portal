@@ -236,3 +236,15 @@ Mỗi folder chỉ export `index.tsx`; các file con là chi tiết nội bộ c
 8. **SV xem kết quả:** bảng điểm, GPA/CPA, TKB và xuất .ics, lịch thi.
 9. **Cố vấn học tập:** SV gửi kế hoạch học tập, cố vấn duyệt; xem cảnh báo học vụ.
 10. **Báo cáo và cảnh báo tự động** cho admin.
+
+## 6. Nền tảng enterprise
+
+| Thành phần | Nơi đặt | Cách dùng |
+|---|---|---|
+| Phân quyền | `modules/access` | Mỗi vai trò là một tập quyền (`Permission`) và phạm vi `university` hoặc `faculty`. Trang admin gọi `requirePermission("...")` ở dòng đầu, thiếu quyền thì `forbidden()` hiện `app/forbidden.tsx` (cần `experimental.authInterrupts`). Dữ liệu có khoa thì lọc bằng `inScope(viewer, faculty)`. Menu admin lọc theo `permission` của từng mục trong `navigation.constant.ts` |
+| Xem thử vai trò | `access.action.ts` (`switchDemoViewer`) | Cookie `hcmue-demo-admin-role` chọn một bản ghi phân quyền mẫu; đổi trong menu tài khoản. Bỏ khi có đăng nhập thật |
+| Đơn từ, quy trình duyệt | `modules/requests` | Mỗi loại đơn khai báo chuỗi bước (`REQUEST_KINDS`) và hạn xử lý từng bước. `requestView()` suy ra trạng thái và quá hạn, `decideStep()` chuyển bước. `RequestInbox` dùng chung cho 3 cổng (`mode` = `process` hoặc `own`) |
+| Thông báo | `modules/notifications` + `shared/components/ui/notification-bell.tsx` | Layout của mỗi portal nhận danh sách đã ghép nhãn, trang `/…/notifications` dùng `NotificationList` |
+| Nhật ký thao tác | `modules/audit` | Mỗi thao tác ghi ai, lúc nào, đối tượng, giá trị trước và sau |
+| Quy chế, lịch năm học | `modules/settings` | Thang điểm, hạn mức tín chỉ, ngưỡng cảnh báo, tỉ lệ vắng, hạn xử lý quy trình. Hiện các module khác vẫn dùng hằng số mặc định trùng với giá trị này; khi có DB sẽ đọc từ đây |
+| Khảo thí, phòng học, khảo sát | `modules/exams`, `modules/facilities`, `modules/surveys` | Dữ liệu dùng chung cho cả 3 cổng |

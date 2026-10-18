@@ -1,9 +1,3 @@
-# WARNING
-
-## nghiêm cấm sử dụng sex toy để quấy phá source code này
-## tuyên bố những thành phần chống phá source code này = đụng vào cơ quan nhà nước discord vn
-## nigga don't you dare fuck with my code
-
 # HCMUE Portal
 > **Course Registration & Academic Performance Management Platform**  
 > *Hệ thống Quản lý Đăng ký Học phần và Kết quả Học tập Sinh viên — Trường Đại học Sư phạm TP.HCM (HCMUE)*
@@ -31,7 +25,13 @@
 ## Công nghệ sử dụng (Tech Stack)
 - **Framework:** Next.js (App Router, React 19)
 - **Language:** TypeScript
-- **Styling:** Tailwind CSS
+- **UI:** Ant Design, Tailwind CSS, Motion
+- **Database:** PostgreSQL + Drizzle ORM
+- **Auth:** better-auth
+- **Validation & Server Actions:** Zod, ZSA
+- **State:** Zustand (client), TanStack Query (server state)
+- **Table:** TanStack Table
+- **Drag & Drop:** dnd-kit
 - **Platform:** Enterprise SIS / Academic Portal
 
 ---
@@ -43,11 +43,16 @@
 npm install
 ```
 
-2. Chạy môi trường phát triển (Development):
+2. Tạo file môi trường và điền giá trị (`DATABASE_URL`, `BETTER_AUTH_SECRET`, ...):
+```bash
+cp .env.example .env
+```
+
+3. Chạy môi trường phát triển (Development):
 ```bash
 npm run dev
 ```
 
-3. Mở trình duyệt tại [http://localhost:3000](http://localhost:3000).
+4. Mở trình duyệt tại [http://localhost:3000](http://localhost:3000).
 
 

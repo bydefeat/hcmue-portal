@@ -6,6 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { Button, Drawer, Layout, Menu } from "antd";
 import { Menu as MenuIcon } from "defeat-icons-react";
 import { Logo } from "@/shared/components/ui/logo";
+import { NavList } from "@/shared/components/ui/nav-tree";
 import { isActiveHref, PUBLIC_NAVIGATION } from "@/shared/constants/navigation.constant";
 
 const SIGN_IN_HREF = "/authentication/sign-in";
@@ -22,7 +23,7 @@ export function PublicHeader() {
   }));
 
   return (
-    <Layout.Header className="sticky top-0 z-10 border-b border-border">
+    <Layout.Header className="sticky top-0 z-10 border-b border-border-strong">
       <div className="mx-auto flex h-full w-full max-w-6xl items-center gap-2 px-4 sm:px-6">
         <Button
           type="text"
@@ -51,13 +52,7 @@ export function PublicHeader() {
         onClose={() => setIsDrawerOpen(false)}
         title={<Logo subtitle="Cổng đào tạo & học vụ" />}
       >
-        <Menu
-          mode="inline"
-          items={items}
-          selectedKeys={activeKeys}
-          onClick={() => setIsDrawerOpen(false)}
-          className="border-0"
-        />
+        <NavList items={PUBLIC_NAVIGATION} onNavigate={() => setIsDrawerOpen(false)} />
       </Drawer>
     </Layout.Header>
   );

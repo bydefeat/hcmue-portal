@@ -1,12 +1,17 @@
 import type { ComponentType } from "react";
 import {
   BookOpen,
+  Books,
   CalendarClock,
   CalendarDays,
   ChartColumn,
   ClipboardCheck,
+  GraduationCap,
+  House,
   HouseDashboard,
+  Megaphone,
   Route,
+  School,
   User,
   type IconProps,
 } from "defeat-icons-react";
@@ -19,18 +24,21 @@ export type NavItem = {
 };
 
 export type NavGroup = {
-  label?: string;
+  label: string;
+  icon: ComponentType<IconProps>;
   items: NavItem[];
 };
 
 export const PUBLIC_NAVIGATION: NavItem[] = [
-  { label: "Trang chủ", href: "/" },
-  { label: "Thông báo", href: "/announcements" },
-  { label: "Giới thiệu", href: "/about" },
+  { label: "Trang chủ", href: "/", icon: House },
+  { label: "Thông báo", href: "/announcements", icon: Megaphone },
+  { label: "Giới thiệu", href: "/about", icon: School },
 ];
 
 export const APPLICATION_NAVIGATION: NavGroup[] = [
   {
+    label: "Học vụ",
+    icon: GraduationCap,
     items: [
       { label: "Tổng quan", shortLabel: "Tổng quan", href: "/application/dashboard", icon: HouseDashboard },
       { label: "Đăng ký học phần", shortLabel: "Đăng ký", href: "/application/registration", icon: ClipboardCheck },
@@ -38,6 +46,7 @@ export const APPLICATION_NAVIGATION: NavGroup[] = [
   },
   {
     label: "Học tập",
+    icon: Books,
     items: [
       { label: "Thời khóa biểu", shortLabel: "Lịch học", href: "/application/schedule", icon: CalendarDays },
       { label: "Lịch thi", href: "/application/exams", icon: CalendarClock },
@@ -46,6 +55,7 @@ export const APPLICATION_NAVIGATION: NavGroup[] = [
   },
   {
     label: "Đào tạo",
+    icon: School,
     items: [
       { label: "Chương trình đào tạo", href: "/application/curriculum", icon: BookOpen },
       { label: "Kế hoạch học tập", href: "/application/study-plan", icon: Route },

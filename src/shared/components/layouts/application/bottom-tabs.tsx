@@ -3,8 +3,9 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Drawer, Menu } from "antd";
+import { Drawer } from "antd";
 import { Dots } from "defeat-icons-react";
+import { NavList } from "@/shared/components/ui/nav-tree";
 import {
   APPLICATION_BOTTOM_TABS,
   APPLICATION_NAVIGATION,
@@ -15,8 +16,7 @@ const ALL_ITEMS = APPLICATION_NAVIGATION.flatMap((group) => group.items);
 const TAB_ITEMS = ALL_ITEMS.filter((item) => APPLICATION_BOTTOM_TABS.includes(item.href));
 const MORE_ITEMS = ALL_ITEMS.filter((item) => !APPLICATION_BOTTOM_TABS.includes(item.href));
 
-const TAB_CLASS =
-  "flex min-w-0 cursor-pointer flex-col items-center justify-center gap-1 text-xs outline-hidden transition-colors";
+const TAB_CLASS = "flex h-16 min-w-0 cursor-pointer flex-col items-center justify-center gap-1 text-xs transition-colors";
 
 export function BottomTabs() {
   const pathname = usePathname();
@@ -37,7 +37,7 @@ export function BottomTabs() {
               key={item.href}
               href={item.href}
               aria-current={isActive ? "page" : undefined}
-              className={`${TAB_CLASS} h-16 ${isActive ? "font-medium text-primary" : "text-muted hover:text-foreground"}`}
+              className={`${TAB_CLASS} ${isActive ? "font-medium text-primary" : "text-muted hover:text-foreground"}`}
             >
               <Icon size={20} aria-hidden />
               <span className="max-w-full truncate px-1">{item.shortLabel ?? item.label}</span>
@@ -47,7 +47,7 @@ export function BottomTabs() {
         <button
           type="button"
           onClick={() => setIsMoreOpen(true)}
-          className={`${TAB_CLASS} h-16 ${isMoreActive ? "font-medium text-primary" : "text-muted hover:text-foreground"}`}
+          className={`${TAB_CLASS} ${isMoreActive ? "font-medium text-primary" : "text-muted hover:text-foreground"}`}
         >
           <Dots size={20} aria-hidden />
           <span>Thêm</span>
@@ -55,20 +55,7 @@ export function BottomTabs() {
       </nav>
 
       <Drawer title="Thêm" placement="bottom" size="auto" open={isMoreOpen} onClose={() => setIsMoreOpen(false)}>
-        <Menu
-          mode="inline"
-          selectedKeys={MORE_ITEMS.filter((item) => isActiveHref(pathname, item.href)).map((item) => item.href)}
-          onClick={() => setIsMoreOpen(false)}
-          className="border-0"
-          items={MORE_ITEMS.map((item) => {
-            const Icon = item.icon!;
-            return {
-              key: item.href,
-              icon: <Icon size={16} aria-hidden />,
-              label: <Link href={item.href}>{item.label}</Link>,
-            };
-          })}
-        />
+        <NavList items={MORE_ITEMS} onNavigate={() => setIsMoreOpen(false)} />
       </Drawer>
     </>
   );

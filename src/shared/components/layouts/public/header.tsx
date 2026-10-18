@@ -37,21 +37,18 @@ export function PublicHeader() {
           items={items}
           selectedKeys={activeKeys}
           disabledOverflow
-          className="hidden min-w-0 flex-1 border-0 outline-hidden md:flex [&_a]:outline-hidden"
+          className="hidden min-w-0 flex-1 border-0 md:flex"
         />
         <Button type="primary" onClick={() => router.push(SIGN_IN_HREF)} className="ml-auto shrink-0">
           Đăng nhập
         </Button>
       </div>
 
-      {/* Dưới md: panel trượt từ trái, đóng bằng bấm ngoài, Esc hoặc chọn một mục (evon, layouts/app.md). */}
       <Drawer
         placement="left"
         size={280}
         open={isDrawerOpen}
         onClose={() => setIsDrawerOpen(false)}
-        closable={false}
-        classNames={{ wrapper: "shadow-xl" }}
         title={<Logo subtitle="Cổng đào tạo & học vụ" />}
       >
         <Menu

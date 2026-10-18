@@ -25,7 +25,6 @@ export function BottomTabs() {
 
   return (
     <>
-      {/* Dưới lg: thay sidebar bằng thanh tab dưới; SV dùng điện thoại là chính. */}
       <nav
         aria-label="Điều hướng chính"
         className="fixed inset-x-0 bottom-0 z-10 grid grid-cols-5 border-t border-border-strong bg-surface pb-[env(safe-area-inset-bottom)] lg:hidden"
@@ -55,13 +54,9 @@ export function BottomTabs() {
         </button>
       </nav>
 
-      <Drawer placement="bottom" size="auto" open={isMoreOpen} onClose={() => setIsMoreOpen(false)}
-        closable={false}
-        classNames={{ wrapper: "shadow-xl" }}
-      >
+      <Drawer title="Thêm" placement="bottom" size="auto" open={isMoreOpen} onClose={() => setIsMoreOpen(false)}>
         <Menu
           mode="inline"
-          inlineIndent={12}
           selectedKeys={MORE_ITEMS.filter((item) => isActiveHref(pathname, item.href)).map((item) => item.href)}
           onClick={() => setIsMoreOpen(false)}
           className="border-0"

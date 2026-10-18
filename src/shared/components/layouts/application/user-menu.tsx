@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Avatar, Dropdown, type MenuProps } from "antd";
+import { Avatar, Button, Dropdown, type MenuProps } from "antd";
 import { ArrowDoorOut, ChevronExpandY } from "defeat-icons-react";
 import { APPLICATION_PROFILE } from "@/shared/constants/navigation.constant";
 
@@ -35,7 +35,6 @@ export function UserMenu({ user, compact = false }: { user: ApplicationUser; com
       label: <Link href={APPLICATION_PROFILE.href}>{APPLICATION_PROFILE.label}</Link>,
     },
     { type: "divider" },
-    // Đăng xuất: việc kết thúc phiên nên mang tông nguy hiểm (luật khoá 1). Logic nối ở giai đoạn auth.
     { key: "sign-out", danger: true, icon: <ArrowDoorOut size={16} aria-hidden />, label: "Đăng xuất" },
   ];
 
@@ -46,25 +45,15 @@ export function UserMenu({ user, compact = false }: { user: ApplicationUser; com
   );
 
   return (
-    <Dropdown
-      menu={{ items }}
-      trigger={["click"]}
-      placement={compact ? "bottomRight" : "topLeft"}
-      classNames={{ root: "min-w-56" }}
-    >
+    <Dropdown menu={{ items }} trigger={["click"]} placement={compact ? "bottomRight" : "topLeft"}>
       {compact ? (
-        <button type="button" aria-label="Tài khoản" className="flex cursor-pointer rounded-full outline-hidden">
-          {avatar}
-        </button>
+        <Button type="text" shape="circle" aria-label="Tài khoản" icon={avatar} />
       ) : (
-        <button
-          type="button"
-          className="flex h-10 w-full cursor-pointer items-center gap-2.5 rounded-xl px-1 text-left outline-hidden transition-colors hover:bg-item-hover"
-        >
+        <Button type="text" block className="h-auto justify-start px-1 py-1 text-left">
           {avatar}
-          <span className="min-w-0 flex-1 truncate text-sm font-medium">{user.name}</span>
+          <span className="min-w-0 flex-1 truncate font-medium">{user.name}</span>
           <ChevronExpandY size={16} aria-hidden className="shrink-0 text-muted" />
-        </button>
+        </Button>
       )}
     </Dropdown>
   );

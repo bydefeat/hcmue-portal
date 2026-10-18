@@ -9,9 +9,8 @@ import { THEME } from "@/shared/constants/theme.constant";
 dayjs.locale("vi");
 
 export function AntdProvider({ children }: { children: React.ReactNode }) {
-  // wave tắt: hiệu ứng sóng khi bấm là animate hình khối (F22).
   return (
-    <ConfigProvider theme={THEME} locale={viVN} wave={{ disabled: true }}>
+    <ConfigProvider theme={THEME} locale={viVN}>
       {children}
     </ConfigProvider>
   );

@@ -6,7 +6,7 @@ Folder có ngoặc như `(administrator)` là **route group**: **không xuất h
 
 Hệ quả:
 - Hai group khác nhau **không được** có cùng đường dẫn. Ví dụ `(application)/dashboard` và `(administrator)/dashboard` đều ra `/dashboard`, Next.js sẽ báo lỗi.
-- Các portal theo vai trò (admin, giảng viên) phải có thêm một **folder con thật** để tạo tiền tố URL, ví dụ `(administrator)/admin/...` cho ra `/admin/...`.
+- Các portal theo vai trò (admin, giảng viên) và trang xác thực phải có thêm một **folder con thật** để tạo tiền tố URL, ví dụ `(administrator)/admin/...` cho ra `/admin/...`.
 - Group `(public)` giữ trang `/`, nên dashboard sinh viên chuyển sang `/dashboard`.
 
 Tham khảo tài liệu route groups trong `node_modules/next/dist/docs/01-app/03-api-reference/03-file-conventions/route-groups.md`.
@@ -14,7 +14,7 @@ Tham khảo tài liệu route groups trong `node_modules/next/dist/docs/01-app/0
 | Group | Đối tượng | URL |
 |---|---|---|
 | `(public)` | Khách, chưa cần đăng nhập | `/`, `/announcements`, `/about` |
-| `(auth)` | Đăng nhập, quên mật khẩu | `/login`, `/forgot-password` |
+| `(authentication)` | Đăng nhập, đăng ký, quên mật khẩu, xác minh | `/authentication/...` |
 | `(application)` | Sinh viên | `/dashboard`, `/registration`, ... |
 | `(lecturer)` | Giảng viên và cố vấn học tập | `/lecturer/...` |
 | `(administrator)` | Phòng Đào tạo, quản trị | `/admin/...` |
@@ -23,7 +23,7 @@ Tham khảo tài liệu route groups trong `node_modules/next/dist/docs/01-app/0
 
 ```
 src/
-├── proxy.ts                         # chặn sớm: chưa có session → /login
+├── proxy.ts                         # chặn sớm: chưa có session → /authentication/sign-in
 ├── app/
 │   ├── layout.tsx                   # root layout DUY NHẤT: <html>, AntdRegistry, font
 │   │
@@ -34,10 +34,13 @@ src/
 │   │   │   └── [slug]/
 │   │   └── about/                   # /about
 │   │
-│   ├── (auth)/
-│   │   ├── layout.tsx               # layout căn giữa
-│   │   ├── login/page.tsx           # /login
-│   │   └── forgot-password/page.tsx
+│   ├── (authentication)/            # XÁC THỰC
+│   │   └── authentication/
+│   │       ├── layout.tsx           # layout căn giữa, logo trường
+│   │       ├── sign-in/page.tsx     # /authentication/sign-in
+│   │       ├── sign-up/page.tsx     # /authentication/sign-up
+│   │       ├── forgot-password/page.tsx  # /authentication/forgot-password
+│   │       └── verify/page.tsx      # /authentication/verify   xác minh email / OTP
 │   │
 │   ├── (application)/               # SINH VIÊN
 │   │   ├── layout.tsx               # sidebar SV + requireRole("student")
@@ -110,7 +113,7 @@ Thêm vai trò mới (trưởng khoa, phòng khảo thí...) thì làm theo cùn
 ## 4. Lộ trình triển khai
 
 1. **Nền tảng:** drizzle client, kết nối Postgres, `betterAuth()`, route `api/auth`.
-2. **Auth:** `(auth)/login`, `proxy.ts`, helper `requireRole()`, chuyển hướng theo role.
+2. **Auth:** các trang trong `(authentication)/authentication/` (sign-in, sign-up, forgot-password, verify), `proxy.ts`, helper `requireRole()`, chuyển hướng theo role.
 3. **Public:** trang chủ, thông báo (đọc từ module `announcements`).
 4. **Dữ liệu danh mục (admin):** chương trình đào tạo, học phần, học kỳ, lớp học phần, người dùng. Phải có dữ liệu này thì sinh viên mới có lớp để đăng ký.
 5. **Đăng ký học phần (SV):** kiểm tra môn tiên quyết, giới hạn tín chỉ, trùng lịch; dùng transaction và khóa chỗ để không vượt sĩ số.

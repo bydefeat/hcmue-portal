@@ -41,6 +41,10 @@ export const CSS_VARIABLES = {
 export const THEME: ThemeConfig = {
   token: {
     colorPrimary: COLORS.primary,
+    colorPrimaryBg: "#e3e9ee",
+    colorPrimaryBgHover: "#d9e2e9",
+    colorPrimaryBorder: "#b8c8d5",
+    colorPrimaryBorderHover: "#89a4ba",
     colorLink: COLORS.primary,
     colorText: COLORS.foreground,
     colorTextSecondary: COLORS.muted,

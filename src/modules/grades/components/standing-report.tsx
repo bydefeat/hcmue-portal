@@ -1,0 +1,97 @@
+"use client";
+
+import { Table, Tooltip, type TableColumnsType } from "antd";
+import { ChartPie } from "defeat-icons-react";
+import { EmptyState } from "@/shared/components/ui/empty-state";
+import { formatPoint, STANDING_SCALE } from "../grades.constant";
+import type { AcademicStanding, FacultyStandingSummary } from "../grades.type";
+
+const SEGMENT_CLASS: Record<AcademicStanding, string> = {
+  excellent: "bg-primary",
+  "very-good": "bg-primary/70",
+  good: "bg-primary/45",
+  average: "bg-primary/20",
+  weak: "bg-amber-500",
+  poor: "bg-rose-600",
+};
+
+function DistributionBar({ counts, total }: { counts: Record<AcademicStanding, number>; total: number }) {
+  const summary = STANDING_SCALE.map((step) => `${step.label} ${counts[step.standing]}`).join(", ");
+  return (
+    <div role="img" aria-label={summary} className="flex h-3 w-full min-w-40 gap-0.5 overflow-hidden rounded-full bg-border-strong">
+      {STANDING_SCALE.filter((step) => counts[step.standing] > 0).map((step) => (
+        <Tooltip key={step.standing} title={`${step.label}: ${counts[step.standing]} sinh viên (${Math.round((counts[step.standing] / total) * 100)}%)`}>
+          <div className={`h-full ${SEGMENT_CLASS[step.standing]}`} style={{ width: `${(counts[step.standing] / total) * 100}%` }} />
+        </Tooltip>
+      ))}
+    </div>
+  );
+}
+
+export function StandingLegend({ summaries }: { summaries: FacultyStandingSummary[] }) {
+  const totals = STANDING_SCALE.map((step) => ({ ...step, count: summaries.reduce((sum, entry) => sum + entry.counts[step.standing], 0) }));
+  return (
+    <ul className="flex flex-wrap gap-x-5 gap-y-2 text-sm">
+      {totals.map((step) => (
+        <li key={step.standing} className="flex items-center gap-2">
+          <span aria-hidden className={`size-2.5 rounded-sm ${SEGMENT_CLASS[step.standing]}`} />
+          <span>{step.label}</span>
+          <span className="text-muted tabular-nums">{step.count}</span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+export function StandingReport({ summaries }: { summaries: FacultyStandingSummary[] }) {
+  const columns: TableColumnsType<FacultyStandingSummary> = [
+    { title: "Khoa", dataIndex: "faculty", width: 220, fixed: "left" },
+    { title: "Sinh viên", dataIndex: "total", width: 96, align: "right", render: (value: number) => <span className="tabular-nums">{value}</span> },
+    {
+      title: "CPA TB",
+      dataIndex: "averageCpa",
+      width: 90,
+      align: "right",
+      sorter: (a, b) => a.averageCpa - b.averageCpa,
+      render: (value: number) => <span className="tabular-nums">{formatPoint(value)}</span>,
+    },
+    {
+      title: "Phân bố xếp loại",
+      key: "distribution",
+      width: 320,
+      render: (_, row) => <DistributionBar counts={row.counts} total={row.total} />,
+    },
+    {
+      title: "Giỏi trở lên",
+      key: "top",
+      width: 110,
+      align: "right",
+      render: (_, row) => (
+        <span className="tabular-nums">{Math.round(((row.counts.excellent + row.counts["very-good"]) / row.total) * 100)}%</span>
+      ),
+    },
+    {
+      title: "Cảnh báo",
+      dataIndex: "warnings",
+      width: 96,
+      align: "right",
+      sorter: (a, b) => a.warnings - b.warnings,
+      render: (value: number) => <span className={`tabular-nums ${value > 0 ? "font-medium text-amber-700" : ""}`}>{value}</span>,
+    },
+  ];
+
+  return (
+    <div className="flex flex-col gap-3">
+      <StandingLegend summaries={summaries} />
+      <Table
+        rowKey="faculty"
+        size="small"
+        columns={columns}
+        dataSource={summaries}
+        pagination={false}
+        scroll={{ x: 940 }}
+        locale={{ emptyText: <EmptyState icon={ChartPie} title="Chưa có dữ liệu xếp loại" description="Kết quả học tập sẽ được tổng hợp khi học kỳ đầu tiên kết thúc." /> }}
+      />
+    </div>
+  );
+}

@@ -16,6 +16,8 @@
   --color-primary-foreground: var(--primary-foreground);
   --color-primary-light: var(--primary-light);
   --color-brand-accent: var(--brand-accent);
+  --color-primary-tint: var(--primary-tint);
+  --font-slab: var(--font-roboto-slab), ui-serif, Georgia, serif;
   --color-item-hover: var(--item-hover);
   --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, monospace;

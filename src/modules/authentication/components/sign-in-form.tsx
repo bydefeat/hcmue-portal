@@ -47,12 +47,6 @@ export function SignInForm({ defaultEmail }: { defaultEmail?: string }) {
           Đăng nhập
         </Button>
       </Form>
-      <p className="mt-6 text-center text-sm text-muted">
-        Chưa có tài khoản?{" "}
-        <Link href="/authentication/sign-up" className="font-medium text-primary hover:underline">
-          Đăng ký
-        </Link>
-      </p>
     </>
   );
 }

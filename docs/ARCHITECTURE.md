@@ -14,7 +14,7 @@ Tham khảo tài liệu route groups trong `node_modules/next/dist/docs/01-app/0
 | Group | Đối tượng | URL |
 |---|---|---|
 | `(public)` | Khách, chưa cần đăng nhập | `/`, `/announcements`, `/about` |
-| `(authentication)` | Đăng nhập, đăng ký, quên mật khẩu, xác minh | `/authentication/...` |
+| `(authentication)` | Đăng nhập, quên mật khẩu, xác minh (không có đăng ký: tài khoản do trường cấp) | `/authentication/...` |
 | `(application)` | Sinh viên | `/application/...` |
 | `(lecturer)` | Giảng viên và cố vấn học tập | `/lecturer/...` |
 | `(administrator)` | Phòng Đào tạo, quản trị | `/administrator/...` |
@@ -41,7 +41,6 @@ src/
 │   │   └── authentication/
 │   │       ├── layout.tsx           # → <AuthenticationLayout>
 │   │       ├── sign-in/page.tsx     # /authentication/sign-in
-│   │       ├── sign-up/page.tsx     # /authentication/sign-up
 │   │       ├── forgot-password/page.tsx
 │   │       └── verify/page.tsx      # xác minh email / OTP
 │   │
@@ -209,7 +208,7 @@ Mỗi folder chỉ export `index.tsx`; các file con là chi tiết nội bộ c
 ## 5. Lộ trình triển khai
 
 1. **Nền tảng:** `env.lib.ts`, `db.lib.ts`, `drizzle.config.ts`, `theme.constant.ts`, gắn `ConfigProvider` ở root layout.
-2. **Auth:** `auth.lib.ts`, `auth-client.lib.ts`, `session.lib.ts`, route `api/auth`, `src/proxy.ts` + `src/proxies/authentication.proxy.ts`, `AuthenticationLayout` và 4 trang sign-in / sign-up / forgot-password / verify.
+2. **Auth:** `auth.lib.ts`, `auth-client.lib.ts`, `session.lib.ts`, route `api/auth`, `src/proxy.ts` + `src/proxies/authentication.proxy.ts`, `AuthenticationLayout` và 3 trang sign-in / forgot-password / verify (không có sign-up).
 3. **Layouts:** dựng 4 layout còn lại cùng `navigation.constant.ts`, mỗi portal có một trang trống để xem layout.
 4. **Public:** trang chủ, thông báo (module `announcements`).
 5. **Dữ liệu danh mục (admin):** chương trình đào tạo, học phần, học kỳ, lớp học phần, người dùng. Phải có dữ liệu này thì sinh viên mới có lớp để đăng ký.

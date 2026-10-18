@@ -137,7 +137,7 @@ Khoá chính `uuidv7`. Ràng buộc đặt ở DB thay vì ở code:
 ### Giai đoạn 3 — Xác thực
 - `auth.lib.ts` (drizzleAdapter `pg`, emailAndPassword, plugin `admin`, `secret`/`baseURL` từ `DEFEAT_*`), `auth-client.lib.ts`, `session.lib.ts` (`getSession` + `requireRole`), route `api/auth/[...all]`.
 - `src/proxy.ts` + `src/proxies/authentication.proxy.ts`: chưa có cookie → `/authentication/sign-in`.
-- Sign-up: *cần chốt* (tự đăng ký hay chỉ kích hoạt tài khoản do trường cấp); mặc định **tắt đăng ký mở** (`disableSignUp`).
+- **Không có sign-up** (chủ dự án chốt): tài khoản do trường cấp, bật `emailAndPassword.disableSignUp`.
 - Áp skill `better-auth-security-best-practices`: rate limit đăng nhập, trusted origins, cookie `secure`.
 - Kiểm: 3 tài khoản seed đăng nhập đúng portal; SV mở `/administrator` bị chặn; tắt JavaScript vẫn thấy đủ layout (không render phía client).
 
@@ -182,5 +182,5 @@ Khoá chính `uuidv7`. Ràng buộc đặt ở DB thay vì ở code:
 1. Brief + bảng 2.1 đúng chưa (cổng 1 của evon).
 2. Mục 2.3: sidebar admin sáng, nút đăng nhập public màu Cerulean.
 3. Gỡ `zsa`, `zsa-react`, `@tanstack/react-table`.
-4. Sign-up: tắt đăng ký mở, hay dùng làm bước kích hoạt tài khoản?
+4. ~~Sign-up~~: đã chốt, không có đăng ký.
 5. Logo bản SVG / bản chỉ có dấu; bảng quy đổi điểm và ngưỡng cảnh báo học vụ của trường.

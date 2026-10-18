@@ -22,7 +22,7 @@ export function VerifyForm({ email }: { email?: string }) {
               Mã gồm 6 số đã được gửi tới <span className="font-medium break-all text-foreground">{email}</span>.
             </>
           ) : (
-            "Mã gồm 6 số đã được gửi tới email bạn vừa đăng ký."
+            "Mã gồm 6 số đã được gửi tới email của bạn."
           )
         }
       />
@@ -41,8 +41,8 @@ export function VerifyForm({ email }: { email?: string }) {
       </Form>
       <div className="mt-6 flex items-center justify-between gap-3 text-sm">
         <ResendCodeButton />
-        <Link href="/authentication/sign-up" className="text-foreground hover:underline">
-          Đổi email
+        <Link href="/authentication/sign-in" className="text-foreground hover:underline">
+          Quay lại đăng nhập
         </Link>
       </div>
     </>

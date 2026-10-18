@@ -205,7 +205,7 @@ Mỗi folder chỉ export `index.tsx`; các file con là chi tiết nội bộ c
 
 1. **Nền tảng:** `env.lib.ts`, `db.lib.ts`, `drizzle.config.ts`, `theme.constant.ts`, gắn `ConfigProvider` ở root layout.
 2. **Auth:** `auth.lib.ts`, `auth-client.lib.ts`, `session.lib.ts`, route `api/auth`, `src/proxy.ts` + `src/proxies/authentication.proxy.ts`, `AuthenticationLayout` và 4 trang sign-in / sign-up / forgot-password / verify.
-3. **Layouts:** dựng 4 layout còn lại cùng `navigation.ts`, mỗi portal có một trang trống để xem layout.
+3. **Layouts:** dựng 4 layout còn lại cùng `navigation.constant.ts`, mỗi portal có một trang trống để xem layout.
 4. **Public:** trang chủ, thông báo (module `announcements`).
 5. **Dữ liệu danh mục (admin):** chương trình đào tạo, học phần, học kỳ, lớp học phần, người dùng. Phải có dữ liệu này thì sinh viên mới có lớp để đăng ký.
 6. **Đăng ký học phần (SV):** kiểm tra môn tiên quyết, giới hạn tín chỉ, trùng lịch; dùng transaction và khóa chỗ để không vượt sĩ số.

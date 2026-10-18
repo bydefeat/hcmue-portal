@@ -96,7 +96,7 @@ Nguồn màu duy nhất: `src/shared/constants/theme.constant.ts` (sinh CSS vari
 - **Giữ nguyên hành vi mặc định của antd**: hiệu ứng wave, vòng focus, kích thước, bo góc, màu mục Menu đang chọn, nút ✕ của Drawer/Modal, `danger` của Button/Menu, bóng của lớp nổi.
 - **Không** tắt/ghi đè hành vi antd bằng prop hay class (`wave={{ disabled }}`, `lineWidthFocus: 0`, `outline-hidden` lên component antd, `classNames` để vẽ lại, token component để đổi dáng).
 - `ConfigProvider` chỉ nhận: **màu thương hiệu + màu nền/chữ** (`theme.constant.ts`), font Geist, locale `vi_VN`, và token `Layout` cần để dựng khung (nền header/sider/footer, padding 0).
-- Thiếu component trong antd (ví dụ thanh tab dưới trên điện thoại) mới tự dựng bằng Tailwind.
+- Thiếu component trong antd (ví dụ dock và sidebar trượt trên điện thoại) mới tự dựng bằng Tailwind.
 - Component chỉ gồm antd + class Tailwind cho bố cục; không CSS Module, không styled-components, không `style={{}}` trang trí.
 - **Source code không có comment.**
 

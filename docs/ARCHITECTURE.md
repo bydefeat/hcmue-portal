@@ -135,7 +135,7 @@ Tên file dạng `<tên>.<loại>.ts`, phần `<tên>` viết kebab-case. Trong 
 | Drizzle schema | `*.schema.ts` | `grades.schema.ts` | các bảng `grades`, `gradeItems`... |
 | Query (đọc) | `*.query.ts` | `grades.query.ts` | `getTranscript()` |
 | Server action (ghi) | `*.action.ts` | `grades.action.ts` | `submitGrades()` |
-| Component | `kebab-case.tsx`, **không** có đuôi loại | `sidebar.tsx`, `bottom-tabs.tsx` | `Sidebar`, `BottomTabs` |
+| Component | `kebab-case.tsx`, **không** có đuôi loại | `sidebar.tsx`, `mobile-navigation.tsx` | `Sidebar`, `MobileNavigation` |
 
 Ngoại lệ: file mà Next.js quy định tên (`proxy.ts`, `layout.tsx`, `page.tsx`, `route.ts`...) giữ nguyên tên gốc.
 
@@ -172,9 +172,9 @@ Thêm vai trò mới (trưởng khoa, phòng khảo thí...) thì làm theo cùn
 
 | Layout | Người dùng & thiết bị | Khung trang | Điểm riêng |
 |---|---|---|---|
-| **Public** | Khách, phụ huynh; điện thoại và máy tính | Header ngang (logo + menu + nút "Đăng nhập" đỏ Jasper) → nội dung rộng → footer xanh Cerulean (địa chỉ, liên hệ) | Kiểu trang giới thiệu; menu thành drawer trên điện thoại |
+| **Public** | Khách, phụ huynh; điện thoại và máy tính | Header ngang (logo + menu + nút "Đăng nhập" Cerulean) → nội dung rộng → footer xanh Cerulean (địa chỉ, liên hệ) | Dưới `md`: dock nổi + sidebar trượt (`shared/components/ui/mobile-navigation.tsx`) |
 | **Authentication** | Mọi người, chưa đăng nhập | Chia đôi: trái là panel Cerulean có logo và tên trường; phải là form trên nền trắng | Trên điện thoại bỏ panel trái, chỉ còn logo phía trên form |
-| **Application** (SV) | Sinh viên, **chủ yếu dùng điện thoại** | Máy tính: sidebar trái thu gọn được + topbar (học kỳ đang chọn, số tín chỉ đã đăng ký, avatar). Điện thoại: **thanh tab dưới đáy** (Tổng quan, Đăng ký, TKB, Điểm, Thêm) | Ưu tiên chạm bằng một tay; trong đợt đăng ký, topbar hiện đồng hồ đếm ngược |
+| **Application** (SV) | Sinh viên, **chủ yếu dùng điện thoại** | Máy tính: sidebar trái thu gọn được + topbar (học kỳ đang chọn, số tín chỉ đã đăng ký, avatar). Dưới `lg`: **dock nổi chỉ icon** (Tổng quan, Đăng ký, TKB, Kết quả, Menu) + sidebar trượt đủ mục, cùng component `mobile-navigation.tsx` với public; dock tự ẩn khi cuộn xuống và khi đang gõ | Ưu tiên chạm bằng một tay; trong đợt đăng ký, topbar hiện đồng hồ đếm ngược |
 | **Lecturer** (GV + cố vấn) | Giảng viên, chủ yếu dùng máy tính | Menu ngang trên cùng (Lịch dạy, Lớp học phần, Cố vấn*) + thanh ngữ cảnh lớp (tên lớp, sĩ số, tab Điểm danh / Nhập điểm) | Tập trung vào **một lớp tại một thời điểm**; menu "Cố vấn" chỉ hiện khi có role `advisor` |
 | **Administrator** | Phòng Đào tạo, máy tính màn lớn | Sidebar Cerulean đậm, menu chia nhóm (Đào tạo, Học vụ, Người dùng, Báo cáo) + header (tìm kiếm toàn cục, breadcrumb, avatar) | Mật độ thông tin cao: bảng antd `size="small"`, nội dung rộng hết màn hình |
 
@@ -185,7 +185,7 @@ shared/components/layouts/application/
 ├── index.tsx              # export ApplicationLayout (server component)
 ├── sidebar.tsx            # "use client" — thu gọn/mở, đọc từ stores
 ├── topbar.tsx
-└── bottom-tabs.tsx        # chỉ application có
+└── user-menu.tsx
 ```
 
 Mỗi folder chỉ export `index.tsx`; các file con là chi tiết nội bộ của layout đó. Menu lấy từ `shared/constants/navigation.constant.ts`, nên muốn thêm trang chỉ cần sửa một chỗ.

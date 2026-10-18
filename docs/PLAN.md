@@ -39,7 +39,7 @@ Mỗi dòng ghi nguồn: *đọc code*, *người dùng nói*, *đoán* (cần x
 
 ## 2. Thiết kế (evon)
 
-> **Ghi chú bắt buộc:** **KHÔNG có chế độ chuyển sáng/tối**, chỉ giao diện sáng. **Toàn bộ UI tận dụng Tailwind + component antd**: control dùng antd, bố cục và phần còn lại dùng class Tailwind, không viết CSS riêng.
+> **Ghi chú bắt buộc:** **KHÔNG có chế độ chuyển sáng/tối**, chỉ giao diện sáng. **Toàn bộ UI tận dụng Tailwind + component antd**: control dùng antd, bố cục và phần còn lại dùng class Tailwind, không viết CSS riêng. **Toàn bộ UI chống AI slop theo [UI-RULES.md](UI-RULES.md)**: mọi giai đoạn có UI đều chạy mục 5 của file đó trước khi báo xong.
 
 ### 2.1 Việc chính của từng màn (evon `U2`)
 
@@ -88,9 +88,9 @@ Evon chốt: mục sidebar đang chọn dùng nền xám + chữ đậm, **khôn
 
 | Nguyên tố | Chốt (antd + token) |
 |---|---|
-| Nút | 4 dạng: chính (`type="primary"`), viền (mặc định), chữ (`type="text"`), nguy hiểm (nền rose mờ). Cao 36px, bo 8px. Icon trái tuỳ chọn |
+| Nút | Mặc định là viền; chính (`type="primary"`) một chỗ mỗi nhóm; chữ (`type="text"`); nguy hiểm (nền rose mờ, không dùng `danger` đặc). Cao `h-11` điện thoại / `h-10` từ `md`, bo 8px. Icon trái chỉ khi nói đúng hành động |
 | Badge trạng thái | Pill, nền mờ + chữ đậm cùng tông, chữ 12px. Một bảng ánh xạ ở `src/shared/constants/status.constant.ts` dùng cho mọi màn |
-| Ô nhập | antd `Input`, cao 36px, nền trắng, viền 1px; focus: viền Cerulean + ring 10%. Không icon trái mặc định |
+| Ô nhập | antd `Input`, cao bằng nút (`h-11` / `h-10`), nền trắng, viền 1px; focus: viền Cerulean + ring 10%. Không icon trái mặc định |
 | Card | antd `Card` không bóng, viền 1px nhạt, bo 12px, padding 20px |
 | Dòng danh sách / bảng | antd `Table` `size="middle"` (admin dùng `small`), rê chuột đổi nền nhạt |
 | Modal | Rộng 480px (form 640px), nút dạt phải, nút chính ngoài cùng; hộp xác nhận việc không đảo ngược không cho bấm ra ngoài để đóng |

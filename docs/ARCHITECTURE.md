@@ -149,6 +149,7 @@ Thêm vai trò mới (trưởng khoa, phòng khảo thí...) thì làm theo cùn
 
 > **Ghi chú bắt buộc:**
 > - **KHÔNG có chế độ chuyển sáng/tối.** Chỉ một giao diện sáng; không viết `dark:`, không `prefers-color-scheme`, không nút đổi theme.
+> - **Toàn bộ UI phải chống AI slop theo [UI-RULES.md](UI-RULES.md)** (luật của plugin `evon:ui-ux` áp cho antd + Tailwind).
 > - **Toàn bộ UI tận dụng Tailwind và component antd.** Control (nút, ô nhập, select, bảng, modal, menu...) dùng component antd; bố cục, khoảng cách, phần không có trong antd dùng class Tailwind. Không tự viết lại component antd đã có, không viết CSS riêng (CSS Module, styled-components, `style={{}}` trang trí).
 
 - **5 layout độc lập**, mỗi layout một folder, **không import lẫn nhau** và không có "BaseLayout" chung. Mỗi portal phục vụ một kiểu công việc khác nhau, nên khung trang khác nhau.

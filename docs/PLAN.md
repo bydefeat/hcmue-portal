@@ -39,6 +39,8 @@ Mỗi dòng ghi nguồn: *đọc code*, *người dùng nói*, *đoán* (cần x
 
 ## 2. Thiết kế (evon)
 
+> **Ghi chú bắt buộc:** **KHÔNG có chế độ chuyển sáng/tối**, chỉ giao diện sáng. **Toàn bộ UI tận dụng Tailwind + component antd**: control dùng antd, bố cục và phần còn lại dùng class Tailwind, không viết CSS riêng.
+
 ### 2.1 Việc chính của từng màn (evon `U2`)
 
 | Màn | Đến để làm gì | So sánh, quyết định bằng gì | Hành động cuối | Loại sản phẩm này thường làm *(theo trí nhớ, cần kiểm)* |

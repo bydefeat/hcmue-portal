@@ -15,7 +15,6 @@ export type NavItem = {
   label: string;
   href: string;
   icon?: ComponentType<IconProps>;
-  // Nhãn ngắn cho thanh tab dưới trên điện thoại.
   shortLabel?: string;
 };
 
@@ -56,7 +55,6 @@ export const APPLICATION_NAVIGATION: NavGroup[] = [
 
 export const APPLICATION_PROFILE: NavItem = { label: "Hồ sơ", href: "/application/profile", icon: User };
 
-// Thanh tab dưới trên điện thoại: 4 mục dùng nhiều nhất, phần còn lại nằm trong "Thêm".
 export const APPLICATION_BOTTOM_TABS = [
   "/application/dashboard",
   "/application/registration",

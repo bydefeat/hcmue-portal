@@ -1,11 +1,8 @@
-/* antd nằm trong @layer antd (AntdRegistry layer), xếp sau base và trước utilities:
-   class Tailwind đè được style antd, preflight không đè antd. */
 @layer theme, base, antd, components, utilities;
 
 @import "tailwindcss";
 @plugin "tailwindcss-animate";
 
-/* Giá trị màu sinh từ src/shared/constants/theme.constant.ts, gắn trên <html>. Chỉ giao diện sáng. */
 @theme inline {
   --color-background: var(--background);
   --color-surface: var(--surface);
@@ -19,7 +16,6 @@
   --color-primary-foreground: var(--primary-foreground);
   --color-primary-light: var(--primary-light);
   --color-brand-accent: var(--brand-accent);
-  --color-secondary: var(--secondary);
   --color-item-hover: var(--item-hover);
   --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, monospace;
@@ -29,8 +25,6 @@
   color-scheme: light;
 }
 
-/* Thanh cuộn 4px tự ẩn (evon I18). Màu thumb đi qua biến đặt trên chính khung cuộn để Chrome
-   vẽ lại ngay khi rê. Không thêm transition vào rule `*`: CSS ngoài @layer thắng mọi utility. */
 * { --scrollbar-thumb: transparent; }
 *:hover { --scrollbar-thumb: color-mix(in srgb, var(--foreground) 16%, transparent); }
 ::-webkit-scrollbar { width: 4px; height: 4px; }
@@ -38,7 +32,6 @@
 ::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 9999px; }
 ::-webkit-scrollbar-thumb:hover { background: color-mix(in srgb, var(--foreground) 40%, transparent); }
 
-/* Firefox. Phải nằm trong @supports: Chrome 121+ thấy scrollbar-width là bỏ qua ::-webkit-scrollbar. */
 @supports not selector(::-webkit-scrollbar) {
   * { scrollbar-width: thin; scrollbar-color: transparent transparent; }
   *:hover { scrollbar-color: color-mix(in srgb, var(--foreground) 18%, transparent) transparent; }

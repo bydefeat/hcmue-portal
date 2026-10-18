@@ -30,14 +30,12 @@ export function ApplicationLayout({ user, termLabel, children }: ApplicationLayo
       <Layout>
         <Layout.Header className="sticky top-0 z-10 flex items-center gap-3 border-b border-border px-4 sm:px-6">
           <Logo href="/application/dashboard" className="lg:hidden" />
-          {/* Trang không có đầu trang riêng: tên trên thanh header chính là <h1>. */}
           <h1 className="hidden min-w-0 truncate text-base font-semibold lg:block">{title}</h1>
           <span className="ml-auto hidden shrink-0 text-sm text-muted sm:block">{termLabel}</span>
           <div className="ml-auto sm:ml-0 lg:hidden">
             <UserMenu user={user} compact />
           </div>
         </Layout.Header>
-        {/* pb-24: chừa chỗ cho thanh tab dưới trên điện thoại. */}
         <Layout.Content className="p-4 pb-24 sm:p-6 sm:pb-24 lg:pb-6">
           <h1 className="mb-4 text-xl font-semibold lg:hidden">{title}</h1>
           {children}

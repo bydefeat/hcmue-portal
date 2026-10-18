@@ -8,13 +8,13 @@ import {
   APPLICATION_BOTTOM_TABS,
   APPLICATION_NAVIGATION,
   APPLICATION_PROFILE,
-  isActiveHref,
+  isActiveItem,
 } from "@/shared/constants/navigation.constant";
+import { UserMenu, type MenuUser } from "@/shared/components/ui/user-menu";
 import { ApplicationSidebar } from "./sidebar";
-import { UserMenu, type ApplicationUser } from "./user-menu";
 
 type ApplicationLayoutProps = {
-  user: ApplicationUser;
+  user: MenuUser;
   termLabel: string;
   children: React.ReactNode;
 };
@@ -29,7 +29,7 @@ const MOBILE_SECTIONS = [
 
 export function ApplicationLayout({ user, termLabel, children }: ApplicationLayoutProps) {
   const pathname = usePathname();
-  const title = ALL_ITEMS.find((item) => isActiveHref(pathname, item.href))?.label;
+  const title = ALL_ITEMS.find((item) => isActiveItem(pathname, item))?.label;
 
   return (
     <Layout hasSider className="min-h-dvh">
@@ -40,7 +40,7 @@ export function ApplicationLayout({ user, termLabel, children }: ApplicationLayo
           <h1 className="hidden min-w-0 truncate text-base font-semibold lg:block">{title}</h1>
           <span className="ml-auto hidden shrink-0 text-sm text-muted sm:block">{termLabel}</span>
           <div className="ml-auto sm:ml-0 lg:hidden">
-            <UserMenu user={user} compact />
+            <UserMenu user={user} links={[APPLICATION_PROFILE]} compact />
           </div>
         </Layout.Header>
         <Layout.Content className="p-4 pb-28 sm:p-6 sm:pb-28 lg:pb-6">

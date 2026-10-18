@@ -3,10 +3,12 @@
 import { Layout } from "antd";
 import { Logo } from "@/shared/components/ui/logo";
 import { NavSections } from "@/shared/components/ui/nav-tree";
-import { APPLICATION_NAVIGATION } from "@/shared/constants/navigation.constant";
-import { UserMenu, type ApplicationUser } from "./user-menu";
+import { UserMenu, type MenuUser } from "@/shared/components/ui/user-menu";
+import { APPLICATION_NAVIGATION, APPLICATION_PROFILE } from "@/shared/constants/navigation.constant";
 
-export function ApplicationSidebar({ user }: { user: ApplicationUser }) {
+const PROFILE_LINKS = [APPLICATION_PROFILE];
+
+export function ApplicationSidebar({ user }: { user: MenuUser }) {
   return (
     <Layout.Sider width={256} theme="light" className="sticky top-0 hidden h-dvh border-r border-border-strong lg:block">
       <div className="flex h-full flex-col select-none">
@@ -17,7 +19,7 @@ export function ApplicationSidebar({ user }: { user: ApplicationUser }) {
           <NavSections groups={APPLICATION_NAVIGATION} idPrefix="sidebar-nav" />
         </nav>
         <div className="shrink-0 border-t border-border-strong p-3">
-          <UserMenu user={user} />
+          <UserMenu user={user} links={PROFILE_LINKS} />
         </div>
       </div>
     </Layout.Sider>

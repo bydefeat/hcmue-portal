@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ChevronRight } from "defeat-icons-react";
-import { isActiveHref, type NavGroup, type NavItem } from "@/shared/constants/navigation.constant";
+import { isActiveItem, type NavGroup, type NavItem } from "@/shared/constants/navigation.constant";
 
 const ITEM_HEIGHT = 36;
 const EASING = "cubic-bezier(0.4, 0, 0.2, 1)";
@@ -46,7 +46,7 @@ function TreeGuide({ activeIndex, count }: { activeIndex: number; count: number 
 
 function NavList({ items, onNavigate }: { items: NavItem[]; onNavigate?: () => void }) {
   const pathname = usePathname();
-  const activeIndex = items.findIndex((item) => isActiveHref(pathname, item.href));
+  const activeIndex = items.findIndex((item) => isActiveItem(pathname, item));
 
   return (
     <ul className="relative flex flex-col">
@@ -84,7 +84,7 @@ type NavSectionsProps = {
 };
 
 function activeGroupLabel(groups: NavGroup[], pathname: string) {
-  return groups.find((group) => group.items.some((item) => isActiveHref(pathname, item.href)))?.label;
+  return groups.find((group) => group.items.some((item) => isActiveItem(pathname, item)))?.label;
 }
 
 export function NavSections({ groups, idPrefix, onNavigate }: NavSectionsProps) {
@@ -107,7 +107,7 @@ export function NavSections({ groups, idPrefix, onNavigate }: NavSectionsProps) 
     <ul className="flex flex-col gap-1">
       {groups.map((group, index) => {
         const SectionIcon = group.icon;
-        const hasActive = group.items.some((item) => isActiveHref(pathname, item.href));
+        const hasActive = group.items.some((item) => isActiveItem(pathname, item));
         const isOpen = !closedLabels.includes(group.label);
         const panelId = `${idPrefix}-${index}`;
 

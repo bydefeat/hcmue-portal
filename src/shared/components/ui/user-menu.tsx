@@ -3,11 +3,18 @@
 import Link from "next/link";
 import { Avatar, Button, Dropdown, type MenuProps } from "antd";
 import { ArrowDoorOut, ChevronExpandY } from "defeat-icons-react";
-import { APPLICATION_PROFILE } from "@/shared/constants/navigation.constant";
+import type { NavItem } from "@/shared/constants/navigation.constant";
 
-export type ApplicationUser = {
+export type MenuUser = {
   name: string;
-  studentCode: string;
+  code: string;
+  role?: string;
+};
+
+type UserMenuProps = {
+  user: MenuUser;
+  links?: NavItem[];
+  compact?: boolean;
 };
 
 function initialsOf(name: string) {
@@ -15,8 +22,16 @@ function initialsOf(name: string) {
   return words.at(-1)?.[0]?.toUpperCase() ?? "";
 }
 
-export function UserMenu({ user, compact = false }: { user: ApplicationUser; compact?: boolean }) {
-  const ProfileIcon = APPLICATION_PROFILE.icon!;
+export function UserMenu({ user, links = [], compact = false }: UserMenuProps) {
+  const linkItems: MenuProps["items"] = links.map((link) => {
+    const Icon = link.icon;
+    return {
+      key: link.href,
+      icon: Icon ? <Icon size={16} aria-hidden /> : undefined,
+      label: <Link href={link.href}>{link.label}</Link>,
+    };
+  });
+
   const items: MenuProps["items"] = [
     {
       key: "account",
@@ -24,18 +39,15 @@ export function UserMenu({ user, compact = false }: { user: ApplicationUser; com
       label: (
         <span className="flex flex-col gap-1">
           <span className="truncate text-sm font-medium text-foreground">{user.name}</span>
-          <span className="truncate font-mono text-xs text-muted">{user.studentCode}</span>
+          <span className="truncate font-mono text-xs text-muted">{user.code}</span>
+          {user.role && <span className="truncate text-xs text-muted">{user.role}</span>}
         </span>
       ),
     },
     { type: "divider" },
-    {
-      key: APPLICATION_PROFILE.href,
-      icon: <ProfileIcon size={16} aria-hidden />,
-      label: <Link href={APPLICATION_PROFILE.href}>{APPLICATION_PROFILE.label}</Link>,
-    },
-    { type: "divider" },
-    { key: "sign-out", danger: true, icon: <ArrowDoorOut size={16} aria-hidden />, label: "Đăng xuất" },
+    ...linkItems,
+    ...(linkItems.length > 0 ? [{ type: "divider" as const }] : []),
+    { key: "sign-out", danger: true, icon: <ArrowDoorOut size={16} aria-hidden />, label: <Link href="/authentication/sign-in">Đăng xuất</Link> },
   ];
 
   const avatar = (

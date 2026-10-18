@@ -8,7 +8,7 @@ import { LayoutGroup, motion } from "motion/react";
 import { Button } from "antd";
 import { Menu, Xmark } from "defeat-icons-react";
 import { Logo } from "@/shared/components/ui/logo";
-import { isActiveHref, type NavItem } from "@/shared/constants/navigation.constant";
+import { isActiveItem, type NavItem } from "@/shared/constants/navigation.constant";
 
 export type MobileNavigationSection = {
   title?: string;
@@ -102,8 +102,8 @@ export function MobileNavigation({ dockItems, sections, homeHref, hideFrom, acti
   }, [isOpen]);
 
   const close = () => setIsOpen(false);
-  const activeDockHref = dockItems.find((item) => isActiveHref(pathname, item.href))?.href;
-  const isInSections = sections.some((section) => section.items.some((item) => isActiveHref(pathname, item.href)));
+  const activeDockHref = dockItems.find((item) => isActiveItem(pathname, item))?.href;
+  const isInSections = sections.some((section) => section.items.some((item) => isActiveItem(pathname, item)));
   const activeKey = isOpen ? MENU_KEY : (activeDockHref ?? (isInSections ? MENU_KEY : null));
   const isDockHidden = (isScrollHidden || isTyping) && !isOpen;
 
@@ -174,7 +174,7 @@ export function MobileNavigation({ dockItems, sections, homeHref, hideFrom, acti
               )}
               {section.items.map((item) => {
                 const Icon = item.icon;
-                const isActive = isActiveHref(pathname, item.href);
+                const isActive = isActiveItem(pathname, item);
                 return (
                   <Link
                     key={item.href}

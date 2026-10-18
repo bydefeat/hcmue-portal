@@ -123,7 +123,7 @@ src/
 
 ### Quy ước đặt tên file
 
-Tên file dạng `<tên>.<loại>.ts`, phần `<tên>` viết kebab-case, **số ít**. Nhìn đuôi file là biết loại, không phụ thuộc file nằm ở folder nào.
+Tên file dạng `<tên>.<loại>.ts`, phần `<tên>` viết kebab-case. Trong `shared/` dùng số ít (`role.constant.ts`); trong `modules/` dùng đúng tên folder module (`grades.query.ts`). Nhìn đuôi file là biết loại, không phụ thuộc file nằm ở folder nào.
 
 | Loại | Đuôi | Ví dụ | Export |
 |---|---|---|---|

@@ -20,7 +20,9 @@ import { PageHeader } from "@/shared/components/ui/page-header";
 import { StatTile } from "@/shared/components/ui/stat-tile";
 import { StatusTag } from "@/shared/components/ui/status-tag";
 import { formatDate, formatDateTime } from "@/shared/libs/date.lib";
+import { can, inScope } from "@/modules/access/access.constant";
 import { requirePermission } from "@/modules/access/access.query";
+import { getRequests } from "@/modules/requests/requests.query";
 
 export const metadata: Metadata = { title: "Tổng quan quản trị" };
 
@@ -62,15 +64,23 @@ function Section({ title, action, children }: { title: string; action?: React.Re
 }
 
 export default async function Page() {
-  await requirePermission("dashboard.view");
+  const viewer = await requirePermission("dashboard.view");
   const [currentTerm, targetTerm] = await Promise.all([getCurrentTerm(), getRegistrationTargetTerm()]);
-  const [students, sections, periods, warnings, announcements] = await Promise.all([
+  const [allStudents, allSections, periods, allWarnings, announcements, allRequests] = await Promise.all([
     getStudents(),
     getClassSections(targetTerm.id),
     getRegistrationPeriods(targetTerm.id),
     getAcademicWarnings(),
     getAnnouncements(),
+    getRequests(),
   ]);
+  const students = allStudents.filter((student) => inScope(viewer, student.faculty));
+  const sections = allSections.filter((section) => inScope(viewer, section.faculty));
+  const warnings = allWarnings.filter((warning) => inScope(viewer, warning.faculty));
+  const openRequests = allRequests.filter(
+    (request) => inScope(viewer, request.faculty) && (request.status === "pending" || request.status === "in-review") && request.currentStep?.role !== "advisor" && request.currentStep?.role !== "lecturer",
+  );
+  const overdueRequests = openRequests.filter((request) => request.isOverdue).length;
 
   const studying = students.filter((student) => student.status === "studying").length;
   const openSections = sections.filter((section) => section.status === "open");
@@ -85,7 +95,10 @@ export default async function Page() {
 
   return (
     <>
-      <PageHeader title="Tổng quan" description={`Đang học ${currentTerm.name}. Đang mở đăng ký cho ${targetTerm.name}.`} />
+      <PageHeader
+        title="Tổng quan"
+        description={`Đang học ${currentTerm.name}. Đang mở đăng ký cho ${targetTerm.name}.${viewer.faculty ? ` Số liệu thuộc ${viewer.faculty}.` : ""}`}
+      />
 
       <div className="flex flex-col gap-4 sm:gap-6">
         {closing.map((period) => (
@@ -104,7 +117,16 @@ export default async function Page() {
           />
         ))}
 
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 2xl:grid-cols-5">
+          {can(viewer, "requests.process") && (
+            <StatTile
+              label="Đơn từ chờ xử lý"
+              value={openRequests.length}
+              hint={overdueRequests > 0 ? `${overdueRequests} đơn đã quá hạn` : "Không có đơn quá hạn"}
+              tone={overdueRequests > 0 ? "danger" : undefined}
+              href="/administrator/requests"
+            />
+          )}
           <StatTile label="Sinh viên đang học" value={studying.toLocaleString("vi-VN")} hint={`Trên tổng ${students.length} hồ sơ`} href="/administrator/users/students" />
           <StatTile
             label={`Lớp mở ${targetTerm.shortName}`}

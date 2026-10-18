@@ -1,0 +1,64 @@
+import type { Metadata } from "next";
+import { PageHeader } from "@/shared/components/ui/page-header";
+import { StatTile } from "@/shared/components/ui/stat-tile";
+import { can, inScope } from "@/modules/access/access.constant";
+import { requirePermission } from "@/modules/access/access.query";
+import { getClassRoster, getClassSections, getCurrentTerm } from "@/modules/course-registration/course-registration.query";
+import { GradePublishingTable, type PublishingRow } from "@/modules/grades/components/grade-publishing-table";
+import { toLetter, weightedScore } from "@/modules/grades/grades.constant";
+import { getGradeSheet } from "@/modules/grades/grades.query";
+
+export const metadata: Metadata = { title: "Duyệt và công bố điểm" };
+
+export default async function Page() {
+  const viewer = await requirePermission("grades.approve");
+  const term = await getCurrentTerm();
+  const sections = (await getClassSections(term.id)).filter((section) => section.status !== "cancelled" && inScope(viewer, section.faculty));
+  const rows: PublishingRow[] = await Promise.all(
+    sections.map(async (section) => {
+      const roster = await getClassRoster(section.id);
+      const sheet = await getGradeSheet(section.id, roster.map((entry) => entry.studentId));
+      const values = Object.values(sheet.scores);
+      const cells = values.flatMap((row) => Object.values(row));
+      const totals = values.map((row) => weightedScore(sheet.components, row)).filter((value) => value !== null);
+      const letterCounts: Record<string, number> = {};
+      for (const total of totals) {
+        const letter = toLetter(total).letter;
+        letterCounts[letter] = (letterCounts[letter] ?? 0) + 1;
+      }
+      return {
+        classSectionId: section.id,
+        code: section.code,
+        courseName: section.courseName,
+        faculty: section.faculty,
+        lecturerName: section.lecturerName,
+        state: sheet.state,
+        deadline: sheet.deadline,
+        filledCells: cells.filter((value) => value !== null).length,
+        totalCells: cells.length,
+        studentCount: roster.length,
+        letterCounts,
+        average: totals.length > 0 ? Math.round((totals.reduce((sum, value) => sum + value, 0) / totals.length) * 10) / 10 : null,
+        passRate: totals.length > 0 ? Math.round((totals.filter((value) => value >= 4).length / totals.length) * 100) : null,
+        returnReason: sheet.state === "returned" ? "Tổng trọng số cột giữa kỳ sai, kiểm tra lại cấu hình cột điểm." : null,
+      };
+    }),
+  );
+  const count = (state: PublishingRow["state"]) => rows.filter((row) => row.state === state).length;
+
+  return (
+    <>
+      <PageHeader
+        title="Duyệt và công bố điểm"
+        description={`${term.name}. Giảng viên chốt điểm, khoa duyệt, Phòng Đào tạo công bố. Điểm chỉ hiện với sinh viên sau khi công bố.`}
+      />
+      <div className="mb-4 grid grid-cols-2 gap-3 sm:mb-6 lg:grid-cols-4">
+        <StatTile label="Chờ khoa duyệt" value={count("locked")} tone={count("locked") > 0 ? "warning" : undefined} hint="Giảng viên đã chốt" />
+        <StatTile label="Chờ công bố" value={count("approved")} hint="Khoa đã duyệt" />
+        <StatTile label="Quá hạn nhập" value={count("overdue")} tone={count("overdue") > 0 ? "danger" : undefined} hint="Giảng viên chưa chốt" />
+        <StatTile label="Đã công bố" value={count("published")} hint={`Trên ${rows.length} lớp`} />
+      </div>
+      <GradePublishingTable rows={rows} canApprove={can(viewer, "grades.approve")} canPublish={can(viewer, "grades.publish")} />
+    </>
+  );
+}

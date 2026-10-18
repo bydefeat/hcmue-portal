@@ -3,14 +3,17 @@ import { forbidden, notFound } from "next/navigation";
 import { PageHeader } from "@/shared/components/ui/page-header";
 import { StatTile } from "@/shared/components/ui/stat-tile";
 import { StatusTag } from "@/shared/components/ui/status-tag";
-import { formatDateTime } from "@/shared/libs/date.lib";
+import { formatDate, formatDateTime } from "@/shared/libs/date.lib";
 import { TranscriptView } from "@/modules/grades/components/transcript-view";
 import { formatPoint, STANDING_LABEL, WARNING_LEVEL } from "@/modules/grades/grades.constant";
 import { getStudentStandings, getTranscript } from "@/modules/grades/grades.query";
 import { STUDY_PLAN_STATUS } from "@/modules/study-plan/study-plan.constant";
 import { getStudyPlanOfStudent } from "@/modules/study-plan/study-plan.query";
 import { StudentProfileCard } from "@/modules/users/components/student-profile-card";
-import { getAdvisorAssignments, getStudent } from "@/modules/users/users.query";
+import { getAdvisorAssignments, getDecisions, getStudent } from "@/modules/users/users.query";
+import { DECISION_KIND_LABEL, DECISION_STATUS } from "@/modules/users/users.constant";
+import { AuditTimeline } from "@/modules/audit/components/audit-timeline";
+import { getAuditLog } from "@/modules/audit/audit.query";
 import { inScope } from "@/modules/access/access.constant";
 import { requirePermission } from "@/modules/access/access.query";
 
@@ -29,11 +32,13 @@ export default async function Page({ params }: PageProps) {
   if (!student) notFound();
   if (!inScope(viewer, student.faculty)) forbidden();
 
-  const [assignments, [standing], transcript, plan] = await Promise.all([
+  const [assignments, [standing], transcript, plan, decisions, history] = await Promise.all([
     getAdvisorAssignments(),
     getStudentStandings([student.id]),
     getTranscript(student.id),
     getStudyPlanOfStudent(student.id),
+    getDecisions(student.id),
+    getAuditLog({ entityType: "student", entityId: student.id }),
   ]);
   const advisorName = assignments.find((assignment) => assignment.className === student.className)?.advisorName ?? null;
   const hasResults = standing.earnedCredits > 0;
@@ -65,6 +70,30 @@ export default async function Page({ params }: PageProps) {
             ) : (
               <p className="text-sm text-muted">Sinh viên chưa lập kế hoạch học tập cho học kỳ tới.</p>
             )}
+          </section>
+          <section className="flex flex-col gap-2 rounded-xl border border-border-strong bg-surface p-4 sm:p-5">
+            <h2 className="text-base font-semibold">Quyết định</h2>
+            {decisions.length === 0 ? (
+              <p className="text-sm text-muted">Chưa có quyết định nào liên quan đến sinh viên.</p>
+            ) : (
+              <ul className="flex flex-col gap-3">
+                {decisions.map((decision) => (
+                  <li key={decision.id} className="flex flex-col gap-1">
+                    <div className="flex items-start justify-between gap-2">
+                      <span className="text-sm font-medium text-pretty">{DECISION_KIND_LABEL[decision.kind]}</span>
+                      <StatusTag status={DECISION_STATUS[decision.status]} />
+                    </div>
+                    <span className="text-xs text-muted tabular-nums">
+                      {decision.number ?? "Chưa có số"} · hiệu lực {formatDate(decision.effectiveDate)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+          <section className="flex flex-col gap-3 rounded-xl border border-border-strong bg-surface p-4 sm:p-5">
+            <h2 className="text-base font-semibold">Lịch sử thay đổi</h2>
+            <AuditTimeline entries={history} emptyText="Hồ sơ chưa được sửa kể từ khi nhập học." />
           </section>
         </div>
         <div className="flex min-w-0 flex-col gap-4">

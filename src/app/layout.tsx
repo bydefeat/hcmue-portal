@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import { Suspense } from "react";
 import { AntdRegistry } from "@ant-design/nextjs-registry";
 import { AntdProvider } from "@/shared/components/antd-provider";
 import { CSS_VARIABLES } from "@/shared/constants/theme.constant";
@@ -33,11 +32,9 @@ export default function RootLayout({
       style={CSS_VARIABLES}
     >
       <body className="min-h-full bg-background font-sans text-sm text-foreground">
-        <Suspense fallback={null}>
-          <AntdRegistry layer>
-            <AntdProvider>{children}</AntdProvider>
-          </AntdRegistry>
-        </Suspense>
+        <AntdRegistry layer>
+          <AntdProvider>{children}</AntdProvider>
+        </AntdRegistry>
       </body>
     </html>
   );

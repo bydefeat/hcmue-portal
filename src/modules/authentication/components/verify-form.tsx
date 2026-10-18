@@ -19,7 +19,7 @@ export function VerifyForm({ email }: { email?: string }) {
         description={
           email ? (
             <>
-              Mã gồm 6 số đã được gửi tới <span className="font-medium break-all text-foreground">{email}</span>.
+              Mã gồm 6 số đã được gửi tới <span className="font-medium whitespace-nowrap text-foreground">{email}</span>.
             </>
           ) : (
             "Mã gồm 6 số đã được gửi tới email của bạn."

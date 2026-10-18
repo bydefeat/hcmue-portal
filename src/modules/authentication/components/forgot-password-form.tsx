@@ -11,7 +11,7 @@ import { ResendCodeButton } from "./resend-code-button";
 type Step = "email" | "code" | "password" | "done";
 
 function EmailText({ email }: { email: string }) {
-  return <span className="font-medium break-all text-foreground">{email}</span>;
+  return <span className="font-medium whitespace-nowrap text-foreground">{email}</span>;
 }
 
 export function ForgotPasswordForm({ defaultEmail }: { defaultEmail?: string }) {
@@ -113,7 +113,7 @@ export function ForgotPasswordForm({ defaultEmail }: { defaultEmail?: string }) 
         size="large"
         block
         autoFocus
-        onClick={() => router.push(`/authentication/sign-in?email=${encodeURIComponent(email)}`)}
+        onClick={() => router.push(`/authentication/sign-in?username=${encodeURIComponent(email)}`)}
       >
         Đăng nhập
       </Button>

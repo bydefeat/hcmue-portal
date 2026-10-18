@@ -3,39 +3,38 @@ import Link from "next/link";
 
 export function AuthenticationLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex min-h-dvh bg-surface">
-      <aside className="hidden w-[44%] max-w-2xl shrink-0 flex-col justify-between bg-primary p-10 text-primary-foreground lg:flex xl:p-14">
-        <Link href="/" className="w-fit">
+    <div className="flex min-h-dvh bg-background">
+      <div className="relative hidden min-w-0 flex-1 lg:block">
+        <Image
+          src="/images/hcmue-campus.jpg"
+          alt="Toà nhà chính Trường Đại học Sư phạm Thành phố Hồ Chí Minh"
+          fill
+          priority
+          sizes="(min-width: 1024px) 66vw, 0px"
+          className="object-cover"
+        />
+      </div>
+      <main className="flex w-full shrink-0 flex-col items-center justify-center px-4 py-8 lg:w-[480px] lg:px-6">
+        <Link href="/" className="flex flex-col items-center gap-3 text-center text-primary">
           <Image
             src="/hcmue-logo.png"
-            alt="Trường Đại học Sư phạm TP.HCM"
+            alt="Logo Trường Đại học Sư phạm TP.HCM"
             width={2994}
             height={1512}
             priority
-            className="h-14 w-auto"
+            className="h-20 w-auto"
           />
+          <span className="text-xl leading-snug font-medium uppercase">
+            Trường Đại học Sư phạm
+            <br />
+            Thành phố Hồ Chí Minh
+          </span>
+          <span className="text-sm font-medium">Cổng đào tạo và học vụ</span>
         </Link>
-        <div className="flex max-w-md flex-col gap-3">
-          <p className="text-sm font-medium tracking-wide text-primary-foreground/70 uppercase">HCMUE Portal</p>
-          <p className="text-3xl font-semibold text-balance">Trường Đại học Sư phạm Thành phố Hồ Chí Minh</p>
-          <p className="text-base text-pretty text-primary-foreground/80">
-            Cổng đào tạo và học vụ: đăng ký học phần, thời khóa biểu, kết quả học tập.
-          </p>
+        <div className="mt-6 w-full max-w-md rounded-xl border border-border-strong bg-surface p-6 sm:p-8">
+          {children}
         </div>
-        <div className="flex flex-col gap-1 text-sm text-primary-foreground/70">
-          <p>280 An Dương Vương, Thành phố Hồ Chí Minh</p>
-          <a
-            href="https://hcmue.edu.vn"
-            target="_blank"
-            rel="noreferrer"
-            className="w-fit transition-colors hover:text-primary-foreground hover:underline"
-          >
-            hcmue.edu.vn
-          </a>
-        </div>
-      </aside>
-      <main className="flex min-w-0 flex-1 items-center justify-center px-4 py-10 sm:px-6">
-        <div className="w-full max-w-md">{children}</div>
+        <p className="mt-6 text-center text-xs text-muted">© Trường Đại học Sư phạm Thành phố Hồ Chí Minh</p>
       </main>
     </div>
   );

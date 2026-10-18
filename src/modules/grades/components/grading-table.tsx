@@ -2,12 +2,17 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Alert, Button, InputNumber, message, Modal, Table, type TableColumnsType } from "antd";
-import { Download, LockKey, Upload } from "defeat-icons-react";
+import { Download, FilePen, LockKey, Upload } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { MeterBar } from "@/shared/components/ui/meter-bar";
 import { StatusTag } from "@/shared/components/ui/status-tag";
 import { dayjs, daysUntil, formatDateTime } from "@/shared/libs/date.lib";
 import { formatPoint, GRADE_SHEET_STATE, toLetter, weightedScore } from "../grades.constant";
+import {
+  NewLecturerRequestDrawer,
+  type BusySlot,
+  type RequestClassOption,
+} from "@/modules/requests/components/new-lecturer-request-drawer";
 import type { GradeSheet, GradeSheetState, ScoreRow } from "../grades.type";
 
 export type GradingStudent = {
@@ -16,11 +21,23 @@ export type GradingStudent = {
   fullName: string;
 };
 
+export type GradeChangeRequestOptions = {
+  classes: RequestClassOption[];
+  busySlots: BusySlot[];
+  rooms: string[];
+  requester: { id: string; name: string; code: string; unit: string };
+};
+
 type GradingTableProps = {
   sheet: GradeSheet & { state: GradeSheetState };
   students: GradingStudent[];
   classCode: string;
+  classId: string;
+  returnReason?: string | null;
+  requestOptions?: GradeChangeRequestOptions;
 };
+
+const EDITABLE_STATUSES: GradeSheet["status"][] = ["draft", "returned"];
 
 const AUTOSAVE_DELAY = 1200;
 
@@ -31,10 +48,11 @@ function deadlineText(deadline: string) {
   return `còn ${days} ngày`;
 }
 
-export function GradingTable({ sheet, students, classCode }: GradingTableProps) {
+export function GradingTable({ sheet, students, classCode, classId, returnReason, requestOptions }: GradingTableProps) {
   const [messageApi, contextHolder] = message.useMessage();
   const [scores, setScores] = useState<Record<string, ScoreRow>>(sheet.scores);
-  const [isLocked, setIsLocked] = useState(sheet.status === "locked");
+  const [isLocked, setIsLocked] = useState(!EDITABLE_STATUSES.includes(sheet.status));
+  const [isRequestOpen, setIsRequestOpen] = useState(false);
   const [lockedAt, setLockedAt] = useState(sheet.lockedAt);
   const [savedAt, setSavedAt] = useState(sheet.savedAt);
   const [version, setVersion] = useState(0);
@@ -52,7 +70,8 @@ export function GradingTable({ sheet, students, classCode }: GradingTableProps) 
     return { filled: values.filter((value) => value !== null).length, total: values.length };
   }, [scores, sheet.components, students]);
 
-  const state: GradeSheetState = isLocked ? "locked" : sheet.state;
+  const state: GradeSheetState = isLocked && EDITABLE_STATUSES.includes(sheet.status) ? "locked" : sheet.state;
+  const canRequestChange = sheet.status === "approved" || sheet.status === "published";
   const missing = total - filled;
 
   const updateScore = (studentId: string, key: string, value: number | null) => {
@@ -66,7 +85,7 @@ export function GradingTable({ sheet, students, classCode }: GradingTableProps) 
     setIsLocked(true);
     setLockedAt(new Date().toISOString());
     setIsConfirmOpen(false);
-    messageApi.success(`Đã chốt điểm lớp ${classCode}. Bảng điểm đã gửi về Phòng Đào tạo.`);
+    messageApi.success(`Đã chốt điểm lớp ${classCode}. Bảng điểm đã gửi khoa duyệt.`);
   };
 
   const requestLock = () => {
@@ -181,6 +200,11 @@ export function GradingTable({ sheet, students, classCode }: GradingTableProps) 
           <Button icon={<Download size={16} aria-hidden />} onClick={() => messageApi.success(`Đã xuất bảng điểm ${classCode} ra tệp Excel.`)}>
             Xuất Excel
           </Button>
+          {canRequestChange && requestOptions && (
+            <Button icon={<FilePen size={16} aria-hidden />} onClick={() => setIsRequestOpen(true)}>
+              Đề nghị sửa điểm
+            </Button>
+          )}
           {!isLocked && (
             <>
               <Button icon={<Upload size={16} aria-hidden />} onClick={() => messageApi.info("Chọn tệp Excel theo mẫu đã xuất, điểm sẽ được điền vào các ô tương ứng.")}>
@@ -194,6 +218,30 @@ export function GradingTable({ sheet, students, classCode }: GradingTableProps) 
         </div>
       </div>
 
+      {sheet.status === "returned" && !isLocked && (
+        <Alert
+          type="warning"
+          showIcon
+          title="Khoa trả lại bảng điểm để chỉnh sửa"
+          description={`${returnReason ?? "Khoa chưa ghi lý do."} Sửa các ô liên quan rồi chốt lại để gửi khoa duyệt.`}
+        />
+      )}
+      {isLocked && state === "locked" && (
+        <Alert
+          type="info"
+          showIcon
+          title="Bảng điểm đang chờ khoa duyệt"
+          description="Không sửa được trong lúc chờ duyệt. Nếu phát hiện sai sót, liên hệ giáo vụ khoa để trả lại bảng điểm."
+        />
+      )}
+      {canRequestChange && (
+        <Alert
+          type="info"
+          showIcon
+          title={sheet.status === "published" ? "Điểm đã công bố cho sinh viên" : "Khoa đã duyệt, chờ Phòng Đào tạo công bố"}
+          description="Muốn sửa điểm phải gửi đơn đề nghị sửa điểm kèm minh chứng, qua Trưởng khoa và Phòng Đào tạo."
+        />
+      )}
       {state === "overdue" && (
         <Alert
           type="error"
@@ -227,10 +275,23 @@ export function GradingTable({ sheet, students, classCode }: GradingTableProps) 
         onCancel={() => setIsConfirmOpen(false)}
       >
         <p className="text-sm text-pretty">
-          Sau khi chốt, bảng điểm của {students.length} sinh viên được gửi về Phòng Đào tạo và không sửa được nữa. Muốn sửa phải làm đơn
-          phúc khảo qua khoa.
+          Sau khi chốt, bảng điểm của {students.length} sinh viên được gửi khoa duyệt rồi Phòng Đào tạo công bố. Bạn không sửa được nữa, trừ
+          khi khoa trả lại hoặc qua đơn đề nghị sửa điểm.
         </p>
       </Modal>
+
+      {requestOptions && (
+        <NewLecturerRequestDrawer
+          open={isRequestOpen}
+          onClose={() => setIsRequestOpen(false)}
+          {...requestOptions}
+          prefill={{ kind: "grade-change", classId }}
+          onCreated={(request) => {
+            setIsRequestOpen(false);
+            messageApi.success(`Đã gửi đơn ${request.code}. Theo dõi tiến độ ở mục Đơn từ.`);
+          }}
+        />
+      )}
     </div>
   );
 }

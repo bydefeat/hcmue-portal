@@ -11,7 +11,10 @@ import { getCurrentLecturer } from "@/modules/users/users.query";
 export const metadata: Metadata = { title: "Lớp học phần" };
 
 function gradeNote(summary: GradeSheetSummary) {
-  if (summary.state === "locked") return "Đã gửi Phòng Đào tạo";
+  if (summary.state === "published") return "Sinh viên đã xem được điểm";
+  if (summary.state === "approved") return "Chờ Phòng Đào tạo công bố";
+  if (summary.state === "locked") return "Đã chốt, chờ khoa duyệt";
+  if (summary.state === "returned") return "Khoa trả lại, sửa rồi chốt lại";
   const days = daysUntil(summary.deadline);
   const progress = `${summary.filledCells}/${summary.totalCells} ô`;
   if (summary.state === "overdue") return `Hạn ${formatDate(summary.deadline)} · ${progress}`;

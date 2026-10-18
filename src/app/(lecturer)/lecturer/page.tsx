@@ -1,6 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { CalendarCheck, CircleCheck } from "defeat-icons-react";
+import { CalendarCheck, CalendarUser, CircleCheck, Inbox } from "defeat-icons-react";
+import { APPOINTMENT_MODE_LABEL } from "@/modules/advising/advising.constant";
+import { getAppointments } from "@/modules/advising/advising.query";
+import { EXAM_KIND_LABEL } from "@/modules/exams/exams.constant";
+import { getExamsForLecturer } from "@/modules/exams/exams.query";
+import { REQUEST_KINDS } from "@/modules/requests/requests.constant";
+import { getRequestsForAssignee } from "@/modules/requests/requests.query";
 import { getClassRoster, getCurrentTerm, getLecturerClassSections } from "@/modules/course-registration/course-registration.query";
 import type { ClassMeeting, ClassSectionView } from "@/modules/course-registration/course-registration.type";
 import { GRADE_SHEET_STATE } from "@/modules/grades/grades.constant";
@@ -14,7 +20,7 @@ import { PageHeader } from "@/shared/components/ui/page-header";
 import { StatTile } from "@/shared/components/ui/stat-tile";
 import { StatusTag } from "@/shared/components/ui/status-tag";
 import { periodLabel, periodTimeRange, weekdayLabel } from "@/shared/constants/period.constant";
-import { dayjs, daysUntil, formatDateTime, weekdayOf } from "@/shared/libs/date.lib";
+import { dayjs, daysUntil, formatDate, formatDateTime, weekdayOf } from "@/shared/libs/date.lib";
 
 export const metadata: Metadata = { title: "Tổng quan giảng viên" };
 
@@ -60,6 +66,21 @@ export default async function Page() {
   const advisees = lecturer.isAdvisor ? await getAdvisees(lecturer.id) : [];
   const adviseeIds = advisees.map((student) => student.id);
   const [plans, warnings] = lecturer.isAdvisor ? await Promise.all([getStudyPlans(adviseeIds), getAcademicWarnings(adviseeIds)]) : [[], []];
+  const [assignedRequests, exams, appointments] = await Promise.all([
+    getRequestsForAssignee(lecturer.id, ["advisor", "lecturer"]),
+    getExamsForLecturer(lecturer.id),
+    lecturer.isAdvisor ? getAppointments(lecturer.id) : Promise.resolve([]),
+  ]);
+  const waitingRequests = assignedRequests.filter(
+    (request) => request.currentStep && request.currentStep.assigneeId === lecturer.id && (request.status === "pending" || request.status === "in-review"),
+  );
+  const overdueRequests = waitingRequests.filter((request) => request.isOverdue).length;
+  const upcomingProctoring = exams
+    .filter((exam) => exam.proctors.some((proctor) => proctor.id === lecturer.id) && !dayjs(exam.date).isBefore(dayjs(), "day"))
+    .slice(0, 3);
+  const todayAppointments = appointments
+    .filter((appointment) => appointment.status === "scheduled" && dayjs(appointment.date).isSame(dayjs(), "day"))
+    .sort((a, b) => a.startTime.localeCompare(b.startTime));
 
   const today = weekdayOf(dayjs());
   const slots = slotsOf(sections);
@@ -163,6 +184,89 @@ export default async function Page() {
             </ul>
           )}
         </Section>
+
+        <div className="grid gap-4 sm:gap-6 lg:grid-cols-3">
+          <Section
+            title="Đơn chờ tôi xử lý"
+            action={
+              <Link href="/lecturer/requests" className="text-sm">
+                Đơn từ
+              </Link>
+            }
+          >
+            {waitingRequests.length === 0 ? (
+              <EmptyState icon={Inbox} title="Không có đơn chờ bạn" />
+            ) : (
+              <div className="flex flex-col gap-3 p-4 sm:p-5">
+                <p className="flex items-baseline gap-2">
+                  <span className="text-xl font-semibold tabular-nums">{waitingRequests.length}</span>
+                  <span className="text-sm text-muted">đơn</span>
+                  {overdueRequests > 0 && <span className="text-sm text-rose-700 tabular-nums">{overdueRequests} quá hạn</span>}
+                </p>
+                <ul className="flex flex-col gap-2 text-sm">
+                  {waitingRequests.slice(0, 3).map((request) => (
+                    <li key={request.id} className="flex min-w-0 flex-col">
+                      <span className="truncate">{REQUEST_KINDS[request.kind].label}: {request.requesterName}</span>
+                      <span className={`truncate text-xs ${request.isOverdue ? "text-rose-700" : "text-muted"}`}>{request.subject}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </Section>
+
+          <Section
+            title="Lịch coi thi sắp tới"
+            action={
+              <Link href="/lecturer/exams" className="text-sm">
+                Lịch thi
+              </Link>
+            }
+          >
+            {upcomingProctoring.length === 0 ? (
+              <EmptyState icon={CalendarCheck} title="Không có ca coi thi sắp tới" />
+            ) : (
+              <ul className="flex flex-col divide-y divide-border-strong">
+                {upcomingProctoring.map((exam) => (
+                  <li key={exam.id} className="flex flex-col px-4 py-3 sm:px-5">
+                    <span className="truncate font-medium">{exam.courseName}</span>
+                    <span className="text-xs text-muted tabular-nums">
+                      {EXAM_KIND_LABEL[exam.kind]} · {weekdayLabel(weekdayOf(exam.date))}, {formatDate(exam.date)}, {exam.startTime} · phòng {exam.room}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Section>
+
+          {lecturer.isAdvisor && (
+            <Section
+              title="Lịch hẹn cố vấn hôm nay"
+              action={
+                <Link href="/lecturer/advising/appointments" className="text-sm">
+                  Lịch hẹn
+                </Link>
+              }
+            >
+              {todayAppointments.length === 0 ? (
+                <EmptyState icon={CalendarUser} title="Hôm nay không có lịch hẹn" />
+              ) : (
+                <ul className="flex flex-col divide-y divide-border-strong">
+                  {todayAppointments.map((appointment) => (
+                    <li key={appointment.id} className="flex flex-col px-4 py-3 sm:px-5">
+                      <span className="text-sm font-medium tabular-nums">
+                        {appointment.startTime} · {appointment.students.map((student) => student.fullName).join(", ")}
+                      </span>
+                      <span className="truncate text-xs text-muted">
+                        {appointment.topic} · {APPOINTMENT_MODE_LABEL[appointment.mode]}, {appointment.location}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </Section>
+          )}
+        </div>
 
         {lecturer.isAdvisor && (
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">

@@ -19,6 +19,7 @@ export type AttendanceStudent = {
 type AttendanceSheetProps = {
   book: AttendanceBook;
   students: AttendanceStudent[];
+  absenceLimitPercent?: number;
 };
 
 const STATUS_KEYS = Object.keys(ATTENDANCE_STATUS) as AttendanceStatus[];
@@ -38,7 +39,8 @@ function sessionLabel(session: AttendanceSession, index: number) {
   return `Buổi ${index + 1} · ${weekdayLabel(weekdayOf(session.date))}, ${formatDate(session.date)} · ${periodLabel(session.startPeriod, session.endPeriod)}`;
 }
 
-export function AttendanceSheet({ book, students }: AttendanceSheetProps) {
+export function AttendanceSheet({ book, students, absenceLimitPercent = ABSENCE_LIMIT_RATIO * 100 }: AttendanceSheetProps) {
+  const limitRatio = absenceLimitPercent / 100;
   const [messageApi, contextHolder] = message.useMessage();
   const [records, setRecords] = useState(book.records);
   const [sessionId, setSessionId] = useState(() => defaultSessionId(book.sessions));
@@ -78,6 +80,7 @@ export function AttendanceSheet({ book, students }: AttendanceSheetProps) {
 
   const missing = students.filter((student) => !current[student.studentId]).length;
   const counts = STATUS_KEYS.map((key) => ({ key, count: students.filter((student) => current[student.studentId] === key).length }));
+  const banned = pastSessions.length > 0 ? students.filter((student) => (absences[student.studentId] ?? 0) / pastSessions.length > limitRatio).length : 0;
 
   const save = () => {
     if (missing > 0) {
@@ -134,13 +137,15 @@ export function AttendanceSheet({ book, students }: AttendanceSheetProps) {
       width: 130,
       render: (_, row) => {
         const count = absences[row.studentId] ?? 0;
-        const isOver = pastSessions.length > 0 && count / pastSessions.length >= ABSENCE_LIMIT_RATIO;
+        const isOver = pastSessions.length > 0 && count / pastSessions.length > limitRatio;
+        const isNear = !isOver && pastSessions.length > 0 && (count + 1) / pastSessions.length > limitRatio;
         return (
           <span className="flex flex-col text-xs tabular-nums">
             <span className={isOver ? "font-medium text-rose-700" : "text-muted"}>
               {count}/{pastSessions.length} buổi
             </span>
-            {isOver && <span className="text-rose-700">Vượt {Math.round(ABSENCE_LIMIT_RATIO * 100)}%, cấm thi</span>}
+            {isOver && <span className="text-rose-700">Vượt {absenceLimitPercent}%, cấm thi</span>}
+            {isNear && <span className="text-amber-700">Vắng thêm 1 buổi sẽ bị cấm thi</span>}
           </span>
         );
       },
@@ -186,6 +191,11 @@ export function AttendanceSheet({ book, students }: AttendanceSheetProps) {
           <span>
             Chưa điểm danh <span className="font-medium text-foreground">{missing}</span>
           </span>
+          {banned > 0 && (
+            <span className="text-rose-700">
+              Cấm thi <span className="font-medium">{banned}</span> sinh viên
+            </span>
+          )}
           {savedIds.includes(session.id) && <span className="text-green-700">Đã lưu</span>}
         </p>
       )}

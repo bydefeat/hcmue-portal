@@ -39,7 +39,7 @@ export function SignInForm({ defaultEmail }: { defaultEmail?: string }) {
           <Form.Item name="password" label="Mật khẩu" rules={[{ required: true, message: "Chưa nhập mật khẩu" }]}>
             <Input.Password autoFocus={Boolean(defaultEmail)} autoComplete="current-password" placeholder="Nhập mật khẩu" />
           </Form.Item>
-          <Link href={forgotHref} className="absolute top-0 right-0 text-sm text-foreground hover:underline">
+          <Link href={forgotHref} className="absolute top-0 right-0 flex h-10 items-center text-sm text-foreground hover:underline">
             Quên mật khẩu?
           </Link>
         </div>

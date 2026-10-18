@@ -23,7 +23,7 @@ type ApplicationLayoutProps = {
 };
 
 const NAV_ITEMS = APPLICATION_NAVIGATION.flatMap((group) => group.items);
-const ALL_ITEMS = [...NAV_ITEMS, APPLICATION_PROFILE];
+const ALL_ITEMS = [...NAV_ITEMS, APPLICATION_PROFILE, { label: "Thông báo", href: APPLICATION_NOTIFICATIONS_HREF }];
 const DOCK_ITEMS = NAV_ITEMS.filter((item) => APPLICATION_BOTTOM_TABS.includes(item.href));
 const MOBILE_SECTIONS = [
   ...APPLICATION_NAVIGATION.map((group) => ({ title: group.label, items: group.items })),

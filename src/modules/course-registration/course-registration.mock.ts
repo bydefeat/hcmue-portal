@@ -142,7 +142,7 @@ const STUDENT_POOL_SIZE = 600;
 const MAJOR_COUNT = 6;
 
 export function rosterIndices(sectionId: string, size: number, preferMajor: number) {
-  const random = createRandom([...sectionId].reduce((sum, char) => sum * 31 + char.charCodeAt(0), 7) >>> 0);
+  const random = createRandom([...sectionId].reduce((sum, char) => (sum * 31 + char.charCodeAt(0)) >>> 0, 7));
   const preferred = Array.from({ length: STUDENT_POOL_SIZE / MAJOR_COUNT }, (_, index) => index * MAJOR_COUNT + preferMajor);
   const others = Array.from({ length: STUDENT_POOL_SIZE }, (_, index) => index).filter((index) => index % MAJOR_COUNT !== preferMajor);
   const shuffle = (values: number[]) =>

@@ -172,7 +172,7 @@ export function TeachingAssignmentBoard({ sections, lecturers, terms, termId }: 
     <div className="flex flex-col gap-3">
       {contextHolder}
       <div className="flex flex-wrap items-center gap-2">
-        <Segmented value={termId} onChange={(value) => router.push(`/administrator/teaching-assignments?term=${value}`)} options={terms.map((term) => ({ value: term.id, label: term.name }))} />
+        <Segmented value={termId} onChange={(value) => router.push(`/administrator/teaching-assignments?term=${value}`)} options={terms.map((term) => ({ value: term.id, label: term.name }))} block className="w-full max-w-full sm:w-auto" />
         <Input allowClear value={query} onChange={(event) => setQuery(event.target.value)} prefix={<Magnifier size={16} aria-hidden className="text-muted" />} placeholder="Giảng viên, mã lớp, học phần" aria-label="Tìm" className="w-full sm:w-64" />
         <Select allowClear value={faculty} onChange={setFaculty} placeholder="Mọi khoa" aria-label="Khoa" options={faculties.map((value) => ({ value, label: value }))} className="w-full sm:w-60" />
       </div>

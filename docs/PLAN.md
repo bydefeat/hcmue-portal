@@ -72,7 +72,7 @@ Mỗi dòng ghi nguồn: *đọc code*, *người dùng nói*, *đoán* (cần x
 
 - **Font:** Geist (dự án đã chọn), subset `latin` + `vietnamese`. Một font, phân vai bằng độ đậm: tiêu đề 600, thân 400, nhãn 500.
 - **Nơi đổi thương hiệu:** màu ở `src/shared/constants/theme.constant.ts` (nguồn duy nhất, sinh ra cả CSS variables cho Tailwind lẫn `ThemeConfig` cho antd); font ở `src/app/layout.tsx`.
-- **Kiểm tương phản:** chữ trắng trên `#124874` ≈ 9.6:1 (đạt). `#CF373D` trên trắng ≈ 4.6:1, sát ngưỡng → không dùng cho chữ nhỏ.
+- **Kiểm tương phản:** chữ trắng trên `#124874` ≈ 9.5:1 (đạt AAA). `#CF373D` trên trắng ≈ 4.9:1, vừa qua ngưỡng AA 4.5 → dùng được cho chữ nhưng không cho chữ nhỏ dưới 14px.
 - **Logo:** dùng `public/hcmue-logo.png` hiện có. Cần bản SVG hoặc bản chỉ có dấu (không chữ) cho favicon và sidebar thu gọn → *cần người dùng cung cấp*.
 
 ### 2.3 Thay đổi so với ARCHITECTURE.md

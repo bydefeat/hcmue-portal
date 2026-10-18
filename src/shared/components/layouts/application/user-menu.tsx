@@ -50,16 +50,16 @@ export function UserMenu({ user, compact = false }: { user: ApplicationUser; com
       menu={{ items }}
       trigger={["click"]}
       placement={compact ? "bottomRight" : "topLeft"}
-      overlayClassName="min-w-56"
+      classNames={{ root: "min-w-56" }}
     >
       {compact ? (
-        <button type="button" aria-label="Tài khoản" className="flex cursor-pointer rounded-full">
+        <button type="button" aria-label="Tài khoản" className="flex cursor-pointer rounded-full outline-hidden">
           {avatar}
         </button>
       ) : (
         <button
           type="button"
-          className="flex h-10 w-full cursor-pointer items-center gap-2.5 rounded-xl px-1 text-left transition-colors hover:bg-item-hover"
+          className="flex h-10 w-full cursor-pointer items-center gap-2.5 rounded-xl px-1 text-left outline-hidden transition-colors hover:bg-item-hover"
         >
           {avatar}
           <span className="min-w-0 flex-1 truncate text-sm font-medium">{user.name}</span>

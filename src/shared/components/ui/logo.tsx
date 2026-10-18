@@ -9,7 +9,7 @@ type LogoProps = {
 
 export function Logo({ href = "/", subtitle, className }: LogoProps) {
   return (
-    <Link href={href} className={`flex min-w-0 items-center gap-3 ${className ?? ""}`}>
+    <Link href={href} className={`flex min-w-0 items-center gap-3 outline-hidden ${className ?? ""}`}>
       <Image
         src="/hcmue-logo.png"
         alt="Trường Đại học Sư phạm TP.HCM"
@@ -20,7 +20,7 @@ export function Logo({ href = "/", subtitle, className }: LogoProps) {
       />
       <span className="flex min-w-0 flex-col gap-0.5">
         <span className="truncate text-sm font-semibold text-primary">HCMUE Portal</span>
-        {subtitle && <span className="truncate text-xs text-muted">{subtitle}</span>}
+        {subtitle && <span className="hidden truncate text-xs text-muted sm:block">{subtitle}</span>}
       </span>
     </Link>
   );

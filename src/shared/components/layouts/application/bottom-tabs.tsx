@@ -15,7 +15,8 @@ const ALL_ITEMS = APPLICATION_NAVIGATION.flatMap((group) => group.items);
 const TAB_ITEMS = ALL_ITEMS.filter((item) => APPLICATION_BOTTOM_TABS.includes(item.href));
 const MORE_ITEMS = ALL_ITEMS.filter((item) => !APPLICATION_BOTTOM_TABS.includes(item.href));
 
-const TAB_CLASS = "flex min-w-0 cursor-pointer flex-col items-center justify-center gap-1 text-xs transition-colors";
+const TAB_CLASS =
+  "flex min-w-0 cursor-pointer flex-col items-center justify-center gap-1 text-xs outline-hidden transition-colors";
 
 export function BottomTabs() {
   const pathname = usePathname();
@@ -27,7 +28,7 @@ export function BottomTabs() {
       {/* Dưới lg: thay sidebar bằng thanh tab dưới; SV dùng điện thoại là chính. */}
       <nav
         aria-label="Điều hướng chính"
-        className="fixed inset-x-0 bottom-0 z-10 grid grid-cols-5 border-t border-border bg-surface pb-[env(safe-area-inset-bottom)] lg:hidden"
+        className="fixed inset-x-0 bottom-0 z-10 grid grid-cols-5 border-t border-border-strong bg-surface pb-[env(safe-area-inset-bottom)] lg:hidden"
       >
         {TAB_ITEMS.map((item) => {
           const Icon = item.icon!;
@@ -54,7 +55,10 @@ export function BottomTabs() {
         </button>
       </nav>
 
-      <Drawer placement="bottom" size="auto" open={isMoreOpen} onClose={() => setIsMoreOpen(false)} closable={false}>
+      <Drawer placement="bottom" size="auto" open={isMoreOpen} onClose={() => setIsMoreOpen(false)}
+        closable={false}
+        classNames={{ wrapper: "shadow-xl" }}
+      >
         <Menu
           mode="inline"
           inlineIndent={12}

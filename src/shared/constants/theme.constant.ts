@@ -63,6 +63,8 @@ export const THEME: ThemeConfig = {
     borderRadius: 8,
     borderRadiusLG: 12,
     controlHeight: 40,
+    // Không vẽ vòng focus ở nút, menu, tab; chỉ ô nhập có viền + ring khi focus (I13, luật khoá 16).
+    lineWidthFocus: 0,
   },
   components: {
     Layout: {

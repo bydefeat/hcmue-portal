@@ -37,7 +37,7 @@ export function PublicHeader() {
           items={items}
           selectedKeys={activeKeys}
           disabledOverflow
-          className="hidden min-w-0 flex-1 border-0 md:flex"
+          className="hidden min-w-0 flex-1 border-0 outline-hidden md:flex [&_a]:outline-hidden"
         />
         <Button type="primary" onClick={() => router.push(SIGN_IN_HREF)} className="ml-auto shrink-0">
           Đăng nhập
@@ -51,6 +51,7 @@ export function PublicHeader() {
         open={isDrawerOpen}
         onClose={() => setIsDrawerOpen(false)}
         closable={false}
+        classNames={{ wrapper: "shadow-xl" }}
         title={<Logo subtitle="Cổng đào tạo & học vụ" />}
       >
         <Menu

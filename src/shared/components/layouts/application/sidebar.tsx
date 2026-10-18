@@ -45,7 +45,7 @@ export function ApplicationSidebar({ user }: { user: ApplicationUser }) {
           <Logo href="/application/dashboard" subtitle="Cổng sinh viên" />
         </div>
         <nav aria-label="Điều hướng chính" className="min-h-0 flex-1 overflow-y-auto px-3 py-3">
-          <Menu mode="inline" inlineIndent={12} items={MENU_ITEMS} selectedKeys={selectedKeys} className="border-0" />
+          <Menu mode="inline" inlineIndent={12} items={MENU_ITEMS} selectedKeys={selectedKeys} className="border-0 outline-hidden [&_a]:outline-hidden" />
         </nav>
         <div className="shrink-0 px-3 py-3">
           <UserMenu user={user} />

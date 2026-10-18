@@ -26,14 +26,14 @@ export function ApplicationLayout({ user, termLabel, children }: ApplicationLayo
 
   return (
     <Layout hasSider className="min-h-dvh">
-      
+      <ApplicationSidebar user={user} />
       <Layout>
         <Layout.Header className="sticky top-0 z-10 flex items-center gap-3 border-b border-border-strong px-4 sm:px-6">
-          
+          <Logo href="/application/dashboard" className="lg:hidden" />
           <h1 className="hidden min-w-0 truncate text-base font-semibold lg:block">{title}</h1>
           <span className="ml-auto hidden shrink-0 text-sm text-muted sm:block">{termLabel}</span>
           <div className="ml-auto sm:ml-0 lg:hidden">
-            
+            <UserMenu user={user} compact />
           </div>
         </Layout.Header>
         <Layout.Content className="p-4 pb-24 sm:p-6 sm:pb-24 lg:pb-6">
@@ -41,7 +41,7 @@ export function ApplicationLayout({ user, termLabel, children }: ApplicationLayo
           {children}
         </Layout.Content>
       </Layout>
-
+      <BottomTabs />
     </Layout>
   );
 }

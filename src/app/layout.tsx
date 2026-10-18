@@ -16,7 +16,10 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "HCMUE Portal - Cổng Đào tạo & Học vụ ĐH Sư phạm TP.HCM",
+  title: {
+    default: "HCMUE Portal - Cổng Đào tạo & Học vụ ĐH Sư phạm TP.HCM",
+    template: "%s | HCMUE Portal",
+  },
   description: "Hệ thống quản lý đăng ký học phần và kết quả học tập sinh viên - Trường Đại học Sư phạm TP.HCM",
 };
 

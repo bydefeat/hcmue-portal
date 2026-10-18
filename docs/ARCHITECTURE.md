@@ -81,19 +81,25 @@ src/
 │   │       ├── courses/             # danh mục học phần + môn tiên quyết
 │   │       ├── terms/               # học kỳ, đợt đăng ký, hạn mức
 │   │       ├── class-sections/      # mở lớp học phần
-│   │       ├── users/               # SV / GV / phân quyền / phân công cố vấn
+│   │       ├── users/               # /users → /users/students
+│   │       │   ├── students/        # quản lý SV
+│   │       │   │   └── [studentId]/ # hồ sơ + bảng điểm
+│   │       │   ├── lecturers/       # GV + phân quyền
+│   │       │   └── advisors/        # phân công cố vấn theo lớp sinh hoạt
 │   │       └── reports/             # thống kê, xếp loại học lực
+│   │           └── academic-warnings/
 │   │
 │   └── api/auth/[...all]/route.ts   # handler của better-auth
 │
 ├── modules/                         # NGHIỆP VỤ theo domain, dùng chung giữa các portal
-│   ├── announcements/               # mỗi module, ví dụ grades/:
-│   ├── course-registration/         #   grades.schema.ts  bảng Drizzle
-│   ├── schedule/                    #   grades.query.ts   hàm đọc dữ liệu (server)
-│   ├── grades/                      #   grades.action.ts  server action, validate bằng zod
-│   ├── curriculum/                  #   components/       UI riêng của module
-│   ├── study-plan/
-│   └── users/
+│   ├── authentication/              # mỗi module, ví dụ grades/:
+│   ├── announcements/               #   grades.type.ts      kiểu dữ liệu của domain
+│   ├── course-registration/         #   grades.constant.ts  nhãn trạng thái, quy đổi điểm...
+│   ├── schedule/                    #   grades.mock.ts      dữ liệu mẫu (thay bằng DB ở giai đoạn 2)
+│   ├── grades/                      #   grades.query.ts     hàm đọc dữ liệu (server), hiện đọc từ mock
+│   ├── curriculum/                  #   grades.schema.ts    bảng Drizzle (sau)
+│   ├── study-plan/                  #   grades.action.ts    server action (sau)
+│   └── users/                       #   components/         UI riêng của module
 │
 └── shared/                          # KHÔNG chứa nghiệp vụ; ai cũng import được
     ├── components/
@@ -103,14 +109,19 @@ src/
     │   │   ├── application/
     │   │   ├── lecturer/
     │   │   └── administrator/
-    │   └── ui/                      # component nhỏ không gắn portal: Logo, PageHeader, EmptyState...
+    │   └── ui/                      # component nhỏ không gắn portal: Logo, UserMenu, PageHeader, EmptyState,
+    │                                #   ErrorState, PageSkeleton, StatusTag, StatTile, MeterBar
     ├── constants/
     │   ├── theme.constant.ts        # bảng màu thương hiệu + antd ThemeConfig (nguồn màu DUY NHẤT)
-    │   ├── navigation.constant.ts   # menu của từng portal (label, href, icon, role)
+    │   ├── navigation.constant.ts   # menu của từng portal (label, href, icon, exact)
+    │   ├── status.constant.ts       # 4 tông trạng thái dùng chung (xám, xanh lá, hổ phách, đỏ)
+    │   ├── period.constant.ts       # giờ của 12 tiết học, nhãn thứ trong tuần
     │   └── role.constant.ts         # "student" | "lecturer" | "advisor" | "admin" + trang đích sau login
     ├── hooks/                       # hook client dùng chung
     │   └── media-query.hook.ts      # export useMediaQuery
     ├── libs/
+    │   ├── date.lib.ts              # định dạng ngày giờ (dayjs, locale vi), số ngày/giờ còn lại
+    │   ├── mock.lib.ts              # tiện ích dữ liệu mẫu: random có seed, tên người, mã SV/GV nhất quán giữa module
     │   ├── env.lib.ts               # parse các biến DEFEAT_* bằng zod
     │   ├── db.lib.ts                # drizzle client + gom schema từ modules
     │   ├── auth.lib.ts              # betterAuth() (server)
@@ -131,6 +142,8 @@ Tên file dạng `<tên>.<loại>.ts`, phần `<tên>` viết kebab-case. Trong 
 | Hook | `*.hook.ts` | `media-query.hook.ts` | `useMediaQuery` |
 | Constant | `*.constant.ts` | `theme.constant.ts` | `THEME`, `BRAND_COLORS` |
 | Store | `*.store.ts` | `sidebar.store.ts` | `useSidebarStore` |
+| Kiểu dữ liệu | `*.type.ts` | `grades.type.ts` | `GradeSheet`, `TranscriptTerm` |
+| Dữ liệu mẫu | `*.mock.ts` | `grades.mock.ts` | hằng số mock, chỉ `*.query.ts` cùng module được import |
 | Drizzle schema | `*.schema.ts` | `grades.schema.ts` | các bảng `grades`, `gradeItems`... |
 | Query (đọc) | `*.query.ts` | `grades.query.ts` | `getTranscript()` |
 | Server action (ghi) | `*.action.ts` | `grades.action.ts` | `submitGrades()` |
@@ -139,6 +152,8 @@ Tên file dạng `<tên>.<loại>.ts`, phần `<tên>` viết kebab-case. Trong 
 Ngoại lệ: file mà Next.js quy định tên (`proxy.ts`, `layout.tsx`, `page.tsx`, `route.ts`...) giữ nguyên tên gốc.
 
 **Hướng import (một chiều):** `app` → `modules` → `shared`. `shared` không import `modules` hay `app`; module không import module khác (cần dữ liệu chéo thì `app` ghép lại).
+
+**Dữ liệu mẫu (trước khi có DB):** page gọi `*.query.ts` như sau này gọi DB; query đọc từ `*.mock.ts` của chính module. Module nào cần thông tin của domain khác (tên học phần trong lớp học phần, tên SV trong danh sách lớp) thì giữ bản sao đã "join" sẵn, hoặc dùng `shared/libs/mock.lib.ts` để sinh cùng một SV/GV từ cùng một chỉ số. Ví dụ CPA không nằm trong `users`: trang ghép `users.getStudents()` với `grades.getStudentStandings()`. Thời điểm mock (hạn chót, đợt đăng ký) tính tương đối so với hôm nay để trạng thái "sắp đóng", "quá hạn" luôn hiện.
 
 Thêm vai trò mới (trưởng khoa, phòng khảo thí...) thì làm theo cùng mẫu: `(dean)/dean/...` + `shared/components/layouts/dean/`.
 
@@ -175,7 +190,7 @@ Thêm vai trò mới (trưởng khoa, phòng khảo thí...) thì làm theo cùn
 | **Authentication** | Mọi người, chưa đăng nhập | Chia đôi: trái là panel Cerulean có logo và tên trường; phải là form trên nền trắng | Trên điện thoại bỏ panel trái, chỉ còn logo phía trên form |
 | **Application** (SV) | Sinh viên, **chủ yếu dùng điện thoại** | Máy tính: sidebar trái thu gọn được + topbar (học kỳ đang chọn, số tín chỉ đã đăng ký, avatar). Dưới `lg`: **dock nổi chỉ icon** (Tổng quan, Đăng ký, TKB, Kết quả, Menu) + sidebar trượt đủ mục, cùng component `mobile-navigation.tsx` với public; dock tự ẩn khi cuộn xuống và khi đang gõ | Ưu tiên chạm bằng một tay; trong đợt đăng ký, topbar hiện đồng hồ đếm ngược |
 | **Lecturer** (GV + cố vấn) | Giảng viên, chủ yếu dùng máy tính | Menu ngang trên cùng (Lịch dạy, Lớp học phần, Cố vấn*) + thanh ngữ cảnh lớp (tên lớp, sĩ số, tab Điểm danh / Nhập điểm) | Tập trung vào **một lớp tại một thời điểm**; menu "Cố vấn" chỉ hiện khi có role `advisor` |
-| **Administrator** | Phòng Đào tạo, máy tính màn lớn | Sidebar Cerulean đậm, menu chia nhóm (Đào tạo, Học vụ, Người dùng, Báo cáo) + header (tìm kiếm toàn cục, breadcrumb, avatar) | Mật độ thông tin cao: bảng antd `size="small"`, nội dung rộng hết màn hình |
+| **Administrator** | Phòng Đào tạo, máy tính màn lớn | Sidebar sáng (xem PLAN.md mục 2.3), menu chia nhóm (Đào tạo, Học vụ, Người dùng, Báo cáo) + header (tìm kiếm toàn cục, breadcrumb, avatar) | Mật độ thông tin cao: bảng antd `size="small"`, nội dung rộng hết màn hình |
 
 ### Cấu trúc một folder layout
 
@@ -183,9 +198,13 @@ Thêm vai trò mới (trưởng khoa, phòng khảo thí...) thì làm theo cùn
 shared/components/layouts/application/
 ├── index.tsx              # export ApplicationLayout (server component)
 ├── sidebar.tsx            # "use client" — thu gọn/mở, đọc từ stores
-├── topbar.tsx
-└── user-menu.tsx
+└── topbar.tsx
 ```
+
+Menu tài khoản (`UserMenu`) dùng chung cho 3 portal nên nằm ở `shared/components/ui/user-menu.tsx`.
+
+- **Administrator:** `sidebar.tsx` (sáng, chọn theo PLAN.md mục 2.3), `global-search.tsx` (AutoComplete, dữ liệu do `app/(administrator)/administrator/layout.tsx` ghép từ các module), breadcrumb sinh từ `ADMINISTRATOR_NAVIGATION`.
+- **Lecturer:** `header.tsx` (menu ngang, mục "Cố vấn" chỉ khi `isAdvisor`), `class-context-bar.tsx` (export qua `LecturerClassLayout`, dùng trong `classes/[classId]/layout.tsx`).
 
 Mỗi folder chỉ export `index.tsx`; các file con là chi tiết nội bộ của layout đó. Menu lấy từ `shared/constants/navigation.constant.ts`, nên muốn thêm trang chỉ cần sửa một chỗ.
 

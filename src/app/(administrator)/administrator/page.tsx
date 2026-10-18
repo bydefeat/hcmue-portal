@@ -1,0 +1,197 @@
+import type { Metadata } from "next";
+import Link from "next/link";
+import { Alert } from "antd";
+import { CircleCheck } from "defeat-icons-react";
+import { getAnnouncements } from "@/modules/announcements/announcements.query";
+import { ANNOUNCEMENT_CATEGORY_LABEL, ANNOUNCEMENT_STATUS } from "@/modules/announcements/announcements.constant";
+import {
+  getClassSections,
+  getCurrentTerm,
+  getRegistrationPeriods,
+  getRegistrationTargetTerm,
+} from "@/modules/course-registration/course-registration.query";
+import { REGISTRATION_PERIOD_STATE } from "@/modules/course-registration/course-registration.constant";
+import type { ClassSectionView, RegistrationPeriodView } from "@/modules/course-registration/course-registration.type";
+import { getAcademicWarnings } from "@/modules/grades/grades.query";
+import { getStudents } from "@/modules/users/users.query";
+import { EmptyState } from "@/shared/components/ui/empty-state";
+import { MeterBar } from "@/shared/components/ui/meter-bar";
+import { PageHeader } from "@/shared/components/ui/page-header";
+import { StatTile } from "@/shared/components/ui/stat-tile";
+import { StatusTag } from "@/shared/components/ui/status-tag";
+import { formatDate, formatDateTime } from "@/shared/libs/date.lib";
+
+export const metadata: Metadata = { title: "Tổng quan quản trị" };
+
+type Issue = { section: ClassSectionView; reason: string; tone: "warning" | "danger" };
+
+function sectionIssues(sections: ClassSectionView[]): Issue[] {
+  return sections.flatMap((section): Issue[] => {
+    if (section.status === "cancelled") return [];
+    if (section.conflicts.length > 0) return [{ section, reason: section.conflicts[0].message, tone: "danger" }];
+    if (!section.lecturerId) return [{ section, reason: "Chưa phân công giảng viên", tone: "warning" }];
+    if (section.status === "draft") return [{ section, reason: "Lớp còn ở trạng thái nháp, sinh viên chưa thấy để đăng ký", tone: "warning" }];
+    if (section.isFull) return [{ section, reason: `Đã đủ ${section.enrolled}/${section.capacity} chỗ, cân nhắc mở thêm lớp`, tone: "warning" }];
+    return [];
+  });
+}
+
+function hoursText(hours: number) {
+  if (hours < 1) return "dưới 1 giờ";
+  if (hours < 48) return `${Math.floor(hours)} giờ`;
+  return `${Math.floor(hours / 24)} ngày`;
+}
+
+function periodHint(period: RegistrationPeriodView) {
+  if (period.state === "upcoming") return `Mở lúc ${formatDateTime(period.opensAt)}`;
+  if (period.state === "closed") return `Đã đóng ${formatDate(period.closesAt)}`;
+  return `Đóng sau ${hoursText(period.hoursLeft)}, lúc ${formatDateTime(period.closesAt)}`;
+}
+
+function Section({ title, action, children }: { title: string; action?: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <section className="flex min-w-0 flex-col rounded-xl border border-border-strong bg-surface">
+      <header className="flex items-center justify-between gap-3 border-b border-border-strong px-4 py-3 sm:px-5">
+        <h2 className="text-lg font-semibold">{title}</h2>
+        {action}
+      </header>
+      {children}
+    </section>
+  );
+}
+
+export default async function Page() {
+  const [currentTerm, targetTerm] = await Promise.all([getCurrentTerm(), getRegistrationTargetTerm()]);
+  const [students, sections, periods, warnings, announcements] = await Promise.all([
+    getStudents(),
+    getClassSections(targetTerm.id),
+    getRegistrationPeriods(targetTerm.id),
+    getAcademicWarnings(),
+    getAnnouncements(),
+  ]);
+
+  const studying = students.filter((student) => student.status === "studying").length;
+  const openSections = sections.filter((section) => section.status === "open");
+  const draftSections = sections.filter((section) => section.status === "draft").length;
+  const capacity = openSections.reduce((sum, section) => sum + section.capacity, 0);
+  const enrolled = openSections.reduce((sum, section) => sum + section.enrolled, 0);
+  const fillRate = capacity > 0 ? Math.round((enrolled / capacity) * 100) : 0;
+  const newWarnings = warnings.filter((warning) => warning.status === "new").length;
+  const issues = sectionIssues(sections);
+  const closing = periods.filter((period) => period.state === "closing");
+  const recentAnnouncements = announcements.filter((announcement) => announcement.status !== "archived").slice(0, 5);
+
+  return (
+    <>
+      <PageHeader title="Tổng quan" description={`Đang học ${currentTerm.name}. Đang mở đăng ký cho ${targetTerm.name}.`} />
+
+      <div className="flex flex-col gap-4 sm:gap-6">
+        {closing.map((period) => (
+          <Alert
+            key={period.id}
+            type="warning"
+            showIcon
+            title={`${period.name} đóng sau ${hoursText(period.hoursLeft)}`}
+            description={
+              <span className="tabular-nums">
+                Còn {period.eligibleStudents - period.registeredStudents}/{period.eligibleStudents} sinh viên chưa đăng ký. Gửi nhắc
+                qua mục Thông báo nếu cần.
+              </span>
+            }
+            action={<Link href="/administrator/terms">Xem đợt</Link>}
+          />
+        ))}
+
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <StatTile label="Sinh viên đang học" value={studying.toLocaleString("vi-VN")} hint={`Trên tổng ${students.length} hồ sơ`} href="/administrator/users/students" />
+          <StatTile
+            label={`Lớp mở ${targetTerm.shortName}`}
+            value={openSections.length}
+            hint={draftSections > 0 ? `${draftSections} lớp còn nháp` : "Không còn lớp nháp"}
+            tone={draftSections > 0 ? "warning" : undefined}
+            href={`/administrator/class-sections?term=${targetTerm.id}`}
+          />
+          <StatTile label="Tỉ lệ lấp đầy chỗ" value={`${fillRate}%`} hint={`${enrolled.toLocaleString("vi-VN")}/${capacity.toLocaleString("vi-VN")} chỗ đã đăng ký`} />
+          <StatTile
+            label="Cảnh báo học vụ chưa xử lý"
+            value={newWarnings}
+            hint={`Trên ${warnings.length} sinh viên bị cảnh báo`}
+            tone={newWarnings > 0 ? "warning" : undefined}
+            href="/administrator/reports/academic-warnings"
+          />
+        </div>
+
+        <div className="grid gap-4 sm:gap-6 xl:grid-cols-3">
+          <div className="min-w-0 xl:col-span-2">
+            <Section
+              title="Lớp học phần cần xử lý"
+              action={<Link href={`/administrator/class-sections?term=${targetTerm.id}`} className="text-sm">Tất cả lớp</Link>}
+            >
+              {issues.length === 0 ? (
+                <EmptyState icon={CircleCheck} title="Không có lớp cần xử lý" description="Mọi lớp đã có giảng viên, không trùng phòng hay trùng giờ." />
+              ) : (
+                <ul className="flex flex-col divide-y divide-border-strong">
+                  {issues.map(({ section, reason, tone }) => (
+                    <li key={section.id}>
+                      <Link
+                        href={`/administrator/class-sections?term=${targetTerm.id}&q=${section.code}`}
+                        className="flex flex-col gap-1 px-4 py-3 text-foreground transition-colors hover:bg-surface-hover sm:flex-row sm:items-center sm:gap-4 sm:px-5"
+                      >
+                        <span className="flex min-w-0 flex-1 flex-col">
+                          <span className="truncate font-medium">{section.courseName}</span>
+                          <span className="font-mono text-xs text-muted">{section.code}</span>
+                        </span>
+                        <span className={`min-w-0 text-sm text-pretty sm:w-80 ${tone === "danger" ? "text-rose-700" : "text-amber-700"}`}>
+                          {reason}
+                        </span>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </Section>
+          </div>
+
+          <div className="flex min-w-0 flex-col gap-4 sm:gap-6">
+            <Section title="Đợt đăng ký" action={<Link href="/administrator/terms" className="text-sm">Cấu hình</Link>}>
+              <ul className="flex flex-col divide-y divide-border-strong">
+                {periods.map((period) => (
+                  <li key={period.id} className="flex flex-col gap-2 px-4 py-3 sm:px-5">
+                    <div className="flex items-start justify-between gap-3">
+                      <span className="min-w-0 font-medium text-pretty">{period.name}</span>
+                      <StatusTag status={REGISTRATION_PERIOD_STATE[period.state]} className="shrink-0" />
+                    </div>
+                    <span className="text-xs text-muted tabular-nums">{periodHint(period)}</span>
+                    {period.state !== "upcoming" && (
+                      <div className="flex items-center gap-3">
+                        <MeterBar value={period.registeredStudents} max={period.eligibleStudents} label={`Đã đăng ký ${period.name}`} />
+                        <span className="shrink-0 text-xs text-muted tabular-nums">
+                          {period.registeredStudents}/{period.eligibleStudents}
+                        </span>
+                      </div>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </Section>
+
+            <Section title="Thông báo" action={<Link href="/administrator/announcements" className="text-sm">Quản lý</Link>}>
+              <ul className="flex flex-col divide-y divide-border-strong">
+                {recentAnnouncements.map((announcement) => (
+                  <li key={announcement.id} className="flex flex-col gap-1 px-4 py-3 sm:px-5">
+                    <span className="line-clamp-2 font-medium text-pretty">{announcement.title}</span>
+                    <span className="flex flex-wrap items-center gap-2 text-xs text-muted">
+                      <span>{ANNOUNCEMENT_CATEGORY_LABEL[announcement.category]}</span>
+                      <span className="tabular-nums">{announcement.publishedAt ? formatDate(announcement.publishedAt) : "Chưa đăng"}</span>
+                      {announcement.status !== "published" && <StatusTag status={ANNOUNCEMENT_STATUS[announcement.status]} />}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </Section>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}

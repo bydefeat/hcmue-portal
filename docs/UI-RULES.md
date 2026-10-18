@@ -80,7 +80,7 @@ Nguồn: plugin `evon:ui-ux` (evondevkit), áp cho stack của dự án (**antd 
 | Token | Giá trị | Vai |
 |---|---|---|
 | `primary` | Cerulean `#124874` | **Màu nhấn duy nhất của UI**: nút chính, link, ô focus, tab đang chọn, biểu đồ |
-| `brand-accent` | Jasper `#CF373D` | **Chỉ là màu thương hiệu trong nội dung**: logo, chữ "SP", tiêu đề viết hoa của card xác thực (theo cổng chính thức online.hcmue.edu.vn). Không cho nút, badge, trạng thái, chữ dưới 14px |
+| `brand-accent` | Jasper `#CF373D` | **Chỉ là màu thương hiệu trong nội dung**: logo, chữ "SP", tiêu đề viết hoa của card xác thực (theo cổng chính thức online.hcmue.edu.vn), thanh tiến trình chuyển trang BProgress (Cerulean không thấy được trên đầu trang xác thực màu Cerulean). Không cho nút, badge, trạng thái, chữ dưới 14px |
 | `danger` | rose-700 / nền rose-500 10% | Lỗi, việc không đảo ngược |
 
 Lý do Jasper không lên UI: đỏ trong app luôn đọc là "lỗi/nguy hiểm" (`M30`, `N4`); nút đỏ "Đăng ký học phần" sẽ khiến người dùng ngần ngại bấm.

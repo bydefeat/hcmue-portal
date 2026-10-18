@@ -22,6 +22,22 @@
 
 ---
 
+## Bộ nhận diện thương hiệu (Brand Identity)
+
+<img src="public/hcmue-logo.png" alt="Logo Trường Đại học Sư phạm TP.HCM" width="320" />
+
+| Màu | HEX | RGB | CMYK |
+|---|---|---|---|
+| Xanh Cerulean (chủ đạo) | `#124874` | 18, 72, 116 | 84, 38, 0, 55 |
+| Đỏ Jasper | `#CF373D` | 207, 55, 61 | 0, 73, 71, 19 |
+
+**Quy định sử dụng:**
+- Tuân thủ mẫu logo, hệ màu, tỉ lệ kích thước, vị trí xuất hiện, phông chữ nhận diện và thông tin kèm theo theo tài liệu "Bộ nhận diện thương hiệu" của Trường.
+- Đảm bảo chất lượng hình ảnh (không méo, vỡ, đổi màu logo).
+- Nội dung, hình ảnh đi kèm và không gian xuất hiện phải phù hợp đặc tính ngành giáo dục, không vi phạm quy định về tư tưởng chính trị, thuần phong mỹ tục.
+
+---
+
 ## Công nghệ sử dụng (Tech Stack)
 - **Framework:** Next.js (App Router, React 19)
 - **Language:** TypeScript

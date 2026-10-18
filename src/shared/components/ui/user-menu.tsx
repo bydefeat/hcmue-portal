@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { Avatar, Button, Dropdown, type MenuProps } from "antd";
-import { ArrowDoorOut, ChevronExpandY } from "defeat-icons-react";
+import { ArrowDoorOut, Check, ChevronExpandY, UserChange } from "defeat-icons-react";
 import type { NavItem } from "@/shared/constants/navigation.constant";
 
 export type MenuUser = {
@@ -11,9 +11,16 @@ export type MenuUser = {
   role?: string;
 };
 
+export type RoleSwitcher = {
+  current: string;
+  options: { value: string; label: string; description: string }[];
+  action: (formData: FormData) => void | Promise<void>;
+};
+
 type UserMenuProps = {
   user: MenuUser;
   links?: NavItem[];
+  switcher?: RoleSwitcher;
   compact?: boolean;
 };
 
@@ -22,7 +29,35 @@ function initialsOf(name: string) {
   return words.at(-1)?.[0]?.toUpperCase() ?? "";
 }
 
-export function UserMenu({ user, links = [], compact = false }: UserMenuProps) {
+function switcherItems(switcher: RoleSwitcher): MenuProps["items"] {
+  return [
+    {
+      key: "switch-role",
+      icon: <UserChange size={16} aria-hidden />,
+      label: "Xem thử với vai trò",
+      children: switcher.options.map((option) => ({
+        key: `role-${option.value}`,
+        label: (
+          <form action={switcher.action} className="contents">
+            <input type="hidden" name="assignmentId" value={option.value} />
+            <button type="submit" className="flex w-full cursor-pointer items-start gap-2 text-left">
+              <span className="flex size-4 shrink-0 items-center pt-0.5">
+                {option.value === switcher.current && <Check size={14} aria-label="Đang dùng" />}
+              </span>
+              <span className="flex min-w-0 flex-col">
+                <span className="text-sm">{option.label}</span>
+                <span className="text-xs text-muted">{option.description}</span>
+              </span>
+            </button>
+          </form>
+        ),
+      })),
+    },
+    { type: "divider" },
+  ];
+}
+
+export function UserMenu({ user, links = [], switcher, compact = false }: UserMenuProps) {
   const linkItems: MenuProps["items"] = links.map((link) => {
     const Icon = link.icon;
     return {
@@ -40,13 +75,14 @@ export function UserMenu({ user, links = [], compact = false }: UserMenuProps) {
         <span className="flex flex-col gap-1">
           <span className="truncate text-sm font-medium text-foreground">{user.name}</span>
           <span className="truncate font-mono text-xs text-muted">{user.code}</span>
-          {user.role && <span className="truncate text-xs text-muted">{user.role}</span>}
+          {user.role && <span className="max-w-64 text-xs text-pretty text-muted">{user.role}</span>}
         </span>
       ),
     },
     { type: "divider" },
     ...linkItems,
     ...(linkItems.length > 0 ? [{ type: "divider" as const }] : []),
+    ...(switcher ? switcherItems(switcher) ?? [] : []),
     { key: "sign-out", danger: true, icon: <ArrowDoorOut size={16} aria-hidden />, label: <Link href="/authentication/sign-in">Đăng xuất</Link> },
   ];
 

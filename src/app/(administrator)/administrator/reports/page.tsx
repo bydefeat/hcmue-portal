@@ -12,10 +12,12 @@ import {
 import { StandingReport } from "@/modules/grades/components/standing-report";
 import { formatPoint } from "@/modules/grades/grades.constant";
 import { getStandingSummary } from "@/modules/grades/grades.query";
+import { requirePermission } from "@/modules/access/access.query";
 
 export const metadata: Metadata = { title: "Thống kê học vụ" };
 
 export default async function Page() {
+  await requirePermission("reports.view");
   const [standings, currentTerm, targetTerm] = await Promise.all([getStandingSummary(), getCurrentTerm(), getRegistrationTargetTerm()]);
   const [currentRegistration, targetRegistration] = await Promise.all([
     getRegistrationSummary(currentTerm.id),

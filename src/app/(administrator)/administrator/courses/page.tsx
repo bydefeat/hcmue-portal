@@ -2,10 +2,12 @@ import type { Metadata } from "next";
 import { PageHeader } from "@/shared/components/ui/page-header";
 import { CourseTable } from "@/modules/curriculum/components/course-table";
 import { getCourses } from "@/modules/curriculum/curriculum.query";
+import { requirePermission } from "@/modules/access/access.query";
 
 export const metadata: Metadata = { title: "Học phần" };
 
 export default async function Page({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
+  await requirePermission("curriculum.manage");
   const [{ q }, courses] = await Promise.all([searchParams, getCourses()]);
   return (
     <>

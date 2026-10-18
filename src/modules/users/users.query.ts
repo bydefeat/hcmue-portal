@@ -1,5 +1,5 @@
 import { mockDelay } from "@/shared/libs/mock-request.lib";
-import { ADVISOR_ASSIGNMENTS, CURRENT_LECTURER_ID, LECTURERS, STUDENTS } from "./users.mock";
+import { ADVISOR_ASSIGNMENTS, CURRENT_LECTURER_ID, CURRENT_STUDENT_ID, DECISIONS, LECTURERS, STUDENTS } from "./users.mock";
 
 export async function getStudents() {
   await mockDelay();
@@ -44,4 +44,19 @@ export async function getAdvisees(lecturerId: string) {
 
 export async function getAdvisedClasses(lecturerId: string) {
   return ADVISOR_ASSIGNMENTS.filter((assignment) => assignment.advisorId === lecturerId);
+}
+
+export async function getCurrentStudent() {
+  return STUDENTS.find((student) => student.id === CURRENT_STUDENT_ID)!;
+}
+
+export async function getAdvisorOf(studentId: string) {
+  const student = STUDENTS.find((entry) => entry.id === studentId);
+  const assignment = ADVISOR_ASSIGNMENTS.find((entry) => entry.className === student?.className);
+  return LECTURERS.find((lecturer) => lecturer.id === assignment?.advisorId) ?? null;
+}
+
+export async function getDecisions(studentId?: string) {
+  await mockDelay();
+  return DECISIONS.filter((decision) => !studentId || decision.studentId === studentId);
 }

@@ -1,23 +1,43 @@
 import type { ComponentType } from "react";
 import {
   AlertWarning,
+  ApartmentBuilding,
+  AwardCertificate,
   BookOpen,
   Books,
+  CalendarCheck,
   CalendarClock,
   CalendarDays,
+  CalendarGrid,
+  CalendarUser,
+  ChartActivity,
   ChartColumn,
   ChartPie,
   ClipboardCheck,
+  ClipboardList,
+  FileContent,
+  Gauge,
+  Gear,
   GraduationCap,
+  History,
   House,
   HouseDashboard,
   IdBadge,
+  Inbox,
   Megaphone,
   PresentationScreen,
+  Receipt,
   Route,
   School,
+  ScrollText,
+  ShieldUser,
+  Sliders,
+  StarList,
+  Suitcase,
+  TableDownload,
   User,
   UserCap,
+  UserChange,
   Users,
   UsersLink,
   UsersStar,
@@ -30,6 +50,7 @@ export type NavItem = {
   icon?: ComponentType<IconProps>;
   shortLabel?: string;
   exact?: boolean;
+  permission?: string;
 };
 
 export type NavGroup = {
@@ -53,6 +74,8 @@ export const APPLICATION_NAVIGATION: NavGroup[] = [
     items: [
       { label: "Tổng quan", shortLabel: "Tổng quan", href: "/application/dashboard", icon: HouseDashboard },
       { label: "Đăng ký học phần", shortLabel: "Đăng ký", href: "/application/registration", icon: ClipboardCheck },
+      { label: "Đơn từ", href: "/application/requests", icon: Inbox },
+      { label: "Học phí", href: "/application/tuition", icon: Receipt },
     ],
   },
   {
@@ -62,6 +85,7 @@ export const APPLICATION_NAVIGATION: NavGroup[] = [
       { label: "Thời khóa biểu", shortLabel: "Lịch học", href: "/application/schedule", icon: CalendarDays },
       { label: "Lịch thi", href: "/application/exams", icon: CalendarClock },
       { label: "Kết quả học tập", shortLabel: "Kết quả", href: "/application/grades", icon: ChartColumn },
+      { label: "Khảo sát giảng dạy", href: "/application/surveys", icon: StarList },
     ],
   },
   {
@@ -76,6 +100,8 @@ export const APPLICATION_NAVIGATION: NavGroup[] = [
 
 export const APPLICATION_PROFILE: NavItem = { label: "Hồ sơ", href: "/application/profile", icon: User };
 
+export const APPLICATION_NOTIFICATIONS_HREF = "/application/notifications";
+
 export const APPLICATION_BOTTOM_TABS = [
   "/application/dashboard",
   "/application/registration",
@@ -89,7 +115,11 @@ export const LECTURER_NAVIGATION: NavItem[] = [
   { label: "Tổng quan", href: LECTURER_HOME_HREF, icon: HouseDashboard, exact: true },
   { label: "Lịch dạy", href: "/lecturer/schedule", icon: CalendarDays },
   { label: "Lớp học phần", shortLabel: "Lớp", href: "/lecturer/classes", icon: PresentationScreen },
+  { label: "Lịch thi", href: "/lecturer/exams", icon: CalendarClock },
+  { label: "Đơn từ", href: "/lecturer/requests", icon: Inbox },
 ];
+
+export const LECTURER_DOCK_ITEMS = LECTURER_NAVIGATION.slice(0, 3);
 
 export const LECTURER_ADVISING_GROUP: NavGroup = {
   label: "Cố vấn",
@@ -98,61 +128,108 @@ export const LECTURER_ADVISING_GROUP: NavGroup = {
     { label: "Sinh viên cố vấn", href: "/lecturer/advising/students", icon: Users },
     { label: "Kế hoạch học tập", href: "/lecturer/advising/study-plans", icon: Route },
     { label: "Cảnh báo học vụ", href: "/lecturer/advising/academic-warnings", icon: AlertWarning },
+    { label: "Lịch hẹn", href: "/lecturer/advising/appointments", icon: CalendarUser },
   ],
 };
+
+export const LECTURER_ACCOUNT_LINKS: NavItem[] = [
+  { label: "Hồ sơ cá nhân", href: "/lecturer/profile", icon: User },
+  { label: "Khối lượng giảng dạy", href: "/lecturer/workload", icon: Gauge },
+];
+
+export const LECTURER_NOTIFICATIONS_HREF = "/lecturer/notifications";
 
 export const LECTURER_ADVISING_HREF = "/lecturer/advising";
 
 export const ADMINISTRATOR_HOME_HREF = "/administrator";
+
+export const ADMINISTRATOR_NOTIFICATIONS_HREF = "/administrator/notifications";
 
 export const ADMINISTRATOR_NAVIGATION: NavGroup[] = [
   {
     label: "Chung",
     icon: House,
     items: [
-      { label: "Tổng quan", href: ADMINISTRATOR_HOME_HREF, icon: HouseDashboard, exact: true },
-      { label: "Thông báo", href: "/administrator/announcements", icon: Megaphone },
+      { label: "Tổng quan", href: ADMINISTRATOR_HOME_HREF, icon: HouseDashboard, exact: true, permission: "dashboard.view" },
+      { label: "Đơn từ", href: "/administrator/requests", icon: Inbox, permission: "requests.process" },
+      { label: "Thông báo", href: "/administrator/announcements", icon: Megaphone, permission: "announcements.manage" },
     ],
   },
   {
     label: "Đào tạo",
     icon: School,
     items: [
-      { label: "Chương trình đào tạo", href: "/administrator/programs", icon: BookOpen },
-      { label: "Học phần", href: "/administrator/courses", icon: Books },
-      { label: "Lớp học phần", shortLabel: "Lớp HP", href: "/administrator/class-sections", icon: PresentationScreen },
+      { label: "Chương trình đào tạo", href: "/administrator/programs", icon: BookOpen, permission: "curriculum.manage" },
+      { label: "Học phần", href: "/administrator/courses", icon: Books, permission: "curriculum.manage" },
+      { label: "Lớp học phần", shortLabel: "Lớp HP", href: "/administrator/class-sections", icon: PresentationScreen, permission: "class-sections.manage" },
+      { label: "Phân công giảng dạy", href: "/administrator/teaching-assignments", icon: Suitcase, permission: "teaching.assign" },
+      { label: "Phòng học", href: "/administrator/rooms", icon: ApartmentBuilding, permission: "facilities.manage" },
     ],
   },
   {
     label: "Học vụ",
     icon: GraduationCap,
-    items: [{ label: "Học kỳ và đợt đăng ký", shortLabel: "Học kỳ", href: "/administrator/terms", icon: CalendarClock }],
+    items: [
+      { label: "Học kỳ và đợt đăng ký", shortLabel: "Học kỳ", href: "/administrator/terms", icon: CalendarClock, permission: "registration.manage" },
+      { label: "Theo dõi đăng ký", href: "/administrator/registration-monitor", icon: ChartActivity, permission: "registration.manage" },
+      { label: "Duyệt và công bố điểm", href: "/administrator/grade-publishing", icon: ClipboardCheck, permission: "grades.approve" },
+      { label: "Quyết định sinh viên", href: "/administrator/decisions", icon: ScrollText, permission: "decisions.manage" },
+      { label: "Xét tốt nghiệp", href: "/administrator/graduation", icon: AwardCertificate, permission: "graduation.manage" },
+    ],
+  },
+  {
+    label: "Khảo thí",
+    icon: ClipboardList,
+    items: [
+      { label: "Lịch thi", href: "/administrator/exams", icon: CalendarCheck, exact: true, permission: "exams.manage" },
+      { label: "Điều kiện dự thi", href: "/administrator/exams/eligibility", icon: UserChange, permission: "exams.manage" },
+    ],
   },
   {
     label: "Người dùng",
     icon: Users,
     items: [
-      { label: "Sinh viên", href: "/administrator/users/students", icon: UserCap },
-      { label: "Giảng viên", href: "/administrator/users/lecturers", icon: IdBadge },
-      { label: "Phân công cố vấn", href: "/administrator/users/advisors", icon: UsersLink },
+      { label: "Sinh viên", href: "/administrator/users/students", icon: UserCap, permission: "students.view" },
+      { label: "Giảng viên", href: "/administrator/users/lecturers", icon: IdBadge, permission: "lecturers.manage" },
+      { label: "Phân công cố vấn", href: "/administrator/users/advisors", icon: UsersLink, permission: "advisors.assign" },
     ],
   },
   {
     label: "Báo cáo",
     icon: ChartColumn,
     items: [
-      { label: "Thống kê học vụ", shortLabel: "Thống kê", href: "/administrator/reports", icon: ChartPie, exact: true },
-      { label: "Cảnh báo học vụ", href: "/administrator/reports/academic-warnings", icon: AlertWarning },
+      { label: "Thống kê học vụ", shortLabel: "Thống kê", href: "/administrator/reports", icon: ChartPie, exact: true, permission: "reports.view" },
+      { label: "Cảnh báo học vụ", href: "/administrator/reports/academic-warnings", icon: AlertWarning, permission: "reports.view" },
+      { label: "Khảo sát giảng dạy", href: "/administrator/reports/surveys", icon: StarList, permission: "surveys.view" },
+      { label: "Xuất báo cáo", href: "/administrator/reports/exports", icon: TableDownload, permission: "reports.view" },
+    ],
+  },
+  {
+    label: "Hệ thống",
+    icon: Gear,
+    items: [
+      { label: "Quy chế đào tạo", href: "/administrator/settings", icon: Sliders, exact: true, permission: "settings.manage" },
+      { label: "Lịch năm học", href: "/administrator/settings/calendar", icon: CalendarGrid, permission: "settings.manage" },
+      { label: "Phân quyền", href: "/administrator/settings/access", icon: ShieldUser, permission: "access.manage" },
+      { label: "Nhật ký thao tác", href: "/administrator/settings/audit-log", icon: History, permission: "audit.view" },
     ],
   },
 ];
 
 export const ADMINISTRATOR_BOTTOM_TABS = [
   ADMINISTRATOR_HOME_HREF,
-  "/administrator/class-sections",
+  "/administrator/requests",
   "/administrator/users/students",
   "/administrator/reports",
 ];
+
+export const ADMINISTRATOR_ACCOUNT_LINKS: NavItem[] = [{ label: "Hồ sơ cá nhân", href: "/administrator/profile", icon: FileContent }];
+
+export function filterNavigation(groups: NavGroup[], permissions: string[]) {
+  return groups
+    .map((group) => ({ ...group, items: group.items.filter((item) => !item.permission || permissions.includes(item.permission)) }))
+    .filter((group) => group.items.length > 0);
+}
 
 export function isActiveHref(pathname: string, href: string, exact = false) {
   if (exact || href === "/") return pathname === href;

@@ -41,7 +41,10 @@ export function toStanding(cpa4: number) {
 }
 
 export const GRADE_SHEET_STATE: Record<GradeSheetState, StatusMeta> = {
-  locked: { label: "Đã chốt", tone: "success" },
+  published: { label: "Đã công bố", tone: "success" },
+  approved: { label: "Khoa đã duyệt", tone: "success" },
+  locked: { label: "Đã chốt, chờ khoa duyệt", tone: "neutral" },
+  returned: { label: "Khoa trả lại", tone: "danger" },
   overdue: { label: "Quá hạn nhập", tone: "danger" },
   "due-soon": { label: "Sắp hết hạn", tone: "warning" },
   "in-progress": { label: "Đang nhập", tone: "neutral" },

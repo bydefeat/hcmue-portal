@@ -4,12 +4,15 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Layout, Menu, type MenuProps } from "antd";
 import { Logo } from "@/shared/components/ui/logo";
+import { NotificationBell, type BellItem } from "@/shared/components/ui/notification-bell";
 import { UserMenu, type MenuUser } from "@/shared/components/ui/user-menu";
 import {
   isActiveItem,
+  LECTURER_ACCOUNT_LINKS,
   LECTURER_ADVISING_GROUP,
   LECTURER_HOME_HREF,
   LECTURER_NAVIGATION,
+  LECTURER_NOTIFICATIONS_HREF,
   type NavItem,
 } from "@/shared/constants/navigation.constant";
 
@@ -24,7 +27,13 @@ function menuItem(item: NavItem) {
   };
 }
 
-export function LecturerHeader({ user, isAdvisor }: { user: MenuUser; isAdvisor: boolean }) {
+type LecturerHeaderProps = {
+  user: MenuUser;
+  isAdvisor: boolean;
+  notifications: BellItem[];
+};
+
+export function LecturerHeader({ user, isAdvisor, notifications }: LecturerHeaderProps) {
   const pathname = usePathname();
   const AdvisingIcon = LECTURER_ADVISING_GROUP.icon;
   const items: MenuProps["items"] = [
@@ -56,8 +65,9 @@ export function LecturerHeader({ user, isAdvisor }: { user: MenuUser; isAdvisor:
           disabledOverflow
           className="hidden min-w-0 flex-1 border-0 md:flex"
         />
-        <div className="ml-auto shrink-0">
-          <UserMenu user={user} compact />
+        <div className="ml-auto flex shrink-0 items-center gap-1 leading-normal">
+          <NotificationBell items={notifications} viewAllHref={LECTURER_NOTIFICATIONS_HREF} />
+          <UserMenu user={user} links={LECTURER_ACCOUNT_LINKS} compact />
         </div>
       </div>
     </Layout.Header>

@@ -3,11 +3,14 @@ import { PageHeader } from "@/shared/components/ui/page-header";
 import { AcademicWarningTable } from "@/modules/grades/components/academic-warning-table";
 import { WARNING_RULES } from "@/modules/grades/grades.constant";
 import { getAcademicWarnings } from "@/modules/grades/grades.query";
+import { inScope } from "@/modules/access/access.constant";
+import { requirePermission } from "@/modules/access/access.query";
 
 export const metadata: Metadata = { title: "Cảnh báo học vụ" };
 
 export default async function Page() {
-  const warnings = await getAcademicWarnings();
+  const viewer = await requirePermission("reports.view");
+  const warnings = (await getAcademicWarnings()).filter((warning) => inScope(viewer, warning.faculty));
   const pending = warnings.filter((warning) => warning.status === "new").length;
 
   return (

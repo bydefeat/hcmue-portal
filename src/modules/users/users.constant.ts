@@ -1,6 +1,6 @@
 import type { StatusMeta } from "@/shared/constants/status.constant";
 import { MOCK_COHORTS, MOCK_MAJORS } from "@/shared/libs/mock.lib";
-import type { LecturerStatus, StudentStatus } from "./users.type";
+import type { DecisionKind, DecisionStatus, LecturerStatus, StudentStatus } from "./users.type";
 
 export const STUDENT_STATUS: Record<StudentStatus, StatusMeta> = {
   studying: { label: "Đang học", tone: "neutral" },
@@ -37,3 +37,23 @@ export const STUDENT_STATUS_OPTIONS = Object.entries(STUDENT_STATUS).map(([value
 }));
 
 export const GENDER_LABEL = { female: "Nữ", male: "Nam" } as const;
+
+export const DECISION_KIND_LABEL: Record<DecisionKind, string> = {
+  reserve: "Bảo lưu kết quả học tập",
+  resume: "Tiếp tục học sau bảo lưu",
+  suspend: "Tạm ngừng học",
+  expel: "Buộc thôi học",
+  "major-change": "Chuyển ngành",
+  reward: "Khen thưởng",
+  discipline: "Kỷ luật",
+  graduate: "Công nhận tốt nghiệp",
+};
+
+export const DECISION_STATUS: Record<DecisionStatus, StatusMeta> = {
+  draft: { label: "Dự thảo", tone: "neutral" },
+  "pending-signature": { label: "Chờ ký", tone: "warning" },
+  signed: { label: "Đã ký", tone: "success" },
+  revoked: { label: "Đã thu hồi", tone: "danger" },
+};
+
+export const DECISION_KIND_OPTIONS = Object.entries(DECISION_KIND_LABEL).map(([value, label]) => ({ value, label }));

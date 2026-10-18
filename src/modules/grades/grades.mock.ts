@@ -135,6 +135,9 @@ export const PROJECT_COMPONENTS: GradeComponent[] = [
   { key: "final", label: "Cuối kỳ", weight: 50 },
 ];
 
+const FULL = { attendance: 1, midterm: 1, final: 1 };
+const FULL_PROJECT = { attendance: 1, project: 1, final: 1 };
+
 export const GRADE_SHEET_SEEDS: Record<
   string,
   { components: GradeComponent[]; status: GradeSheetStatus; deadline: string; fill: Record<string, number> }
@@ -143,4 +146,11 @@ export const GRADE_SHEET_SEEDS: Record<
   "hk1-2026-comp1020-02": { components: DEFAULT_COMPONENTS, status: "draft", deadline: mockDate(12, "23:59"), fill: { attendance: 1, midterm: 0.1, final: 0 } },
   "hk1-2026-comp1070-01": { components: PROJECT_COMPONENTS, status: "locked", deadline: mockDate(-6, "23:59"), fill: { attendance: 1, project: 1, final: 1 } },
   "hk1-2026-comp1080-01": { components: DEFAULT_COMPONENTS, status: "draft", deadline: mockDate(-1, "23:59"), fill: { attendance: 1, midterm: 0.9, final: 0 } },
+  "hk1-2026-comp1010-01": { components: DEFAULT_COMPONENTS, status: "approved", deadline: mockDate(-5, "23:59"), fill: FULL },
+  "hk1-2026-comp1040-01": { components: DEFAULT_COMPONENTS, status: "approved", deadline: mockDate(-4, "23:59"), fill: FULL },
+  "hk1-2026-comp1031-01": { components: PROJECT_COMPONENTS, status: "locked", deadline: mockDate(-2, "23:59"), fill: FULL_PROJECT },
+  "hk1-2026-math1011-01": { components: DEFAULT_COMPONENTS, status: "published", deadline: mockDate(-12, "23:59"), fill: FULL },
+  "hk1-2026-litr1010-01": { components: DEFAULT_COMPONENTS, status: "locked", deadline: mockDate(-1, "23:59"), fill: FULL },
+  "hk1-2026-psyc1001-01": { components: DEFAULT_COMPONENTS, status: "returned", deadline: mockDate(2, "23:59"), fill: FULL },
+  "hk1-2026-engl1002-01": { components: DEFAULT_COMPONENTS, status: "draft", deadline: mockDate(-3, "23:59"), fill: { attendance: 1, midterm: 0.5, final: 0 } },
 };

@@ -100,3 +100,20 @@ export type RegistrationPeriodFormValues = {
   minCredits: number;
   maxCredits: number;
 };
+
+export type StudentEnrollment = {
+  section: ClassSectionView;
+  registeredAt: string;
+};
+
+export type LecturerWorkload = {
+  lecturerId: string;
+  lecturerName: string;
+  faculty: string;
+  title: string;
+  sectionCodes: string[];
+  periodsPerWeek: number;
+  teachingHours: number;
+  standardHours: number;
+  normHours: number;
+};

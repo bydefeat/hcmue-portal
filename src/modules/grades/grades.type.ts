@@ -4,7 +4,7 @@ export type GradeComponent = {
   weight: number;
 };
 
-export type GradeSheetStatus = "draft" | "locked";
+export type GradeSheetStatus = "draft" | "locked" | "approved" | "published" | "returned";
 
 export type ScoreRow = Record<string, number | null>;
 
@@ -18,7 +18,7 @@ export type GradeSheet = {
   scores: Record<string, ScoreRow>;
 };
 
-export type GradeSheetState = "locked" | "overdue" | "due-soon" | "in-progress";
+export type GradeSheetState = "published" | "approved" | "locked" | "returned" | "overdue" | "due-soon" | "in-progress";
 
 export type GradeSheetSummary = {
   classSectionId: string;

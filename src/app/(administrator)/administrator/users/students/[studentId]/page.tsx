@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { forbidden, notFound } from "next/navigation";
 import { PageHeader } from "@/shared/components/ui/page-header";
 import { StatTile } from "@/shared/components/ui/stat-tile";
 import { StatusTag } from "@/shared/components/ui/status-tag";
@@ -11,6 +11,8 @@ import { STUDY_PLAN_STATUS } from "@/modules/study-plan/study-plan.constant";
 import { getStudyPlanOfStudent } from "@/modules/study-plan/study-plan.query";
 import { StudentProfileCard } from "@/modules/users/components/student-profile-card";
 import { getAdvisorAssignments, getStudent } from "@/modules/users/users.query";
+import { inScope } from "@/modules/access/access.constant";
+import { requirePermission } from "@/modules/access/access.query";
 
 type PageProps = { params: Promise<{ studentId: string }> };
 
@@ -21,9 +23,11 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 }
 
 export default async function Page({ params }: PageProps) {
+  const viewer = await requirePermission("students.view");
   const { studentId } = await params;
   const student = await getStudent(studentId);
   if (!student) notFound();
+  if (!inScope(viewer, student.faculty)) forbidden();
 
   const [assignments, [standing], transcript, plan] = await Promise.all([
     getAdvisorAssignments(),

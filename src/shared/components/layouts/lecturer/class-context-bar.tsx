@@ -21,6 +21,8 @@ const TABS = [
   { key: "roster", label: "Danh sách lớp" },
   { key: "attendance", label: "Điểm danh" },
   { key: "grading", label: "Nhập điểm" },
+  { key: "syllabus", label: "Đề cương" },
+  { key: "announcements", label: "Thông báo lớp" },
 ];
 
 export function ClassContextBar({ classContext }: { classContext: ClassContext }) {

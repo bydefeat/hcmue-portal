@@ -4,11 +4,14 @@ import { STANDING_LABEL } from "@/modules/grades/grades.constant";
 import { getStudentStandings } from "@/modules/grades/grades.query";
 import { StudentTable } from "@/modules/users/components/student-table";
 import { getStudents } from "@/modules/users/users.query";
+import { inScope } from "@/modules/access/access.constant";
+import { requirePermission } from "@/modules/access/access.query";
 
 export const metadata: Metadata = { title: "Quản lý sinh viên" };
 
 export default async function Page() {
-  const students = await getStudents();
+  const viewer = await requirePermission("students.view");
+  const students = (await getStudents()).filter((student) => inScope(viewer, student.faculty));
   const standings = await getStudentStandings(students.map((student) => student.id));
   const standingById = new Map(standings.map((standing) => [standing.studentId, standing]));
   const rows = students.map((student) => {

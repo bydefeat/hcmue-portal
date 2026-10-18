@@ -148,7 +148,7 @@ export async function getStandingSummary(): Promise<FacultyStandingSummary[]> {
 }
 
 function sheetState(status: GradeSheet["status"], deadline: string): GradeSheetState {
-  if (status === "locked") return "locked";
+  if (status === "published" || status === "approved" || status === "locked" || status === "returned") return status;
   if (dayjs().isAfter(deadline)) return "overdue";
   if (daysUntil(deadline) <= DUE_SOON_DAYS) return "due-soon";
   return "in-progress";
@@ -175,8 +175,8 @@ export async function getGradeSheet(classSectionId: string, studentIds: string[]
     components: seed.components,
     status: seed.status,
     deadline: seed.deadline,
-    lockedAt: seed.status === "locked" ? mockDate(-8, "16:20") : null,
-    savedAt: seed.status === "locked" ? null : mockDate(-1, "21:47"),
+    lockedAt: seed.status === "draft" ? null : mockDate(-8, "16:20"),
+    savedAt: seed.status === "draft" ? mockDate(-1, "21:47") : null,
     scores,
     state: sheetState(seed.status, seed.deadline),
   };

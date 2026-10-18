@@ -3,10 +3,12 @@ import { PageHeader } from "@/shared/components/ui/page-header";
 import { RegistrationPeriodList } from "@/modules/course-registration/components/registration-period-list";
 import { TermList } from "@/modules/course-registration/components/term-list";
 import { getClassSections, getRegistrationPeriods, getTerms } from "@/modules/course-registration/course-registration.query";
+import { requirePermission } from "@/modules/access/access.query";
 
 export const metadata: Metadata = { title: "Học kỳ và đợt đăng ký" };
 
 export default async function Page() {
+  await requirePermission("registration.manage");
   const [terms, periods] = await Promise.all([getTerms(), getRegistrationPeriods()]);
   const sectionCounts = await Promise.all(terms.map(async (term) => (await getClassSections(term.id)).length));
   const termRows = terms.map((term, index) => ({

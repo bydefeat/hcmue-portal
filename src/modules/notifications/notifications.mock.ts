@@ -1,0 +1,24 @@
+import { mockDate } from "@/shared/libs/mock.lib";
+import type { AppNotification } from "./notifications.type";
+
+export const NOTIFICATIONS: AppNotification[] = [
+  { id: "nt-a01", audience: "administrator", kind: "deadline", title: "Đợt 1 đăng ký học kỳ 2 đóng sau 24 giờ", body: "Còn 81 sinh viên khóa 48, 49 chưa đăng ký học phần nào.", href: "/administrator/registration-monitor", createdAt: mockDate(0, "07:30"), isRead: false },
+  { id: "nt-a02", audience: "administrator", kind: "request", title: "12 đơn xin mở lớp đang chờ Phòng Đào tạo", body: "Có 4 đơn đã quá hạn xử lý 3 ngày làm việc.", href: "/administrator/requests?status=in-review", createdAt: mockDate(-1, "16:05"), isRead: false },
+  { id: "nt-a03", audience: "administrator", kind: "grade", title: "Khoa Công nghệ Thông tin đã duyệt 3 bảng điểm", body: "Các bảng điểm chờ Phòng Đào tạo công bố.", href: "/administrator/grade-publishing", createdAt: mockDate(-1, "10:12"), isRead: false },
+  { id: "nt-a04", audience: "administrator", kind: "system", title: "Lớp COMP1100.01 và COMP1100.02 trùng phòng", body: "Cùng phòng C.302 thứ 6, tiết 1-4 ở học kỳ 2.", href: "/administrator/class-sections?term=hk2-2026&q=COMP1100", createdAt: mockDate(-2, "09:40"), isRead: true },
+  { id: "nt-a05", audience: "administrator", kind: "exam", title: "6 giảng viên chưa nộp đề thi cuối kỳ", body: "Hạn nộp đề cho Phòng Khảo thí còn 5 ngày.", href: "/administrator/exams", createdAt: mockDate(-3, "08:00"), isRead: true },
+  { id: "nt-a06", audience: "administrator", kind: "system", title: "Võ Thanh Trang được cấp quyền Giáo vụ khoa", body: "Người cấp: Trần Minh Khoa.", href: "/administrator/settings/access", createdAt: mockDate(-3, "10:20"), isRead: true },
+
+  { id: "nt-l01", audience: "lecturer", kind: "deadline", title: "Bảng điểm COMP1080.01 đã quá hạn nhập", body: "Hạn là 23:59 hôm qua. Hoàn tất và chốt điểm để khoa duyệt.", href: "/lecturer/classes/hk1-2026-comp1080-01/grading", createdAt: mockDate(0, "00:05"), isRead: false },
+  { id: "nt-l02", audience: "lecturer", kind: "request", title: "2 đơn phúc khảo cần thầy chấm lại", body: "Lớp COMP1070.01, hạn trả kết quả 5 ngày làm việc.", href: "/lecturer/requests", createdAt: mockDate(-1, "14:22"), isRead: false },
+  { id: "nt-l03", audience: "lecturer", kind: "advising", title: "Kế hoạch học tập mới chờ duyệt", body: "Sinh viên lớp 50.01.CNTT.A vừa nộp kế hoạch học kỳ 2.", href: "/lecturer/advising/study-plans", createdAt: mockDate(-1, "09:10"), isRead: false },
+  { id: "nt-l04", audience: "lecturer", kind: "exam", title: "Thầy được phân công coi thi giữa kỳ", body: "Môn Xác suất thống kê, phòng A.201.", href: "/lecturer/exams", createdAt: mockDate(-2, "15:00"), isRead: true },
+  { id: "nt-l05", audience: "lecturer", kind: "announcement", title: "Lịch thi giữa kỳ học kỳ 1 đã công bố", body: "Phòng Khảo thí", href: "/lecturer/exams", createdAt: mockDate(-3, "14:30"), isRead: true },
+
+  { id: "nt-s01", audience: "student", kind: "deadline", title: "Đợt đăng ký của khóa 50 mở sau 5 ngày", body: "Kiểm tra kế hoạch học tập đã được cố vấn duyệt trước khi đăng ký.", href: "/application/registration", createdAt: mockDate(0, "07:00"), isRead: false },
+  { id: "nt-s02", audience: "student", kind: "exam", title: "Lịch thi giữa kỳ đã có", body: "Bạn có 5 môn thi giữa kỳ, môn đầu tiên sau 4 ngày.", href: "/application/exams", createdAt: mockDate(-1, "14:30"), isRead: false },
+  { id: "nt-s03", audience: "student", kind: "request", title: "Đơn đăng ký học vượt tín chỉ được cố vấn duyệt", body: "Đơn chuyển sang Phòng Đào tạo xử lý.", href: "/application/requests", createdAt: mockDate(-2, "10:45"), isRead: false },
+  { id: "nt-s04", audience: "student", kind: "grade", title: "Đã có điểm học kỳ 2, năm học 2025-2026", body: "Xem kết quả và điểm trung bình tích lũy.", href: "/application/grades", createdAt: mockDate(-8, "09:00"), isRead: true },
+  { id: "nt-s05", audience: "student", kind: "deadline", title: "Hạn nộp học phí học kỳ 1 còn 9 ngày", body: "Quá hạn sẽ bị khóa đăng ký học phần học kỳ sau.", href: "/application/tuition", createdAt: mockDate(-4, "08:00"), isRead: true },
+  { id: "nt-s06", audience: "student", kind: "announcement", title: "Mở khảo sát đánh giá giảng dạy học kỳ 1", body: "Thời gian khảo sát đến hết tuần thi cuối kỳ.", href: "/application/surveys", createdAt: mockDate(-5, "08:00"), isRead: true },
+];

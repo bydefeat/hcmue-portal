@@ -1,5 +1,5 @@
 import { dayjs } from "@/shared/libs/date.lib";
-import { createRandom, mockStudentIdentity } from "@/shared/libs/mock.lib";
+import { createRandom, mockLecturerIdentity, mockStudentIdentity } from "@/shared/libs/mock.lib";
 import { mockDelay } from "@/shared/libs/mock-request.lib";
 import { conflictsOf, periodState } from "./course-registration.constant";
 import {
@@ -9,7 +9,14 @@ import {
   rosterIndices,
   TERMS,
 } from "./course-registration.mock";
-import type { ClassSection, ClassSectionView, FacultyRegistrationSummary, RosterEntry } from "./course-registration.type";
+import type {
+  ClassSection,
+  ClassSectionView,
+  FacultyRegistrationSummary,
+  LecturerWorkload,
+  RosterEntry,
+  StudentEnrollment,
+} from "./course-registration.type";
 
 function toView(section: ClassSection): ClassSectionView {
   const siblings = CLASS_SECTIONS.filter((entry) => entry.termId === section.termId);
@@ -89,4 +96,59 @@ export async function getRegistrationSummary(termId: string): Promise<FacultyReg
     summary.set(section.faculty, entry);
   }
   return [...summary.values()].sort((a, b) => b.enrolled / b.capacity - a.enrolled / a.capacity);
+}
+
+const TEACHING_WEEKS = 15;
+const LECTURER_TOTAL = 24;
+
+function classSizeFactor(enrolled: number) {
+  if (enrolled > 80) return 1.3;
+  if (enrolled > 50) return 1.15;
+  return 1;
+}
+
+function normHoursOf(title: string) {
+  if (title.startsWith("GS") || title.startsWith("PGS")) return 120;
+  return 135;
+}
+
+export async function getStudentEnrollments(studentId: string, termId: string): Promise<StudentEnrollment[]> {
+  await mockDelay();
+  const index = Number(studentId.replace("sv-", ""));
+  const term = TERMS.find((entry) => entry.id === termId);
+  if (!term) return [];
+  return CLASS_SECTIONS.filter((section) => section.termId === termId && section.status !== "cancelled")
+    .filter((section) => rosterIndices(section.id, section.enrolled, FACULTY_MAJOR_INDEX[section.faculty] ?? 0).includes(index))
+    .map((section, position) => ({
+      section: toView(section),
+      registeredAt: dayjs(term.startDate).subtract(30, "day").add(position * 7 + 2, "hour").toISOString(),
+    }));
+}
+
+export async function getLecturerWorkloads(termId: string): Promise<LecturerWorkload[]> {
+  await mockDelay();
+  return Array.from({ length: LECTURER_TOTAL }, (_, index) => mockLecturerIdentity(index)).map((lecturer) => {
+    const sections = CLASS_SECTIONS.filter((section) => section.termId === termId && section.lecturerId === lecturer.id && section.status !== "cancelled");
+    const periodsPerWeek = sections.reduce(
+      (sum, section) => sum + section.meetings.reduce((total, meeting) => total + meeting.endPeriod - meeting.startPeriod + 1, 0),
+      0,
+    );
+    const standardHours = sections.reduce(
+      (sum, section) =>
+        sum +
+        section.meetings.reduce((total, meeting) => total + meeting.endPeriod - meeting.startPeriod + 1, 0) * TEACHING_WEEKS * classSizeFactor(section.enrolled),
+      0,
+    );
+    return {
+      lecturerId: lecturer.id,
+      lecturerName: lecturer.displayName,
+      faculty: lecturer.faculty,
+      title: lecturer.title,
+      sectionCodes: sections.map((section) => section.code),
+      periodsPerWeek,
+      teachingHours: periodsPerWeek * TEACHING_WEEKS,
+      standardHours: Math.round(standardHours),
+      normHours: normHoursOf(lecturer.title),
+    };
+  });
 }

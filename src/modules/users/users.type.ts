@@ -69,3 +69,24 @@ export type LecturerFormValues = {
   status: LecturerStatus;
   roles: string[];
 };
+
+export type DecisionKind = "reserve" | "resume" | "suspend" | "expel" | "major-change" | "reward" | "discipline" | "graduate";
+
+export type DecisionStatus = "draft" | "pending-signature" | "signed" | "revoked";
+
+export type StudentDecision = {
+  id: string;
+  number: string | null;
+  kind: DecisionKind;
+  studentId: string;
+  studentCode: string;
+  studentName: string;
+  className: string;
+  faculty: string;
+  title: string;
+  effectiveDate: string;
+  signedBy: string | null;
+  signedAt: string | null;
+  status: DecisionStatus;
+  basis: string;
+};

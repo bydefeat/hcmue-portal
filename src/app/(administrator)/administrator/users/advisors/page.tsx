@@ -2,11 +2,15 @@ import type { Metadata } from "next";
 import { PageHeader } from "@/shared/components/ui/page-header";
 import { AdvisorAssignmentTable } from "@/modules/users/components/advisor-assignment-table";
 import { getAdvisorAssignments, getLecturers } from "@/modules/users/users.query";
+import { inScope } from "@/modules/access/access.constant";
+import { requirePermission } from "@/modules/access/access.query";
 
 export const metadata: Metadata = { title: "Phân công cố vấn" };
 
 export default async function Page() {
-  const [assignments, lecturers] = await Promise.all([getAdvisorAssignments(), getLecturers()]);
+  const viewer = await requirePermission("advisors.assign");
+  const [allAssignments, lecturers] = await Promise.all([getAdvisorAssignments(), getLecturers()]);
+  const assignments = allAssignments.filter((assignment) => inScope(viewer, assignment.faculty));
   const unassigned = assignments.filter((assignment) => !assignment.advisorId).length;
 
   return (

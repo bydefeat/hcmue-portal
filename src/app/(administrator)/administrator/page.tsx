@@ -20,6 +20,7 @@ import { PageHeader } from "@/shared/components/ui/page-header";
 import { StatTile } from "@/shared/components/ui/stat-tile";
 import { StatusTag } from "@/shared/components/ui/status-tag";
 import { formatDate, formatDateTime } from "@/shared/libs/date.lib";
+import { requirePermission } from "@/modules/access/access.query";
 
 export const metadata: Metadata = { title: "Tổng quan quản trị" };
 
@@ -61,6 +62,7 @@ function Section({ title, action, children }: { title: string; action?: React.Re
 }
 
 export default async function Page() {
+  await requirePermission("dashboard.view");
   const [currentTerm, targetTerm] = await Promise.all([getCurrentTerm(), getRegistrationTargetTerm()]);
   const [students, sections, periods, warnings, announcements] = await Promise.all([
     getStudents(),

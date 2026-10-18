@@ -1,0 +1,22 @@
+import { mockDelay } from "@/shared/libs/mock-request.lib";
+import { EXAM_SESSIONS } from "./exams.mock";
+import type { ExamSession } from "./exams.type";
+
+function byDate(a: ExamSession, b: ExamSession) {
+  return a.date.localeCompare(b.date) || a.startTime.localeCompare(b.startTime);
+}
+
+export async function getExamSessions(termId: string) {
+  await mockDelay();
+  return EXAM_SESSIONS.filter((session) => session.termId === termId).sort(byDate);
+}
+
+export async function getExamsForLecturer(lecturerId: string) {
+  await mockDelay();
+  return EXAM_SESSIONS.filter((session) => session.lecturerId === lecturerId || session.proctors.some((proctor) => proctor.id === lecturerId)).sort(byDate);
+}
+
+export async function getExamsForClassSections(classSectionIds: string[]) {
+  await mockDelay();
+  return EXAM_SESSIONS.filter((session) => classSectionIds.includes(session.classSectionId)).sort(byDate);
+}

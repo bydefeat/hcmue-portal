@@ -7,15 +7,18 @@ import { MobileNavigation } from "@/shared/components/ui/mobile-navigation";
 import {
   APPLICATION_BOTTOM_TABS,
   APPLICATION_NAVIGATION,
+  APPLICATION_NOTIFICATIONS_HREF,
   APPLICATION_PROFILE,
   isActiveItem,
 } from "@/shared/constants/navigation.constant";
+import { NotificationBell, type BellItem } from "@/shared/components/ui/notification-bell";
 import { UserMenu, type MenuUser } from "@/shared/components/ui/user-menu";
 import { ApplicationSidebar } from "./sidebar";
 
 type ApplicationLayoutProps = {
   user: MenuUser;
   termLabel: string;
+  notifications: BellItem[];
   children: React.ReactNode;
 };
 
@@ -27,7 +30,7 @@ const MOBILE_SECTIONS = [
   { title: "Tài khoản", items: [APPLICATION_PROFILE] },
 ];
 
-export function ApplicationLayout({ user, termLabel, children }: ApplicationLayoutProps) {
+export function ApplicationLayout({ user, termLabel, notifications, children }: ApplicationLayoutProps) {
   const pathname = usePathname();
   const title = ALL_ITEMS.find((item) => isActiveItem(pathname, item))?.label;
 
@@ -39,8 +42,11 @@ export function ApplicationLayout({ user, termLabel, children }: ApplicationLayo
           <Logo href="/application/dashboard" className="lg:hidden" />
           <h1 className="hidden min-w-0 truncate text-base font-semibold lg:block">{title}</h1>
           <span className="ml-auto hidden shrink-0 text-sm text-muted sm:block">{termLabel}</span>
-          <div className="ml-auto sm:ml-0 lg:hidden">
-            <UserMenu user={user} links={[APPLICATION_PROFILE]} compact />
+          <div className="ml-auto flex shrink-0 items-center gap-1 leading-normal sm:ml-0">
+            <NotificationBell items={notifications} viewAllHref={APPLICATION_NOTIFICATIONS_HREF} />
+            <div className="lg:hidden">
+              <UserMenu user={user} links={[APPLICATION_PROFILE]} compact />
+            </div>
           </div>
         </Layout.Header>
         <Layout.Content className="p-4 pb-28 sm:p-6 sm:pb-28 lg:pb-6">

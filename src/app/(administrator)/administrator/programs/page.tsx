@@ -2,10 +2,12 @@ import type { Metadata } from "next";
 import { PageHeader } from "@/shared/components/ui/page-header";
 import { ProgramTable } from "@/modules/curriculum/components/program-table";
 import { getPrograms } from "@/modules/curriculum/curriculum.query";
+import { requirePermission } from "@/modules/access/access.query";
 
 export const metadata: Metadata = { title: "Chương trình đào tạo" };
 
 export default async function Page() {
+  await requirePermission("curriculum.manage");
   const programs = await getPrograms();
   return (
     <>

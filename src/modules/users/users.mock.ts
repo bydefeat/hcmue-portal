@@ -1,12 +1,13 @@
 import {
   createRandom,
+  mockDate,
   MOCK_COHORTS,
   MOCK_MAJORS,
   mockLecturerIdentity,
   mockStudentIdentity,
   pickOne,
 } from "@/shared/libs/mock.lib";
-import type { AdvisorAssignment, Lecturer, Student, StudentStatus } from "./users.type";
+import type { AdvisorAssignment, DecisionKind, DecisionStatus, Lecturer, Student, StudentDecision, StudentStatus } from "./users.type";
 
 const STUDENT_COUNT = 600;
 const LECTURER_COUNT = 24;
@@ -107,4 +108,43 @@ export const LECTURERS: Lecturer[] = LECTURER_IDENTITIES.map((identity) => {
 
 export const CURRENT_LECTURER_ID = "gv-0";
 
+export const CURRENT_STUDENT_ID = "sv-12";
+
 export const MAJORS = MOCK_MAJORS;
+
+type DecisionSeed = [studentIndex: number, kind: DecisionKind, status: DecisionStatus, daysAgo: number, title: string, basis: string];
+
+const DECISION_SEEDS: DecisionSeed[] = [
+  [60, "reserve", "pending-signature", 1, "Bảo lưu kết quả học tập học kỳ 2, năm học 2026-2027", "Đơn DT-2026-01255 đã qua cố vấn và khoa"],
+  [133, "reserve", "draft", 0, "Bảo lưu kết quả học tập 2 học kỳ", "Đơn DT-2026-01285, chờ Phòng Đào tạo hoàn thiện hồ sơ"],
+  [29, "suspend", "signed", 40, "Tạm ngừng học do nợ học phí 2 học kỳ", "Biên bản rà soát học phí của Phòng Kế hoạch - Tài chính"],
+  [5, "expel", "pending-signature", 3, "Buộc thôi học do bị cảnh báo học vụ mức 3", "Kết quả xét học vụ học kỳ 2, năm học 2025-2026"],
+  [42, "major-change", "signed", 55, "Chuyển từ ngành Sư phạm Vật lý sang Sư phạm Toán học", "Đơn chuyển ngành, có ý kiến của hai khoa"],
+  [12, "reward", "signed", 60, "Khen thưởng sinh viên đạt thành tích học tập xuất sắc năm học 2025-2026", "Danh sách xét khen thưởng toàn trường"],
+  [18, "reward", "signed", 60, "Khen thưởng sinh viên đạt giải Olympic Toán học sinh viên", "Giải Nhì Olympic Toán học sinh viên toàn quốc 2026"],
+  [77, "discipline", "signed", 90, "Khiển trách do vi phạm quy chế thi", "Biên bản vi phạm quy chế thi học kỳ 2"],
+  [3, "graduate", "draft", 0, "Công nhận tốt nghiệp đợt tháng 12 năm 2026", "Kết quả xét tốt nghiệp của Hội đồng"],
+  [99, "resume", "signed", 25, "Tiếp tục học sau thời gian bảo lưu", "Hết thời hạn bảo lưu 1 học kỳ"],
+  [210, "reserve", "revoked", 15, "Bảo lưu kết quả học tập học kỳ 1, năm học 2026-2027", "Sinh viên rút đơn trước ngày quyết định có hiệu lực"],
+];
+
+export const DECISIONS: StudentDecision[] = DECISION_SEEDS.map(([index, kind, status, daysAgo, title, basis], position) => {
+  const student = STUDENTS[index];
+  const signed = status === "signed" || status === "revoked";
+  return {
+    id: `qd-${position + 1}`,
+    number: signed || status === "pending-signature" ? `${1180 + position * 7}/QĐ-ĐHSP` : null,
+    kind,
+    studentId: student.id,
+    studentCode: student.code,
+    studentName: student.fullName,
+    className: student.className,
+    faculty: student.faculty,
+    title,
+    effectiveDate: mockDate(-daysAgo + 7, "00:00"),
+    signedBy: signed ? "PGS.TS. Ngô Đức Thịnh, Phó Hiệu trưởng" : null,
+    signedAt: signed ? mockDate(-daysAgo, "15:00") : null,
+    status,
+    basis,
+  };
+});

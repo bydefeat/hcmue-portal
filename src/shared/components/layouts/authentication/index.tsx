@@ -3,36 +3,28 @@ import Link from "next/link";
 
 export function AuthenticationLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="relative isolate flex min-h-dvh flex-col items-center justify-center overflow-hidden px-4 py-10">
-      <Image
-        src="/images/hcmue-campus.jpg"
-        alt=""
-        fill
-        priority
-        sizes="100vw"
-        className="-z-20 scale-105 object-cover blur-sm"
-      />
-      <div aria-hidden className="absolute inset-0 -z-10 bg-primary/25" />
-      <main className="w-full max-w-md rounded-2xl bg-surface p-6 shadow-xl sm:p-8">
-        <Link href="/" className="mb-8 flex flex-col items-center gap-2 text-center text-primary">
+    <div className="relative isolate min-h-dvh bg-background">
+      <div aria-hidden className="absolute inset-x-0 top-0 -z-10 h-80 border-t-4 border-brand-accent bg-primary sm:h-96" />
+      <div className="mx-auto flex min-h-dvh w-full max-w-md flex-col px-4 pt-10 pb-6 sm:pt-14">
+        <Link href="/" className="flex flex-col items-center gap-3 text-center text-primary-foreground">
           <Image
             src="/hcmue-logo.png"
             alt="Logo Trường Đại học Sư phạm TP.HCM"
             width={2994}
             height={1512}
             priority
-            className="mb-2 h-16 w-auto"
+            className="h-16 w-auto sm:h-20"
           />
-          <span className="text-base leading-snug font-medium uppercase">
+          <span className="text-lg leading-snug font-medium uppercase sm:text-xl">
             Trường Đại học Sư phạm
             <br />
             Thành phố Hồ Chí Minh
           </span>
-          <span className="text-sm">Cổng đào tạo và học vụ</span>
+          <span className="text-sm text-primary-foreground/80">Cổng đào tạo và học vụ</span>
         </Link>
-        {children}
-      </main>
-      <p className="mt-6 text-center text-xs text-white/85">© Trường Đại học Sư phạm Thành phố Hồ Chí Minh</p>
+        <main className="mt-8 rounded-2xl border border-border-strong bg-surface p-6 sm:p-8">{children}</main>
+        <p className="mt-auto pt-8 text-center text-xs text-muted">© Trường Đại học Sư phạm Thành phố Hồ Chí Minh</p>
+      </div>
     </div>
   );
 }

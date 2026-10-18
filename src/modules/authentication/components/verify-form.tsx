@@ -2,7 +2,7 @@
 
 import { useTransition } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@bprogress/next/app";
 import { Button, Form, Input } from "antd";
 import { AuthHeading } from "./auth-heading";
 import { OTP_RULES } from "../authentication.constant";

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@bprogress/next/app";
 import { Button, Form, Input } from "antd";
 import { AuthHeading } from "./auth-heading";
 import { EMAIL_RULES, NEW_PASSWORD_RULES, OTP_RULES } from "../authentication.constant";

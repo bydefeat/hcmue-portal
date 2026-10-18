@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { useRouter } from "@bprogress/next/app";
+import { usePathname } from "next/navigation";
 import { Button, Layout, Menu } from "antd";
 import { Logo } from "@/shared/components/ui/logo";
 import { isActiveHref, PUBLIC_NAVIGATION, PUBLIC_SIGN_IN_HREF } from "@/shared/constants/navigation.constant";

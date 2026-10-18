@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { useRouter } from "@bprogress/next/app";
+import { usePathname } from "next/navigation";
 import { LayoutGroup, motion } from "motion/react";
 import { Button } from "antd";
 import { Menu, Xmark } from "defeat-icons-react";

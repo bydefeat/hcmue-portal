@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { AntdRegistry } from "@/shared/components/antd-registry";
-import { AntdProvider } from "@/shared/components/antd-provider";
+import { AppProvider } from "@/shared/components/app-provider";
 import { CSS_VARIABLES } from "@/shared/constants/theme.constant";
 import "./globals.css";
 
@@ -36,7 +36,7 @@ export default function RootLayout({
     >
       <body className="min-h-full bg-background font-sans text-sm text-foreground">
         <AntdRegistry>
-          <AntdProvider>{children}</AntdProvider>
+          <AppProvider>{children}</AppProvider>
         </AntdRegistry>
       </body>
     </html>

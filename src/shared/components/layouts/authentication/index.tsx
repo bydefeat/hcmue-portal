@@ -3,8 +3,7 @@ import Link from "next/link";
 
 export function AuthenticationLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="relative isolate min-h-dvh bg-background">
-      <div aria-hidden className="absolute inset-x-0 top-0 -z-10 h-80 border-t-4 border-brand-accent bg-primary sm:h-96" />
+    <div className="min-h-dvh bg-background bg-linear-to-b from-primary from-0% via-primary via-[280px] to-background to-[620px] sm:via-[340px] sm:to-[720px]">
       <div className="mx-auto flex min-h-dvh w-full max-w-md flex-col px-4 pt-10 pb-6 sm:pt-14">
         <Link href="/" className="flex flex-col items-center gap-3 text-center text-primary-foreground">
           <Image

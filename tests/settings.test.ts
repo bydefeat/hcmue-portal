@@ -6,7 +6,9 @@ import { parseInput } from "@/shared/libs/action.lib";
 import { pgErrorMessage } from "@/shared/libs/pg-error.lib";
 import { SETTINGS_CONSTRAINT_MESSAGE } from "@/modules/settings/settings.constant";
 import { REGULATION } from "@/modules/settings/settings.mock";
-import { CALENDAR_EVENT_SCHEMA, nextRegulationVersion, REGULATION_RULES_SCHEMA, REGULATION_SAVE_SCHEMA, regulationChanges } from "@/modules/settings/settings.rule";
+import { CALENDAR_EVENT_SCHEMA, nextRegulationVersion, REGULATION_RULES_SCHEMA, REGULATION_SAVE_SCHEMA, regulationChanges, REPORT_EXPORT_SCHEMA, reportCellText, reportFileName } from "@/modules/settings/settings.rule";
+import { buildSpreadsheet, readSpreadsheet } from "@/shared/libs/spreadsheet.lib";
+import ExcelJS from "exceljs";
 import { calendarEvents, regulations, reportExports } from "@/modules/settings/settings.schema";
 
 after(() => db.$client.end());
@@ -85,5 +87,43 @@ describe("settings: ràng buộc ở DB", () => {
       .then(() => null)
       .catch((caught: unknown) => caught);
     assert.equal(pgErrorMessage(error, SETTINGS_CONSTRAINT_MESSAGE), SETTINGS_CONSTRAINT_MESSAGE.report_exports_done_fields);
+  });
+});
+
+describe("settings: xuất báo cáo Excel", () => {
+  test("nhận định dạng xlsx và csv, tên tệp theo định dạng đã chọn", () => {
+    const base = { reportKey: "registration", termId: "0192f3a4-0000-7000-8000-000000000001", faculty: "all" };
+    assert.ok(parseInput(REPORT_EXPORT_SCHEMA, { ...base, format: "xlsx" }).ok);
+    assert.ok(!parseInput(REPORT_EXPORT_SCHEMA, { ...base, format: "pdf" }).ok);
+    assert.equal(reportFileName("registration", "hk1-2026", "xlsx"), "registration-hk1-2026.xlsx");
+    assert.equal(reportFileName("registration", "hk1-2026", undefined), "registration-hk1-2026.csv");
+    assert.equal(reportCellText({ value: 0.853, text: "85,3%", numFmt: "0.0%" }), "85,3%");
+    assert.equal(reportCellText(42), 42);
+  });
+
+  test("tệp .xlsx: tiêu đề in đậm, cố định hàng tiêu đề, ô số là số, mã giữ dạng chữ", async () => {
+    const bytes = await buildSpreadsheet(
+      "Tỉ lệ đăng ký học phần",
+      [{ header: "Mã lớp", text: true }, { header: "Chỉ tiêu" }, { header: "Tỉ lệ lấp đầy" }],
+      [
+        ["COMP1020.01", 60, { value: 0.853, numFmt: "0.0%" }],
+        ["0123", 40, { value: 1, numFmt: "0.0%" }],
+      ],
+    );
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(bytes.buffer);
+    const sheet = workbook.worksheets[0];
+    assert.equal(sheet.getRow(1).font?.bold, true);
+    assert.equal(sheet.views[0]?.state, "frozen");
+    assert.equal(sheet.getCell("B2").value, 60);
+    assert.equal(sheet.getCell("C2").value, 0.853);
+    assert.equal(sheet.getCell("C2").numFmt, "0.0%");
+    assert.equal(sheet.getCell("A3").value, "0123");
+    assert.ok((sheet.getColumn(1).width ?? 0) >= 8);
+    assert.deepEqual(await readSpreadsheet(bytes), [
+      ["Mã lớp", "Chỉ tiêu", "Tỉ lệ lấp đầy"],
+      ["COMP1020.01", "60", "0.85"],
+      ["0123", "40", "1"],
+    ]);
   });
 });

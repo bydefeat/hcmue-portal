@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { AuditChange } from "@/modules/audit/audit.type";
 import { REGULATION_FIELD_LABEL, REPORT_DEFINITIONS, REPORT_FORMATS } from "@/modules/settings/settings.constant";
 import type { RegulationRules } from "@/modules/settings/settings.schema";
+import type { ReportCell } from "@/modules/settings/settings.type";
 
 const decimal = (min: number, max: number) => z.number("Chưa nhập").min(min, `Không nhỏ hơn ${min}`).max(max, `Không lớn hơn ${max}`);
 const whole = (min: number, max: number) => z.int("Phải là số nguyên").min(min, `Không nhỏ hơn ${min}`).max(max, `Không lớn hơn ${max}`);
@@ -121,3 +122,12 @@ export const REPORT_EXPORT_SCHEMA = z.object({
 });
 
 export type ReportExportInput = z.input<typeof REPORT_EXPORT_SCHEMA>;
+
+export function reportCellText(cell: ReportCell): string | number {
+  return typeof cell === "object" ? cell.text : cell;
+}
+
+// Tên tệp theo định dạng đã chọn lúc xuất; job cũ không lưu định dạng thì là CSV.
+export function reportFileName(reportKey: string, termCode: string, format: string | undefined) {
+  return `${reportKey}-${termCode}.${format === "xlsx" ? "xlsx" : "csv"}`;
+}

@@ -12,6 +12,7 @@ export type Permission =
   | "decisions.manage"
   | "graduation.manage"
   | "exams.manage"
+  | "tuition.manage"
   | "students.view"
   | "students.manage"
   | "lecturers.manage"

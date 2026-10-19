@@ -1,6 +1,6 @@
 import type { StatusMeta } from "@/shared/constants/status.constant";
 import { daysUntil } from "@/shared/libs/date.lib";
-import type { InvoiceStatus, TuitionInvoice, TuitionInvoiceView } from "@/modules/tuition/tuition.type";
+import type { InvoiceStatus, PaymentSource, StatementStatus, TuitionInvoice, TuitionInvoiceView } from "@/modules/tuition/tuition.type";
 import { normalizeStudentCode } from "@/shared/libs/student-code.lib";
 
 export const PRICE_PER_CREDIT: Record<string, number> = {
@@ -14,6 +14,21 @@ export const INVOICE_STATUS: Record<InvoiceStatus, StatusMeta> = {
   unpaid: { label: "Chưa nộp", tone: "warning" },
   partial: { label: "Nộp thiếu", tone: "warning" },
   overdue: { label: "Quá hạn", tone: "danger" },
+};
+
+export const PAYMENT_SOURCE_LABEL: Record<PaymentSource, string> = {
+  "bank-sync": "Ngân hàng tự gạch nợ",
+  statement: "Nhập sao kê",
+  manual: "Ghi tay",
+};
+
+export const STATEMENT_STATUS: Record<StatementStatus, StatusMeta> = {
+  matched: { label: "Khớp", tone: "success" },
+  partial: { label: "Nộp thiếu", tone: "warning" },
+  over: { label: "Lệch số tiền", tone: "danger" },
+  duplicate: { label: "Trùng mã", tone: "neutral" },
+  unmatched: { label: "Không khớp", tone: "warning" },
+  invalid: { label: "Lỗi dữ liệu", tone: "danger" },
 };
 
 export const BANK_ACCOUNT = {
@@ -47,6 +62,9 @@ export const TUITION_CONSTRAINT_MESSAGE: Partial<Record<string, string>> = {
   invoice_lines_unit_price_non_negative: "Đơn giá không được âm.",
   payments_reference_unique: "Mã giao dịch đã được ghi nhận trước đó.",
   payments_amount_positive: "Số tiền thanh toán phải lớn hơn 0.",
+  payments_reference_not_blank: "Chưa nhập mã giao dịch hoặc số biên lai.",
+  payments_void_fields: "Hủy thanh toán phải có lý do và người hủy.",
+  payments_within_invoice_total: "Số tiền vượt số còn nợ của hóa đơn. Ghi đúng số còn nợ, phần thừa làm thủ tục hoàn trả.",
   tuition_rates_academic_year_major_id_unique: "Ngành đã có đơn giá trong năm học này.",
   tuition_rates_price_non_negative: "Đơn giá tín chỉ không được âm.",
   tuition_fees_academic_year_code_unique: "Năm học đã có khoản thu cùng mã.",

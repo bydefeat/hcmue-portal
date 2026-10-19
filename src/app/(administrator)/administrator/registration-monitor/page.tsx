@@ -5,7 +5,7 @@ import { MeterBar } from "@/shared/components/ui/meter-bar";
 import { PageHeader } from "@/shared/components/ui/page-header";
 import { StatTile } from "@/shared/components/ui/stat-tile";
 import { StatusTag } from "@/shared/components/ui/status-tag";
-import { formatDateTime } from "@/shared/libs/date.lib";
+import { dayjs, formatDateTime } from "@/shared/libs/date.lib";
 import { inScope } from "@/modules/access/access.constant";
 import { requirePermission } from "@/modules/access/access.query";
 import { RegistrationMonitorSections } from "@/modules/course-registration/components/registration-monitor-sections";
@@ -24,6 +24,10 @@ import { SectionCard } from "@/shared/components/ui/section-card";
 
 export const metadata: Metadata = { title: "Theo dõi đăng ký" };
 
+function formatTime(value: string) {
+  return dayjs(value).format("HH:mm");
+}
+
 function hoursText(hours: number) {
   if (hours < 1) return "dưới 1 giờ";
   if (hours < 48) return `${Math.floor(hours)} giờ`;
@@ -38,7 +42,7 @@ export default async function Page() {
     getClassSections(term.id),
     getRegistrationSummary(term.id),
     getUnregisteredStudents(term.id),
-    getRegistrationQueueStatus(),
+    getRegistrationQueueStatus(term.id),
   ]);
   const sections = allSections.filter((section) => inScope(viewer, section.faculty));
   const active = periods.filter((period) => period.state === "open" || period.state === "closing");
@@ -89,12 +93,12 @@ export default async function Page() {
           <StatTile label="Lớp chưa mở" value={sections.filter((section) => section.status === "draft").length} hint="Đang ở trạng thái nháp" />
           <StatTile label="Sinh viên chưa đăng ký" value={pending.length} hint="Trong các đợt đang mở" tone={pending.length > 0 ? "warning" : undefined} />
           <StatTile
-            label="Hàng đợi giờ cao điểm"
-            value={queue ? queue.waiting.toLocaleString("vi-VN") : "Không có"}
+            label="Lượt đăng ký, hủy 15 phút qua"
+            value={queue?.last15Minutes ?? 0}
             hint={
-              queue
-                ? `${queue.activeSessions}/${queue.sessionLimit} phiên, chờ trung bình ${queue.averageWaitSeconds} giây, cao nhất hôm nay ${queue.peakWaitingToday.toLocaleString("vi-VN")}`
-                : "Chỉ bật khi có đợt đang mở"
+              queue && queue.today > 0
+                ? `${queue.lastMinute} lượt trong 1 phút qua, ${queue.studentsLast15Minutes} sinh viên trong 15 phút. Hôm nay ${queue.today.toLocaleString("vi-VN")} lượt, đông nhất ${queue.peakPerMinute} lượt/phút lúc ${formatTime(queue.peakAt!)}`
+                : "Hôm nay chưa có lượt đăng ký hay hủy nào"
             }
           />
         </div>

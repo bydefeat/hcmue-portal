@@ -46,6 +46,35 @@ export function planClassSessions(section: {
     .toSorted((a, b) => a.date.localeCompare(b.date) || a.startPeriod - b.startPeriod);
 }
 
+export type ExistingSession = SessionPlan & { id: string; isTaken: boolean };
+
+function slotKey(session: Pick<SessionPlan, "date" | "startPeriod" | "labGroupId">) {
+  return `${session.date}|${session.startPeriod}|${session.labGroupId ?? ""}`;
+}
+
+// Lịch tuần đổi: buổi đã qua (trước hôm nay) và buổi đã điểm danh giữ nguyên làm lịch sử; buổi từ hôm nay trở đi chưa điểm danh
+// mà không còn trong lịch mới thì bỏ, buổi mới chưa có thì thêm. Buổi tương lai trùng hệt lịch mới giữ nguyên id để không xáo trộn.
+export function diffClassSessions(existing: ExistingSession[], plans: SessionPlan[], today: string) {
+  const kept = existing.filter((session) => session.date < today || session.isTaken);
+  const keptSlots = new Set(kept.map(slotKey));
+  const wanted = plans.filter((plan) => plan.date >= today && !keptSlots.has(slotKey(plan)));
+  const wantedByKey = new Map(wanted.map((plan) => [slotKey(plan), plan]));
+  const future = existing.filter((session) => !(session.date < today || session.isTaken));
+  const unchanged = new Set(
+    future
+      .filter((session) => {
+        const plan = wantedByKey.get(slotKey(session));
+        return plan !== undefined && plan.endPeriod === session.endPeriod && plan.roomId === session.roomId;
+      })
+      .map(slotKey),
+  );
+  return {
+    removeIds: future.filter((session) => !unchanged.has(slotKey(session))).map((session) => session.id),
+    add: wanted.filter((plan) => !unchanged.has(slotKey(plan))),
+    kept: kept.length + unchanged.size,
+  };
+}
+
 export function isAbsence(status: AttendanceStatus | undefined) {
   return status !== undefined && ABSENCE_STATUSES.includes(status);
 }

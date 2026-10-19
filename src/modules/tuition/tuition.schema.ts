@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
-import { boolean, check, date, index, numeric, pgTable, smallint, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
-import { primaryId, timestamps } from "@/shared/libs/db-column.lib";
+import { boolean, check, date, index, numeric, pgEnum, pgTable, smallint, text, timestamp, unique, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import { createdAt, primaryId, timestamps } from "@/shared/libs/db-column.lib";
+import { user } from "@/modules/authentication/authentication.schema";
 import { terms } from "@/modules/course-registration/course-registration.schema";
 import { majors } from "@/modules/curriculum/curriculum.schema";
 import { students } from "@/modules/users/users.schema";
@@ -47,6 +48,9 @@ export const invoiceLines = pgTable(
   ],
 );
 
+// Nguồn ghi nhận: ngân hàng tự gạch nợ, nhập sao kê, cán bộ ghi tay.
+export const paymentSourceEnum = pgEnum("payment_source", ["bank-sync", "statement", "manual"]);
+
 export const payments = pgTable(
   "payments",
   {
@@ -57,9 +61,28 @@ export const payments = pgTable(
     paidAt: timestamp({ withTimezone: true }).notNull(),
     amount: money().notNull(),
     method: text().notNull(),
-    reference: text().notNull().unique("payments_reference_unique"),
+    reference: text().notNull(),
+    source: paymentSourceEnum().notNull().default("bank-sync"),
+    note: text().notNull().default(""),
+    createdAt: createdAt(),
+    recordedByUserId: uuid().references(() => user.id, { onDelete: "set null" }),
+    recordedByLabel: text().notNull().default("Đối soát ngân hàng"),
+    // Ghi nhầm thì hủy kèm lý do, không xóa dòng: còn dấu vết để đối chiếu với sao kê.
+    voidedAt: timestamp({ withTimezone: true }),
+    voidedByUserId: uuid().references(() => user.id, { onDelete: "set null" }),
+    voidedByLabel: text(),
+    voidReason: text(),
   },
-  (table) => [index().on(table.invoiceId, table.paidAt), check("payments_amount_positive", sql`${table.amount} > 0`)],
+  (table) => [
+    index().on(table.invoiceId, table.paidAt),
+    index().on(table.recordedByUserId),
+    index().on(table.voidedByUserId),
+    // Mã giao dịch ngân hàng chỉ ghi một lần; khoản đã hủy (ghi nhầm hóa đơn) thì ghi lại được cho đúng hóa đơn.
+    uniqueIndex("payments_reference_unique").on(table.reference).where(sql`${table.voidedAt} IS NULL`),
+    check("payments_amount_positive", sql`${table.amount} > 0`),
+    check("payments_reference_not_blank", sql`btrim(${table.reference}) <> ''`),
+    check("payments_void_fields", sql`(${table.voidedAt} IS NULL) = (${table.voidReason} IS NULL) AND (${table.voidedAt} IS NULL) = (${table.voidedByLabel} IS NULL)`),
+  ],
 );
 
 export const tuitionRates = pgTable(

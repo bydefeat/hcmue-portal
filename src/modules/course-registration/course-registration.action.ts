@@ -61,7 +61,9 @@ import { courseRelations, courses, faculties, majors } from "@/modules/curriculu
 import { academicWarnings, courseResults } from "@/modules/grades/grades.schema";
 import { regulations } from "@/modules/settings/settings.schema";
 import { notifyStudents } from "@/modules/notifications/notifications.lib";
-import { invoiceLines, payments, tuitionInvoices } from "@/modules/tuition/tuition.schema";
+import { syncClassSessions, weeklyScheduleOf, type WeeklySchedule } from "@/modules/schedule/schedule.lib";
+import { INVOICE_PAID_SQL, INVOICE_TOTAL_SQL } from "@/modules/tuition/tuition.lib";
+import { tuitionInvoices } from "@/modules/tuition/tuition.schema";
 import { getCurrentStudent, getStudent, requireActiveStudent } from "@/modules/users/users.query";
 import type { ClassSectionView, RegistrationHold, RegistrationPeriodView } from "@/modules/course-registration/course-registration.type";
 import type { Student } from "@/modules/users/users.type";
@@ -146,12 +148,12 @@ async function loadRegistration(): Promise<Registration | string> {
       .from(registrationHolds)
       .where(and(eq(registrationHolds.studentId, student.id), eq(registrationHolds.blocking, true), isNull(registrationHolds.releasedAt)))
       .limit(1),
-    // Học phí học kỳ đang học còn nợ: tổng các khoản trừ miễn giảm (không âm), trừ số đã nộp.
+    // Học phí học kỳ đang học còn nợ: tổng các khoản trừ miễn giảm (không âm), trừ số đã nộp còn hiệu lực. Tên bảng viết đầy đủ:
+    // truy vấn một bảng thì drizzle bỏ tên bảng, "id" trong truy vấn con sẽ trỏ nhầm sang id của invoice_lines/payments.
     db
       .select({
         dueDate: tuitionInvoices.dueDate,
-        balance: sql<number>`greatest(0, (SELECT coalesce(sum(${invoiceLines.amount}), 0) FROM ${invoiceLines} WHERE ${invoiceLines.invoiceId} = ${tuitionInvoices.id}) - ${tuitionInvoices.discount})
-          - (SELECT coalesce(sum(${payments.amount}), 0) FROM ${payments} WHERE ${payments.invoiceId} = ${tuitionInvoices.id})`.mapWith(Number),
+        balance: sql<number>`${INVOICE_TOTAL_SQL} - ${INVOICE_PAID_SQL}`.mapWith(Number),
       })
       .from(tuitionInvoices)
       .where(and(eq(tuitionInvoices.studentId, student.id), eq(tuitionInvoices.termId, currentTerm.id))),
@@ -413,6 +415,7 @@ export async function saveClassSection(termId: string, id: string | null, input:
       };
 
       let rowId: string;
+      let previousSchedule: WeeklySchedule | null = null;
       if (id) {
         const [existing] = await tx
           .select({ status: classSections.status, enrolled: classSections.enrolledCount, courseId: classSections.courseId })
@@ -421,6 +424,7 @@ export async function saveClassSection(termId: string, id: string | null, input:
           .for("update");
         if (!existing) throw new InputError("courseCode", "Lớp học phần không còn tồn tại, tải lại trang.");
         if (existing.courseId !== course.id) throw new InputError("courseCode", "Không đổi được học phần của lớp đã mở");
+        previousSchedule = await weeklyScheduleOf(tx, id);
         if (values.status !== "cancelled" && values.capacity < existing.enrolled) {
           throw new InputError("capacity", `Lớp đang có ${existing.enrolled} sinh viên, sĩ số tối đa không nhỏ hơn số này`);
         }
@@ -470,6 +474,8 @@ export async function saveClassSection(termId: string, id: string | null, input:
         await tx.delete(reservedSeatMajors).where(eq(reservedSeatMajors.reservedSeatId, seatId));
         if (seat.majorCodes.length > 0) await tx.insert(reservedSeatMajors).values(seat.majorCodes.map((majorCode) => ({ reservedSeatId: seatId, majorId: majorIds.get(majorCode)! })));
       }
+      // Buổi học (điểm danh) sinh lại theo lịch tuần mới; đổi lịch thì báo sinh viên của lớp và giảng viên.
+      await syncClassSessions(tx, rowId, { previous: previousSchedule });
       return rowId;
     });
   } catch (error) {

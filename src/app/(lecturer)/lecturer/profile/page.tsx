@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { getLecturerClassSections, getTerms } from "@/modules/course-registration/course-registration.query";
+import { ChangePasswordCard } from "@/modules/authentication/components/change-password-card";
 import { LecturerProfileCard } from "@/modules/users/components/lecturer-profile-card";
 import { getAdvisedClasses, getCurrentLecturer } from "@/modules/users/users.query";
 import { EmptyState } from "@/shared/components/ui/empty-state";
@@ -21,7 +22,10 @@ export default async function Page() {
     <>
       <PageHeader title="Hồ sơ cá nhân" description="Thông tin liên hệ hiển thị cho sinh viên cố vấn và sinh viên trong lớp bạn dạy." />
       <div className="grid gap-4 lg:grid-cols-[360px_minmax(0,1fr)] lg:items-start">
-        <LecturerProfileCard lecturer={lecturer} />
+        <div className="flex flex-col gap-4">
+          <LecturerProfileCard lecturer={lecturer} />
+          <ChangePasswordCard />
+        </div>
         <div className="flex min-w-0 flex-col gap-4">
           <SectionCard title="Lớp cố vấn">
             <div className="flex flex-col gap-3">

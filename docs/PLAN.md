@@ -173,7 +173,7 @@ PostgreSQL 18.4, khoá chính `uuid` mặc định `uuidv7()`. Ràng buộc đ�
 - Áp skill `better-auth-security-best-practices`: rate limit đăng nhập, trusted origins, cookie `secure`.
 - Bỏ nút tài khoản dùng thử và `DEMO_ACCOUNTS` khi đăng nhập thật chạy được.
 - Kiểm: SV đăng nhập được bằng cả `50.01.104.013` và `5001104013`, không đăng nhập được bằng email; khôi phục mật khẩu bằng email trường; SV mở `/administrator` bị chặn.
-- Đã làm: các mục trên, `tests/auth.test.ts` (11 test), kiểm tay trên trình duyệt. MSSV hiển thị dạng `50.01.104.013` toàn bộ giao diện. Còn lại cho các giai đoạn sau: nội dung các trang vẫn là dữ liệu mẫu (header lấy tên từ phiên đăng nhập); trang `/authentication/verify` và "Đổi mật khẩu" trong hồ sơ chưa nối; bộ chuyển vai trò xem thử của admin vẫn là mock.
+- Đã làm: các mục trên, `tests/auth.test.ts` (11 test), kiểm tay trên trình duyệt. MSSV hiển thị dạng `50.01.104.013` toàn bộ giao diện. Còn lại cho các giai đoạn sau: nội dung các trang vẫn là dữ liệu mẫu (header lấy tên từ phiên đăng nhập); "Đổi mật khẩu" trong hồ sơ chưa nối (trang `/authentication/verify` đã nối OTP xác minh email); bộ chuyển vai trò xem thử của admin vẫn là mock.
 
 ### Giai đoạn 4 — Khung đọc/ghi dữ liệu (thử trên 1 module) ✅
 - Mỗi module: `*.query.ts` (đọc, `server-only`), `*.action.ts` (server action, `schema.safeParse()`, trả `ActionResult` chung), lỗi Postgres đổi sang câu tiếng Việt qua `pgErrorMessage`.
@@ -195,6 +195,7 @@ PostgreSQL 18.4, khoá chính `uuid` mặc định `uuidv7()`. Ràng buộc đ�
 - Kiểm tra tiên quyết, hạn mức tín chỉ, trùng lịch, trong đợt hay không; lý do hiện ngay trên dòng lớp.
 - Giữ chỗ nguyên tử: tăng sĩ số và insert `enrollments` trong cùng transaction (`... WHERE enrolled_count < capacity RETURNING`, không có dòng trả về = hết chỗ); hàng chờ, chặn đăng ký, nhật ký đăng ký.
 - Kiểm: test hàm kiểm tra điều kiện + test 2 SV tranh chỗ cuối cùng → chỉ 1 người được.
+- Đã làm: đăng ký, hủy, danh sách chờ của sinh viên; mở lớp, phân công, hủy lớp, chuyển sinh viên, đợt đăng ký, khóa đăng ký của admin (đọc/ghi DB, server kiểm lại bằng chính hàm của giao diện). Server chặn đăng ký khi học phí học kỳ đang học quá hạn. Theo dõi đăng ký: danh sách sinh viên chưa đăng ký đọc từ DB theo đợt đang mở, nút nhắc gửi thông báo trên cổng sinh viên (sinh viên chưa kích hoạt tài khoản thì không nhận được).
 
 ### Giai đoạn 7 — Giảng viên
 - Điểm danh theo buổi, nhập điểm (lưu nháp, chốt có xác nhận), đề cương, thông báo lớp, lịch dạy, khối lượng giảng dạy; admin công bố điểm → `course_results`.
@@ -213,10 +214,12 @@ PostgreSQL 18.4, khoá chính `uuid` mặc định `uuidv7()`. Ràng buộc đ�
 
 ### Giai đoạn 10 — Phần còn lại
 - Học phí (hoá đơn, thanh toán), khảo sát ẩn danh, xét tốt nghiệp, thông báo, audit log, cảnh báo học vụ tự động (*cần ngưỡng của trường*), báo cáo và nhập / xuất Excel.
-- Đã nối DB: học phí (hóa đơn theo tín chỉ đăng ký, thanh toán), thông báo cá nhân (đánh dấu đã đọc), thông báo công khai (đăng, hẹn giờ, sửa, ghim, gỡ), nhật ký thao tác (`recordAudit` trong `audit.lib.ts`), quy chế theo phiên bản, lịch năm học, lịch sử xuất báo cáo. Còn lại: tải tệp báo cáo (chưa có nơi lưu tệp), ghi nhận thanh toán từ ngân hàng.
+- Đã nối DB: học phí (hóa đơn theo tín chỉ đăng ký, thanh toán), thông báo cá nhân (đánh dấu đã đọc), thông báo công khai (đăng, hẹn giờ, sửa, ghim, gỡ), nhật ký thao tác (`recordAudit` trong `audit.lib.ts`), quy chế theo phiên bản, lịch năm học, lịch sử xuất báo cáo. Tải báo cáo: mỗi báo cáo đọc dữ liệu thật và tạo CSV lúc tải (chưa có kho lưu tệp nên tải lại là đọc lại dữ liệu hiện tại; chỉ có CSV vì chưa có thư viện xlsx, pdf). Còn lại: ghi nhận thanh toán từ ngân hàng.
 
 ### Giai đoạn 11 — Hoàn thiện
 - Xoá toàn bộ mock (`mock*.lib.ts`, `*.mock.ts`), test end-to-end các luồng chính, cấu hình triển khai.
+- Đã làm: không còn code chạy lúc runtime đọc `*.mock.ts` hay `MOCK_MAJORS`/`MOCK_COHORTS`; ngành, khoa, khóa đọc từ DB. Mock chỉ còn là dữ liệu nguồn cho seed (`scripts/seed`) và test seed. Danh mục học phần thống nhất (201 học phần), khung chương trình mỗi ngành theo đúng thứ tự học phần trong bảng điểm mẫu. Xuất/nhập bảng điểm và xuất danh sách xét tốt nghiệp bằng CSV.
+- Còn lại: kho lưu tệp (minh chứng đơn từ, đề thi mới lưu tên tệp), dịch vụ gửi email (OTP đang in ra log server), cổng sinh viên xem thông báo lớp và đề cương, giao diện sửa khung chương trình và sửa cột điểm, khung chương trình 5 ngành ngoài CNTT trong seed chỉ khoảng 105 tín chỉ (dưới mức xét tốt nghiệp), trang 404 trong cổng trả mã 200.
 
 ---
 

@@ -1,7 +1,6 @@
 "use client";
 
 import { useTransition } from "react";
-import Link from "next/link";
 import { Button, Form, Input, message } from "antd";
 import { SectionCard } from "@/shared/components/ui/section-card";
 import { toFormFields } from "@/shared/libs/form.lib";
@@ -68,10 +67,7 @@ export function StudentProfileContactForm({ initialValues }: { initialValues: Co
             <Input autoComplete="off" inputMode="tel" className="tabular-nums" />
           </Form.Item>
         </div>
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <Link href="/authentication/forgot-password" className="text-sm">
-            Đổi mật khẩu
-          </Link>
+        <div className="flex flex-wrap items-center justify-end gap-3">
           <Button type="primary" htmlType="submit" loading={isSaving}>
             Lưu thay đổi
           </Button>

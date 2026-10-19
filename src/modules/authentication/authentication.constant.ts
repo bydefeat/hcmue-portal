@@ -40,6 +40,7 @@ export const AUTH_ERROR_MESSAGE: Record<string, string> = {
   OTP_EXPIRED: "Mã đã hết hạn, bấm gửi lại mã",
   TOO_MANY_ATTEMPTS: "Nhập sai quá nhiều lần, bấm gửi lại mã",
   USER_NOT_FOUND: "Mã không đúng",
+  INVALID_PASSWORD: "Mật khẩu hiện tại không đúng",
   PASSWORD_TOO_SHORT: "Mật khẩu cần ít nhất 8 ký tự",
   PASSWORD_TOO_LONG: "Mật khẩu tối đa 128 ký tự",
 };

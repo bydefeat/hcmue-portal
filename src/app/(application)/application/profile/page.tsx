@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Envelope, Phone } from "defeat-icons-react";
+import { ChangePasswordCard } from "@/modules/authentication/components/change-password-card";
 import { StudentProfileCard } from "@/modules/users/components/student-profile-card";
 import { StudentProfileContactForm } from "@/modules/users/components/student-profile-contact-form";
 import { StudentProfileDecisions } from "@/modules/users/components/student-profile-decisions";
@@ -37,6 +38,7 @@ export default async function Page() {
               <p className="text-sm text-pretty text-muted">Lớp {student.className} chưa được phân công cố vấn. Liên hệ văn phòng khoa để được hỗ trợ.</p>
             )}
           </SectionCard>
+          <ChangePasswordCard />
         </div>
         <div className="flex min-w-0 flex-col gap-4">
           <StudentProfileContactForm

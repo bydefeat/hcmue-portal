@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { PageHeader } from "@/shared/components/ui/page-header";
 import { PERMISSION_GROUPS } from "@/modules/access/access.constant";
 import { getViewer, getViewerAssignments } from "@/modules/access/access.query";
+import { ChangePasswordCard } from "@/modules/authentication/components/change-password-card";
 import { AuditTimeline } from "@/modules/audit/components/audit-timeline";
 import { getAuditLog } from "@/modules/audit/audit.query";
 import { formatDate } from "@/shared/libs/date.lib";
@@ -39,6 +40,7 @@ export default async function Page() {
               </dl>
             </div>
           </SectionCard>
+          <ChangePasswordCard />
           <SectionCard title="Quyền của vai trò">
             <div className="flex flex-col gap-3">
               {PERMISSION_GROUPS.map((group) => (

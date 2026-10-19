@@ -133,7 +133,7 @@ export function StudentTable({ students, majors, cohorts, header }: StudentTable
     {
       title: "Họ và tên",
       key: "name",
-      width: 240,
+      width: 220,
       render: (_, row) => (
         <Link href={`/administrator/users/students/${row.code}`} className="flex min-w-0 flex-col">
           <span className="truncate font-medium">{row.fullName}</span>
@@ -146,7 +146,7 @@ export function StudentTable({ students, majors, cohorts, header }: StudentTable
       ),
     },
     { title: "Lớp", dataIndex: "className", width: 130, responsive: ["md"], render: (value: string) => <span className="text-xs">{value}</span> },
-    { title: "Ngành", dataIndex: "majorName", width: 190, responsive: ["md"] },
+    { title: "Ngành", dataIndex: "majorName", width: 190, responsive: ["xxl"] },
     {
       title: "CPA",
       dataIndex: "cpa4",
@@ -167,7 +167,7 @@ export function StudentTable({ students, majors, cohorts, header }: StudentTable
     {
       title: "Tình trạng",
       dataIndex: "status",
-      width: 140,
+      width: 120,
       responsive: ["md"],
       render: (value: StudentStatus) => (value === "studying" ? <span className="text-muted">Đang học</span> : <StatusTag status={STUDENT_STATUS[value]} />),
     },

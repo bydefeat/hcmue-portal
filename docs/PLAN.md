@@ -157,46 +157,54 @@ PostgreSQL 18.4, khoá chính `uuid` mặc định `uuidv7()`. Ràng buộc đ�
 
 - Kiểm: migrate từ DB trắng chạy được; một file seed dữ liệu mẫu (1 khoa, 1 ngành, ~20 học phần, 1 kỳ, vài lớp, 3 tài khoản: SV, GV kiêm cố vấn, admin).
 
-### Giai đoạn 3 — Xác thực
-- `auth.lib.ts` (drizzleAdapter `pg`, emailAndPassword, plugin `admin`, `secret`/`baseURL` từ `DEFEAT_*`), `auth-client.lib.ts`, `session.lib.ts` (`getSession` + `requireRole`), route `api/auth/[...all]`.
-- `src/proxy.ts` + `src/proxies/authentication.proxy.ts`: chưa có cookie → `/authentication/sign-in`.
-- **Không có sign-up** (chủ dự án chốt): tài khoản do trường cấp, bật `emailAndPassword.disableSignUp`.
+### Giai đoạn 3 — Xác thực và phân quyền
+**Tên đăng nhập** (người dùng nói):
+
+| Đối tượng | Đăng nhập | Khôi phục mật khẩu |
+|---|---|---|
+| Sinh viên | **Chỉ mã số sinh viên**, ví dụ `50.01.104.013`. Nhận cả dạng có dấu chấm và dạng 10 chữ số liền (`5001104013`), chuẩn hoá về 10 chữ số trước khi tra. Nhập email sinh viên ở ô đăng nhập thì báo dùng MSSV | Email trường cấp `5001104013@student.hcmue.edu.vn` (10 chữ số của MSSV + `@student.hcmue.edu.vn`) |
+| Giảng viên, cán bộ | *Chưa chốt, chủ dự án đang khảo sát.* Chưa có kết luận thì không viết luồng riêng cho nhóm này | *Chưa chốt* |
+
+- `students.code` lưu 10 chữ số liền; dạng có dấu chấm `NN.NN.NNN.NNN` chỉ là cách hiển thị và cách nhập.
+- better-auth: plugin `username` (username = MSSV đã chuẩn hoá), `emailAndPassword` để khôi phục qua email; `disableSignUp`; `advanced.database.generateId: false` để DB sinh `uuidv7()`.
+- `auth.lib.ts`, `auth-client.lib.ts`, `session.lib.ts` (`getSession`, `requireRole`), route `api/auth/[...all]`.
+- `src/proxy.ts`: chưa có cookie → `/authentication/sign-in`. Quyền chi tiết của admin lấy từ `roles` / `role_assignments`.
+- Quên mật khẩu: OTP gửi email (*cần chốt dịch vụ gửi mail*; tạm thời in OTP ra log ở môi trường dev).
 - Áp skill `better-auth-security-best-practices`: rate limit đăng nhập, trusted origins, cookie `secure`.
-- Kiểm: 3 tài khoản seed đăng nhập đúng portal; SV mở `/administrator` bị chặn; tắt JavaScript vẫn thấy đủ layout (không render phía client).
+- Bỏ nút tài khoản dùng thử và `DEMO_ACCOUNTS` khi đăng nhập thật chạy được.
+- Kiểm: SV đăng nhập được bằng cả `50.01.104.013` và `5001104013`, không đăng nhập được bằng email; khôi phục mật khẩu bằng email trường; SV mở `/administrator` bị chặn.
 
-### Giai đoạn 4 — Wireframe (evon `U3`) → **cổng chọn**
-- Một file HTML wireframe cho **5 khung layout** và các màn chính ở bảng 2.1, mỗi màn 2–3 phương án khác nhau thật về bố cục, nội dung thật (tên học phần, mã SV thật kiểu HCMUE), đủ 4 trạng thái (có dữ liệu, đang tải, rỗng, lỗi), xem được ở desktop và mobile 375px.
-- Dựng bằng chính token ở mục 2.2 để bản chọn = bản dựng.
-- Probe nhanh từng phương án ở 1280 và 375.
-- **Dừng chờ người dùng chọn phương án.** Chưa chọn thì không đụng file nào của dự án.
+### Giai đoạn 4 — Khung đọc/ghi dữ liệu (thử trên 1 module)
+- Mỗi module: `*.query.ts` (đọc, `server-only`), `*.action.ts` (server action, `schema.safeParse()`, trả `ActionResult` chung), lỗi Postgres đổi sang câu tiếng Việt qua `pgErrorMessage`.
+- Đổi định danh URL sang uuid / mã SV, mã GV như bảng ở Giai đoạn 2; `proxy.ts` trả 404 khi sai định dạng.
+- Làm thử trọn vẹn trên `facilities` (phòng học) để chốt khuôn mẫu trước khi nhân ra module khác.
 
-### Giai đoạn 5 — Layouts (evon `U4`)
-- Dựng 5 layout trong `src/shared/components/layouts/` theo phương án đã chọn, menu ở `navigation.constant.ts`, mỗi portal một trang trống.
-- Kiểm: probe đủ (Tab, rê, lớp nổi) ở 1280 và 375, không cuộn ngang; checklist evon.
-
-### Giai đoạn 6 — Public + dữ liệu danh mục (admin)
-- Trang chủ + thông báo; admin CRUD: chương trình đào tạo, học phần + tiên quyết, kỳ, đợt đăng ký, lớp học phần + buổi học, người dùng + phân công cố vấn.
+### Giai đoạn 5 — Danh mục (admin)
+- Khoa, ngành, học phần + tiên quyết, chương trình đào tạo, học kỳ, đợt đăng ký, lớp học phần (buổi học, nhóm thực hành, giữ chỗ), người dùng, phân công cố vấn và giảng dạy.
 - Tạo và sửa dùng **cùng một form** (evon `D3`).
 - Kiểm: tạo đủ dữ liệu cho một kỳ hoàn toàn qua giao diện admin.
 
-### Giai đoạn 7 — Đăng ký học phần (SV)
+### Giai đoạn 6 — Đăng ký học phần (SV)
 - Kiểm tra tiên quyết, hạn mức tín chỉ, trùng lịch, trong đợt hay không; lý do hiện ngay trên dòng lớp.
-- Giữ chỗ nguyên tử: `UPDATE class_sections SET enrolled_count = enrolled_count + 1 WHERE id = $1 AND enrolled_count < capacity RETURNING` trong cùng transaction với insert `enrollments`; không có dòng trả về = hết chỗ.
-- Kiểm: **một file test** cho hàm kiểm tra điều kiện (trùng lịch, thiếu tiên quyết, vượt tín chỉ) + một test 2 SV tranh chỗ cuối cùng → chỉ 1 người được.
+- Giữ chỗ nguyên tử: tăng sĩ số và insert `enrollments` trong cùng transaction (`... WHERE enrolled_count < capacity RETURNING`, không có dòng trả về = hết chỗ); hàng chờ, chặn đăng ký, nhật ký đăng ký.
+- Kiểm: test hàm kiểm tra điều kiện + test 2 SV tranh chỗ cuối cùng → chỉ 1 người được.
 
-### Giai đoạn 8 — Giảng viên
-- Danh sách lớp, điểm danh theo buổi, nhập điểm (bảng sửa tại chỗ, lưu nháp, chốt điểm có xác nhận).
-- Kiểm: chốt điểm xong không sửa được nữa; điểm ngoài 0–10 bị chặn ở DB.
+### Giai đoạn 7 — Giảng viên
+- Điểm danh theo buổi, nhập điểm (lưu nháp, chốt có xác nhận), đề cương, thông báo lớp, lịch dạy, khối lượng giảng dạy; admin công bố điểm → `course_results`.
+- Kiểm: chốt điểm xong không sửa được; điểm ngoài 0–10 bị chặn ở DB.
 
-### Giai đoạn 9 — SV xem kết quả
-- Bảng điểm, GPA kỳ / CPA (công thức quy đổi thang 10 → chữ → thang 4 theo quy chế HCMUE: *cần người dùng cung cấp bảng quy đổi*), TKB + xuất `.ics` (tự sinh chuỗi iCalendar, không cần thư viện), lịch thi.
+### Giai đoạn 8 — Sinh viên xem kết quả
+- Bảng điểm, GPA kỳ / CPA (*cần bảng quy đổi của trường*), TKB + xuất `.ics`, lịch thi và điều kiện dự thi, tiến độ chương trình.
 - Kiểm: test hàm tính GPA với vài bộ điểm biết trước.
 
-### Giai đoạn 10 — Cố vấn học tập
-- SV lập kế hoạch học tập (kéo thả học phần vào từng kỳ bằng `dnd-kit`), gửi duyệt; cố vấn duyệt / trả lại; danh sách SV bị cảnh báo.
+### Giai đoạn 9 — Cố vấn và đơn từ
+- Kế hoạch học tập (gửi duyệt, duyệt / trả lại), lịch hẹn và ghi chú cố vấn, đơn từ đi qua từng bước duyệt.
 
-### Giai đoạn 11 — Báo cáo, cảnh báo học vụ tự động
-- Thống kê, xếp loại học lực; cảnh báo theo ngưỡng CPA (*cần quy chế*).
+### Giai đoạn 10 — Phần còn lại
+- Học phí (hoá đơn, thanh toán), khảo sát ẩn danh, xét tốt nghiệp, thông báo, audit log, cảnh báo học vụ tự động (*cần ngưỡng của trường*), báo cáo và nhập / xuất Excel.
+
+### Giai đoạn 11 — Hoàn thiện
+- Xoá toàn bộ mock (`mock*.lib.ts`, `*.mock.ts`), test end-to-end các luồng chính, cấu hình triển khai.
 
 ---
 
@@ -207,3 +215,6 @@ PostgreSQL 18.4, khoá chính `uuid` mặc định `uuidv7()`. Ràng buộc đ�
 3. Gỡ `zsa`, `zsa-react`, `@tanstack/react-table`.
 4. ~~Sign-up~~: đã chốt, không có đăng ký.
 5. Logo bản SVG / bản chỉ có dấu; bảng quy đổi điểm và ngưỡng cảnh báo học vụ của trường.
+6. ~~Tên đăng nhập sinh viên~~: đã chốt, chỉ dùng MSSV; khôi phục qua `MSSV@student.hcmue.edu.vn`.
+7. Tên đăng nhập và cách khôi phục của giảng viên, cán bộ (đang khảo sát).
+8. Dịch vụ gửi email OTP; nơi triển khai (VPS / Vercel / server trường); thư viện Excel (đề xuất `exceljs`).

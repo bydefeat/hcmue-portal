@@ -8,6 +8,7 @@ import type { StudentFormValues } from "@/modules/users/users.type";
 import { paginationItemRender } from "@/shared/constants/antd.constant";
 import { normalizeStudentCode } from "@/shared/libs/student-code.lib";
 import { downloadFile, parseCsv } from "@/shared/libs/download.lib";
+import { buildSpreadsheet, readSpreadsheet, XLSX_MIME } from "@/shared/libs/spreadsheet.lib";
 
 type StudentImportModalProps = {
   open: boolean;
@@ -20,10 +21,35 @@ type StudentImportModalProps = {
 };
 
 // Bỏ dòng tiêu đề; số dòng tính theo tệp (dòng 1 là tiêu đề) để người dùng tìm lại trong Excel.
-function importRows(text: string): ImportRow[] {
-  return parseCsv(text)
-    .slice(1)
-    .map((cells, index) => ({ line: index + 2, cells }));
+function importRows(rows: string[][]): ImportRow[] {
+  return rows.slice(1).map((cells, index) => ({ line: index + 2, cells }));
+}
+
+const BIRTH_DATE_COLUMN = IMPORT_COLUMNS.indexOf("Ngày sinh");
+
+// Ô ngày sinh lưu số ngày kiểu Excel (đếm từ 30/12/1899) khi ô bị định dạng chữ hoặc số: đổi về dd/mm/yyyy như tệp CSV.
+function excelSerialDate(value: string) {
+  if (!/^\d{5}$/.test(value)) return value;
+  const date = new Date(Date.UTC(1899, 11, 30) + Number(value) * 86_400_000);
+  return `${String(date.getUTCDate()).padStart(2, "0")}/${String(date.getUTCMonth() + 1).padStart(2, "0")}/${date.getUTCFullYear()}`;
+}
+
+// .xlsx đọc bằng exceljs ngay trên trình duyệt (chỉ tải thư viện khi chọn tệp Excel); ô ngày của Excel đổi thành dd/mm/yyyy như tệp CSV.
+async function readImportFile(file: File): Promise<string[][]> {
+  if (!file.name.toLowerCase().endsWith(".xlsx")) return parseCsv(await file.text());
+  const rows = await readSpreadsheet(await file.arrayBuffer());
+  return rows.map((cells, index) => (index === 0 ? cells : cells.map((cell, column) => (column === BIRTH_DATE_COLUMN ? excelSerialDate(cell) : cell))));
+}
+
+// Tệp mẫu Excel cùng cột với tệp CSV; cột mã, ngày, điện thoại định dạng chữ để Excel không bỏ số 0 ở đầu hay tự đổi ngày.
+async function downloadTemplateXlsx() {
+  const [header, ...rows] = parseCsv(templateCsv());
+  const bytes = await buildSpreadsheet(
+    "Sinh viên",
+    header.map((title, index) => ({ header: title, text: [0, 3, 5, 6, 7].includes(index) })),
+    rows,
+  );
+  downloadFile("mau-nhap-sinh-vien.xlsx", bytes, XLSX_MIME);
 }
 
 
@@ -57,12 +83,14 @@ export function StudentImportModal({ open, existingCodes, catalog, onClose, onIm
   const [isImporting, startImporting] = useTransition();
   const [fileName, setFileName] = useState<string | null>(null);
   const [results, setResults] = useState<ImportResult[]>([]);
+  const [readError, setReadError] = useState<string | null>(null);
   const valid = results.filter((result) => result.values !== null);
   const invalid = results.filter((result) => result.values === null);
 
   const reset = () => {
     setFileName(null);
     setResults([]);
+    setReadError(null);
   };
 
   const close = () => {
@@ -121,22 +149,38 @@ export function StudentImportModal({ open, existingCodes, catalog, onClose, onIm
             Tệp gồm {IMPORT_COLUMNS.length} cột theo đúng thứ tự của file mẫu. Hệ thống kiểm tra từng dòng trước khi nhập; dòng lỗi được bỏ qua và
             tải về được để sửa.
           </p>
-          <Button icon={<Download size={16} aria-hidden className="text-zinc-500" />} onClick={() => downloadFile("mau-nhap-sinh-vien.csv", templateCsv())} className="w-fit">
-            Tải file mẫu
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              icon={<Download size={16} aria-hidden className="text-zinc-500" />}
+              onClick={() => void downloadTemplateXlsx().catch(() => setReadError("Chưa tạo được file mẫu Excel, tải bản .csv hoặc thử lại."))}
+            >
+              Tải file mẫu .xlsx
+            </Button>
+            <Button onClick={() => downloadFile("mau-nhap-sinh-vien.csv", templateCsv())}>Bản .csv</Button>
+          </div>
+          {readError && <Alert type="error" showIcon title={readError} />}
           <Upload.Dragger
-            accept=".csv"
+            accept=".csv,.xlsx"
             maxCount={1}
             showUploadList={false}
             beforeUpload={(file) => {
-              setFileName(file.name);
-              file.text().then((text) => check(importRows(text)));
+              setReadError(null);
+              readImportFile(file)
+                .then((rows) => {
+                  if (rows.length < 2) {
+                    setReadError(`${file.name} không có dòng dữ liệu nào dưới dòng tiêu đề.`);
+                    return;
+                  }
+                  setFileName(file.name);
+                  check(importRows(rows));
+                })
+                .catch(() => setReadError(`Không đọc được ${file.name}. Mở bằng Excel, lưu lại thành .xlsx hoặc CSV UTF-8 rồi chọn lại.`));
               return false;
             }}
           >
             <div className="flex flex-col items-center gap-2 py-4">
               <FileArrowIn size={28} aria-hidden className="text-muted" />
-              <span className="font-medium">Kéo tệp .csv vào đây, hoặc chọn tệp (trong Excel chọn Lưu thành CSV UTF-8)</span>
+              <span className="font-medium">Kéo tệp .xlsx hoặc .csv vào đây, hoặc chọn tệp</span>
               <span className="text-xs text-muted">Tối đa 5 MB, 2.000 dòng</span>
             </div>
           </Upload.Dragger>

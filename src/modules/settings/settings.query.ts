@@ -19,7 +19,7 @@ import { STUDENT_STATUS } from "@/modules/users/users.constant";
 import { administrativeClasses, lecturers, students } from "@/modules/users/users.schema";
 import { REPORT_DEFINITIONS } from "@/modules/settings/settings.constant";
 import { calendarEvents, regulations, reportExports, type RegulationRules } from "@/modules/settings/settings.schema";
-import type { CalendarEvent, RegulationSettings, RegulationVersion, ReportExportJob, ReportExportStatus } from "@/modules/settings/settings.type";
+import type { CalendarEvent, RegulationSettings, RegulationVersion, ReportCell, ReportExportJob, ReportExportStatus } from "@/modules/settings/settings.type";
 
 const REGULATION_COLUMNS = {
   version: regulations.version,
@@ -126,12 +126,15 @@ export async function getReportExports(id?: string): Promise<ReportExportJob[]> 
   });
 }
 
-export type ReportTable = { header: string[]; rows: (string | number)[][] };
+export type ReportTable = { header: string[]; rows: ReportCell[][] };
 
 const GRADUATION_RECORD_LABEL = { pending: "Chờ xét", approved: "Hội đồng đã công nhận", graduated: "Đã tốt nghiệp" } as const;
 
-const percent = (part: number, whole: number) => (whole > 0 ? `${Math.round((part / whole) * 1000) / 10}%`.replace(".", ",") : "");
-const decimal = (value: number | null, digits = 2) => (value === null ? "" : value.toFixed(digits).replace(".", ","));
+// Tỉ lệ và điểm giữ cả giá trị số (để Excel tính được) lẫn chữ theo kiểu Việt Nam (dấu phẩy thập phân) cho CSV.
+const percent = (part: number, whole: number): ReportCell =>
+  whole > 0 ? { value: Math.round((part / whole) * 1000) / 1000, text: `${Math.round((part / whole) * 1000) / 10}%`.replace(".", ","), numFmt: "0.0%" } : "";
+const decimal = (value: number | null, digits = 2): ReportCell =>
+  value === null ? "" : { value: Number(value.toFixed(digits)), text: value.toFixed(digits).replace(".", ","), numFmt: `0.${"0".repeat(digits)}` };
 
 // Bảng dữ liệu của từng báo cáo theo học kỳ và khoa ("all" là toàn trường), đọc trên dữ liệu hiện tại lúc gọi.
 // Chưa có kho lưu tệp nên mỗi lần tải là đọc lại; trả null khi học kỳ không còn hoặc báo cáo không có trong danh mục.

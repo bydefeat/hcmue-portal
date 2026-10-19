@@ -5,7 +5,9 @@ import { alias } from "drizzle-orm/pg-core";
 import { db } from "@/shared/libs/db.lib";
 import { isUuid } from "@/shared/libs/id.lib";
 import { formatStudentCode } from "@/shared/libs/student-code.lib";
+import { requirePermission } from "@/modules/access/access.query";
 import { requireSession } from "@/modules/authentication/authentication.query";
+import { registrationActivityOf } from "@/modules/course-registration/course-registration.lib";
 import { conflictsOf, periodState } from "@/modules/course-registration/course-registration.constant";
 import {
   classSectionAudienceMajors,
@@ -34,7 +36,7 @@ import type {
   RegistrationEvent,
   RegistrationHold,
   RegistrationPeriod,
-  RegistrationQueueStatus,
+  RegistrationActivity,
   RosterEntry,
   StudentEnrollment,
   Term,
@@ -456,11 +458,11 @@ export async function getRegistrationHolds(studentId?: string): Promise<Registra
   }));
 }
 
-// Số liệu hàng chờ vào trang đăng ký. Chưa có dịch vụ hàng chờ thật nên trả số cấu hình mẫu khi có đợt đang mở.
-export async function getRegistrationQueueStatus(): Promise<RegistrationQueueStatus | null> {
-  const active = await getActiveRegistrationPeriods();
-  if (active.length === 0) return null;
-  return { waiting: 342, activeSessions: 500, sessionLimit: 500, admittedPerMinute: 2400, averageWaitSeconds: 9, peakWaitingToday: 3870 };
+// Nhịp đăng ký của học kỳ đang đăng ký, đếm từ nhật ký thao tác thật (không có dịch vụ hàng chờ riêng).
+export async function getRegistrationQueueStatus(termId: string): Promise<RegistrationActivity | null> {
+  await requirePermission("registration.manage");
+  if (!isUuid(termId)) return null;
+  return registrationActivityOf(db, termId, new Date());
 }
 
 export const REGISTRATION_REMINDER_HREF = "/application/registration";

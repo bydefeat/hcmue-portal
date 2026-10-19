@@ -26,7 +26,7 @@ export const ROLES: Role[] = [
     name: "Chuyên viên Phòng Đào tạo",
     description: "Vận hành đăng ký học phần, lớp học phần, hồ sơ sinh viên và đơn từ.",
     scope: "university",
-    permissions: without("access.manage", "settings.manage", "grades.publish", "graduation.manage", "audit.view"),
+    permissions: without("access.manage", "settings.manage", "grades.publish", "graduation.manage", "audit.view", "tuition.manage"),
     isSystem: true,
   },
   {
@@ -52,6 +52,14 @@ export const ROLES: Role[] = [
     description: "Xếp lịch thi, phòng thi, cán bộ coi thi, xử lý phúc khảo.",
     scope: "university",
     permissions: ["dashboard.view", "exams.manage", "requests.process", "students.view", "facilities.manage"],
+    isSystem: false,
+  },
+  {
+    id: "finance-office",
+    name: "Phòng Kế hoạch - Tài chính",
+    description: "Ghi nhận học phí, nhập sao kê ngân hàng, hủy khoản ghi nhầm.",
+    scope: "university",
+    permissions: ["dashboard.view", "tuition.manage", "students.view"],
     isSystem: false,
   },
   {

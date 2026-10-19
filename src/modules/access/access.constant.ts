@@ -29,6 +29,7 @@ export const PERMISSION_GROUPS: { label: string; permissions: { key: Permission;
       { key: "decisions.manage", label: "Lập quyết định sinh viên" },
       { key: "graduation.manage", label: "Xét tốt nghiệp" },
       { key: "exams.manage", label: "Xếp lịch thi, điều kiện dự thi" },
+      { key: "tuition.manage", label: "Ghi nhận học phí, nhập sao kê ngân hàng" },
     ],
   },
   {

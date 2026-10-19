@@ -1,12 +1,15 @@
 import assert from "node:assert/strict";
 import { after, describe, test } from "node:test";
-import { and, eq, isNotNull, ne } from "drizzle-orm";
+import { and, asc, eq, gte, isNotNull, isNull, like, lt, ne, sql, TransactionRollbackError } from "drizzle-orm";
 import { db } from "@/shared/libs/db.lib";
 import { parseInput } from "@/shared/libs/action.lib";
 import { pgErrorMessage } from "@/shared/libs/pg-error.lib";
-import { enrollments, labGroups } from "@/modules/course-registration/course-registration.schema";
+import { weekdayOf } from "@/shared/libs/date.lib";
+import { classSections, enrollments, labGroups, sectionMeetings } from "@/modules/course-registration/course-registration.schema";
+import { notifications } from "@/modules/notifications/notifications.schema";
+import { syncClassSessions, weeklyScheduleOf } from "@/modules/schedule/schedule.lib";
 import { SCHEDULE_CONSTRAINT_MESSAGE } from "@/modules/schedule/schedule.constant";
-import { ATTENDANCE_SAVE_SCHEMA, datesOnWeekday, isAbsence, isNearAbsenceLimit, isOverAbsenceLimit, planClassSessions } from "@/modules/schedule/schedule.rule";
+import { ATTENDANCE_SAVE_SCHEMA, datesOnWeekday, diffClassSessions, isAbsence, isNearAbsenceLimit, isOverAbsenceLimit, planClassSessions, type ExistingSession } from "@/modules/schedule/schedule.rule";
 import { attendanceRecords, classSessions } from "@/modules/schedule/schedule.schema";
 
 after(() => db.$client.end());
@@ -106,5 +109,88 @@ describe("schedule: ràng buộc ở DB", () => {
     const [session] = await db.select().from(classSessions).limit(1);
     const error = await failure(db.update(classSessions).set({ endPeriod: 13 }).where(eq(classSessions.id, session.id)));
     assert.equal(pgErrorMessage(error, SCHEDULE_CONSTRAINT_MESSAGE), SCHEDULE_CONSTRAINT_MESSAGE.class_sessions_period_range);
+  });
+});
+
+function slotPlan(date: string, startPeriod = 1, roomId = "a101") {
+  return { classSectionId: "lop", labGroupId: null, date, startPeriod, endPeriod: startPeriod + 2, roomId };
+}
+
+function existing(id: string, date: string, isTaken = false, startPeriod = 1, roomId = "a101"): ExistingSession {
+  return { ...slotPlan(date, startPeriod, roomId), id, isTaken };
+}
+
+describe("schedule: sinh lại buổi học khi đổi lịch tuần", () => {
+
+  test("giữ buổi đã qua và buổi đã điểm danh, bỏ buổi tương lai không còn trong lịch, thêm buổi mới, buổi trùng hệt giữ nguyên", () => {
+    const diff = diffClassSessions(
+      [existing("qua", "2026-10-12", true), existing("qua-chua-diem-danh", "2026-10-13"), existing("da-diem-danh", "2026-10-26", true), existing("cu", "2026-10-21"), existing("giu", "2026-10-28", false, 4, "b202")],
+      [slotPlan("2026-10-14"), slotPlan("2026-10-26"), slotPlan("2026-10-28", 4, "b202"), slotPlan("2026-11-02")],
+      "2026-10-19",
+    );
+    assert.deepEqual(diff.removeIds, ["cu"]);
+    assert.deepEqual(
+      diff.add.map((entry) => entry.date),
+      ["2026-11-02"],
+    );
+    assert.equal(diff.kept, 4);
+  });
+
+  test("đổi phòng của buổi tương lai: bỏ buổi cũ, sinh lại cùng ngày với phòng mới", () => {
+    const diff = diffClassSessions([existing("cu", "2026-10-21", false, 1, "a101")], [slotPlan("2026-10-21", 1, "c303")], "2026-10-19");
+    assert.deepEqual(diff.removeIds, ["cu"]);
+    assert.equal(diff.add[0].roomId, "c303");
+  });
+
+  test("trên DB: đổi thứ học của lớp đang mở thì buổi tương lai chuyển sang thứ mới, buổi đã điểm danh còn nguyên, sinh viên được báo", async () => {
+    await db
+      .transaction(async (tx) => {
+        const [{ today }] = await tx.execute<{ today: string }>(sql`SELECT to_char((now() AT TIME ZONE 'Asia/Ho_Chi_Minh')::date, 'YYYY-MM-DD') AS today`);
+        const [section] = await tx
+          .select({ id: classSections.id, code: classSections.code })
+          .from(classSections)
+          .where(and(eq(classSections.status, "open"), sql`${classSections.endDate} > ${today}::date + 21`, sql`${classSections.enrolledCount} > 0`))
+          .orderBy(asc(classSections.code))
+          .limit(1);
+        const meetings = await tx.select().from(sectionMeetings).where(eq(sectionMeetings.classSectionId, section.id));
+        const future = await tx
+          .select()
+          .from(classSessions)
+          .where(and(eq(classSessions.classSectionId, section.id), isNull(classSessions.labGroupId), gte(classSessions.date, today), isNull(classSessions.takenAt)))
+          .orderBy(asc(classSessions.date));
+        const pastCount = (await tx.select({ id: classSessions.id }).from(classSessions).where(and(eq(classSessions.classSectionId, section.id), lt(classSessions.date, today)))).length;
+        // Một buổi tương lai đã có điểm danh (ví dụ điểm danh bù) phải được giữ dù lịch đổi.
+        const attended = future[1];
+        const [member] = await tx
+          .select({ id: enrollments.id })
+          .from(enrollments)
+          .where(and(eq(enrollments.classSectionId, section.id), eq(enrollments.status, "enrolled"), isNull(enrollments.labGroupId)))
+          .limit(1);
+        await tx.insert(attendanceRecords).values({ classSessionId: attended.id, enrollmentId: member.id, status: "present" });
+
+        const previous = await weeklyScheduleOf(tx, section.id);
+        const used = new Set(meetings.map((meeting) => meeting.dayOfWeek));
+        const newDay = [2, 3, 4, 5, 6, 7].find((day) => !used.has(day))!;
+        await tx.update(sectionMeetings).set({ dayOfWeek: newDay }).where(eq(sectionMeetings.id, meetings[0].id));
+        const result = await syncClassSessions(tx, section.id, { previous });
+        assert.ok(result.removed > 0 && result.added > 0 && result.notified);
+
+        const sessions = await tx.select().from(classSessions).where(eq(classSessions.classSectionId, section.id));
+        assert.equal(sessions.filter((session) => session.date < today).length, pastCount);
+        assert.ok(sessions.some((session) => session.id === attended.id));
+        const regenerated = sessions.filter((session) => session.labGroupId === null && session.date >= today && session.id !== attended.id && session.startPeriod === meetings[0].startPeriod);
+        assert.ok(regenerated.some((session) => weekdayOf(session.date) === newDay));
+        if (meetings.length === 1) assert.ok(regenerated.every((session) => weekdayOf(session.date) === newDay));
+        const sent = await tx.select({ id: notifications.id }).from(notifications).where(like(notifications.title, `Lớp ${section.code} đổi lịch%`));
+        assert.ok(sent.length > 0);
+
+        // Lưu lại mà lịch không đổi thì không sinh lại, không báo.
+        const again = await syncClassSessions(tx, section.id, { previous: await weeklyScheduleOf(tx, section.id) });
+        assert.deepEqual([again.added, again.removed, again.notified], [0, 0, false]);
+        tx.rollback();
+      })
+      .catch((error: unknown) => {
+        if (!(error instanceof TransactionRollbackError)) throw error;
+      });
   });
 });

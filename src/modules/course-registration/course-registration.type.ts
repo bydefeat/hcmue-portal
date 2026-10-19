@@ -185,13 +185,15 @@ export type RegistrationEvent = {
   note: string;
 };
 
-export type RegistrationQueueStatus = {
-  waiting: number;
-  activeSessions: number;
-  sessionLimit: number;
-  admittedPerMinute: number;
-  averageWaitSeconds: number;
-  peakWaitingToday: number;
+// Nhịp đăng ký thật từ nhật ký registration_events (lượt đăng ký, hủy, đổi nhóm của sinh viên).
+export type RegistrationActivity = {
+  lastMinute: number;
+  last15Minutes: number;
+  studentsLast15Minutes: number;
+  today: number;
+  peakPerMinute: number;
+  // Phút đông nhất trong ngày; null khi hôm nay chưa có lượt nào.
+  peakAt: string | null;
 };
 
 export type UnregisteredStudent = {

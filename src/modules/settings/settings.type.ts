@@ -59,7 +59,10 @@ export type RegulationVersion = {
   summary: string;
 };
 
-export type ReportFormat = "csv";
+export type ReportFormat = "xlsx" | "csv";
+
+// Ô số kèm định dạng: Excel nhận giá trị số với định dạng hiển thị, CSV nhận chữ đã định dạng kiểu Việt Nam.
+export type ReportCell = string | number | { value: number; text: string; numFmt: string };
 
 export type ReportDefinition = { id: string; name: string; description: string; audience: string };
 

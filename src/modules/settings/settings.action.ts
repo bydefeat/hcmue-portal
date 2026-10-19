@@ -6,6 +6,7 @@ import { db } from "@/shared/libs/db.lib";
 import { actionError, actionFailure, actionOk, parseInput, type ActionResult } from "@/shared/libs/action.lib";
 import { dayjs, formatDate } from "@/shared/libs/date.lib";
 import { toCsv } from "@/shared/libs/download.lib";
+import { buildSpreadsheet, bytesToBase64, XLSX_MIME } from "@/shared/libs/spreadsheet.lib";
 import { isUuid } from "@/shared/libs/id.lib";
 import { requirePermission } from "@/modules/access/access.query";
 import { auditActorOf, recordAudit } from "@/modules/audit/audit.lib";
@@ -20,6 +21,8 @@ import {
   REGULATION_SAVE_SCHEMA,
   regulationChanges,
   REPORT_EXPORT_SCHEMA,
+  reportCellText,
+  reportFileName,
   type CalendarEventInput,
   type RegulationSaveInput,
   type ReportExportInput,
@@ -166,8 +169,9 @@ export async function requestReportExport(input: ReportExportInput): Promise<Act
   return job ? actionOk(job) : actionError("Đã tạo báo cáo nhưng chưa đọc lại được, tải lại trang.");
 }
 
-// Tải báo cáo đã xuất: đọc lại dữ liệu theo đúng tham số lúc xuất và trả nội dung CSV để trình duyệt lưu thành tệp.
-export async function downloadReportExport(id: string): Promise<ActionResult<{ fileName: string; content: string }>> {
+// Tải báo cáo đã xuất: đọc lại dữ liệu theo đúng tham số lúc xuất, tạo tệp theo định dạng đã chọn để trình duyệt lưu.
+// Excel trả base64 (server action chỉ truyền được dữ liệu tuần tự hóa), CSV trả chữ.
+export async function downloadReportExport(id: string): Promise<ActionResult<{ fileName: string; content: string; encoding: "base64" | "text"; mimeType: string }>> {
   const viewer = await requirePermission("reports.view");
   if (!isUuid(id)) return actionError("Không tìm thấy báo cáo.");
   const [job] = await db
@@ -181,5 +185,15 @@ export async function downloadReportExport(id: string): Promise<ActionResult<{ f
   const table = params.termId ? await getReportTable(job.reportKey, params.termId, faculty) : null;
   if (!table) return actionError("Học kỳ của báo cáo không còn trong danh mục.");
   const [term] = await db.select({ code: terms.code }).from(terms).where(eq(terms.id, params.termId!));
-  return actionOk({ fileName: `${job.reportKey}-${term?.code ?? "hoc-ky"}.csv`, content: toCsv([table.header, ...table.rows]) });
+  const fileName = reportFileName(job.reportKey, term?.code ?? "hoc-ky", params.format);
+  if (params.format === "xlsx") {
+    const report = REPORT_DEFINITIONS.find((entry) => entry.id === job.reportKey);
+    const bytes = await buildSpreadsheet(
+      report?.name ?? job.reportKey,
+      table.header.map((header) => ({ header, text: /^(MSSV|Mã)/.test(header) })),
+      table.rows,
+    );
+    return actionOk({ fileName, content: bytesToBase64(bytes), encoding: "base64", mimeType: XLSX_MIME });
+  }
+  return actionOk({ fileName, content: toCsv([table.header, ...table.rows.map((row) => row.map(reportCellText))]), encoding: "text", mimeType: "text/csv;charset=utf-8" });
 }

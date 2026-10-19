@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Button, Card, Drawer, Form, Input, message, Select, Table, type TableColumnsType } from "antd";
+import { Button, Card, Drawer, Form, message, Radio, Select, Table, type TableColumnsType } from "antd";
 import { AlertWarning, ChartColumn, ClipboardCheck, Download, FileExport, GraduationCap, PresentationScreenChartCols, Users, type IconProps } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { SectionCard } from "@/shared/components/ui/section-card";
@@ -9,6 +9,8 @@ import { StatusTag } from "@/shared/components/ui/status-tag";
 import type { StatusMeta } from "@/shared/constants/status.constant";
 import { formatDateTime } from "@/shared/libs/date.lib";
 import { downloadFile } from "@/shared/libs/download.lib";
+import { base64ToBytes } from "@/shared/libs/spreadsheet.lib";
+import { REPORT_FORMAT_LABEL, REPORT_FORMATS } from "@/modules/settings/settings.constant";
 import { downloadReportExport, requestReportExport } from "@/modules/settings/settings.action";
 import type { ReportDefinition, ReportExportJob as ExportJob, ReportFormat } from "@/modules/settings/settings.type";
 
@@ -77,7 +79,8 @@ export function ReportExportCenter({ reports, terms, faculties, defaultTermId, j
       messageApi.error(result.message);
       return;
     }
-    downloadFile(result.data.fileName, result.data.content);
+    const { fileName, content, encoding, mimeType } = result.data;
+    downloadFile(fileName, encoding === "base64" ? base64ToBytes(content) : content, mimeType);
   };
 
   const columns: TableColumnsType<ExportJob> = [
@@ -184,17 +187,20 @@ export function ReportExportCenter({ reports, terms, faculties, defaultTermId, j
           </div>
         }
       >
-        <Form form={form} layout="vertical" onFinish={create} initialValues={{ termId: defaultTermId, faculty: "all", format: "csv" }}>
+        <Form form={form} layout="vertical" onFinish={create} initialValues={{ termId: defaultTermId, faculty: "all", format: "xlsx" }}>
           <Form.Item name="termId" label="Học kỳ">
             <Select options={terms.map((term) => ({ value: term.id, label: term.name }))} />
           </Form.Item>
           <Form.Item name="faculty" label="Phạm vi">
             <Select options={[{ value: "all", label: "Toàn trường" }, ...faculties.map((value) => ({ value, label: value }))]} />
           </Form.Item>
-          <Form.Item name="format" hidden>
-            <Input />
+          <Form.Item
+            name="format"
+            label="Định dạng"
+            extra="Excel giữ ô số là số, cố định hàng tiêu đề. CSV dùng để nhập vào phần mềm khác."
+          >
+            <Radio.Group options={REPORT_FORMATS.map((value) => ({ value, label: REPORT_FORMAT_LABEL[value] }))} />
           </Form.Item>
-          <p className="text-sm text-muted">Báo cáo xuất ra tệp CSV, mở được bằng Excel.</p>
         </Form>
       </Drawer>
     </div>

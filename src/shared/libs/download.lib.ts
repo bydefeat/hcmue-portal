@@ -1,6 +1,7 @@
-// Tải tệp tạo ngay trên trình duyệt. CSV có BOM để Excel đọc đúng tiếng Việt.
-export function downloadFile(name: string, content: string, type = "text/csv;charset=utf-8") {
-  const url = URL.createObjectURL(new Blob([type.startsWith("text/csv") ? `﻿${content}` : content], { type }));
+// Tải tệp tạo ngay trên trình duyệt. CSV có BOM để Excel đọc đúng tiếng Việt; tệp nhị phân (.xlsx) truyền mảng byte.
+export function downloadFile(name: string, content: string | Uint8Array<ArrayBuffer>, type = "text/csv;charset=utf-8") {
+  const part = typeof content === "string" && type.startsWith("text/csv") ? `﻿${content}` : content;
+  const url = URL.createObjectURL(new Blob([part], { type }));
   const link = document.createElement("a");
   link.href = url;
   link.download = name;

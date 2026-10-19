@@ -1,4 +1,7 @@
-import { STATUS_TONE_BAR, type StatusTone } from "@/shared/constants/status.constant";
+"use client";
+
+import { Progress, theme } from "antd";
+import type { StatusTone } from "@/shared/constants/status.constant";
 
 type MeterBarProps = {
   value: number;
@@ -8,19 +11,15 @@ type MeterBarProps = {
 };
 
 export function MeterBar({ value, max, tone = "primary", label }: MeterBarProps) {
+  const { token } = theme.useToken();
   const percent = max > 0 ? Math.min(100, Math.round((value / max) * 100)) : 0;
-  const barClass = tone === "primary" ? "bg-primary" : STATUS_TONE_BAR[tone];
+  const color = {
+    primary: token.colorPrimary,
+    success: token.colorSuccess,
+    warning: token.colorWarning,
+    danger: token.colorError,
+    neutral: token.colorTextQuaternary,
+  }[tone];
 
-  return (
-    <div
-      role="meter"
-      aria-valuemin={0}
-      aria-valuemax={max}
-      aria-valuenow={value}
-      aria-label={label}
-      className="h-1.5 w-full min-w-12 overflow-hidden rounded-full bg-border-strong"
-    >
-      <div className={`h-full rounded-full ${barClass}`} style={{ width: `${percent}%` }} />
-    </div>
-  );
+  return <Progress percent={percent} showInfo={false} size="small" strokeColor={color} aria-label={label} className="m-0 w-full min-w-12" />;
 }

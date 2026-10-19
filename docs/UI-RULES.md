@@ -111,3 +111,22 @@ Nguồn màu duy nhất: `src/shared/constants/theme.constant.ts` (sinh CSS vari
 5. Đếm chỗ có màu nhấn trên màn: mỗi chỗ nói một điều chỗ khác chưa nói (`N3`).
 6. Rút chuột, đi hết màn bằng Tab + Enter + mũi tên (`N9`).
 7. Chạy 12 phép thử `N1`–`N12` của evon (`references/principles.md`) và `references/checklist.md`; có thể chạy `scripts/probe.mjs` của evon trên URL trang.
+
+---
+
+## 6. Thành phần chuẩn (bắt buộc dùng, không tự dựng lại)
+
+| Việc | Dùng | Ghi chú |
+|---|---|---|
+| Đầu trang | `PageHeader` (`shared/components/ui/page-header.tsx`): tiêu đề, mô tả, nút hành động, link quay lại | Mọi trang của 3 cổng và trang công khai. Ngoại lệ: trang trong một lớp của giảng viên dùng `ClassContextBar`; trang xác thực dùng `AuthHeading` |
+| Thanh trên cùng của cổng | Breadcrumb antd (nhóm / mục) | Layout không in tiêu đề trang, tiêu đề do `PageHeader` của trang |
+| Khối nội dung có tiêu đề | `SectionCard` (antd `Card`): `title`, `extra`, `flush` khi bên trong là danh sách sát mép | Không tự viết `rounded-xl border bg-surface` |
+| Thẻ trong danh sách | antd `Card size="small"` | |
+| Số liệu tổng quan | `StatTile` (antd `Card` + `Statistic`) | |
+| Thanh tiến độ | `MeterBar` (antd `Progress`) | |
+| Trạng thái rỗng | `EmptyState` (antd `Empty`) | |
+| Lỗi, 404, 403 | antd `Result` qua `ErrorState`, `NotFoundState`, `app/forbidden.tsx` | |
+| Nút, nút dạng chữ | antd `Button` (`type="link"` hoặc `"text"` cho nút dạng chữ) | Điều hướng thuần dùng `Link` của Next |
+| Nhãn + ô nhập | antd `Form` + `Form.Item` | Không tự viết `<label>` bọc control |
+| Bảng | antd `Table` | `<table>` chỉ cho bản in (`hidden print:block`) |
+| Được tự dựng vì antd không có | Dock và sidebar trượt trên điện thoại, menu cây ở sidebar, lưới thời khóa biểu theo tiết | |

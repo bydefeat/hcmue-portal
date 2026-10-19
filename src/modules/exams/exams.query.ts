@@ -5,7 +5,8 @@ import { db } from "@/shared/libs/db.lib";
 import { isUuid } from "@/shared/libs/id.lib";
 import { formatStudentCode } from "@/shared/libs/student-code.lib";
 import { requireSession } from "@/modules/authentication/authentication.query";
-import { requirePermission } from "@/modules/access/access.query";
+import { can, inScope } from "@/modules/access/access.constant";
+import { getViewer, requirePermission } from "@/modules/access/access.query";
 import { classSections, enrollments } from "@/modules/course-registration/course-registration.schema";
 import { courses, faculties } from "@/modules/curriculum/curriculum.schema";
 import { examEligibilityOverrides, examProctors, examProctorSwapRequests, examSessions } from "@/modules/exams/exams.schema";
@@ -15,7 +16,7 @@ import { isOverAbsenceLimit } from "@/modules/schedule/schedule.rule";
 import { attendanceRecords, classSessions } from "@/modules/schedule/schedule.schema";
 import { administrativeClasses, lecturers, students } from "@/modules/users/users.schema";
 import { getCurrentStudent } from "@/modules/users/users.query";
-import type { ExamAttendance, ExamEligibilityRow, ExamSession } from "@/modules/exams/exams.type";
+import type { ExamAttendance, ExamEligibilityRow, ExamPaperFile, ExamPaperFileKind, ExamSession } from "@/modules/exams/exams.type";
 
 const teacher = alias(lecturers, "exam_teacher");
 const requester = alias(lecturers, "swap_requester");
@@ -24,7 +25,8 @@ const substitute = alias(lecturers, "swap_substitute");
 const displayName = (table: { title: AnyPgColumn; fullName: AnyPgColumn }) => sql<string>`${table.title} || ' ' || ${table.fullName}`;
 
 // Ca thi kèm lớp, giảng viên dạy lớp, phòng, cán bộ coi thi và đề nghị đổi ca đang chờ. Số thí sinh là sĩ số hiện tại của lớp.
-async function examRows(where: SQL): Promise<ExamSession[]> {
+// Tên tệp đề, đáp án chỉ trả cho ca mà `showPapers` cho phép (giảng viên dạy lớp, Phòng Khảo thí).
+async function examRows(where: SQL, showPapers: (row: { lecturerId: string | null; faculty: string }) => boolean = () => false): Promise<ExamSession[]> {
   const rows = await db
     .select({
       id: examSessions.id,
@@ -45,6 +47,11 @@ async function examRows(where: SQL): Promise<ExamSession[]> {
       status: examSessions.status,
       paperStatus: examSessions.paperStatus,
       paperDeadline: examSessions.paperDeadline,
+      paperSubmittedAt: examSessions.paperSubmittedAt,
+      paperFileName: examSessions.paperFileName,
+      paperSizeBytes: examSessions.paperSizeBytes,
+      answerKeyFileName: examSessions.answerKeyFileName,
+      answerKeySizeBytes: examSessions.answerKeySizeBytes,
     })
     .from(examSessions)
     .innerJoin(classSections, eq(classSections.id, examSessions.classSectionId))
@@ -79,43 +86,118 @@ async function examRows(where: SQL): Promise<ExamSession[]> {
       .where(and(inArray(examProctorSwapRequests.examSessionId, ids), isNull(examProctorSwapRequests.resolvedAt)))
       .orderBy(asc(examProctorSwapRequests.createdAt)),
   ]);
-  return rows.map((row) => ({
+  const papersOf = (row: (typeof rows)[number]): ExamPaperFile[] => {
+    if (!showPapers(row)) return [];
+    const files: ExamPaperFile[] = [];
+    if (row.paperFileName && row.paperSizeBytes) files.push({ kind: "paper", fileName: row.paperFileName, sizeBytes: row.paperSizeBytes });
+    if (row.answerKeyFileName && row.answerKeySizeBytes) files.push({ kind: "answer-key", fileName: row.answerKeyFileName, sizeBytes: row.answerKeySizeBytes });
+    return files;
+  };
+  return rows.map(({ paperFileName: _a, paperSizeBytes: _b, answerKeyFileName: _c, answerKeySizeBytes: _d, ...row }, index) => ({
     ...row,
     paperDeadline: row.paperDeadline.toISOString(),
+    paperSubmittedAt: row.paperSubmittedAt?.toISOString() ?? null,
+    papers: papersOf(rows[index]),
     proctors: proctors.filter((proctor) => proctor.examId === row.id).map(({ examId: _examId, ...proctor }) => proctor),
     swapRequests: swaps.filter((swap) => swap.examId === row.id).map(({ examId: _examId, createdAt, ...swap }) => ({ ...swap, createdAt: createdAt.toISOString() })),
   }));
 }
 
+// Cán bộ có quyền quản lý thi theo vai trò đang dùng; tài khoản không phải cán bộ thì null.
+async function examManager(roles: string[]) {
+  if (!roles.includes("admin")) return null;
+  const viewer = await getViewer();
+  return can(viewer, "exams.manage") ? viewer : null;
+}
+
+async function paperVisibility() {
+  const { roles } = await requireSession();
+  const manager = await examManager(roles);
+  return (row: { faculty: string }) => manager !== null && inScope(manager, row.faculty);
+}
+
 export async function getExamSessions(termId: string) {
-  await requireSession();
+  const showPapers = await paperVisibility();
   if (!isUuid(termId)) return [];
-  return examRows(eq(examSessions.termId, termId));
+  return examRows(eq(examSessions.termId, termId), showPapers);
 }
 
 export async function getExamSession(id: string) {
-  await requireSession();
+  const showPapers = await paperVisibility();
   if (!isUuid(id)) return null;
-  const [exam] = await examRows(eq(examSessions.id, id));
+  const [exam] = await examRows(eq(examSessions.id, id), showPapers);
   return exam ?? null;
 }
 
-// Ca thi của lớp giảng viên dạy và ca giảng viên được phân công coi thi.
+// Tệp đề thi hoặc đáp án để tải xuống: chỉ giảng viên dạy lớp (người nộp đề) và cán bộ có quyền quản lý thi trong phạm vi khoa.
+export async function getExamPaperFile(examSessionId: string, kind: ExamPaperFileKind) {
+  const { user, roles } = await requireSession();
+  if (!isUuid(examSessionId)) return null;
+  const [row] = await db
+    .select({
+      faculty: faculties.name,
+      teacherUserId: teacher.userId,
+      paperStorageKey: examSessions.paperStorageKey,
+      paperFileName: examSessions.paperFileName,
+      paperContentType: examSessions.paperContentType,
+      answerKeyStorageKey: examSessions.answerKeyStorageKey,
+      answerKeyFileName: examSessions.answerKeyFileName,
+      answerKeyContentType: examSessions.answerKeyContentType,
+    })
+    .from(examSessions)
+    .innerJoin(classSections, eq(classSections.id, examSessions.classSectionId))
+    .innerJoin(courses, eq(courses.id, classSections.courseId))
+    .innerJoin(faculties, eq(faculties.id, courses.facultyId))
+    .leftJoin(teacher, eq(teacher.id, classSections.lecturerId))
+    .where(eq(examSessions.id, examSessionId));
+  if (!row) return null;
+  if (row.teacherUserId !== user.id) {
+    const manager = await examManager(roles);
+    if (!manager || !inScope(manager, row.faculty)) return null;
+  }
+  const file =
+    kind === "paper"
+      ? { storageKey: row.paperStorageKey, fileName: row.paperFileName, contentType: row.paperContentType }
+      : { storageKey: row.answerKeyStorageKey, fileName: row.answerKeyFileName, contentType: row.answerKeyContentType };
+  if (!file.storageKey || !file.fileName || !file.contentType) return null;
+  return { storageKey: file.storageKey, fileName: file.fileName, contentType: file.contentType };
+}
+
+// Ca thi của lớp giảng viên dạy và ca giảng viên được phân công coi thi. Chỉ chính giảng viên đó xem được.
 export async function getExamsForLecturer(lecturerId: string) {
-  await requireSession();
+  const { user } = await requireSession();
   if (!isUuid(lecturerId)) return [];
+  const [own] = await db.select({ id: lecturers.id }).from(lecturers).where(and(eq(lecturers.id, lecturerId), eq(lecturers.userId, user.id)));
+  if (!own) return [];
   const proctoring = db
     .select({ one: sql`1` })
     .from(examProctors)
     .where(and(eq(examProctors.examSessionId, examSessions.id), eq(examProctors.lecturerId, lecturerId)));
-  return examRows(or(eq(classSections.lecturerId, lecturerId), exists(proctoring))!);
+  return examRows(or(eq(classSections.lecturerId, lecturerId), exists(proctoring))!, (row) => row.lecturerId === lecturerId);
 }
 
+// Lịch thi theo lớp: chỉ trả lớp mà người gọi là giảng viên dạy hoặc sinh viên đang học, hoặc cán bộ quản lý thi trong phạm vi khoa.
 export async function getExamsForClassSections(classSectionIds: string[]) {
-  await requireSession();
+  const { user, roles } = await requireSession();
   const ids = classSectionIds.filter(isUuid);
   if (ids.length === 0) return [];
-  return examRows(inArray(examSessions.classSectionId, ids));
+  const studying = db
+    .select({ one: sql`1` })
+    .from(enrollments)
+    .innerJoin(students, eq(students.id, enrollments.studentId))
+    .where(and(eq(enrollments.classSectionId, classSections.id), eq(enrollments.status, "enrolled"), eq(students.userId, user.id)));
+  const [ownRows, manager] = await Promise.all([
+    db
+      .select({ id: classSections.id })
+      .from(classSections)
+      .leftJoin(teacher, eq(teacher.id, classSections.lecturerId))
+      .where(and(inArray(classSections.id, ids), or(eq(teacher.userId, user.id), exists(studying)))),
+    examManager(roles),
+  ]);
+  const own = new Set(ownRows.map((row) => row.id));
+  if (own.size === 0 && !manager) return [];
+  const rows = await examRows(inArray(examSessions.classSectionId, manager ? ids : [...own]));
+  return rows.filter((row) => own.has(row.classSectionId) || (manager !== null && inScope(manager, row.faculty)));
 }
 
 // Số buổi đã học và số buổi vắng của từng đăng ký, tính từ điểm danh của giảng viên. Buổi thực hành chỉ tính cho

@@ -20,6 +20,9 @@
 # production
 /build
 
+# tệp tải lên (DEFEAT_STORAGE_DIRECTORY)
+/storage/
+
 # misc
 .DS_Store
 *.pem

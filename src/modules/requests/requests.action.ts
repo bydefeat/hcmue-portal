@@ -3,7 +3,7 @@
 import { and, eq, gte, lte, ne } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db, type Transaction } from "@/shared/libs/db.lib";
-import { actionError, actionFailure, actionOk, parseInput, type ActionResult } from "@/shared/libs/action.lib";
+import { actionError, actionFailure, actionOk, parseInput, type ActionFailure, type ActionResult } from "@/shared/libs/action.lib";
 import { dayjs, formatDate, weekdayOf } from "@/shared/libs/date.lib";
 import { isUuid } from "@/shared/libs/id.lib";
 import { formatStudentCode } from "@/shared/libs/student-code.lib";
@@ -17,20 +17,32 @@ import { rooms } from "@/modules/facilities/facilities.schema";
 import { getCurrentLecturer, getCurrentStudent } from "@/modules/users/users.query";
 import { administrativeClasses, lecturers, students } from "@/modules/users/users.schema";
 import { officeStepRoles, REQUEST_KINDS, REQUESTS_CONSTRAINT_MESSAGE, STEP_ROLE_LABEL } from "@/modules/requests/requests.constant";
-import { cancelOwnRequest, decideStep, insertRequest, RequestError, type StepContext } from "@/modules/requests/requests.lib";
+import {
+  cancelOwnRequest,
+  currentComponentScore,
+  decideStep,
+  insertRequest,
+  RequestError,
+  studentRequestFacts,
+  withAttachments,
+  type AttachmentFile,
+  type StepContext,
+} from "@/modules/requests/requests.lib";
 import { getRequest } from "@/modules/requests/requests.query";
 import {
+  checkAttachments,
   DECIDE_STEP_SCHEMA,
+  gradeChangeBlockedReason,
   LECTURER_REQUEST_SCHEMA,
   makeupLabel,
+  readRequestForm,
   scoreText,
   sessionLabel,
   STUDENT_REQUEST_SCHEMA,
   studentRequestContent,
   type DecideStepInput,
-  type LecturerRequestInput,
   type LecturerRequestValues,
-  type StudentRequestInput,
+  type StudentRequestFacts,
 } from "@/modules/requests/requests.rule";
 import type { RequestDetail, RequestView } from "@/modules/requests/requests.type";
 
@@ -47,20 +59,32 @@ function revalidateRequests() {
   }
 }
 
+// Đọc nội dung tệp rồi kiểm: Next đã chặn thân request quá bodySizeLimit nên đọc hết vào bộ nhớ không quá giới hạn đó.
+async function readAttachments(files: File[]): Promise<{ ok: true; files: AttachmentFile[] } | ActionFailure> {
+  const uploads = await Promise.all(files.map(async (file) => ({ name: file.name, data: new Uint8Array(await file.arrayBuffer()) })));
+  const checked = checkAttachments(uploads.map((upload) => ({ name: upload.name, size: upload.data.byteLength, head: upload.data.subarray(0, 16) })));
+  if (!checked.ok) return actionError(checked.message, { attachments: checked.message });
+  return { ok: true, files: uploads.map((upload, index) => ({ ...checked.files[index], data: upload.data })) };
+}
+
 async function reloaded(id: string): Promise<ActionResult<RequestView>> {
   const request = await getRequest(id);
   return request ? actionOk(request) : actionError("Đã lưu nhưng chưa đọc lại được đơn, tải lại trang.");
 }
 
-export async function createStudentRequest(input: StudentRequestInput): Promise<ActionResult<RequestView>> {
+// Nhận FormData: ô "input" là JSON của form (StudentRequestInput), các ô "files" là tệp minh chứng.
+export async function createStudentRequest(formData: FormData): Promise<ActionResult<RequestView>> {
   const student = await getCurrentStudent();
-  const parsed = parseInput(STUDENT_REQUEST_SCHEMA, input);
+  const form = readRequestForm(formData);
+  const parsed = parseInput(STUDENT_REQUEST_SCHEMA, form.input);
   if (!parsed.ok) return parsed;
-  const { kind, fields, reason, attachments } = parsed.data;
+  const uploads = await readAttachments(form.files);
+  if (!uploads.ok) return uploads;
+  const { kind, fields, reason } = parsed.data;
   const roles = REQUEST_KINDS[kind].steps.map((step) => step.role);
   let requestId: string;
   try {
-    requestId = await db.transaction(async (tx) => {
+    requestId = await withAttachments(uploads.files, (attachments) => db.transaction(async (tx) => {
       const [profile] = await tx
         .select({ facultyId: majors.facultyId, advisorId: administrativeClasses.advisorId })
         .from(students)
@@ -72,9 +96,10 @@ export async function createStudentRequest(input: StudentRequestInput): Promise<
       }
       let sectionLabel: string | null = null;
       let lecturerId: string | null = null;
+      let facts: StudentRequestFacts = {};
       if (typeof fields.section === "string") {
         const [section] = await tx
-          .select({ code: classSections.code, courseName: courses.name, lecturerId: classSections.lecturerId })
+          .select({ enrollmentId: enrollments.id, code: classSections.code, courseName: courses.name, lecturerId: classSections.lecturerId })
           .from(enrollments)
           .innerJoin(classSections, eq(classSections.id, enrollments.classSectionId))
           .innerJoin(courses, eq(courses.id, classSections.courseId))
@@ -85,8 +110,9 @@ export async function createStudentRequest(input: StudentRequestInput): Promise<
           if (!section.lecturerId) throw new RequestError(`Lớp ${section.code} chưa có giảng viên phụ trách nên chưa gửi được đơn. Liên hệ Phòng Đào tạo.`, "section");
           lecturerId = section.lecturerId;
         }
+        facts = await studentRequestFacts(tx, kind, { classSectionId: fields.section, enrollmentId: section.enrollmentId });
       }
-      const content = studentRequestContent({ kind, fields }, sectionLabel);
+      const content = studentRequestContent({ kind, fields }, sectionLabel, facts);
       const request = await insertRequest(tx, {
         kind,
         requester: { type: "student", studentId: student.id },
@@ -97,7 +123,7 @@ export async function createStudentRequest(input: StudentRequestInput): Promise<
         lecturerAssigneeId: lecturerId,
       });
       return request.id;
-    });
+    }));
   } catch (error) {
     return failure(error);
   }
@@ -155,14 +181,18 @@ async function teachingLeaveContent(
   };
 }
 
-export async function createLecturerRequest(input: LecturerRequestInput): Promise<ActionResult<RequestView>> {
+// Nhận FormData như createStudentRequest, ô "input" là LecturerRequestInput.
+export async function createLecturerRequest(formData: FormData): Promise<ActionResult<RequestView>> {
   const lecturer = await getCurrentLecturer();
-  const parsed = parseInput(LECTURER_REQUEST_SCHEMA, input);
+  const form = readRequestForm(formData);
+  const parsed = parseInput(LECTURER_REQUEST_SCHEMA, form.input);
   if (!parsed.ok) return parsed;
+  const uploads = await readAttachments(form.files);
+  if (!uploads.ok) return uploads;
   const values = parsed.data;
   let requestId: string;
   try {
-    requestId = await db.transaction(async (tx) => {
+    requestId = await withAttachments(uploads.files, (attachments) => db.transaction(async (tx) => {
       const [section] = await tx
         .select({
           id: classSections.id,
@@ -180,17 +210,21 @@ export async function createLecturerRequest(input: LecturerRequestInput): Promis
       let content: { subject: string; details: RequestDetail[] };
       if (values.kind === "grade-change") {
         const [student] = await tx
-          .select({ fullName: students.fullName, code: students.code })
+          .select({ enrollmentId: enrollments.id, fullName: students.fullName, code: students.code })
           .from(enrollments)
           .innerJoin(students, eq(students.id, enrollments.studentId))
           .where(and(eq(enrollments.classSectionId, section.id), eq(enrollments.studentId, values.studentId), eq(enrollments.status, "enrolled")));
         if (!student) throw new RequestError("Sinh viên không có trong danh sách lớp.", "studentId");
+        // Nhãn cột và điểm cũ đọc từ bảng điểm của lớp, không tin giá trị form gửi lên.
+        const current = await currentComponentScore(tx, { classSectionId: section.id, enrollmentId: student.enrollmentId, componentKey: values.componentKey });
+        const blocked = gradeChangeBlockedReason(current.component, current.score, values.newScore);
+        if (blocked) throw new RequestError(blocked.message, blocked.field);
         content = {
           subject: `${section.code} ${section.courseName}`,
           details: [
             { label: "Sinh viên", value: `${student.fullName}, ${formatStudentCode(student.code)}` },
-            { label: "Cột điểm", value: values.componentLabel },
-            { label: "Điểm cũ", value: scoreText(values.oldScore) },
+            { label: "Cột điểm", value: current.component?.label ?? values.componentKey },
+            { label: "Điểm cũ", value: scoreText(current.score) },
             { label: "Điểm mới", value: scoreText(values.newScore) },
           ],
         };
@@ -203,11 +237,11 @@ export async function createLecturerRequest(input: LecturerRequestInput): Promis
         facultyId: profile.facultyId,
         ...content,
         reason: values.reason,
-        attachments: values.attachments,
+        attachments,
         lecturerAssigneeId: null,
       });
       return request.id;
-    });
+    }));
   } catch (error) {
     return failure(error);
   }

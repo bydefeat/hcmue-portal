@@ -1,17 +1,32 @@
 import type { Transaction } from "@/shared/libs/db.lib";
 import { dayjs } from "@/shared/libs/date.lib";
+import { mockId } from "@/shared/libs/mock.lib";
+import { deleteFiles, listFiles, newStorageKey, putFile } from "@/shared/libs/storage.lib";
 import { EXAM_SESSIONS } from "@/modules/exams/exams.mock";
-import { examPaperStorageKey } from "@/modules/exams/exams.rule";
 import { examProctors, examSessions } from "@/modules/exams/exams.schema";
+import type { ExamPaperFileKind, ExamSession } from "@/modules/exams/exams.type";
 import type { SeedContext } from "./context";
+import { samplePdf } from "./sample-file";
+
+// Tệp đề, đáp án mẫu: PDF nhỏ "Tệp mẫu", khóa tất định theo id ca thi để seed lại thì ghi đè đúng tệp.
+function samplePaper(exam: ExamSession, kind: ExamPaperFileKind) {
+  const meta = exam.papers.find((paper) => paper.kind === kind);
+  if (!meta) return null;
+  return { fileName: meta.fileName, data: samplePdf(meta.fileName), key: newStorageKey("exams", mockId(`exam-paper:${exam.id}:${kind}`)) };
+}
 
 // Lịch thi giữa kỳ và cuối kỳ của học kỳ hiện tại cùng cán bộ coi thi, đúng id của dữ liệu mẫu. Giảng viên, khoa và số
 // thí sinh không lưu ở ca thi mà lấy từ lớp học phần khi đọc.
 export async function seedExams(tx: Transaction, context: SeedContext) {
+  const files = EXAM_SESSIONS.map((exam) => ({ paper: samplePaper(exam, "paper"), answerKey: samplePaper(exam, "answer-key") }));
+  // DB vừa bị xóa sạch nên tệp nộp ở lần chạy trước không còn ca thi nào trỏ tới.
+  await deleteFiles((await listFiles("exams")).map((entry) => entry.key));
+  await Promise.all(files.flatMap(({ paper, answerKey }) => [paper, answerKey]).filter((file) => file !== null).map((file) => putFile(file.key, file.data)));
   await tx.insert(examSessions).values(
-    EXAM_SESSIONS.map((exam) => {
+    EXAM_SESSIONS.map((exam, index) => {
       const isSubmitted = exam.paperStatus !== "not-submitted";
       const deadline = dayjs(exam.paperDeadline);
+      const { paper, answerKey } = files[index];
       return {
         id: exam.id,
         termId: exam.termId,
@@ -25,7 +40,14 @@ export async function seedExams(tx: Transaction, context: SeedContext) {
         status: exam.status,
         paperStatus: exam.paperStatus,
         paperDeadline: deadline.toDate(),
-        paperStorageKey: isSubmitted ? examPaperStorageKey(exam.id, "seed") : null,
+        paperStorageKey: paper?.key ?? null,
+        paperFileName: paper?.fileName ?? null,
+        paperContentType: paper ? "application/pdf" : null,
+        paperSizeBytes: paper?.data.byteLength ?? null,
+        answerKeyStorageKey: answerKey?.key ?? null,
+        answerKeyFileName: answerKey?.fileName ?? null,
+        answerKeyContentType: answerKey ? "application/pdf" : null,
+        answerKeySizeBytes: answerKey?.data.byteLength ?? null,
         // Đề đã nộp: nộp 2 ngày trước hạn, nhưng không sau hôm nay.
         paperSubmittedAt: isSubmitted ? new Date(Math.min(deadline.subtract(2, "day").valueOf(), dayjs().subtract(1, "hour").valueOf())) : null,
       };

@@ -14,6 +14,7 @@ import { paginationItemRender } from "@/shared/constants/antd.constant";
 import { toFormFields } from "@/shared/libs/form.lib";
 import { normalizeSearch } from "@/shared/libs/search.lib";
 import { publishExamSessions, updateExamSession } from "@/modules/exams/exams.action";
+import { ExamPaperLinks } from "@/modules/exams/components/exam-paper-links";
 
 export type ExamRoomOption = { id: string; code: string; examCapacity: number; isAvailable: boolean };
 export type ProctorOption = { id: string; name: string; faculty: string };
@@ -191,7 +192,18 @@ export function AdminExamSchedule({ termId, sessions, rooms, proctors, header }:
         </span>
       ),
     },
-    { title: "Đề thi", dataIndex: "paperStatus", width: 130, responsive: ["md"], render: (value: ExamPaperStatus) => <StatusTag status={EXAM_PAPER_STATUS[value]} /> },
+    {
+      title: "Đề thi",
+      key: "paperStatus",
+      width: 150,
+      responsive: ["md"],
+      render: (_, row) => (
+        <span className="flex flex-col items-start gap-1">
+          <StatusTag status={EXAM_PAPER_STATUS[row.paperStatus]} />
+          <ExamPaperLinks examSessionId={row.id} papers={row.papers} />
+        </span>
+      ),
+    },
     {
       title: "Trạng thái",
       key: "status",

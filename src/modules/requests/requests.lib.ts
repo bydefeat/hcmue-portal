@@ -1,13 +1,16 @@
 import "server-only";
-import { and, asc, eq, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
-import type { Transaction } from "@/shared/libs/db.lib";
+import { db, type Transaction } from "@/shared/libs/db.lib";
+import { newStorageKey, sweepOrphanFiles, withStoredFiles } from "@/shared/libs/storage.lib";
 import { currentYear } from "@/shared/libs/date.lib";
 import { faculties } from "@/modules/curriculum/curriculum.schema";
+import { examSessions } from "@/modules/exams/exams.schema";
+import { gradeComponents, gradeScores, gradeSheets } from "@/modules/grades/grades.schema";
 import { notifyUsers } from "@/modules/notifications/notifications.lib";
 import { administrativeClasses, lecturers, students } from "@/modules/users/users.schema";
 import { REQUEST_CODE_PREFIX, REQUEST_KINDS, STEP_ROLE_LABEL } from "@/modules/requests/requests.constant";
-import { cancelBlockedReason, formatRequestCode, initialSteps, planDecision } from "@/modules/requests/requests.rule";
+import { cancelBlockedReason, formatRequestCode, initialSteps, planDecision, type StudentRequestFacts } from "@/modules/requests/requests.rule";
 import { academicRequests, requestAttachments, requestCodeCounters, requestSteps } from "@/modules/requests/requests.schema";
 import type { RequestDetail, RequesterType, RequestKind, StepRole } from "@/modules/requests/requests.type";
 
@@ -32,6 +35,18 @@ export async function allocateRequestCode(tx: Transaction, requesterType: Reques
   return formatRequestCode(prefix, year, row.value);
 }
 
+export type NewAttachment = { name: string; contentType: string; storageKey: string; sizeBytes: number };
+
+export type AttachmentFile = { name: string; contentType: string; data: Uint8Array };
+
+// Ghi tệp minh chứng vào kho rồi chạy giao dịch tạo đơn với khóa lưu trữ của từng tệp. Giao dịch hỏng thì tệp vừa ghi bị xóa.
+export function withAttachments<T>(files: AttachmentFile[], work: (attachments: NewAttachment[]) => Promise<T>) {
+  const stored = files.map((file) => ({ ...file, key: newStorageKey("requests") }));
+  return withStoredFiles(stored, () =>
+    work(stored.map((file) => ({ name: file.name, contentType: file.contentType, storageKey: file.key, sizeBytes: file.data.byteLength }))),
+  );
+}
+
 export type NewRequest = {
   kind: RequestKind;
   requester: { type: "student"; studentId: string } | { type: "lecturer"; lecturerId: string };
@@ -39,13 +54,13 @@ export type NewRequest = {
   subject: string;
   details: RequestDetail[];
   reason: string;
-  attachments: { name: string; size: number; type: string }[];
+  attachments: NewAttachment[];
   lecturerAssigneeId: string | null;
 };
 
-export async function insertRequest(tx: Transaction, input: NewRequest) {
+export async function insertRequest(tx: Transaction, input: NewRequest, year = currentYear()) {
   const now = new Date();
-  const code = await allocateRequestCode(tx, input.requester.type);
+  const code = await allocateRequestCode(tx, input.requester.type, year);
   const [request] = await tx
     .insert(academicRequests)
     .values({
@@ -64,9 +79,50 @@ export async function insertRequest(tx: Transaction, input: NewRequest) {
   if (input.attachments.length > 0) {
     await tx
       .insert(requestAttachments)
-      .values(input.attachments.map((file) => ({ requestId: request.id, fileName: file.name, contentType: file.type, sizeBytes: file.size, uploadedAt: now })));
+      .values(
+        input.attachments.map((file) => ({
+          requestId: request.id,
+          fileName: file.name,
+          contentType: file.contentType,
+          sizeBytes: file.sizeBytes,
+          storageKey: file.storageKey,
+          uploadedAt: now,
+        })),
+      );
   }
   return request;
+}
+
+// Cột điểm của lớp và điểm đang lưu của một sinh viên ở cột đó (null nếu chưa nhập).
+export async function currentComponentScore(tx: Transaction, input: { classSectionId: string; enrollmentId: string; componentKey: string }) {
+  const [component] = await tx
+    .select({ id: gradeComponents.id, label: gradeComponents.label })
+    .from(gradeComponents)
+    .innerJoin(gradeSheets, eq(gradeSheets.id, gradeComponents.gradeSheetId))
+    .where(and(eq(gradeSheets.classSectionId, input.classSectionId), eq(gradeComponents.key, input.componentKey)));
+  if (!component) return { component: null, score: null };
+  const [row] = await tx
+    .select({ score: gradeScores.score })
+    .from(gradeScores)
+    .where(and(eq(gradeScores.gradeComponentId, component.id), eq(gradeScores.enrollmentId, input.enrollmentId)));
+  return { component: { label: component.label }, score: row?.score ?? null };
+}
+
+// Giá trị trên hệ thống để người duyệt đối chiếu với ô sinh viên tự khai: điểm cột cuối kỳ (phúc khảo), lịch thi của lớp (hoãn thi).
+export async function studentRequestFacts(tx: Transaction, kind: RequestKind, input: { classSectionId: string; enrollmentId: string }): Promise<StudentRequestFacts> {
+  if (kind === "regrade") {
+    const { score } = await currentComponentScore(tx, { ...input, componentKey: "final" });
+    return { examScore: score };
+  }
+  if (kind === "exam-postpone") {
+    const exams = await tx
+      .select({ kind: examSessions.kind, date: examSessions.date })
+      .from(examSessions)
+      .where(eq(examSessions.classSectionId, input.classSectionId))
+      .orderBy(asc(examSessions.date));
+    return { examDates: exams };
+  }
+  return {};
 }
 
 const requesterLecturer = alias(lecturers, "requester_lecturer");
@@ -163,4 +219,13 @@ export async function cancelOwnRequest(tx: Transaction, requestId: string, userI
     .update(requestSteps)
     .set({ status: "waiting", dueAt: null })
     .where(and(eq(requestSteps.requestId, requestId), eq(requestSteps.status, "pending")));
+}
+
+// Tác vụ định kỳ: xóa tệp minh chứng không còn dòng request_attachments nào trỏ tới (tiến trình chết giữa lúc ghi tệp và commit).
+export async function sweepOrphanRequestFiles() {
+  const removed = await sweepOrphanFiles("requests", async (keys) => {
+    const rows = await db.select({ key: requestAttachments.storageKey }).from(requestAttachments).where(inArray(requestAttachments.storageKey, keys));
+    return new Set(rows.map((row) => row.key));
+  });
+  return { requestFilesRemoved: removed };
 }

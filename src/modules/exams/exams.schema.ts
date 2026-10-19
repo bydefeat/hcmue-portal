@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { check, date, foreignKey, index, pgEnum, pgTable, primaryKey, smallint, text, time, timestamp, unique, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import { check, date, foreignKey, index, integer, pgEnum, pgTable, primaryKey, smallint, text, time, timestamp, unique, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 import { createdAt, primaryId, timestamps } from "@/shared/libs/db-column.lib";
 import { user } from "@/modules/authentication/authentication.schema";
 import { classSections, enrollments, terms } from "@/modules/course-registration/course-registration.schema";
@@ -32,7 +32,15 @@ export const examSessions = pgTable(
     status: examSessionStatusEnum().notNull().default("draft"),
     paperStatus: examPaperStatusEnum().notNull().default("not-submitted"),
     paperDeadline: timestamp({ withTimezone: true }).notNull(),
+    // Đề thi và đáp án nộp cùng lúc, nội dung nằm trong kho tệp (storage.lib) dưới khóa do server sinh; nộp lại thì thay cả hai.
     paperStorageKey: text().unique("exam_sessions_paper_storage_key_unique"),
+    paperFileName: text(),
+    paperContentType: text(),
+    paperSizeBytes: integer(),
+    answerKeyStorageKey: text().unique("exam_sessions_answer_key_storage_key_unique"),
+    answerKeyFileName: text(),
+    answerKeyContentType: text(),
+    answerKeySizeBytes: integer(),
     paperSubmittedAt: timestamp({ withTimezone: true }),
     ...timestamps(),
   },
@@ -41,7 +49,11 @@ export const examSessions = pgTable(
     index().on(table.termId, table.date),
     index().on(table.roomId, table.date),
     check("exam_sessions_duration_range", sql`${table.durationMinutes} BETWEEN 15 AND 240`),
-    check("exam_sessions_paper_fields", sql`(${table.paperStatus} = 'not-submitted') = (${table.paperStorageKey} IS NULL AND ${table.paperSubmittedAt} IS NULL)`),
+    check(
+      "exam_sessions_paper_fields",
+      sql`num_nonnulls(${table.paperStorageKey}, ${table.paperFileName}, ${table.paperContentType}, ${table.paperSizeBytes}, ${table.answerKeyStorageKey}, ${table.answerKeyFileName}, ${table.answerKeyContentType}, ${table.answerKeySizeBytes}, ${table.paperSubmittedAt}) = CASE WHEN ${table.paperStatus} = 'not-submitted' THEN 0 ELSE 9 END`,
+    ),
+    check("exam_sessions_paper_size_range", sql`${table.paperSizeBytes} BETWEEN 1 AND 20971520 AND ${table.answerKeySizeBytes} BETWEEN 1 AND 20971520`),
   ],
 );
 

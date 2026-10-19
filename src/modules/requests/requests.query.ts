@@ -10,7 +10,7 @@ import { can } from "@/modules/access/access.constant";
 import { getViewer, requirePermission } from "@/modules/access/access.query";
 import { faculties } from "@/modules/curriculum/curriculum.schema";
 import { administrativeClasses, lecturers, students } from "@/modules/users/users.schema";
-import { OFFICE_UNIT_LABEL, requestView } from "@/modules/requests/requests.constant";
+import { OFFICE_UNIT_LABEL, officeStepRoles, requestView } from "@/modules/requests/requests.constant";
 import { academicRequests, requestAttachments, requestSteps } from "@/modules/requests/requests.schema";
 import type { AcademicRequest, ApprovalStep, RequestView, StepRole } from "@/modules/requests/requests.type";
 
@@ -95,7 +95,13 @@ async function requestRows(where?: SQL): Promise<RequestView[]> {
       .where(inArray(requestSteps.requestId, ids))
       .orderBy(asc(requestSteps.requestId), asc(requestSteps.position)),
     db
-      .select({ requestId: requestAttachments.requestId, fileName: requestAttachments.fileName })
+      .select({
+        requestId: requestAttachments.requestId,
+        id: requestAttachments.id,
+        fileName: requestAttachments.fileName,
+        contentType: requestAttachments.contentType,
+        sizeBytes: requestAttachments.sizeBytes,
+      })
       .from(requestAttachments)
       .where(inArray(requestAttachments.requestId, ids))
       .orderBy(asc(requestAttachments.uploadedAt), asc(requestAttachments.id)),
@@ -123,7 +129,7 @@ async function requestRows(where?: SQL): Promise<RequestView[]> {
       subject: row.subject,
       details: row.details,
       reason: row.reason,
-      attachments: (filesOf.get(row.id) ?? []).map((file) => file.fileName),
+      attachments: (filesOf.get(row.id) ?? []).map(({ requestId: _requestId, ...file }) => file),
       createdAt: row.createdAt.toISOString(),
       cancelledAt: row.cancelledAt?.toISOString() ?? null,
       steps: (stepsOf.get(row.id) ?? []).map((step) => ({
@@ -172,24 +178,57 @@ export async function getRequestsForAssignee(assigneeId: string, roles: StepRole
   return conditions.length > 0 ? requestRows(or(...conditions)) : [];
 }
 
-// Một đơn mà tài khoản đang đăng nhập được xem: người gửi, cố vấn, giảng viên được giao bước, cán bộ xử lý đơn trong phạm vi khoa.
+// Một đơn mà tài khoản đang đăng nhập được xem: người gửi, cố vấn, giảng viên được giao bước, cán bộ có bước xử lý trong phạm vi khoa.
 export async function getRequest(id: string) {
   const { user, roles } = await requireSession();
   if (!isUuid(id)) return null;
   const viewer = roles.includes("admin") ? await getViewer() : null;
   const [currentLecturer] = await db.select({ id: lecturers.id }).from(lecturers).where(eq(lecturers.userId, user.id));
-  const office = viewer && can(viewer, "requests.process") ? (viewer.faculty === null ? eq(academicRequests.id, id) : eq(requestFaculty.name, viewer.faculty)) : undefined;
+  // Cán bộ chỉ xem (và tải minh chứng) đơn có bước thuộc vai trò mình xử lý, trong phạm vi khoa của vai trò.
+  const officeRoles = viewer && can(viewer, "requests.process") ? officeStepRoles(viewer.roleKey) : [];
+  const office =
+    viewer && officeRoles.length > 0
+      ? and(
+          viewer.faculty === null ? undefined : eq(requestFaculty.name, viewer.faculty),
+          exists(
+            db
+              .select({ id: requestSteps.id })
+              .from(requestSteps)
+              .where(and(eq(requestSteps.requestId, academicRequests.id), inArray(requestSteps.role, officeRoles))),
+          ),
+        )
+      : undefined;
   const [request] = await requestRows(
     and(
       eq(academicRequests.id, id),
       or(
         eq(students.userId, user.id),
         eq(requesterLecturer.userId, user.id),
-        currentLecturer ? eq(advisor.id, currentLecturer.id) : undefined,
+        // Cố vấn chỉ xem đơn có bước cố vấn (đơn cấp bảng điểm của sinh viên lớp mình thì không).
+        currentLecturer ? and(eq(advisor.id, currentLecturer.id), hasAdvisorStep) : undefined,
         currentLecturer ? lecturerStepOf(currentLecturer.id) : undefined,
         office,
       ),
     ),
   );
   return request ?? null;
+}
+
+// Tệp minh chứng để tải xuống: chỉ trả khi tài khoản đang đăng nhập xem được đơn chứa tệp (cùng quyền với getRequest).
+export async function getRequestAttachmentFile(attachmentId: string) {
+  await requireSession();
+  if (!isUuid(attachmentId)) return null;
+  const [file] = await db
+    .select({
+      requestId: requestAttachments.requestId,
+      fileName: requestAttachments.fileName,
+      contentType: requestAttachments.contentType,
+      sizeBytes: requestAttachments.sizeBytes,
+      storageKey: requestAttachments.storageKey,
+    })
+    .from(requestAttachments)
+    .where(eq(requestAttachments.id, attachmentId));
+  if (!file) return null;
+  const request = await getRequest(file.requestId);
+  return request ? file : null;
 }

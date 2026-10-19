@@ -366,6 +366,18 @@ npm run db:studio                 # xem dữ liệu
 
 Phân quyền cổng quản trị đọc từ DB: `getViewer()` lấy các vai trò trong `role_assignments` của tài khoản đang đăng nhập; có nhiều vai trò thì đổi qua menu tài khoản (`switchActiveRole`, chỉ trong số vai trò của chính mình). Vai trò có sẵn mang `roles.key` cố định (`faculty-secretary`…) để code nhận ra, không so theo `id`.
 
+### Lưu tệp tải lên
+
+| Việc | Cách làm |
+|---|---|
+| Kho tệp | `shared/libs/storage.lib.ts` (server-only): `putFile`, `readFile`, `deleteFile`, `listFiles`, `withStoredFiles`. Hiện ghi đĩa cục bộ dưới `DEFEAT_STORAGE_DIRECTORY` (mặc định `./storage`, đã gitignore); nơi gọi chỉ biết khóa, không biết đường dẫn đĩa, nên đổi sang S3/R2 chỉ viết lại file này |
+| Khóa | Luôn do server sinh: `requests/<uuid v7>`, `exams/<uuid v7>` (`newStorageKey`). Tên tệp người dùng chỉ lưu ở cột `file_name` để hiện và đặt tên khi tải; khóa sai mẫu (`../x`, đường dẫn tuyệt đối) bị từ chối |
+| Kiểm tệp | `shared/libs/upload.lib.ts` (hàm thuần, dùng cả client lẫn server): đuôi thuộc danh sách cho phép **và** chữ ký đầu tệp khớp (PDF `%PDF-`, PNG, JPG, docx là zip), kích thước. Kiểu tệp lưu xuống lấy theo danh sách, không theo kiểu trình duyệt gửi. Minh chứng đơn từ: PDF, ảnh, docx, 10 MB/tệp, 25 MB/đơn, 5 tệp (DB chặn 10 MB). Đề thi, đáp án: PDF, 20 MB/tệp (DB chặn 20 MB) |
+| Tải lên | Server action nhận `FormData` (dữ liệu form là JSON ở ô `input`, tệp ở ô riêng). `serverActions.bodySizeLimit` và `proxyClientMaxBodySize` đặt 41 MB trong `next.config.ts` (proxy đệm thân request của trang cổng, quá giới hạn thì thân bị cắt im lặng) |
+| Giao dịch | `withStoredFiles(files, work)`: ghi tệp trước, chạy giao dịch; giao dịch hỏng thì xóa tệp vừa ghi. Nộp lại đề thì xóa tệp cũ sau commit. Tiến trình chết giữa chừng hoặc xóa không được thì tác vụ `POST /api/cron/orphan-files` xóa tệp không còn dòng DB nào trỏ tới (chỉ tệp cũ hơn 1 giờ) |
+| Tải xuống | Route handler `/api/files/requests/[attachmentId]` (người xem được đơn: người gửi, cố vấn khi đơn có bước cố vấn, giảng viên được giao bước, cán bộ có bước thuộc vai trò mình trong phạm vi khoa) và `/api/files/exams/[sessionId]/[paper|answer-key]` (giảng viên dạy lớp, cán bộ có `exams.manage` trong phạm vi khoa). Không quyền trả 404. Header: `Content-Disposition` RFC 6266/5987 giữ tên tiếng Việt, `Content-Type` đã lưu, `Cache-Control: private, no-store`, `X-Content-Type-Options: nosniff` |
+| Seed | Mỗi minh chứng, đề mẫu có một tệp PDF nhỏ "Tệp mẫu" (`scripts/seed/sample-file.ts`), khóa tất định theo id mock; seed xóa tệp cũ trong kho vì DB vừa bị xóa sạch |
+
 ## 11. Lint (oxlint)
 
 Dự án chỉ dùng **oxlint**, không dùng ESLint. Cấu hình ở `.oxlintrc.json`.

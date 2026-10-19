@@ -35,6 +35,13 @@ export type RequestDetail = {
   value: string;
 };
 
+export type RequestAttachment = {
+  id: string;
+  fileName: string;
+  contentType: string;
+  sizeBytes: number;
+};
+
 export type AcademicRequest = {
   id: string;
   code: string;
@@ -48,7 +55,7 @@ export type AcademicRequest = {
   subject: string;
   details: RequestDetail[];
   reason: string;
-  attachments: string[];
+  attachments: RequestAttachment[];
   createdAt: string;
   cancelledAt: string | null;
   steps: ApprovalStep[];

@@ -4,7 +4,7 @@ import { and, eq, inArray, notInArray, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/shared/libs/db.lib";
 import { actionError, actionFailure, actionOk, parseInput, type ActionResult } from "@/shared/libs/action.lib";
-import { newId } from "@/shared/libs/id.lib";
+import { deleteFiles, newStorageKey, withStoredFiles } from "@/shared/libs/storage.lib";
 import { inScope } from "@/modules/access/access.constant";
 import { requirePermission } from "@/modules/access/access.query";
 import { classSections, enrollments, terms } from "@/modules/course-registration/course-registration.schema";
@@ -15,17 +15,17 @@ import {
   ELIGIBILITY_OVERRIDE_SCHEMA,
   EXAM_PAPER_SUBMIT_SCHEMA,
   EXAM_PUBLISH_SCHEMA,
+  checkExamPaperFiles,
   EXAM_SESSION_UPDATE_SCHEMA,
-  examPaperStorageKey,
   PROCTOR_SWAP_SCHEMA,
+  readExamPaperForm,
   type EligibilityOverrideInput,
-  type ExamPaperSubmitInput,
   type ExamPublishInput,
   type ExamSessionUpdateInput,
   type ProctorSwapInput,
 } from "@/modules/exams/exams.rule";
 import { examEligibilityOverrides, examProctors, examProctorSwapRequests, examSessions } from "@/modules/exams/exams.schema";
-import type { ExamPaperStatus, ExamSession } from "@/modules/exams/exams.type";
+import type { ExamPaperFile, ExamPaperFileKind, ExamPaperStatus, ExamSession } from "@/modules/exams/exams.type";
 import { rooms } from "@/modules/facilities/facilities.schema";
 import { lecturers } from "@/modules/users/users.schema";
 import { getCurrentLecturer } from "@/modules/users/users.query";
@@ -149,37 +149,84 @@ export async function allowExamDespiteAbsence(input: EligibilityOverrideInput): 
   return actionOk({ enrollmentId, reason });
 }
 
-// Giảng viên nộp đề cho ca thi của lớp mình dạy. Đề đã duyệt hoặc ca đã thi thì không nộp lại được.
-// Chưa có dịch vụ lưu tệp: mới ghi khóa lưu trữ và thời điểm nộp, nội dung tệp chưa được tải lên.
-export async function submitExamPaper(input: ExamPaperSubmitInput): Promise<ActionResult<{ id: string; paperStatus: ExamPaperStatus }>> {
+// Giảng viên nộp đề và đáp án (FormData, xem readExamPaperForm) cho ca thi của lớp mình dạy. Đề đã duyệt hoặc ca đã thi thì không
+// nộp lại được. Nộp lại thì tệp cũ bị xóa sau khi giao dịch ghi tệp mới thành công.
+export async function submitExamPaper(formData: FormData): Promise<ActionResult<{ id: string; paperStatus: ExamPaperStatus; paperSubmittedAt: string; papers: ExamPaperFile[] }>> {
   const lecturer = await getCurrentLecturer();
-  const parsed = parseInput(EXAM_PAPER_SUBMIT_SCHEMA, input);
+  const form = readExamPaperForm(formData);
+  const parsed = parseInput(EXAM_PAPER_SUBMIT_SCHEMA, form.input);
   if (!parsed.ok) return parsed;
   const { examSessionId } = parsed.data;
-  let row: { id: string; paperStatus: ExamPaperStatus } | undefined;
+  const uploads = await Promise.all(
+    (["paper", "answer-key"] as const).map(async (kind) => {
+      const file = form.files[kind];
+      return [kind, file ? { name: file.name, data: new Uint8Array(await file.arrayBuffer()) } : null] as const;
+    }),
+  );
+  const data = Object.fromEntries(uploads) as Record<ExamPaperFileKind, { name: string; data: Uint8Array } | null>;
+  const toCheck = (kind: ExamPaperFileKind) => {
+    const file = data[kind];
+    return file ? { name: file.name, size: file.data.byteLength, head: file.data.subarray(0, 16) } : null;
+  };
+  const checked = checkExamPaperFiles({ paper: toCheck("paper"), "answer-key": toCheck("answer-key") });
+  if (!checked.ok) return actionError(Object.values(checked.fieldErrors)[0] ?? "Tệp không hợp lệ", checked.fieldErrors);
+  const paper = { ...checked.files.paper, data: data.paper!.data, key: newStorageKey("exams") };
+  const answerKey = { ...checked.files["answer-key"], data: data["answer-key"]!.data, key: newStorageKey("exams") };
+  let result: { row: { id: string; paperStatus: ExamPaperStatus; paperSubmittedAt: Date | null }; replaced: string[] };
   try {
-    [row] = await db
-      .update(examSessions)
-      .set({ paperStatus: "submitted", paperStorageKey: examPaperStorageKey(examSessionId, newId()), paperSubmittedAt: sql`now()` })
-      .where(
-        and(
-          eq(examSessions.id, examSessionId),
-          inArray(examSessions.status, ["draft", "published"]),
-          inArray(examSessions.paperStatus, ["not-submitted", "submitted"]),
-          inArray(
-            examSessions.classSectionId,
-            db.select({ id: classSections.id }).from(classSections).where(eq(classSections.lecturerId, lecturer.id)),
-          ),
-        ),
-      )
-      .returning({ id: examSessions.id, paperStatus: examSessions.paperStatus });
+    result = await withStoredFiles([paper, answerKey], () =>
+      db.transaction(async (tx) => {
+        const [current] = await tx
+          .select({ paperStorageKey: examSessions.paperStorageKey, answerKeyStorageKey: examSessions.answerKeyStorageKey })
+          .from(examSessions)
+          .where(
+            and(
+              eq(examSessions.id, examSessionId),
+              inArray(examSessions.status, ["draft", "published"]),
+              inArray(examSessions.paperStatus, ["not-submitted", "submitted"]),
+              inArray(
+                examSessions.classSectionId,
+                tx.select({ id: classSections.id }).from(classSections).where(eq(classSections.lecturerId, lecturer.id)),
+              ),
+            ),
+          )
+          .for("update");
+        if (!current) throw new InputError("Không nộp được: ca thi không thuộc lớp bạn dạy, đã thi hoặc đề đã được duyệt. Tải lại trang để xem trạng thái mới.");
+        const [row] = await tx
+          .update(examSessions)
+          .set({
+            paperStatus: "submitted",
+            paperStorageKey: paper.key,
+            paperFileName: paper.name,
+            paperContentType: paper.contentType,
+            paperSizeBytes: paper.data.byteLength,
+            answerKeyStorageKey: answerKey.key,
+            answerKeyFileName: answerKey.name,
+            answerKeyContentType: answerKey.contentType,
+            answerKeySizeBytes: answerKey.data.byteLength,
+            paperSubmittedAt: sql`now()`,
+          })
+          .where(eq(examSessions.id, examSessionId))
+          .returning({ id: examSessions.id, paperStatus: examSessions.paperStatus, paperSubmittedAt: examSessions.paperSubmittedAt });
+        return { row, replaced: [current.paperStorageKey, current.answerKeyStorageKey].filter((key) => key !== null) };
+      }),
+    );
   } catch (error) {
     return failure(error);
   }
-  if (!row) return actionError("Không nộp được: ca thi không thuộc lớp bạn dạy, đã thi hoặc đề đã được duyệt. Tải lại trang để xem trạng thái mới.");
+  // Tệp của lần nộp trước: xóa sau khi commit; xóa không được thì tác vụ dọn tệp mồ côi xóa sau.
+  await deleteFiles(result.replaced);
   revalidatePath("/lecturer/exams");
   revalidatePath("/administrator/exams");
-  return actionOk(row);
+  return actionOk({
+    id: result.row.id,
+    paperStatus: result.row.paperStatus,
+    paperSubmittedAt: (result.row.paperSubmittedAt ?? new Date()).toISOString(),
+    papers: [
+      { kind: "paper", fileName: paper.name, sizeBytes: paper.data.byteLength },
+      { kind: "answer-key", fileName: answerKey.name, sizeBytes: answerKey.data.byteLength },
+    ],
+  });
 }
 
 // Giảng viên đang được phân công coi một ca chưa thi đề nghị đổi cho đồng nghiệp; Phòng Khảo thí xử lý bằng cách đổi phân công.

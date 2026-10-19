@@ -1,17 +1,17 @@
 import type { Transaction } from "@/shared/libs/db.lib";
-import { createRandom } from "@/shared/libs/mock.lib";
+import { deleteFiles, listFiles, newStorageKey, putFile } from "@/shared/libs/storage.lib";
 import { CURRENT_LECTURER_ID } from "@/modules/users/users.mock";
 import { REQUESTS } from "@/modules/requests/requests.mock";
 import { academicRequests, requestAttachments, requestCodeCounters, requestSteps } from "@/modules/requests/requests.schema";
 import type { SeedContext } from "./context";
-
-const CONTENT_TYPE: Record<string, string> = { pdf: "application/pdf", png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg" };
+import { samplePdf } from "./sample-file";
 
 const CODE = /^([A-Z]{2})-(\d{4})-(\d{5})$/;
 
 const date = (value: string | null) => (value ? new Date(value) : null);
 
-// Đơn từ: đơn, các bước duyệt (giữ nguyên trạng thái, hạn, người xử lý của mock), tên tệp minh chứng và bộ đếm mã đơn.
+// Đơn từ: đơn, các bước duyệt (giữ nguyên trạng thái, hạn, người xử lý của mock), tệp minh chứng và bộ đếm mã đơn.
+// Mỗi minh chứng mẫu là một tệp PDF nhỏ "Tệp mẫu" ghi vào kho tệp, khóa theo id của mock nên seed lại thì ghi đè đúng tệp cũ.
 export async function seedRequests(tx: Transaction, context: SeedContext) {
   await tx.insert(academicRequests).values(
     REQUESTS.map((request) => ({
@@ -45,19 +45,25 @@ export async function seedRequests(tx: Transaction, context: SeedContext) {
     })),
   );
   await tx.insert(requestSteps).values(steps);
-  const files = REQUESTS.flatMap((request, requestIndex) =>
-    request.attachments.map((fileName, index) => {
-      const random = createRandom(requestIndex * 31 + index + 7);
+  const files = REQUESTS.flatMap((request) =>
+    request.attachments.map((attachment) => {
+      const data = samplePdf(attachment.fileName);
       return {
+        id: attachment.id,
         requestId: request.id,
-        fileName,
-        contentType: CONTENT_TYPE[fileName.split(".").at(-1)?.toLowerCase() ?? ""] ?? "application/octet-stream",
-        sizeBytes: 80_000 + Math.floor(random() * 2_000_000),
+        fileName: attachment.fileName,
+        contentType: attachment.contentType,
+        sizeBytes: data.byteLength,
+        storageKey: newStorageKey("requests", attachment.id),
         uploadedAt: new Date(request.createdAt),
+        data,
       };
     }),
   );
-  if (files.length > 0) await tx.insert(requestAttachments).values(files);
+  // DB vừa bị xóa sạch nên tệp tải lên ở lần chạy trước không còn dòng nào trỏ tới.
+  await deleteFiles((await listFiles("requests")).map((entry) => entry.key));
+  await Promise.all(files.map((file) => putFile(file.storageKey, file.data)));
+  if (files.length > 0) await tx.insert(requestAttachments).values(files.map(({ data: _data, ...file }) => file));
   // Bộ đếm bắt đầu từ số lớn nhất đã dùng để đơn mới gửi nối tiếp mã của dữ liệu mẫu.
   const counters = new Map<string, { prefix: string; year: number; lastValue: number }>();
   for (const request of REQUESTS) {

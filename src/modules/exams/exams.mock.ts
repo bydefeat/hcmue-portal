@@ -52,6 +52,16 @@ function build(seed: Seed, index: number, kind: "midterm" | "final"): ExamSessio
   const rooms = ROOMS_FOR[format];
   const date = kind === "midterm" ? mockDate(-4 + index, "00:00") : dayjs("2027-01-04").add(index % 10, "day").toISOString();
   const isPast = dayjs(date).isBefore(dayjs().startOf("day"));
+  const paperStatus: ExamPaperStatus = kind === "midterm" ? (isPast ? "approved" : PAPER_STATUSES[index % 2]) : PAPER_STATUSES[index % 3];
+  // Đề đã nộp có tệp đề và đáp án; seed ghi tệp PDF mẫu và lưu kích thước, thời điểm nộp thật.
+  const fileStem = `${kind === "midterm" ? "giua-ky" : "cuoi-ky"}-${code}`;
+  const papers =
+    paperStatus === "not-submitted"
+      ? []
+      : [
+          { kind: "paper" as const, fileName: `De thi ${fileStem}.pdf`, sizeBytes: 0 },
+          { kind: "answer-key" as const, fileName: `Dap an ${fileStem}.pdf`, sizeBytes: 0 },
+        ];
   return {
     id: mockId(`exam-session:thi-${kind}-${code.toLowerCase()}`),
     termId: mockTermId("hk1-2026"),
@@ -70,8 +80,10 @@ function build(seed: Seed, index: number, kind: "midterm" | "final"): ExamSessio
     candidateCount: candidates,
     proctors: proctorsFor(index + (kind === "final" ? 3 : 0), lecturerIndex),
     status: kind === "final" ? (index % 4 === 0 ? "draft" : "published") : isPast ? "done" : "published",
-    paperStatus: kind === "midterm" ? (isPast ? "approved" : PAPER_STATUSES[index % 2]) : PAPER_STATUSES[index % 3],
+    paperStatus,
     paperDeadline: kind === "midterm" ? dayjs(date).subtract(5, "day").toISOString() : mockDate(5 + (index % 4), "17:00"),
+    paperSubmittedAt: null,
+    papers,
     swapRequests: [],
   };
 }

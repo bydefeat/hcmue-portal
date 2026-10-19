@@ -57,8 +57,7 @@ import { requirePermission } from "@/modules/access/access.query";
 import { courseRelations, courses, faculties, majors } from "@/modules/curriculum/curriculum.schema";
 import { academicWarnings, courseResults } from "@/modules/grades/grades.schema";
 import { regulations } from "@/modules/settings/settings.schema";
-import { notifications } from "@/modules/notifications/notifications.schema";
-import { students } from "@/modules/users/users.schema";
+import { notifyStudents } from "@/modules/notifications/notifications.lib";
 import { invoiceLines, payments, tuitionInvoices } from "@/modules/tuition/tuition.schema";
 import { getCurrentStudent, getStudent } from "@/modules/users/users.query";
 import type { ClassSectionView, RegistrationHold, RegistrationPeriodView } from "@/modules/course-registration/course-registration.type";
@@ -332,6 +331,19 @@ function idsByCode(rows: { id: string; code: string }[], wanted: string[], field
   return map;
 }
 
+// Trang lịch sử đăng ký của sinh viên: nơi xem lớp bị hủy, bị hủy hộ, được chuyển lớp.
+const REGISTRATION_HISTORY_HREF = "/application/registration/history";
+
+// Mã lớp và tên học phần để ghi vào thông báo cho sinh viên.
+async function sectionLabelOf(tx: Transaction, sectionId: string) {
+  const [row] = await tx
+    .select({ code: classSections.code, courseName: courses.name })
+    .from(classSections)
+    .innerJoin(courses, eq(courses.id, classSections.courseId))
+    .where(eq(classSections.id, sectionId));
+  return row;
+}
+
 // Lớp bị hủy: trả chỗ cho mọi sinh viên đang học và ghi lại để sinh viên biết vì sao mất lớp.
 async function dropAllForCancelledSection(tx: Transaction, sectionId: string, actorLabel: string) {
   const dropped = await tx
@@ -343,6 +355,17 @@ async function dropAllForCancelledSection(tx: Transaction, sectionId: string, ac
     await tx
       .insert(registrationEvents)
       .values(dropped.map((row) => ({ studentId: row.studentId, classSectionId: sectionId, kind: "section-cancelled" as const, actorLabel, channel: "Phòng Đào tạo" })));
+    const section = await sectionLabelOf(tx, sectionId);
+    await notifyStudents(
+      tx,
+      dropped.map((row) => row.studentId),
+      {
+        kind: "system",
+        title: `Lớp ${section.code} bị hủy`,
+        body: `Phòng Đào tạo đã hủy lớp ${section.code} (${section.courseName}), bạn không còn trong lớp này. Đăng ký lớp khác cùng học phần trong đợt điều chỉnh hoặc chờ Phòng Đào tạo chuyển lớp.`,
+        href: REGISTRATION_HISTORY_HREF,
+      },
+    );
   }
   return dropped.length;
 }
@@ -574,6 +597,7 @@ export async function moveCancelledStudents(fromId: string, toId: string): Promi
       const labs = await tx.select().from(labGroups).where(eq(labGroups.classSectionId, toId)).orderBy(asc(labGroups.code));
       let free = target.capacity - target.enrolledCount;
       let moved = 0;
+      const movedIds: string[] = [];
       for (const { studentId } of candidates) {
         if (free <= 0) break;
         const lab = labs.toSorted((a, b) => a.enrolledCount - b.enrolledCount).find((group) => group.enrolledCount < group.capacity);
@@ -583,7 +607,14 @@ export async function moveCancelledStudents(fromId: string, toId: string): Promi
         await tx.insert(registrationEvents).values({ studentId, classSectionId: toId, kind: "admin-add", actorLabel: viewer.name, channel: "Phòng Đào tạo", note: `Chuyển từ lớp đã hủy ${from.code}` });
         free -= 1;
         moved += 1;
+        movedIds.push(studentId);
       }
+      await notifyStudents(tx, movedIds, {
+        kind: "system",
+        title: `Bạn được chuyển sang lớp ${to.code}`,
+        body: `Lớp ${from.code} đã hủy nên Phòng Đào tạo chuyển bạn sang lớp ${to.code} cùng học phần ${to.courseName}. Xem lịch học mới ở mục Thời khóa biểu.`,
+        href: "/application/schedule",
+      });
       return { moved, remaining: candidates.length - moved };
     });
     revalidatePath("/administrator", "layout");
@@ -728,6 +759,13 @@ export async function adminDrop(studentId: string, sectionId: string, reason: st
         .returning({ id: enrollments.id });
       if (rows.length === 0) return false;
       await tx.insert(registrationEvents).values({ studentId, classSectionId: sectionId, kind: "admin-drop", actorUserId: viewer.id, actorLabel: viewer.name, channel: "Phòng Đào tạo", note: note.slice(0, 1000) });
+      const section = await sectionLabelOf(tx, sectionId);
+      await notifyStudents(tx, [studentId], {
+        kind: "system",
+        title: `Phòng Đào tạo đã hủy đăng ký lớp ${section.code} của bạn`,
+        body: `Học phần ${section.courseName}. Lý do: ${note}`,
+        href: REGISTRATION_HISTORY_HREF,
+      });
       return true;
     });
     if (!dropped) return actionError("Sinh viên không còn trong lớp này.");
@@ -748,28 +786,24 @@ export async function remindUnregisteredStudents(studentIds: string[]): Promise<
   const wanted = new Set(parsed.data.studentIds);
   const pending = (await getUnregisteredStudents(term.id)).filter((student) => wanted.has(student.id) && inScope(viewer, student.faculty));
   if (pending.length === 0) return actionError("Các sinh viên đã chọn đã đăng ký hoặc không còn trong đợt đang mở, tải lại trang.");
-  const rows = await db
-    .select({ id: students.id, userId: students.userId })
-    .from(students)
-    .where(inArray(students.id, pending.map((student) => student.id)));
   const remindedAt = new Date();
-  const recipients = rows.flatMap((row) => (row.userId ? [{ id: row.id, userId: row.userId }] : []));
-  if (recipients.length === 0) return actionError("Các sinh viên đã chọn chưa kích hoạt tài khoản cổng nên chưa nhận được thông báo.");
+  let remindedIds: string[];
   try {
-    await db.insert(notifications).values(
-      recipients.map((recipient) => ({
-        recipientUserId: recipient.userId,
-        audience: "student" as const,
-        kind: "deadline" as const,
+    remindedIds = await notifyStudents(
+      db,
+      pending.map((student) => student.id),
+      {
+        kind: "deadline",
         title: "Bạn chưa đăng ký học phần",
         body: `${term.name} đang trong đợt đăng ký của khóa bạn. Đăng ký trước khi đợt đóng để không bị thiếu tín chỉ tối thiểu.`,
         href: REGISTRATION_REMINDER_HREF,
         createdAt: remindedAt,
-      })),
+      },
     );
   } catch (error) {
     return actionFailure(error, REGISTRATION_CONSTRAINT_MESSAGE);
   }
+  if (remindedIds.length === 0) return actionError("Các sinh viên đã chọn chưa kích hoạt tài khoản cổng nên chưa nhận được thông báo.");
   revalidatePath("/administrator/registration-monitor");
-  return actionOk({ remindedIds: recipients.map((recipient) => recipient.id), remindedAt: remindedAt.toISOString(), withoutAccount: pending.length - recipients.length });
+  return actionOk({ remindedIds, remindedAt: remindedAt.toISOString(), withoutAccount: pending.length - remindedIds.length });
 }

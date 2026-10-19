@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
 import { after, before, describe, test } from "node:test";
-import { and, asc, eq, inArray } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, like } from "drizzle-orm";
 import { db } from "@/shared/libs/db.lib";
 import { parseInput } from "@/shared/libs/action.lib";
 import { pgErrorMessage } from "@/shared/libs/pg-error.lib";
 import { faculties } from "@/modules/curriculum/curriculum.schema";
+import { notifications } from "@/modules/notifications/notifications.schema";
 import { students } from "@/modules/users/users.schema";
 import { officeStepRoles, REQUESTS_CONSTRAINT_MESSAGE } from "@/modules/requests/requests.constant";
 import { allocateRequestCode, decideStep, RequestError } from "@/modules/requests/requests.lib";
@@ -22,16 +23,20 @@ import { academicRequests, requestCodeCounters, requestSteps } from "@/modules/r
 const TEST_YEAR = 2099;
 const createdIds: string[] = [];
 let studentId = "";
+let studentUserId: string | null = null;
 let facultyId = "";
 
 before(async () => {
-  [{ id: studentId }] = await db.select({ id: students.id }).from(students).limit(1);
+  // Ưu tiên sinh viên có tài khoản để kiểm cả thông báo gửi người gửi đơn.
+  [{ id: studentId, userId: studentUserId }] = await db.select({ id: students.id, userId: students.userId }).from(students).orderBy(asc(isNull(students.userId))).limit(1);
   [{ id: facultyId }] = await db.select({ id: faculties.id }).from(faculties).limit(1);
 });
 
 after(async () => {
   if (createdIds.length > 0) await db.delete(academicRequests).where(inArray(academicRequests.id, createdIds));
   await db.delete(requestCodeCounters).where(eq(requestCodeCounters.year, TEST_YEAR));
+  // decideStep báo người gửi: xóa thông báo của các đơn thử mã năm 2099.
+  await db.delete(notifications).where(like(notifications.title, `Đơn DT-${TEST_YEAR}-%`));
   await db.$client.end();
 });
 
@@ -252,5 +257,16 @@ describe("requests: đồng thời", () => {
     await decide(2);
     assert.deepEqual(await statuses(id), ["approved", "approved", "approved"]);
     await assert.rejects(decide(2), /duyệt xong/);
+    // Người gửi nhận một thông báo mỗi bước được duyệt (hai lần chuyển bước, một lần hoàn tất) ở cổng sinh viên.
+    if (studentUserId) {
+      const sent = await db
+        .select({ title: notifications.title, audience: notifications.audience, href: notifications.href })
+        .from(notifications)
+        .where(and(eq(notifications.recipientUserId, studentUserId), like(notifications.title, `Đơn DT-${TEST_YEAR}-00012 %`)))
+        .orderBy(asc(notifications.createdAt), asc(notifications.id));
+      assert.equal(sent.length, 3);
+      assert.ok(sent.every((row) => row.audience === "student" && row.href === "/application/requests"));
+      assert.ok(sent.some((row) => row.title.endsWith("đã được duyệt")));
+    }
   });
 });

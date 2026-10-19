@@ -12,7 +12,7 @@ export default async function Page() {
     <AnnouncementTable
       header={{
         title: "Thông báo",
-        description: "Thông báo đã đăng hiện trên trang chủ và gửi email tới đúng đối tượng. Thông báo hẹn giờ tự đăng khi tới giờ.",
+        description: "Thông báo đã đăng hiện trên trang chủ và trang Thông báo đào tạo. Thông báo hẹn giờ tự đăng khi tới giờ.",
       }}
       announcements={announcements}
     />

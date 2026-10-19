@@ -111,7 +111,7 @@ export function AppointmentBoard({ appointments, advisees, notes: initialNotes }
       setRows((current) => [...current, appointment]);
       setIsCreateOpen(false);
       setView("upcoming");
-      messageApi.success(`Đã hẹn ${appointment.students.length} sinh viên lúc ${appointment.startTime} ${dayText(appointment.date).toLowerCase()}, lời mời đã gửi qua email`);
+      messageApi.success(`Đã hẹn ${appointment.students.length} sinh viên lúc ${appointment.startTime} ${dayText(appointment.date).toLowerCase()}, sinh viên nhận lời mời trên cổng`);
     });
 
   const complete = (values: DoneValues) => {
@@ -152,7 +152,7 @@ export function AppointmentBoard({ appointments, advisees, notes: initialNotes }
   const cancel = (appointment: Appointment) =>
     modal.confirm({
       title: "Hủy lịch hẹn này?",
-      content: `Sinh viên sẽ nhận email báo hủy buổi hẹn ${dayText(appointment.date).toLowerCase()} lúc ${appointment.startTime}.`,
+      content: `Sinh viên nhận thông báo hủy buổi hẹn ${dayText(appointment.date).toLowerCase()} lúc ${appointment.startTime} trên cổng sinh viên.`,
       okText: "Hủy lịch hẹn",
       okButtonProps: { danger: true },
       cancelText: "Giữ lịch",

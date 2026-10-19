@@ -15,7 +15,7 @@ export default async function Page() {
     <>
       <PageHeader
         title="Lịch hẹn"
-        description="Hẹn gặp sinh viên cố vấn, ghi lại nội dung trao đổi để theo dõi qua các học kỳ. Sinh viên nhận lời mời qua email và cổng sinh viên."
+        description="Hẹn gặp sinh viên cố vấn, ghi lại nội dung trao đổi để theo dõi qua các học kỳ. Sinh viên nhận lời mời trong mục Thông báo của cổng sinh viên."
       />
       <AppointmentBoard
         appointments={appointments}

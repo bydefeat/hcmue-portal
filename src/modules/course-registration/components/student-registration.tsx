@@ -54,7 +54,7 @@ function PeriodBanner({ period, state, cohort }: { period: RegistrationPeriodVie
         type="info"
         showIcon
         title={`Chưa có đợt đăng ký cho khóa ${cohort}`}
-        description="Phòng Đào tạo sẽ thông báo lịch đăng ký trên cổng và qua email. Bạn vẫn có thể chọn trước các lớp dự kiến."
+        description="Lịch đăng ký sẽ được công bố trên cổng. Bạn vẫn có thể chọn trước các lớp dự kiến."
       />
     );
   }

@@ -4,8 +4,9 @@ import { alias } from "drizzle-orm/pg-core";
 import type { Transaction } from "@/shared/libs/db.lib";
 import { currentYear } from "@/shared/libs/date.lib";
 import { faculties } from "@/modules/curriculum/curriculum.schema";
+import { notifyUsers } from "@/modules/notifications/notifications.lib";
 import { administrativeClasses, lecturers, students } from "@/modules/users/users.schema";
-import { REQUEST_CODE_PREFIX } from "@/modules/requests/requests.constant";
+import { REQUEST_CODE_PREFIX, REQUEST_KINDS, STEP_ROLE_LABEL } from "@/modules/requests/requests.constant";
 import { cancelBlockedReason, formatRequestCode, initialSteps, planDecision } from "@/modules/requests/requests.rule";
 import { academicRequests, requestAttachments, requestCodeCounters, requestSteps } from "@/modules/requests/requests.schema";
 import type { RequestDetail, RequesterType, RequestKind, StepRole } from "@/modules/requests/requests.type";
@@ -76,7 +77,10 @@ async function lockRequest(tx: Transaction, requestId: string) {
   const [request] = await tx
     .select({
       id: academicRequests.id,
+      code: academicRequests.code,
       kind: academicRequests.kind,
+      subject: academicRequests.subject,
+      requesterStudentId: academicRequests.requesterStudentId,
       cancelledAt: academicRequests.cancelledAt,
       faculty: faculties.name,
       advisorId: administrativeClasses.advisorId,
@@ -128,6 +132,24 @@ export async function decideStep(tx: Transaction, input: StepDecision) {
   if (plan.next) {
     await tx.update(requestSteps).set({ status: "pending", dueAt: plan.next.dueAt }).where(eq(requestSteps.id, steps[plan.next.index].id));
   }
+  // Báo người gửi trên cổng của họ; người gửi chưa có tài khoản cổng thì bỏ qua.
+  if (!request.requesterUserId) return;
+  const actorRole = STEP_ROLE_LABEL[current.role];
+  const opinion = input.comment ? ` Ý kiến: ${input.comment}` : "";
+  const about = `${REQUEST_KINDS[request.kind].label}: ${request.subject}.`;
+  const nextRole = plan.next ? STEP_ROLE_LABEL[steps[plan.next.index].role] : null;
+  const message =
+    input.decision === "rejected"
+      ? { title: `Đơn ${request.code} bị từ chối`, body: `${about} ${actorRole} từ chối đơn.${opinion}` }
+      : nextRole
+        ? { title: `Đơn ${request.code} chuyển sang ${nextRole}`, body: `${about} ${actorRole} đã duyệt, đơn đang chờ ${nextRole} xử lý.${opinion}` }
+        : { title: `Đơn ${request.code} đã được duyệt`, body: `${about} ${actorRole} đã duyệt bước cuối, đơn hoàn tất.${opinion}` };
+  const audience = request.requesterStudentId ? "student" : "lecturer";
+  await notifyUsers(tx, [request.requesterUserId], audience, {
+    kind: "request",
+    ...message,
+    href: audience === "student" ? "/application/requests" : "/lecturer/requests",
+  });
 }
 
 export async function cancelOwnRequest(tx: Transaction, requestId: string, userId: string) {

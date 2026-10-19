@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { after, describe, test } from "node:test";
-import { and, count, countDistinct, desc, eq, isNotNull, sql, sum } from "drizzle-orm";
+import { and, count, countDistinct, desc, eq, inArray, isNotNull, sql, sum } from "drizzle-orm";
 import { db } from "@/shared/libs/db.lib";
 import { mockId, mockSectionId, mockTermId } from "@/shared/libs/mock.lib";
 import { user } from "@/modules/authentication/authentication.schema";
@@ -72,11 +72,13 @@ describe("seed khớp dữ liệu mẫu", () => {
   });
 
   test("đơn từ: đủ đơn, bước, tệp của dữ liệu mẫu; bộ đếm mã nối tiếp mã lớn nhất", async () => {
-    const [requestCount] = await db.select({ total: count() }).from(academicRequests);
+    // Đếm theo id của mock: requests.test.ts chạy song song, tạo đơn thật rồi mới dọn.
+    const requestIds = REQUESTS.map((request) => request.id);
+    const [requestCount] = await db.select({ total: count() }).from(academicRequests).where(inArray(academicRequests.id, requestIds));
     assert.equal(requestCount.total, REQUESTS.length);
-    const [stepCount] = await db.select({ total: count() }).from(requestSteps);
+    const [stepCount] = await db.select({ total: count() }).from(requestSteps).where(inArray(requestSteps.requestId, requestIds));
     assert.equal(stepCount.total, REQUESTS.reduce((acc, request) => acc + request.steps.length, 0));
-    const [fileCount] = await db.select({ total: count() }).from(requestAttachments);
+    const [fileCount] = await db.select({ total: count() }).from(requestAttachments).where(inArray(requestAttachments.requestId, requestIds));
     assert.equal(fileCount.total, REQUESTS.reduce((acc, request) => acc + request.attachments.length, 0));
     const [first] = await db.select().from(academicRequests).where(eq(academicRequests.id, mockId("request:1")));
     assert.equal(first?.code, REQUESTS[0].code);
@@ -142,8 +144,9 @@ describe("seed khớp dữ liệu mẫu: học phí, thông báo, nhật ký, c�
   test("thông báo công khai, thông báo cá nhân, nhật ký đủ số dòng và giữ id của mock", async () => {
     const [[announcement], [notification], [log]] = await Promise.all([
       db.select({ total: count() }).from(announcements),
-      db.select({ total: count() }).from(notifications),
-      db.select({ total: count() }).from(auditLogs),
+      // Đếm theo id của mock: test khác (requests.test.ts) chạy song song và ghi thật thông báo, nhật ký rồi mới dọn.
+      db.select({ total: count() }).from(notifications).where(inArray(notifications.id, NOTIFICATIONS.map((item) => item.id))),
+      db.select({ total: count() }).from(auditLogs).where(inArray(auditLogs.id, AUDIT_LOG.map((entry) => entry.id))),
     ]);
     assert.equal(announcement.total, ANNOUNCEMENTS.length);
     assert.equal(notification.total, NOTIFICATIONS.length);

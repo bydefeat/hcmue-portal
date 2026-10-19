@@ -303,7 +303,7 @@ export function AdminStudentRegistration({
           mask={{ closable: false }}
           destroyOnHidden
         >
-          <p className="mb-3 text-sm text-pretty text-muted">Chỗ của sinh viên sẽ chuyển cho người đầu danh sách chờ. Sinh viên nhận email kèm lý do.</p>
+          <p className="mb-3 text-sm text-pretty text-muted">Chỗ trống trả lại cho lớp. Sinh viên nhận thông báo kèm lý do trên cổng sinh viên (nếu đã kích hoạt tài khoản).</p>
           <Input.TextArea
             value={dropReason}
             onChange={(event) => setDropReason(event.target.value)}

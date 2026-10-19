@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { db, type Transaction } from "@/shared/libs/db.lib";
 import { actionError, actionFailure, actionOk, parseInput, type ActionResult } from "@/shared/libs/action.lib";
 import { courses, programCohorts, programCourses, programs } from "@/modules/curriculum/curriculum.schema";
+import { notifyLecturers, notifyStudents } from "@/modules/notifications/notifications.lib";
 import { regulations } from "@/modules/settings/settings.schema";
 import { STUDY_PLAN_CONSTRAINT_MESSAGE, STUDY_PLAN_CREDIT_LIMIT } from "@/modules/study-plan/study-plan.constant";
 import { getStudyPlanOfStudent } from "@/modules/study-plan/study-plan.query";
@@ -96,6 +97,20 @@ async function writePlan(input: StudyPlanInput, submit: boolean): Promise<Action
           .update(studyPlans)
           .set({ status: "pending", submittedAt: new Date(), reviewedAt: null, reviewedById: null, advisorComment: null })
           .where(eq(studyPlans.id, planId));
+        // Báo cố vấn của lớp sinh hoạt; lớp chưa phân công cố vấn thì chưa có ai để báo.
+        const [advisor] = await tx
+          .select({ id: administrativeClasses.advisorId })
+          .from(students)
+          .innerJoin(administrativeClasses, eq(administrativeClasses.id, students.administrativeClassId))
+          .where(eq(students.id, student.id));
+        if (advisor?.id) {
+          await notifyLecturers(tx, [advisor.id], {
+            kind: "advising",
+            title: "Kế hoạch học tập mới chờ duyệt",
+            body: `${student.fullName} (${student.code}, lớp ${student.className}) vừa gửi kế hoạch học tập.`,
+            href: "/lecturer/advising/study-plans",
+          });
+        }
       }
     });
   } catch (error) {
@@ -132,25 +147,46 @@ export async function reviewStudyPlan(input: StudyPlanReviewInput): Promise<Acti
       .where(eq(studyPlans.id, id));
     if (!plan || !plan.isActive) return actionError("Kế hoạch không còn hiệu lực, sinh viên đã sửa thành bản mới. Tải lại trang.");
     if (plan.advisorId !== lecturer.id) return actionError("Sinh viên này không thuộc lớp bạn cố vấn nên không duyệt được.");
-    const [row] = await db
-      .update(studyPlans)
-      .set({ status: decision, advisorComment: comment || null, reviewedAt: new Date(), reviewedById: lecturer.id })
-      .where(
-        and(
-          eq(studyPlans.id, id),
-          eq(studyPlans.status, "pending"),
-          eq(studyPlans.isActive, true),
-          inArray(
-            studyPlans.studentId,
-            db
-              .select({ id: students.id })
-              .from(students)
-              .innerJoin(administrativeClasses, eq(administrativeClasses.id, students.administrativeClassId))
-              .where(eq(administrativeClasses.advisorId, lecturer.id)),
+    const row = await db.transaction(async (tx) => {
+      const [updated] = await tx
+        .update(studyPlans)
+        .set({ status: decision, advisorComment: comment || null, reviewedAt: new Date(), reviewedById: lecturer.id })
+        .where(
+          and(
+            eq(studyPlans.id, id),
+            eq(studyPlans.status, "pending"),
+            eq(studyPlans.isActive, true),
+            inArray(
+              studyPlans.studentId,
+              tx
+                .select({ id: students.id })
+                .from(students)
+                .innerJoin(administrativeClasses, eq(administrativeClasses.id, students.administrativeClassId))
+                .where(eq(administrativeClasses.advisorId, lecturer.id)),
+            ),
           ),
-        ),
-      )
-      .returning({ studentId: studyPlans.studentId });
+        )
+        .returning({ studentId: studyPlans.studentId });
+      if (!updated) return null;
+      await notifyStudents(
+        tx,
+        [updated.studentId],
+        decision === "approved"
+          ? {
+              kind: "advising",
+              title: "Cố vấn đã duyệt kế hoạch học tập",
+              body: comment ? `Nhận xét của ${lecturer.displayName}: ${comment}` : `${lecturer.displayName} đã duyệt. Kế hoạch này là căn cứ khi bạn đăng ký học phần.`,
+              href: "/application/study-plan",
+            }
+          : {
+              kind: "advising",
+              title: "Cố vấn trả lại kế hoạch học tập, sửa rồi gửi duyệt lại",
+              body: `Nhận xét của ${lecturer.displayName}: ${comment}`,
+              href: "/application/study-plan",
+            },
+      );
+      return updated;
+    });
     if (!row) return actionError("Kế hoạch không còn ở trạng thái chờ duyệt. Tải lại trang để xem trạng thái mới.");
     studentId = row.studentId;
   } catch (error) {

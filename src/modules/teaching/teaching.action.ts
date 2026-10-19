@@ -2,11 +2,12 @@
 
 import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { db } from "@/shared/libs/db.lib";
+import { db, type Transaction } from "@/shared/libs/db.lib";
 import { actionError, actionFailure, actionOk, parseInput, type ActionResult } from "@/shared/libs/action.lib";
 import { isUuid } from "@/shared/libs/id.lib";
 import { classSections, enrollments } from "@/modules/course-registration/course-registration.schema";
 import { courses } from "@/modules/curriculum/curriculum.schema";
+import { notifyStudents } from "@/modules/notifications/notifications.lib";
 import { TEACHING_CONSTRAINT_MESSAGE } from "@/modules/teaching/teaching.constant";
 import { getClassAnnouncement, getSyllabus } from "@/modules/teaching/teaching.query";
 import { assessmentTotal, CLASS_ANNOUNCEMENT_SCHEMA, SYLLABUS_SCHEMA, type ClassAnnouncementInput, type SyllabusInput } from "@/modules/teaching/teaching.rule";
@@ -26,6 +27,25 @@ async function sectionOfLecturer(classSectionId: string) {
     .innerJoin(courses, eq(courses.id, classSections.courseId))
     .where(and(eq(classSections.id, classSectionId), eq(classSections.lecturerId, lecturer.id)));
   return section ? { ...section, lecturerId: lecturer.id } : null;
+}
+
+// Báo sinh viên đang học lớp lúc thông báo được đăng. Cổng sinh viên chưa có trang thông báo lớp nên nội dung nằm luôn trong thông báo.
+// Thông báo hẹn giờ không báo: chưa có job chạy nền để gửi đúng giờ đăng. Cột sendEmail chỉ được lưu, chưa có dịch vụ email.
+async function notifyClass(tx: Transaction, section: { id: string; code: string }, announcement: { title: string; body: string }) {
+  const enrolled = await tx
+    .select({ studentId: enrollments.studentId })
+    .from(enrollments)
+    .where(and(eq(enrollments.classSectionId, section.id), eq(enrollments.status, "enrolled")));
+  await notifyStudents(
+    tx,
+    enrolled.map((row) => row.studentId),
+    {
+      kind: "announcement",
+      title: `${section.code}: ${announcement.title}`,
+      body: announcement.body,
+      href: "/application/notifications",
+    },
+  );
 }
 
 function revalidateClass(classSectionId: string) {
@@ -106,6 +126,7 @@ export async function saveClassAnnouncement(id: string | null, input: ClassAnnou
             publishAt: schedule && publishAt ? new Date(publishAt) : new Date(),
           })
           .returning({ id: classAnnouncements.id });
+        if (!schedule) await notifyClass(tx, section, values);
         return row.id;
       }
       const [current] = await tx
@@ -124,6 +145,8 @@ export async function saveClassAnnouncement(id: string | null, input: ClassAnnou
           publishAt: schedule && publishAt ? new Date(publishAt) : alreadyPublished ? current.publishAt : new Date(),
         })
         .where(eq(classAnnouncements.id, id));
+      // Bỏ hẹn giờ để đăng ngay thì báo như đăng mới; sửa thông báo đã đăng thì không báo lại.
+      if (!schedule && !alreadyPublished) await notifyClass(tx, section, values);
       return id;
     });
   } catch (error) {

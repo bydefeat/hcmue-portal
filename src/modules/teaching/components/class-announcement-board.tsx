@@ -85,15 +85,17 @@ export function ClassAnnouncementBoard({ announcements, classSectionId, classCod
       const saved = result.data;
       setRows((current) => (editing ? current.map((row) => (row.id === saved.id ? saved : row)) : [saved, ...current]));
       setIsOpen(false);
-      const emailText = saved.sendEmail && !editing ? `, email đã gửi tới ${studentCount} sinh viên` : "";
-      messageApi.success(saved.status === "scheduled" ? `Đã hẹn đăng lúc ${formatDateTime(saved.publishAt)}` : `Đã đăng thông báo cho lớp ${classCode}${emailText}`);
+      // Chỉ lần đăng ngay (đăng mới hoặc bỏ hẹn giờ) mới báo lên cổng sinh viên; sửa bài đã đăng thì không báo lại.
+      if (saved.status === "scheduled") messageApi.success(`Đã hẹn đăng lúc ${formatDateTime(saved.publishAt)}`);
+      else if (editing?.status === "published") messageApi.success("Đã lưu thông báo");
+      else messageApi.success(`Đã đăng thông báo cho lớp ${classCode}, sinh viên của lớp nhận thông báo trên cổng`);
     });
   };
 
   const remove = (announcement: ClassAnnouncement) =>
     modal.confirm({
       title: "Xóa thông báo này?",
-      content: "Sinh viên sẽ không còn thấy thông báo trên cổng. Email đã gửi không thu hồi được.",
+      content: "Thông báo bị xóa khỏi trang lớp. Thông báo đã báo tới cổng sinh viên lúc đăng thì không thu hồi được.",
       okText: "Xóa thông báo",
       okButtonProps: { danger: true },
       cancelText: "Giữ lại",
@@ -130,7 +132,7 @@ export function ClassAnnouncementBoard({ announcements, classSectionId, classCod
         <SectionCard flush>
           <EmptyState
             title="Lớp chưa có thông báo"
-            description="Thông báo lịch nghỉ, bài tập hay tài liệu cho riêng lớp này. Có thể gửi kèm email."
+            description="Thông báo lịch nghỉ, bài tập hay tài liệu cho riêng lớp này. Đăng ngay thì sinh viên của lớp nhận thông báo trên cổng."
           />
         </SectionCard>
       ) : (
@@ -153,7 +155,7 @@ export function ClassAnnouncementBoard({ announcements, classSectionId, classCod
                         {announcement.sendEmail && (
                           <span className="flex items-center gap-1">
                             <Envelope size={14} aria-hidden />
-                            Có gửi email
+                            Đánh dấu cần email
                           </span>
                         )}
                         {announcement.status === "published" && (
@@ -216,8 +218,13 @@ export function ClassAnnouncementBoard({ announcements, classSectionId, classCod
           <Form.Item name="isPinned" valuePropName="checked" className="mb-2">
             <Checkbox>Ghim đầu trang lớp</Checkbox>
           </Form.Item>
-          <Form.Item name="sendEmail" valuePropName="checked" className="mb-2" extra={sendEmail && editing ? "Email chỉ gửi khi đăng mới, sửa không gửi lại." : undefined}>
-            <Checkbox>Gửi email cho cả lớp ({studentCount} sinh viên)</Checkbox>
+          <Form.Item
+            name="sendEmail"
+            valuePropName="checked"
+            className="mb-2"
+            extra={sendEmail ? "Hệ thống chưa có dịch vụ email: chỉ lưu đánh dấu, chưa gửi email. Sinh viên vẫn nhận thông báo trên cổng khi đăng ngay." : undefined}
+          >
+            <Checkbox>Đánh dấu cần gửi email cho cả lớp ({studentCount} sinh viên)</Checkbox>
           </Form.Item>
           <Form.Item name="schedule" label="Hẹn giờ đăng" valuePropName="checked">
             <Switch />

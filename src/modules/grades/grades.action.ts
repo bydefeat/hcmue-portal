@@ -11,6 +11,7 @@ import { requirePermission } from "@/modules/access/access.query";
 import { requireSession } from "@/modules/authentication/authentication.query";
 import { classSections, enrollments, terms } from "@/modules/course-registration/course-registration.schema";
 import { courses, faculties, majors } from "@/modules/curriculum/curriculum.schema";
+import { notifyLecturers, notifyStudents } from "@/modules/notifications/notifications.lib";
 import { DEFAULT_COMPONENTS, DEFAULT_DEADLINE_DAYS, GRADES_CONSTRAINT_MESSAGE, weightedScore } from "@/modules/grades/grades.constant";
 import {
   courseGrade,
@@ -154,7 +155,15 @@ export async function lockGradeSheet(classSectionId: string): Promise<ActionResu
 // Bảng điểm cùng khoa của học phần, khóa dòng để duyệt, trả lại, công bố không chen nhau.
 async function sheetsInScope(tx: Transaction, classSectionIds: string[], faculty: string | null, status: GradeSheetStatus) {
   const rows = await tx
-    .select({ id: gradeSheets.id, classSectionId: gradeSheets.classSectionId, status: gradeSheets.status, faculty: faculties.name })
+    .select({
+      id: gradeSheets.id,
+      classSectionId: gradeSheets.classSectionId,
+      status: gradeSheets.status,
+      faculty: faculties.name,
+      code: classSections.code,
+      courseName: courses.name,
+      lecturerId: classSections.lecturerId,
+    })
     .from(gradeSheets)
     .innerJoin(classSections, eq(classSections.id, gradeSheets.classSectionId))
     .innerJoin(courses, eq(courses.id, classSections.courseId))
@@ -199,6 +208,14 @@ export async function returnGradeSheet(input: GradeSheetReturnInput): Promise<Ac
         .set({ status: "returned", returnReason: parsed.data.reason })
         .where(eq(gradeSheets.id, sheet.id))
         .returning({ classSectionId: gradeSheets.classSectionId, returnReason: gradeSheets.returnReason });
+      if (sheet.lecturerId) {
+        await notifyLecturers(tx, [sheet.lecturerId], {
+          kind: "grade",
+          title: `Bảng điểm ${sheet.code} bị khoa trả lại, sửa rồi chốt lại để khoa duyệt`,
+          body: `${sheet.courseName}. Lý do: ${parsed.data.reason}`,
+          href: `/lecturer/classes/${sheet.classSectionId}/grading`,
+        });
+      }
       return { classSectionId: row.classSectionId, returnReason: row.returnReason! };
     });
     revalidateGrades();
@@ -257,6 +274,20 @@ export async function publishGradeSheets(classSectionIds: string[]): Promise<Act
         .set({ status: "published", publishedAt: recordedAt, publishedByUserId: viewer.id })
         .where(inArray(gradeSheets.id, sheetIds))
         .returning({ classSectionId: gradeSheets.classSectionId });
+      // Mỗi lớp một thông báo cho sinh viên có điểm tổng kết vừa công bố.
+      for (const sheet of sheets) {
+        await notifyStudents(
+          tx,
+          roster.filter((entry) => entry.classSectionId === sheet.classSectionId).map((entry) => entry.studentId),
+          {
+            kind: "grade",
+            title: `Đã có điểm ${sheet.courseName}`,
+            body: `Phòng Đào tạo đã công bố điểm tổng kết lớp ${sheet.code}. Xem điểm và điểm trung bình tích lũy ở mục Kết quả học tập.`,
+            href: "/application/grades",
+            createdAt: recordedAt,
+          },
+        );
+      }
       return rows.map((row) => row.classSectionId);
     });
     revalidateGrades();
@@ -273,8 +304,17 @@ export async function advanceAcademicWarning(id: string, from: WarningStatus): P
   const parsed = parseInput(WARNING_ADVANCE_SCHEMA, { id, from });
   if (!parsed.ok) return parsed;
   const [warning] = await db
-    .select({ id: academicWarnings.id, advisorId: administrativeClasses.advisorId, faculty: faculties.name })
+    .select({
+      id: academicWarnings.id,
+      studentId: academicWarnings.studentId,
+      level: academicWarnings.level,
+      reasons: academicWarnings.reasons,
+      termName: terms.name,
+      advisorId: administrativeClasses.advisorId,
+      faculty: faculties.name,
+    })
     .from(academicWarnings)
+    .innerJoin(terms, eq(terms.id, academicWarnings.termId))
     .innerJoin(students, eq(students.id, academicWarnings.studentId))
     .innerJoin(administrativeClasses, eq(administrativeClasses.id, students.administrativeClassId))
     .innerJoin(majors, eq(majors.id, administrativeClasses.majorId))
@@ -290,11 +330,23 @@ export async function advanceAcademicWarning(id: string, from: WarningStatus): P
   }
   const next = NEXT_WARNING_STATUS[parsed.data.from]!;
   try {
-    const [row] = await db
-      .update(academicWarnings)
-      .set({ status: next })
-      .where(and(eq(academicWarnings.id, warning.id), eq(academicWarnings.status, parsed.data.from)))
-      .returning({ id: academicWarnings.id, status: academicWarnings.status });
+    const row = await db.transaction(async (tx) => {
+      const [updated] = await tx
+        .update(academicWarnings)
+        .set({ status: next })
+        .where(and(eq(academicWarnings.id, warning.id), eq(academicWarnings.status, parsed.data.from)))
+        .returning({ id: academicWarnings.id, status: academicWarnings.status });
+      // Bước "gửi thông báo": báo sinh viên trên cổng (chưa có dịch vụ email).
+      if (updated?.status === "notified") {
+        await notifyStudents(tx, [warning.studentId], {
+          kind: "grade",
+          title: `Bạn bị cảnh báo học vụ mức ${warning.level} ${warning.termName.toLowerCase()}`,
+          body: `${warning.reasons.join("; ")}. Liên hệ cố vấn học tập để lập kế hoạch cải thiện kết quả.`,
+          href: "/application/grades",
+        });
+      }
+      return updated;
+    });
     if (!row) return actionError("Cảnh báo đã được xử lý ở bước này, tải lại trang để xem trạng thái mới.");
     revalidatePath("/lecturer", "layout");
     revalidatePath("/administrator/reports/academic-warnings");

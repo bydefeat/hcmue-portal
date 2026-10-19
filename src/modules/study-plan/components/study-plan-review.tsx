@@ -72,7 +72,7 @@ export function StudyPlanReview({ plans }: { plans: StudyPlan[] }) {
       if (decision === "returned") form.resetFields();
       setIsReturning(false);
       setOpenId(null);
-      messageApi.success(decision === "approved" ? `Đã duyệt kế hoạch của ${plan.fullName}` : `Đã trả lại kế hoạch cho ${plan.fullName}, sinh viên nhận email kèm nhận xét`);
+      messageApi.success(decision === "approved" ? `Đã duyệt kế hoạch của ${plan.fullName}, sinh viên nhận thông báo trên cổng` : `Đã trả lại kế hoạch cho ${plan.fullName}, sinh viên nhận thông báo kèm nhận xét trên cổng`);
     });
 
   const creditText = (value: number) =>

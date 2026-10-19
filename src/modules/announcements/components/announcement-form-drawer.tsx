@@ -95,7 +95,7 @@ export function AnnouncementFormDrawer({ open, announcement, onClose, onSubmit }
         <Form.Item name="audiences" label="Đối tượng" rules={[{ required: true, message: "Chọn ít nhất một đối tượng" }]}>
           <Select mode="multiple" options={ANNOUNCEMENT_AUDIENCES.map((value) => ({ value, label: value }))} />
         </Form.Item>
-        <Form.Item name="summary" label="Tóm tắt" extra="Hiện trong danh sách thông báo và email gửi đi">
+        <Form.Item name="summary" label="Tóm tắt" extra="Hiện trong danh sách thông báo">
           <Input.TextArea autoSize={{ minRows: 2, maxRows: 4 }} maxLength={SUMMARY_LIMIT} showCount />
         </Form.Item>
         <Form.Item name="content" label="Nội dung" rules={[{ required: true, whitespace: true, message: "Chưa nhập nội dung" }]}>

@@ -20,7 +20,7 @@ type AcademicWarningTableProps = {
 };
 
 const NEXT_STATUS: Partial<Record<WarningStatus, { status: WarningStatus; label: string; done: string }>> = {
-  new: { status: "notified", label: "Gửi thông báo", done: "Đã gửi thông báo cảnh báo tới email sinh viên" },
+  new: { status: "notified", label: "Gửi thông báo", done: "Đã gửi thông báo cảnh báo tới sinh viên trên cổng" },
   notified: { status: "resolved", label: "Ghi nhận đã gặp", done: "Đã ghi nhận buổi gặp sinh viên" },
 };
 

@@ -21,6 +21,8 @@ export const APPOINTMENTS: Appointment[] = [
   { id: mockId("appointment:lh-06"), advisorId: ADVISOR.id, students: [student(6)], topic: "Trao đổi về cảnh báo học vụ", date: dateOnly(-9), startTime: "15:00", durationMinutes: 30, mode: "in-person", location: "Văn phòng khoa, phòng B.201", status: "missed", note: "Sinh viên không đến, đã nhắn tin hẹn lại." },
   { id: mockId("appointment:lh-07"), advisorId: ADVISOR.id, students: [student(156)], topic: "Định hướng chuyên ngành, thực tập", date: dateOnly(-14), startTime: "08:30", durationMinutes: 45, mode: "online", location: "Google Meet", status: "done", note: "Giới thiệu 3 doanh nghiệp nhận thực tập mảng web." },
   { id: mockId("appointment:lh-08"), advisorId: ADVISOR.id, students: [student(150)], topic: "Tư vấn kế hoạch học tập học kỳ 2", date: dateOnly(-1), startTime: "13:30", durationMinutes: 15, mode: "online", location: "Zalo", status: "cancelled", note: "Sinh viên xin dời lịch." },
+  { id: mockId("appointment:lh-09"), advisorId: ADVISOR.id, students: [student(12)], topic: "Tư vấn đăng ký học vượt", date: dateOnly(-30), startTime: "15:30", durationMinutes: 30, mode: "in-person", location: "Văn phòng khoa, phòng B.201", status: "done", note: "Đồng ý cho đăng ký 28 tín chỉ học kỳ 2, hướng dẫn làm đơn." },
+  { id: mockId("appointment:lh-10"), advisorId: ADVISOR.id, students: [student(12), student(60)], topic: "Định hướng chuyên ngành, thực tập", date: dateOnly(6), startTime: "19:00", durationMinutes: 45, mode: "online", location: "https://meet.google.com/hcm-ue-cntt", status: "scheduled", note: null },
 ];
 
 export const MEETING_NOTES: MeetingNote[] = [

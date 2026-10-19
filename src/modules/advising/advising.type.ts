@@ -42,3 +42,26 @@ export type AppointmentFormValues = {
   mode: AppointmentMode;
   location: string;
 };
+
+// Lịch hẹn nhìn từ phía sinh viên: không có ghi chú của cố vấn, không có danh sách sinh viên khác (chỉ số người được mời).
+export type StudentAppointment = {
+  id: string;
+  topic: string;
+  date: string;
+  startTime: string;
+  durationMinutes: number;
+  mode: AppointmentMode;
+  location: string;
+  status: AppointmentStatus;
+  advisor: string;
+  inviteeCount: number;
+};
+
+export type StudentAdvisor = {
+  className: string;
+  displayName: string;
+  email: string;
+  phone: string;
+  office: string;
+  officeHours: string;
+};

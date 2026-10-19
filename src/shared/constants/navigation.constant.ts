@@ -84,6 +84,7 @@ export const APPLICATION_NAVIGATION: NavGroup[] = [
     icon: Books,
     items: [
       { label: "Thời khóa biểu", shortLabel: "Lịch học", href: "/application/schedule", icon: CalendarDays },
+      { label: "Lớp học phần", shortLabel: "Lớp", href: "/application/classes", icon: PresentationScreen },
       { label: "Lịch thi", href: "/application/exams", icon: CalendarClock },
       { label: "Kết quả học tập", shortLabel: "Kết quả", href: "/application/grades", icon: ChartColumn },
       { label: "Khảo sát giảng dạy", href: "/application/surveys", icon: StarList },
@@ -95,6 +96,7 @@ export const APPLICATION_NAVIGATION: NavGroup[] = [
     items: [
       { label: "Chương trình đào tạo", href: "/application/curriculum", icon: BookOpen },
       { label: "Kế hoạch học tập", href: "/application/study-plan", icon: Route },
+      { label: "Lịch hẹn cố vấn", href: "/application/advising", icon: CalendarUser },
     ],
   },
 ];

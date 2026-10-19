@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { Dayjs } from "dayjs";
 import { dayjs } from "@/shared/libs/date.lib";
 
 // Dùng chung cho form đặt lịch và server action; DB còn chặn bằng advising_appointments_duration_range.
@@ -39,4 +40,15 @@ export function appointmentsOverlap(a: { date: string; startTime: string; durati
   const aStart = minutesOf(a.startTime);
   const bStart = minutesOf(b.startTime);
   return aStart < bStart + b.durationMinutes && bStart < aStart + a.durationMinutes;
+}
+
+// Chia lịch hẹn của sinh viên: sắp tới là buổi còn "đã hẹn" và chưa kết thúc (sớm nhất trước); còn lại là đã qua (gần nhất trước).
+export function splitAppointments<T extends { date: string; startTime: string; durationMinutes: number; status: string }>(appointments: T[], now: Dayjs) {
+  const endOf = (appointment: T) => dayjs(`${appointment.date}T${appointment.startTime}`).add(appointment.durationMinutes, "minute");
+  const upcoming = appointments.filter((appointment) => appointment.status === "scheduled" && !endOf(appointment).isBefore(now));
+  const past = appointments.filter((appointment) => !upcoming.includes(appointment));
+  return {
+    upcoming: upcoming.toSorted((a, b) => endOf(a).valueOf() - endOf(b).valueOf()),
+    past: past.toSorted((a, b) => endOf(b).valueOf() - endOf(a).valueOf()),
+  };
 }

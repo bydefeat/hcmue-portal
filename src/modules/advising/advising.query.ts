@@ -4,8 +4,10 @@ import { db } from "@/shared/libs/db.lib";
 import { isUuid } from "@/shared/libs/id.lib";
 import { formatStudentCode } from "@/shared/libs/student-code.lib";
 import { requireRole } from "@/modules/authentication/authentication.query";
+import { studentAdvisor, studentAppointments } from "@/modules/advising/advising.lib";
 import { advisingAppointments, advisingNotes, appointmentStudents } from "@/modules/advising/advising.schema";
 import type { Appointment, AppointmentStudent, MeetingNote } from "@/modules/advising/advising.type";
+import { getCurrentStudent } from "@/modules/users/users.query";
 import { administrativeClasses, lecturers, students } from "@/modules/users/users.schema";
 
 // Lịch hẹn và ghi chú cố vấn chỉ giảng viên xem (cổng giảng viên kiểm thêm là cố vấn của sinh viên).
@@ -95,4 +97,15 @@ export async function getMeetingNotesByIds(ids: string[]) {
   await requireRole("lecturer");
   const valid = ids.filter(isUuid);
   return valid.length > 0 ? noteRows(inArray(advisingNotes.id, valid)) : [];
+}
+
+// Lịch hẹn của sinh viên đang đăng nhập (chỉ buổi mình được mời) và liên hệ cố vấn lớp.
+export async function getMyAppointments() {
+  const student = await getCurrentStudent();
+  return studentAppointments(student.id);
+}
+
+export async function getMyAdvisor() {
+  const student = await getCurrentStudent();
+  return studentAdvisor(student.id);
 }

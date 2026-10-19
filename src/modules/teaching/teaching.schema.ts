@@ -89,9 +89,16 @@ export const classAnnouncements = pgTable(
     sendEmail: boolean().notNull().default(false),
     status: classAnnouncementStatusEnum().notNull().default("published"),
     publishAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+    // Lúc đã báo sinh viên (chuông + email nếu bật). Trống là chưa báo: bài hẹn giờ chờ tác vụ class-announcements.
+    notifiedAt: timestamp({ withTimezone: true }),
     ...timestamps(),
   },
-  (table) => [index().on(table.classSectionId, table.publishAt), index().on(table.authorId)],
+  (table) => [
+    index().on(table.classSectionId, table.publishAt),
+    index().on(table.authorId),
+    index("class_announcements_pending_idx").on(table.publishAt).where(sql`${table.notifiedAt} IS NULL`),
+    check("class_announcements_notified_published", sql`${table.notifiedAt} IS NULL OR ${table.status} = 'published'`),
+  ],
 );
 
 export const classAnnouncementReads = pgTable(

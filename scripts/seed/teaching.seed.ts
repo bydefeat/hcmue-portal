@@ -46,6 +46,7 @@ export async function seedTeaching(tx: Transaction, _context: SeedContext) {
       sendEmail: announcement.sendEmail,
       status: announcement.status,
       publishAt: new Date(announcement.publishAt),
+      notifiedAt: announcement.notifiedAt ? new Date(announcement.notifiedAt) : null,
       createdAt: new Date(announcement.publishAt),
     })),
   );

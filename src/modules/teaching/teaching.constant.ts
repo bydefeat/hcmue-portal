@@ -23,6 +23,7 @@ export const TEACHING_CONSTRAINT_MESSAGE: Partial<Record<string, string>> = {
   syllabus_assessments_weight_range: "Trọng số mỗi hình thức đánh giá từ 1% đến 100%.",
   syllabus_assessments_weights_total_100: "Tổng trọng số các hình thức đánh giá phải bằng 100%.",
   class_announcement_reads_announcement_fk: "Thông báo đã bị giảng viên xóa.",
+  class_announcements_notified_published: "Thông báo đã báo tới sinh viên nên không chuyển lại thành hẹn giờ được.",
 };
 
 export function assessmentMismatches(assessments: SyllabusAssessment[], components: { key: string; label: string; weight: number }[]) {

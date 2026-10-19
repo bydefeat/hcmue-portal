@@ -2,7 +2,7 @@
 
 import { Layout } from "antd";
 import { MobileNavigation } from "@/shared/components/ui/mobile-navigation";
-import type { BellItem } from "@/shared/components/ui/notification-bell";
+import type { BellItem, MarkNotificationsRead } from "@/shared/components/ui/notification-bell";
 import type { MenuUser } from "@/shared/components/ui/user-menu";
 import {
   LECTURER_ACCOUNT_LINKS,
@@ -20,10 +20,11 @@ type LecturerLayoutProps = {
   user: MenuUser;
   isAdvisor: boolean;
   notifications: BellItem[];
+  onMarkNotificationsRead?: MarkNotificationsRead;
   children: React.ReactNode;
 };
 
-export function LecturerLayout({ user, isAdvisor, notifications, children }: LecturerLayoutProps) {
+export function LecturerLayout({ user, isAdvisor, notifications, onMarkNotificationsRead, children }: LecturerLayoutProps) {
   const sections = [
     { title: "Giảng dạy", items: LECTURER_NAVIGATION },
     ...(isAdvisor ? [{ title: LECTURER_ADVISING_GROUP.label, items: LECTURER_ADVISING_GROUP.items }] : []),
@@ -32,7 +33,7 @@ export function LecturerLayout({ user, isAdvisor, notifications, children }: Lec
 
   return (
     <Layout className="min-h-dvh">
-      <LecturerHeader user={user} isAdvisor={isAdvisor} notifications={notifications} />
+      <LecturerHeader user={user} isAdvisor={isAdvisor} notifications={notifications} onMarkNotificationsRead={onMarkNotificationsRead} />
       <Layout.Content className="mx-auto w-full max-w-7xl min-w-0 p-4 pb-28 sm:p-6 sm:pb-28 md:pb-6">{children}</Layout.Content>
       <MobileNavigation dockItems={LECTURER_DOCK_ITEMS} sections={sections} homeHref={LECTURER_HOME_HREF} hideFrom="md" />
     </Layout>

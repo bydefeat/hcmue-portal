@@ -11,7 +11,9 @@ export type AuditEntityType =
   | "announcement"
   | "role"
   | "regulation"
-  | "exam";
+  | "exam"
+  | "calendar-event"
+  | "report";
 
 export type AuditChange = {
   field: string;

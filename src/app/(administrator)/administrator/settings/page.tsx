@@ -2,13 +2,13 @@ import type { Metadata } from "next";
 import { PageHeader } from "@/shared/components/ui/page-header";
 import { requirePermission } from "@/modules/access/access.query";
 import { RegulationForm } from "@/modules/settings/components/regulation-form";
-import { getRegulation, getRegulationVersions } from "@/modules/settings/settings.query";
+import { getLatestRegulation, getRegulationVersions } from "@/modules/settings/settings.query";
 
 export const metadata: Metadata = { title: "Quy chế đào tạo" };
 
 export default async function Page() {
   await requirePermission("settings.manage");
-  const [regulation, versions] = await Promise.all([getRegulation(), getRegulationVersions()]);
+  const [regulation, versions] = await Promise.all([getLatestRegulation(), getRegulationVersions()]);
   return (
     <>
       <PageHeader

@@ -1,6 +1,7 @@
 import { requireRole } from "@/modules/authentication/authentication.query";
 import { ApplicationLayout } from "@/shared/components/layouts/application";
 import { getCurrentTerm } from "@/modules/course-registration/course-registration.query";
+import { markNotificationsRead } from "@/modules/notifications/notifications.action";
 import { NOTIFICATION_KIND_LABEL } from "@/modules/notifications/notifications.constant";
 import { getNotifications } from "@/modules/notifications/notifications.query";
 import { formatStudentCode } from "@/shared/libs/student-code.lib";
@@ -14,6 +15,7 @@ export default async function Layout({ children }: { children: React.ReactNode }
       user={{ name: user.name, code: formatStudentCode(user.username ?? student.code), role: `${student.className} · ${student.majorName}` }}
       termLabel={term.name}
       notifications={notifications.map((notification) => ({ ...notification, kindLabel: NOTIFICATION_KIND_LABEL[notification.kind] }))}
+      onMarkNotificationsRead={markNotificationsRead}
     >
       {children}
     </ApplicationLayout>

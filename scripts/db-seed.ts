@@ -10,6 +10,10 @@ import { seedRequests } from "./seed/requests.seed";
 import { seedSchedule } from "./seed/schedule.seed";
 import { seedSettings } from "./seed/settings.seed";
 import { seedSurveys } from "./seed/surveys.seed";
+import { seedTuition } from "./seed/tuition.seed";
+import { seedAnnouncements } from "./seed/announcements.seed";
+import { seedNotifications } from "./seed/notifications.seed";
+import { seedAudit } from "./seed/audit.seed";
 
 if (process.env.NODE_ENV === "production") throw new Error("Không chạy seed trên môi trường production");
 
@@ -30,6 +34,10 @@ async function main() {
     await seedExams(tx, context);
     await seedSurveys(tx, context);
     await seedSettings(tx, context);
+    await seedTuition(tx, context);
+    await seedAnnouncements(tx, context);
+    await seedNotifications(tx, context);
+    await seedAudit(tx, context);
     return { catalog, people, registration };
   });
   const { catalog, people, registration } = summary;

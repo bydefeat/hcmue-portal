@@ -1,6 +1,6 @@
 import { dayjs } from "@/shared/libs/date.lib";
-import { mockDate, mockTermId } from "@/shared/libs/mock.lib";
-import type { CalendarEvent, RegulationSettings, RegulationVersion } from "@/modules/settings/settings.type";
+import { mockDate, mockId, mockTermId } from "@/shared/libs/mock.lib";
+import type { CalendarEvent, RegulationSettings, RegulationVersion, ReportFormat } from "@/modules/settings/settings.type";
 
 export const REGULATION: RegulationSettings = {
   version: "2025.1",
@@ -27,14 +27,26 @@ export const REGULATION: RegulationSettings = {
   workflow: { gradeEntryDays: 10, gradeDueSoonDays: 5, studyPlanReviewDays: 5, regradeWindowDays: 7, registrationClosingSoonHours: 48 },
 };
 
-export const REGULATION_VERSIONS: RegulationVersion[] = [
+export const REGULATION_ID = mockId(`regulation:${REGULATION.version}`);
+
+// Các bản quy chế cũ: 2023.1 chưa có hạn mức riêng cho sinh viên bị cảnh báo, 2021.1 chưa có điểm cộng (B+, C+, D+).
+export const REGULATION_VERSIONS: (RegulationVersion & { id: string; rules: Pick<RegulationSettings, "grading" | "credits" | "warning" | "attendance" | "workflow"> })[] = [
   { version: "2025.1", effectiveFrom: "2025-09-01", decision: "2150/QĐ-ĐHSP", summary: "Cảnh báo học vụ 3 mức, giới hạn 14 tín chỉ cho sinh viên bị cảnh báo." },
   { version: "2023.1", effectiveFrom: "2023-09-01", decision: "1980/QĐ-ĐHSP", summary: "Áp dụng thang điểm chữ có điểm cộng (B+, C+, D+)." },
   { version: "2021.1", effectiveFrom: "2021-09-01", decision: "1604/QĐ-ĐHSP", summary: "Quy chế đào tạo theo tín chỉ theo Thông tư 08/2021/TT-BGDĐT." },
-];
+].map((version) => {
+  const { grading, credits, warning, attendance, workflow } = REGULATION;
+  const rules = { grading, credits, warning, attendance, workflow };
+  if (version.version === "2023.1") rules.credits = { ...credits, maxWhenWarned: credits.maxPerTerm };
+  if (version.version === "2021.1") {
+    rules.credits = { ...credits, maxWhenWarned: credits.maxPerTerm };
+    rules.grading = { ...grading, scale: grading.scale.filter((step) => !step.letter.endsWith("+")) };
+  }
+  return { ...version, id: mockId(`regulation:${version.version}`), rules };
+});
 
 function range(termId: string, kind: CalendarEvent["kind"], title: string, start: string, end: string, audience = "Toàn trường"): CalendarEvent {
-  return { id: `${termId}-${kind}-${start}`, termId, kind, title, startDate: start, endDate: end, audience };
+  return { id: mockId(`calendar:${termId}:${kind}:${start}`), termId, kind, title, startDate: start, endDate: end, audience };
 }
 
 const DAY = (offset: number) => dayjs().startOf("day").add(offset, "day").format("YYYY-MM-DD");
@@ -56,4 +68,10 @@ export const CALENDAR_EVENTS: CalendarEvent[] = [
   range(mockTermId("hk2-2026"), "teaching", "Tuần học 1 đến 15", "2027-02-22", "2027-06-06"),
   range(mockTermId("hk2-2026"), "holiday", "Nghỉ lễ 30/4 và 1/5", "2027-04-30", "2027-05-03"),
   range(mockTermId("hk2-2026"), "exam", "Thi cuối kỳ", "2027-06-07", "2027-06-26"),
+];
+
+// Lịch sử xuất báo cáo, do tài khoản Phòng Đào tạo seed tạo.
+export const REPORT_EXPORTS: { id: string; reportKey: string; termId: string; faculty: string; format: ReportFormat; createdAt: string; rowCount: number }[] = [
+  { id: mockId("report-export:job-2"), reportKey: "warnings", termId: mockTermId("hk2-2025"), faculty: "all", format: "xlsx", createdAt: mockDate(-1, "16:00"), rowCount: 27 },
+  { id: mockId("report-export:job-1"), reportKey: "moet", termId: mockTermId("hk1-2026"), faculty: "all", format: "pdf", createdAt: mockDate(-3, "09:00"), rowCount: 600 },
 ];

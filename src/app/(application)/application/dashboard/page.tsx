@@ -46,20 +46,8 @@ export default async function Page() {
     faculty: student.faculty,
     prerequisites: Object.fromEntries(courses.map((course) => [course.code, course.prerequisiteCodes])),
   });
-  const [exams, [invoice]] = await Promise.all([
-    getExamsForClassSections(timetable.map(({ section }) => section.id)),
-    getInvoices({
-      majorCode: student.majorCode,
-      terms: [
-        {
-          termId: term.id,
-          termName: term.name,
-          isCurrent: true,
-          courses: timetable.map(({ section }) => ({ code: section.courseCode, name: section.courseName, credits: section.credits })),
-        },
-      ],
-    }),
-  ]);
+  const [exams, invoices] = await Promise.all([getExamsForClassSections(timetable.map(({ section }) => section.id)), getInvoices(student.id)]);
+  const invoice = invoices.find((entry) => entry.termId === term.id);
 
   const today = weekdayOf(dayjs());
   const slots = timetable

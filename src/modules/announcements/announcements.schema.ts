@@ -19,6 +19,8 @@ export const announcements = pgTable(
     publishedAt: timestamp({ withTimezone: true }),
     deadline: timestamp({ withTimezone: true }),
     authorUserId: uuid().references(() => user.id, { onDelete: "set null" }),
+    // Đơn vị đứng tên thông báo (Phòng Khảo thí, Phòng Kế hoạch - Tài chính...), không phải người bấm đăng.
+    authorLabel: text().notNull().default("Phòng Đào tạo"),
     summary: text().notNull(),
     content: text().notNull(),
     viewCount: integer().notNull().default(0),

@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useTransition } from "react";
 import { Button, Checkbox, DatePicker, Drawer, Form, Input, Radio, Select } from "antd";
 import { dayjs } from "@/shared/libs/date.lib";
+import { toFormFields } from "@/shared/libs/form.lib";
 import { ANNOUNCEMENT_AUDIENCES, ANNOUNCEMENT_CATEGORY_OPTIONS } from "@/modules/announcements/announcements.constant";
 import type { Announcement, AnnouncementFormValues } from "@/modules/announcements/announcements.type";
 
@@ -15,7 +16,7 @@ type AnnouncementFormDrawerProps = {
   open: boolean;
   announcement: Announcement | null;
   onClose: () => void;
-  onSubmit: (values: AnnouncementFormValues) => void;
+  onSubmit: (values: AnnouncementFormValues) => Promise<Record<string, string> | undefined>;
 };
 
 const CONTENT_LIMIT = 2000;
@@ -29,6 +30,7 @@ function publishModeOf(announcement: Announcement): AnnouncementFormValues["publ
 
 export function AnnouncementFormDrawer({ open, announcement, onClose, onSubmit }: AnnouncementFormDrawerProps) {
   const [form] = Form.useForm<FormShape>();
+  const [isPending, startTransition] = useTransition();
   const publishMode = Form.useWatch("publishMode", form);
   const isEdit = announcement !== null;
 
@@ -58,7 +60,7 @@ export function AnnouncementFormDrawer({ open, announcement, onClose, onSubmit }
       footer={
         <div className="flex justify-end gap-2">
           <Button onClick={onClose}>Hủy</Button>
-          <Button type="primary" onClick={() => form.submit()}>
+          <Button type="primary" loading={isPending} onClick={() => form.submit()}>
             {submitLabel}
           </Button>
         </div>
@@ -69,10 +71,13 @@ export function AnnouncementFormDrawer({ open, announcement, onClose, onSubmit }
         layout="vertical"
         initialValues={{ publishMode: "now", isPinned: false }}
         onFinish={(values) =>
-          onSubmit({
-            ...values,
-            deadline: values.deadline?.toISOString(),
-            publishedAt: values.publishMode === "schedule" ? values.publishedAt?.toISOString() : undefined,
+          startTransition(async () => {
+            const fieldErrors = await onSubmit({
+              ...values,
+              deadline: values.deadline?.toISOString(),
+              publishedAt: values.publishMode === "schedule" ? values.publishedAt?.toISOString() : undefined,
+            });
+            if (fieldErrors) form.setFields(toFormFields(fieldErrors));
           })
         }
       >

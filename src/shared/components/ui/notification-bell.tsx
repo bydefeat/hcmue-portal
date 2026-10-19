@@ -17,25 +17,35 @@ export type BellItem = {
   kindLabel: string;
 };
 
+// Lưu trạng thái đã đọc (server action do layout của cổng truyền vào). Không truyền thì chỉ đánh dấu tại chỗ.
+export type MarkNotificationsRead = (input: { ids: string[] }) => Promise<unknown>;
+
 type NotificationBellProps = {
   items: BellItem[];
   viewAllHref: string;
+  onMarkRead?: MarkNotificationsRead;
 };
 
 const VISIBLE = 6;
 
-export function NotificationBell({ items, viewAllHref }: NotificationBellProps) {
+export function NotificationBell({ items, viewAllHref, onMarkRead }: NotificationBellProps) {
   const [open, setOpen] = useState(false);
   const [readIds, setReadIds] = useState<string[]>([]);
   const isRead = (item: BellItem) => item.isRead || readIds.includes(item.id);
   const unread = items.filter((item) => !isRead(item)).length;
+  const markRead = (ids: string[]) => {
+    const unreadIds = items.filter((item) => ids.includes(item.id) && !isRead(item)).map((item) => item.id);
+    if (unreadIds.length === 0) return;
+    setReadIds((current) => [...current, ...unreadIds]);
+    onMarkRead?.({ ids: unreadIds }).catch(() => undefined);
+  };
 
   const content = (
     <div className="flex w-[min(360px,calc(100vw-64px))] flex-col">
       <div className="flex items-center justify-between gap-3 border-b border-border-strong px-1 pb-2">
         <span className="font-semibold">Thông báo</span>
         {unread > 0 && (
-          <Button type="link" size="small" className="px-0" onClick={() => setReadIds(items.map((item) => item.id))}>
+          <Button type="link" size="small" className="px-0" onClick={() => markRead(items.map((item) => item.id))}>
             Đánh dấu đã đọc hết
           </Button>
         )}
@@ -49,7 +59,7 @@ export function NotificationBell({ items, viewAllHref }: NotificationBellProps) 
               <Link
                 href={item.href}
                 onClick={() => {
-                  setReadIds((current) => [...current, item.id]);
+                  markRead([item.id]);
                   setOpen(false);
                 }}
                 className="flex gap-3 rounded-lg px-2 py-2 text-foreground transition-colors hover:bg-item-hover"

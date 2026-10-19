@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { Breadcrumb, Layout } from "antd";
 import { Logo } from "@/shared/components/ui/logo";
 import { MobileNavigation } from "@/shared/components/ui/mobile-navigation";
-import { NotificationBell, type BellItem } from "@/shared/components/ui/notification-bell";
+import { NotificationBell, type BellItem, type MarkNotificationsRead } from "@/shared/components/ui/notification-bell";
 import { UserMenu, type MenuUser, type RoleSwitcher } from "@/shared/components/ui/user-menu";
 import {
   ADMINISTRATOR_ACCOUNT_LINKS,
@@ -28,6 +28,7 @@ type AdministratorLayoutProps = {
   permissions: string[];
   searchEntries: SearchEntry[];
   notifications: BellItem[];
+  onMarkNotificationsRead?: MarkNotificationsRead;
   switcher?: RoleSwitcher;
   children: React.ReactNode;
 };
@@ -56,6 +57,7 @@ export function AdministratorLayout({
   permissions,
   searchEntries,
   notifications,
+  onMarkNotificationsRead,
   switcher,
   children,
 }: AdministratorLayoutProps) {
@@ -80,7 +82,7 @@ export function AdministratorLayout({
           </div>
           <span className="hidden shrink-0 text-sm text-muted 2xl:block">{termLabel}</span>
           <div className="ml-auto flex shrink-0 items-center gap-1 leading-normal md:ml-0">
-            <NotificationBell items={notifications} viewAllHref={ADMINISTRATOR_NOTIFICATIONS_HREF} />
+            <NotificationBell items={notifications} viewAllHref={ADMINISTRATOR_NOTIFICATIONS_HREF} onMarkRead={onMarkNotificationsRead} />
             <div className="lg:hidden">
               <UserMenu user={user} links={ADMINISTRATOR_ACCOUNT_LINKS} switcher={switcher} compact />
             </div>

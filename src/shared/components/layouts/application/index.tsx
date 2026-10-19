@@ -12,7 +12,7 @@ import {
   APPLICATION_PROFILE,
   isActiveItem,
 } from "@/shared/constants/navigation.constant";
-import { NotificationBell, type BellItem } from "@/shared/components/ui/notification-bell";
+import { NotificationBell, type BellItem, type MarkNotificationsRead } from "@/shared/components/ui/notification-bell";
 import { UserMenu, type MenuUser } from "@/shared/components/ui/user-menu";
 import { ApplicationSidebar } from "@/shared/components/layouts/application/sidebar";
 
@@ -20,6 +20,7 @@ type ApplicationLayoutProps = {
   user: MenuUser;
   termLabel: string;
   notifications: BellItem[];
+  onMarkNotificationsRead?: MarkNotificationsRead;
   children: React.ReactNode;
 };
 
@@ -44,7 +45,7 @@ function breadcrumbItems(pathname: string) {
   ];
 }
 
-export function ApplicationLayout({ user, termLabel, notifications, children }: ApplicationLayoutProps) {
+export function ApplicationLayout({ user, termLabel, notifications, onMarkNotificationsRead, children }: ApplicationLayoutProps) {
   const pathname = usePathname();
   const breadcrumb = breadcrumbItems(pathname);
 
@@ -57,7 +58,7 @@ export function ApplicationLayout({ user, termLabel, notifications, children }: 
           <Breadcrumb items={breadcrumb} className="hidden min-w-0 lg:block" />
           <span className="ml-auto hidden shrink-0 text-sm text-muted sm:block">{termLabel}</span>
           <div className="ml-auto flex shrink-0 items-center gap-1 leading-normal sm:ml-0">
-            <NotificationBell items={notifications} viewAllHref={APPLICATION_NOTIFICATIONS_HREF} />
+            <NotificationBell items={notifications} viewAllHref={APPLICATION_NOTIFICATIONS_HREF} onMarkRead={onMarkNotificationsRead} />
             <div className="lg:hidden">
               <UserMenu user={user} links={[APPLICATION_PROFILE]} compact />
             </div>

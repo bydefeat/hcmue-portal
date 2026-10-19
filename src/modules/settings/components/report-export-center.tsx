@@ -1,17 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import { Button, Card, Drawer, Form, message, Radio, Select, Table, type TableColumnsType } from "antd";
 import { AlertWarning, ChartColumn, ClipboardCheck, Download, FileExport, GraduationCap, PresentationScreenChartCols, Users, type IconProps } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { SectionCard } from "@/shared/components/ui/section-card";
 import { StatusTag } from "@/shared/components/ui/status-tag";
 import type { StatusMeta } from "@/shared/constants/status.constant";
-import { dayjs, formatDateTime } from "@/shared/libs/date.lib";
-
-export type ReportDefinition = { id: string; name: string; description: string; audience: string };
-
-type ExportJob = { id: string; reportId: string; reportName: string; params: string; format: string; createdAt: string; createdBy: string; status: "running" | "ready" | "failed"; rows: number | null };
+import { formatDateTime } from "@/shared/libs/date.lib";
+import { requestReportExport } from "@/modules/settings/settings.action";
+import type { ReportDefinition, ReportExportJob as ExportJob, ReportFormat } from "@/modules/settings/settings.type";
 
 const REPORT_ICON: Record<string, React.ComponentType<IconProps>> = {
   moet: Users,
@@ -22,7 +20,7 @@ const REPORT_ICON: Record<string, React.ComponentType<IconProps>> = {
   graduation: GraduationCap,
 };
 
-type ExportValues = { termId: string; faculty: string; format: "xlsx" | "pdf" | "csv" };
+type ExportValues = { termId: string; faculty: string; format: ReportFormat };
 
 const JOB_STATUS: Record<ExportJob["status"], StatusMeta> = {
   running: { label: "Đang tạo", tone: "neutral" },
@@ -35,33 +33,35 @@ type ReportExportCenterProps = {
   terms: { id: string; name: string }[];
   faculties: string[];
   defaultTermId: string;
-  userName: string;
+  jobs: ExportJob[];
 };
 
-export function ReportExportCenter({ reports, terms, faculties, defaultTermId, userName }: ReportExportCenterProps) {
+export function ReportExportCenter({ reports, terms, faculties, defaultTermId, jobs: initialJobs }: ReportExportCenterProps) {
   const [messageApi, contextHolder] = message.useMessage();
   const [form] = Form.useForm<ExportValues>();
   const [openId, setOpenId] = useState<string | null>(null);
-  const [jobs, setJobs] = useState<ExportJob[]>([
-    { id: "job-2", reportId: "warnings", reportName: "Danh sách cảnh báo học vụ", params: "HK2 2025-2026, toàn trường", format: "XLSX", createdAt: dayjs().subtract(1, "day").hour(16).toISOString(), createdBy: "Phạm Quốc Bảo", status: "ready", rows: 27 },
-    { id: "job-1", reportId: "moet", reportName: "Báo cáo thống kê sinh viên theo ngành", params: "HK1 2026-2027, toàn trường", format: "PDF", createdAt: dayjs().subtract(3, "day").hour(9).toISOString(), createdBy: "Trần Minh Khoa", status: "ready", rows: 600 },
-  ]);
+  const [jobs, setJobs] = useState(initialJobs);
+  const [isPending, startTransition] = useTransition();
   const opened = reports.find((report) => report.id === openId) ?? null;
 
-  const create = (values: ExportValues) => {
-    if (!opened) return;
-    const id = `job-${jobs.length + 1}`;
-    const termName = terms.find((term) => term.id === values.termId)?.name ?? "";
-    setJobs((current) => [
-      { id, reportId: opened.id, reportName: opened.name, params: `${termName}, ${values.faculty === "all" ? "toàn trường" : values.faculty}`, format: values.format.toUpperCase(), createdAt: dayjs().toISOString(), createdBy: userName, status: "running", rows: null },
-      ...current,
-    ]);
-    setOpenId(null);
-    messageApi.info(`Đang tạo ${opened.name}, tệp sẽ có trong mục Lịch sử xuất sau vài giây`);
-    setTimeout(() => {
-      setJobs((current) => current.map((job) => (job.id === id ? { ...job, status: "ready", rows: 40 + Math.round(Math.random() * 500) } : job)));
-    }, 2500);
-  };
+  const create = (values: ExportValues) =>
+    startTransition(async () => {
+      if (!opened) return;
+      const result = await requestReportExport({ reportKey: opened.id, ...values }).catch(() => null);
+      if (!result) {
+        messageApi.error("Chưa tạo được báo cáo, kiểm tra kết nối rồi thử lại.");
+        return;
+      }
+      if (!result.ok) {
+        form.setFields(Object.entries(result.fieldErrors ?? {}).map(([name, error]) => ({ name: name as keyof ExportValues, errors: [error] })));
+        messageApi.error(result.message);
+        return;
+      }
+      const job = result.data;
+      setJobs((current) => [job, ...current.filter((entry) => entry.id !== job.id)]);
+      setOpenId(null);
+      messageApi.success(`Đã tạo ${opened.name}, ${job.rows ?? 0} dòng. Tệp có trong mục Lịch sử xuất.`);
+    });
 
   const columns: TableColumnsType<ExportJob> = [
     {
@@ -161,7 +161,7 @@ export function ReportExportCenter({ reports, terms, faculties, defaultTermId, u
         footer={
           <div className="flex justify-end gap-2">
             <Button onClick={() => setOpenId(null)}>Hủy</Button>
-            <Button type="primary" onClick={() => form.submit()}>
+            <Button type="primary" loading={isPending} onClick={() => form.submit()}>
               Tạo tệp
             </Button>
           </div>

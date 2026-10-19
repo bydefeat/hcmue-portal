@@ -18,6 +18,8 @@ export type Payment = {
 export type TuitionInvoice = {
   id: string;
   termId: string;
+  // "hk1-2026": dùng trong nội dung chuyển khoản.
+  termKey: string;
   termName: string;
   issuedAt: string;
   dueDate: string;

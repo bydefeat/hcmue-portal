@@ -6,7 +6,7 @@ import { db } from "@/shared/libs/db.lib";
 import { actionError, actionFailure, actionOk, parseInput, type ActionResult } from "@/shared/libs/action.lib";
 import { formatDateTime } from "@/shared/libs/date.lib";
 import { isUuid } from "@/shared/libs/id.lib";
-import { requirePermission } from "@/modules/access/access.query";
+import { requireSchoolWidePermission } from "@/modules/access/access.query";
 import { ANNOUNCEMENT_CATEGORY_LABEL, ANNOUNCEMENT_STATUS, ANNOUNCEMENTS_CONSTRAINT_MESSAGE } from "@/modules/announcements/announcements.constant";
 import { getAnnouncements } from "@/modules/announcements/announcements.query";
 import { ANNOUNCEMENT_SCHEMA, slugify, statusOfPublishMode, uniqueSlug, type AnnouncementInput } from "@/modules/announcements/announcements.rule";
@@ -37,7 +37,7 @@ function liveStatus(row: { status: AnnouncementStatus; publishedAt: Date | null 
 const dateText = (value: Date | null) => (value ? formatDateTime(value) : null);
 
 export async function saveAnnouncement(id: string | null, input: AnnouncementInput): Promise<ActionResult<Announcement>> {
-  const viewer = await requirePermission("announcements.manage");
+  const viewer = await requireSchoolWidePermission("announcements.manage");
   if (id !== null && !isUuid(id)) return actionError(MISSING);
   const parsed = parseInput(ANNOUNCEMENT_SCHEMA, input);
   if (!parsed.ok) return parsed;
@@ -112,7 +112,7 @@ const idSchemaError = (id: string) => (isUuid(id) ? null : actionError(MISSING))
 
 // Gỡ khỏi trang công khai, bỏ ghim. Bản nháp chưa từng đăng thì xóa hẳn (deleteAnnouncementDraft).
 export async function archiveAnnouncement(id: string): Promise<ActionResult<Announcement>> {
-  const viewer = await requirePermission("announcements.manage");
+  const viewer = await requireSchoolWidePermission("announcements.manage");
   const invalid = idSchemaError(id);
   if (invalid) return invalid;
   let outcome: "missing" | "draft" | "done";
@@ -147,7 +147,7 @@ export async function archiveAnnouncement(id: string): Promise<ActionResult<Anno
 }
 
 export async function deleteAnnouncementDraft(id: string): Promise<ActionResult<string>> {
-  const viewer = await requirePermission("announcements.manage");
+  const viewer = await requireSchoolWidePermission("announcements.manage");
   const invalid = idSchemaError(id);
   if (invalid) return invalid;
   let deleted: { title: string } | undefined;

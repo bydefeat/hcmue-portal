@@ -56,7 +56,7 @@ import {
 } from "@/modules/course-registration/course-registration.schema";
 import { rooms } from "@/modules/facilities/facilities.schema";
 import { inScope } from "@/modules/access/access.constant";
-import { requirePermission } from "@/modules/access/access.query";
+import { requirePermission, requireSchoolWidePermission } from "@/modules/access/access.query";
 import { courseRelations, courses, faculties, majors } from "@/modules/curriculum/curriculum.schema";
 import { academicWarnings, courseResults } from "@/modules/grades/grades.schema";
 import { regulations } from "@/modules/settings/settings.schema";
@@ -637,7 +637,7 @@ export async function moveCancelledStudents(fromId: string, toId: string): Promi
 }
 
 export async function savePeriod(termId: string, id: string | null, input: PeriodInput): Promise<ActionResult<RegistrationPeriodView>> {
-  await requirePermission("registration.manage");
+  await requireSchoolWidePermission("registration.manage");
   if (!isUuid(termId) || (id !== null && !isUuid(id))) return actionError("Đợt đăng ký không còn tồn tại, tải lại trang.");
   const parsed = parseInput(PERIOD_SCHEMA, input);
   if (!parsed.ok) return parsed;
@@ -667,7 +667,7 @@ export async function savePeriod(termId: string, id: string | null, input: Perio
 
 // Đóng sớm đợt đang mở: dời giờ đóng về hiện tại. Đợt đã đóng thì không mở lại được ở đây.
 export async function closePeriod(id: string): Promise<ActionResult<RegistrationPeriodView>> {
-  await requirePermission("registration.manage");
+  await requireSchoolWidePermission("registration.manage");
   if (!isUuid(id)) return actionError("Đợt đăng ký không còn tồn tại, tải lại trang.");
   const now = new Date();
   const [row] = await db
@@ -686,6 +686,8 @@ export async function createHold(input: HoldInput): Promise<ActionResult<Registr
   const viewer = await requirePermission("registration.manage");
   const parsed = parseInput(HOLD_SCHEMA, input);
   if (!parsed.ok) return parsed;
+  const student = await getStudent(parsed.data.studentId);
+  if (!student || !inScope(viewer, student.faculty)) return actionError("Sinh viên không còn tồn tại hoặc thuộc khoa khác.", { studentId: "Chọn sinh viên thuộc khoa của bạn" });
   let holdId: string;
   try {
     const [row] = await db
@@ -706,6 +708,9 @@ export async function releaseHold(id: string, note: string): Promise<ActionResul
   if (!isUuid(id)) return actionError("Khóa đăng ký không còn tồn tại, tải lại trang.");
   const basis = note.trim();
   if (!basis) return actionError("Ghi căn cứ gỡ khóa, ví dụ số biên lai học phí hoặc tên giấy tờ đã nhận", { note: "Chưa ghi căn cứ" });
+  const [current] = await db.select({ studentId: registrationHolds.studentId }).from(registrationHolds).where(eq(registrationHolds.id, id));
+  const student = current ? await getStudent(current.studentId) : null;
+  if (!student || !inScope(viewer, student.faculty)) return actionError("Khóa đăng ký không còn tồn tại hoặc thuộc khoa khác.");
   const [row] = await db
     .update(registrationHolds)
     .set({ releasedAt: new Date(), releasedByUserId: viewer.id, releasedByLabel: `${viewer.name}: ${basis.slice(0, 300)}` })

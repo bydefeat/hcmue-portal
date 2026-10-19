@@ -28,9 +28,11 @@ import { SectionCard } from "@/shared/components/ui/section-card";
 type PageProps = { params: Promise<{ studentCode: string }> };
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+  // Tiêu đề trang cũng là dữ liệu: kiểm quyền và phạm vi khoa như trang, không lộ tên sinh viên khoa khác qua <title>.
+  const viewer = await requirePermission("students.view");
   const { studentCode } = await params;
   const student = await getStudentByCode(studentCode);
-  return { title: student ? student.fullName : "Không tìm thấy sinh viên" };
+  return { title: student && inScope(viewer, student.faculty) ? student.fullName : "Không tìm thấy sinh viên" };
 }
 
 export default async function Page({ params }: PageProps) {

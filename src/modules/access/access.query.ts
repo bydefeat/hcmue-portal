@@ -163,3 +163,11 @@ export async function requirePermission(permission: Permission) {
   if (!can(viewer, permission)) forbidden();
   return viewer;
 }
+
+// Thao tác trên dữ liệu chung toàn trường (đợt đăng ký, phòng học, quy chế, lịch năm học, thông báo chung, danh mục đào tạo):
+// vai trò theo khoa dù được cấp quyền cũng không làm được, để không tác động sang khoa khác.
+export async function requireSchoolWidePermission(permission: Permission) {
+  const viewer = await requirePermission(permission);
+  if (viewer.faculty) forbidden();
+  return viewer;
+}

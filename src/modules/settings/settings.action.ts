@@ -8,7 +8,7 @@ import { dayjs, formatDate } from "@/shared/libs/date.lib";
 import { toCsv } from "@/shared/libs/download.lib";
 import { buildSpreadsheet, bytesToBase64, XLSX_MIME } from "@/shared/libs/spreadsheet.lib";
 import { isUuid } from "@/shared/libs/id.lib";
-import { requirePermission } from "@/modules/access/access.query";
+import { requirePermission, requireSchoolWidePermission } from "@/modules/access/access.query";
 import { auditActorOf, recordAudit } from "@/modules/audit/audit.lib";
 import { auditChanges } from "@/modules/audit/audit.rule";
 import { terms } from "@/modules/course-registration/course-registration.schema";
@@ -32,7 +32,7 @@ import type { CalendarEvent, RegulationSettings, RegulationVersion, ReportExport
 
 // Mỗi lần lưu tạo một phiên bản quy chế mới có ngày áp dụng; bản cũ giữ nguyên để tra cứu điểm, cảnh báo đã xét theo bản cũ.
 export async function saveRegulation(input: RegulationSaveInput): Promise<ActionResult<{ regulation: RegulationSettings; versions: RegulationVersion[] }>> {
-  const viewer = await requirePermission("settings.manage");
+  const viewer = await requireSchoolWidePermission("settings.manage");
   const parsed = parseInput(REGULATION_SAVE_SCHEMA, input);
   if (!parsed.ok) return parsed;
   const { rules, decision, reason, effectiveFrom } = parsed.data;
@@ -78,7 +78,7 @@ function dateRange(event: { startDate: string; endDate: string }) {
 }
 
 export async function saveCalendarEvent(id: string | null, input: CalendarEventInput): Promise<ActionResult<CalendarEvent>> {
-  const viewer = await requirePermission("settings.manage");
+  const viewer = await requireSchoolWidePermission("settings.manage");
   if (id !== null && !isUuid(id)) return actionError("Mốc lịch không còn tồn tại, tải lại trang.");
   const parsed = parseInput(CALENDAR_EVENT_SCHEMA, input);
   if (!parsed.ok) return parsed;

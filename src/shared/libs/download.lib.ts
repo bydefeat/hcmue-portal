@@ -9,8 +9,10 @@ export function downloadFile(name: string, content: string | Uint8Array<ArrayBuf
   URL.revokeObjectURL(url);
 }
 
+// Ô chữ bắt đầu bằng = + - @ (hoặc tab, xuống dòng) bị Excel hiểu là công thức: thêm dấu ' để luôn là chữ.
+// Số giữ nguyên để Excel vẫn tính được.
 function csvCell(value: string | number) {
-  const text = String(value);
+  const text = typeof value === "string" && /^[=+\-@\t\r]/.test(value) ? `'${value}` : String(value);
   return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
 }
 

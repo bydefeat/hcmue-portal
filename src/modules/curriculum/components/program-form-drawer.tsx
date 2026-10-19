@@ -1,25 +1,28 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useTransition } from "react";
 import { Button, Drawer, Form, Input, InputNumber, Select } from "antd";
-import { MOCK_COHORTS, MOCK_MAJORS } from "@/shared/libs/mock.lib";
+import { MOCK_COHORTS } from "@/shared/libs/mock.lib";
+import { toFormFields } from "@/shared/libs/form.lib";
 import { DEGREE_OPTIONS, PROGRAM_STATUS_OPTIONS } from "@/modules/curriculum/curriculum.constant";
-import type { Program, ProgramFormValues } from "@/modules/curriculum/curriculum.type";
+import type { Major, Program, ProgramFormValues } from "@/modules/curriculum/curriculum.type";
 
 type ProgramFormDrawerProps = {
   open: boolean;
   program: Program | null;
+  majors: Major[];
   onClose: () => void;
-  onSubmit: (values: ProgramFormValues) => void;
+  // Trả lỗi theo ô khi server từ chối, để drawer gắn vào đúng ô.
+  onSubmit: (values: ProgramFormValues) => Promise<Record<string, string> | undefined>;
 };
 
-const MAJOR_OPTIONS = MOCK_MAJORS.map((major) => ({ value: major.code, label: `${major.name} (${major.faculty})` }));
 const COHORT_OPTIONS = [...MOCK_COHORTS, 52].map((cohort) => ({ value: cohort, label: `Khóa ${cohort}` }));
 
 const EMPTY_VALUES: Partial<ProgramFormValues> = { degree: "Cử nhân", totalCredits: 130, durationYears: 4, cohorts: [], status: "draft" };
 
-export function ProgramFormDrawer({ open, program, onClose, onSubmit }: ProgramFormDrawerProps) {
+export function ProgramFormDrawer({ open, program, majors, onClose, onSubmit }: ProgramFormDrawerProps) {
   const [form] = Form.useForm<ProgramFormValues>();
+  const [isPending, startTransition] = useTransition();
 
   useEffect(() => {
     if (!open) return;
@@ -38,13 +41,22 @@ export function ProgramFormDrawer({ open, program, onClose, onSubmit }: ProgramF
       footer={
         <div className="flex justify-end gap-2">
           <Button onClick={onClose}>Hủy</Button>
-          <Button type="primary" onClick={() => form.submit()}>
+          <Button type="primary" loading={isPending} onClick={() => form.submit()}>
             {program ? "Lưu thay đổi" : "Thêm chương trình"}
           </Button>
         </div>
       }
     >
-      <Form form={form} layout="vertical" onFinish={onSubmit}>
+      <Form
+        form={form}
+        layout="vertical"
+        onFinish={(values) =>
+          startTransition(async () => {
+            const fieldErrors = await onSubmit(values);
+            if (fieldErrors) form.setFields(toFormFields(fieldErrors));
+          })
+        }
+      >
         <Form.Item name="name" label="Tên chương trình" rules={[{ required: true, whitespace: true, message: "Chưa nhập tên chương trình" }]}>
           <Input />
         </Form.Item>
@@ -64,14 +76,14 @@ export function ProgramFormDrawer({ open, program, onClose, onSubmit }: ProgramF
           </Form.Item>
         </div>
         <Form.Item name="majorCode" label="Ngành đào tạo" rules={[{ required: true, message: "Chưa chọn ngành" }]}>
-          <Select options={MAJOR_OPTIONS} showSearch={{ optionFilterProp: "label" }} />
+          <Select options={majors.map((major) => ({ value: major.code, label: `${major.name} (${major.faculty})` }))} showSearch={{ optionFilterProp: "label" }} />
         </Form.Item>
         <div className="grid gap-x-3 sm:grid-cols-2">
           <Form.Item name="totalCredits" label="Tổng tín chỉ" rules={[{ required: true, message: "Chưa nhập tổng tín chỉ" }]}>
             <InputNumber min={60} max={200} className="w-full" />
           </Form.Item>
           <Form.Item name="durationYears" label="Thời gian đào tạo (năm)" rules={[{ required: true, message: "Chưa nhập thời gian" }]}>
-            <InputNumber min={2} max={6} step={0.5} className="w-full" />
+            <InputNumber min={1} max={8} precision={0} className="w-full" />
           </Form.Item>
         </div>
         <Form.Item name="cohorts" label="Khóa áp dụng" rules={[{ required: true, type: "array", min: 1, message: "Chọn ít nhất một khóa" }]}>

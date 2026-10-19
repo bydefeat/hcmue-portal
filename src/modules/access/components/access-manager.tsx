@@ -1,20 +1,20 @@
 "use client";
 
 import { Tabs } from "antd";
-import type { Role, RoleAssignment } from "@/modules/access/access.type";
+import type { GrantCandidate, Role, RoleAssignment, RoleRow } from "@/modules/access/access.type";
 import { RoleAssignmentTable } from "@/modules/access/components/role-assignment-table";
-import { RolePermissionMatrix, type RoleRow } from "@/modules/access/components/role-permission-matrix";
+import { RolePermissionMatrix } from "@/modules/access/components/role-permission-matrix";
 import { TABS_MORE } from "@/shared/constants/antd.constant";
 
 type AccessManagerProps = {
   roles: RoleRow[];
   assignments: RoleAssignment[];
   faculties: string[];
+  candidates: GrantCandidate[];
   currentUserId: string;
-  viewerName: string;
 };
 
-export function AccessManager({ roles, assignments, faculties, currentUserId, viewerName }: AccessManagerProps) {
+export function AccessManager({ roles, assignments, faculties, candidates, currentUserId }: AccessManagerProps) {
   const plainRoles: Role[] = roles;
   return (
     <Tabs
@@ -29,8 +29,8 @@ export function AccessManager({ roles, assignments, faculties, currentUserId, vi
               assignments={assignments}
               roles={plainRoles}
               faculties={faculties}
+              candidates={candidates}
               currentUserId={currentUserId}
-              viewerName={viewerName}
             />
           ),
         },

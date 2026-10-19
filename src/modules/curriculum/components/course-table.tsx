@@ -6,6 +6,7 @@ import { Magnifier, Pen, Plus } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { PageHeader } from "@/shared/components/ui/page-header";
 import { COURSE_TYPE_LABEL, COURSE_TYPE_OPTIONS, KNOWLEDGE_BLOCK_LABEL, KNOWLEDGE_BLOCK_OPTIONS } from "@/modules/curriculum/curriculum.constant";
+import { saveCourse } from "@/modules/curriculum/curriculum.action";
 import type { Course, CourseFormValues, CourseType, KnowledgeBlock } from "@/modules/curriculum/curriculum.type";
 import { CourseFormDrawer } from "@/modules/curriculum/components/course-form-drawer";
 import { paginationItemRender } from "@/shared/constants/antd.constant";
@@ -13,10 +14,12 @@ import { normalizeSearch } from "@/shared/libs/search.lib";
 
 export function CourseTable({
   courses,
+  faculties: allFaculties,
   initialQuery = "",
   header,
 }: {
   courses: Course[];
+  faculties: string[];
   initialQuery?: string;
   header: { title: string; description?: React.ReactNode };
 }) {
@@ -45,15 +48,21 @@ export function CourseTable({
     setIsOpen(true);
   };
 
-  const submit = (values: CourseFormValues) => {
-    if (editing) {
-      setRows((current) => current.map((row) => (row.id === editing.id ? { ...row, ...values } : row)));
-      messageApi.success(`Đã lưu học phần ${values.code}`);
-    } else {
-      setRows((current) => [{ ...values, id: values.code.toLowerCase(), description: values.description ?? "" }, ...current]);
-      messageApi.success(`Đã thêm học phần ${values.code} vào danh mục`);
+  const submit = async (values: CourseFormValues) => {
+    const result = await saveCourse(editing?.id ?? null, { ...values, description: values.description ?? "" }).catch(() => null);
+    if (!result) {
+      messageApi.error("Chưa lưu được, kiểm tra kết nối rồi thử lại.");
+      return undefined;
     }
+    if (!result.ok) {
+      messageApi.error(result.message);
+      return result.fieldErrors;
+    }
+    const saved = result.data;
+    setRows((current) => (editing ? current.map((row) => (row.id === saved.id ? saved : row)) : [saved, ...current]));
+    messageApi.success(editing ? `Đã lưu học phần ${saved.code}` : `Đã thêm học phần ${saved.code} vào danh mục`);
     setIsOpen(false);
+    return undefined;
   };
 
   const columns: TableColumnsType<Course> = [
@@ -217,7 +226,7 @@ export function CourseTable({
           open={isOpen}
           course={editing}
           courses={rows}
-          faculties={faculties}
+          faculties={allFaculties}
           onClose={() => setIsOpen(false)}
           onSubmit={submit}
         />

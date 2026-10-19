@@ -1,13 +1,13 @@
 import type { Metadata } from "next";
 import { ProgramTable } from "@/modules/curriculum/components/program-table";
-import { getPrograms } from "@/modules/curriculum/curriculum.query";
+import { getMajors, getPrograms } from "@/modules/curriculum/curriculum.query";
 import { requirePermission } from "@/modules/access/access.query";
 
 export const metadata: Metadata = { title: "Chương trình đào tạo" };
 
 export default async function Page() {
   await requirePermission("curriculum.manage");
-  const programs = await getPrograms();
+  const [programs, majors] = await Promise.all([getPrograms(), getMajors()]);
   return (
     <ProgramTable
       header={{
@@ -15,6 +15,7 @@ export default async function Page() {
         description: "Khung chương trình theo ngành và khóa áp dụng. Sinh viên đăng ký học phần dựa trên khung của khóa mình.",
       }}
       programs={programs}
+      majors={majors}
     />
   );
 }

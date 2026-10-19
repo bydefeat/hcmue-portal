@@ -8,9 +8,9 @@ import { EmptyState } from "@/shared/components/ui/empty-state";
 import { PageHeader } from "@/shared/components/ui/page-header";
 import { StatusTag } from "@/shared/components/ui/status-tag";
 import { formatDate } from "@/shared/libs/date.lib";
-import { MOCK_MAJORS } from "@/shared/libs/mock.lib";
 import { PROGRAM_STATUS, PROGRAM_STATUS_OPTIONS } from "@/modules/curriculum/curriculum.constant";
-import type { ProgramFormValues, ProgramStatus, ProgramSummary } from "@/modules/curriculum/curriculum.type";
+import { saveProgram } from "@/modules/curriculum/curriculum.action";
+import type { Major, ProgramFormValues, ProgramStatus, ProgramSummary } from "@/modules/curriculum/curriculum.type";
 import { ProgramFormDrawer } from "@/modules/curriculum/components/program-form-drawer";
 import { paginationItemRender } from "@/shared/constants/antd.constant";
 import { normalizeSearch } from "@/shared/libs/search.lib";
@@ -21,7 +21,7 @@ function cohortText(cohorts: number[]) {
   return sorted.length > 1 ? `K${sorted[0]} đến K${sorted.at(-1)}` : `K${sorted[0]}`;
 }
 
-export function ProgramTable({ programs, header }: { programs: ProgramSummary[]; header: { title: string; description?: React.ReactNode } }) {
+export function ProgramTable({ programs, majors, header }: { programs: ProgramSummary[]; majors: Major[]; header: { title: string; description?: React.ReactNode } }) {
   const [messageApi, contextHolder] = message.useMessage();
   const [rows, setRows] = useState(programs);
   const [query, setQuery] = useState("");
@@ -44,18 +44,21 @@ export function ProgramTable({ programs, header }: { programs: ProgramSummary[];
     setIsOpen(true);
   };
 
-  const submit = (values: ProgramFormValues) => {
-    const major = MOCK_MAJORS.find((entry) => entry.code === values.majorCode);
-    const updatedAt = new Date().toISOString();
-    if (editing) {
-      setRows((current) => current.map((row) => (row.id === editing.id ? { ...row, ...values, faculty: major?.faculty ?? row.faculty, updatedAt } : row)));
-      messageApi.success(`Đã lưu chương trình ${values.name}`);
-    } else {
-      const created: ProgramSummary = { ...values, id: `ctdt-moi-${Date.now()}`, faculty: major?.faculty ?? "", updatedAt, courseCount: 0 };
-      setRows((current) => [created, ...current]);
-      messageApi.success(`Đã thêm chương trình ${values.name}. Mở chương trình để xây dựng khung học phần.`);
+  const submit = async (values: ProgramFormValues) => {
+    const result = await saveProgram(editing?.id ?? null, values).catch(() => null);
+    if (!result) {
+      messageApi.error("Chưa lưu được, kiểm tra kết nối rồi thử lại.");
+      return undefined;
     }
+    if (!result.ok) {
+      messageApi.error(result.message);
+      return result.fieldErrors;
+    }
+    const saved = result.data;
+    setRows((current) => (editing ? current.map((row) => (row.id === saved.id ? saved : row)) : [saved, ...current]));
+    messageApi.success(editing ? `Đã lưu chương trình ${saved.name}` : `Đã thêm chương trình ${saved.name}. Mở chương trình để xây dựng khung học phần.`);
     setIsOpen(false);
+    return undefined;
   };
 
   const columns: TableColumnsType<ProgramSummary> = [
@@ -174,7 +177,7 @@ export function ProgramTable({ programs, header }: { programs: ProgramSummary[];
             ),
           }}
         />
-        <ProgramFormDrawer open={isOpen} program={editing} onClose={() => setIsOpen(false)} onSubmit={submit} />
+        <ProgramFormDrawer open={isOpen} program={editing} majors={majors} onClose={() => setIsOpen(false)} onSubmit={submit} />
       </div>
     </>
   );

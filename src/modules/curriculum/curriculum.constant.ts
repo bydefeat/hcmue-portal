@@ -26,3 +26,12 @@ export const COURSE_TYPE_OPTIONS = Object.entries(COURSE_TYPE_LABEL).map(([value
 export const KNOWLEDGE_BLOCK_OPTIONS = Object.entries(KNOWLEDGE_BLOCK_LABEL).map(([value, label]) => ({ value, label }));
 
 export const PROGRAM_STATUS_OPTIONS = Object.entries(PROGRAM_STATUS).map(([value, meta]) => ({ value, label: meta.label }));
+
+export const CURRICULUM_CONSTRAINT_MESSAGE: Partial<Record<string, string>> = {
+  courses_code_unique: "Mã học phần đã có trong danh mục.",
+  courses_credits_positive: "Số tín chỉ phải lớn hơn 0.",
+  courses_credit_split: "Lý thuyết cộng thực hành phải bằng số tín chỉ.",
+  course_relations_not_self: "Học phần không thể liên quan tới chính nó.",
+  programs_total_credits_positive: "Tổng tín chỉ phải lớn hơn 0.",
+  programs_duration_range: "Thời gian đào tạo từ 1 đến 8 năm.",
+};

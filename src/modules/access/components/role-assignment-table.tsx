@@ -1,11 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { Button, Drawer, Form, Input, message, Modal, Select, Table, type TableColumnsType } from "antd";
 import { Magnifier, Plus } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
-import { dayjs, formatDate } from "@/shared/libs/date.lib";
-import type { Role, RoleAssignment } from "@/modules/access/access.type";
+import { formatDate } from "@/shared/libs/date.lib";
+import { toFormFields } from "@/shared/libs/form.lib";
+import { grantRole, revokeRole } from "@/modules/access/access.action";
+import type { GrantCandidate, Role, RoleAssignment } from "@/modules/access/access.type";
 import { paginationItemRender } from "@/shared/constants/antd.constant";
 import { normalizeSearch } from "@/shared/libs/search.lib";
 
@@ -13,13 +15,13 @@ type RoleAssignmentTableProps = {
   assignments: RoleAssignment[];
   roles: Role[];
   faculties: string[];
+  candidates: GrantCandidate[];
   currentUserId: string;
-  viewerName: string;
 };
 
-type GrantValues = { userName: string; userCode: string; unit: string; roleId: string; faculty?: string };
+type GrantValues = { userId: string; roleId: string; faculty?: string };
 
-export function RoleAssignmentTable({ assignments, roles, faculties, currentUserId, viewerName }: RoleAssignmentTableProps) {
+export function RoleAssignmentTable({ assignments, roles, faculties, candidates, currentUserId }: RoleAssignmentTableProps) {
   const [messageApi, contextHolder] = message.useMessage();
   const [modal, modalContextHolder] = Modal.useModal();
   const [rows, setRows] = useState(assignments);
@@ -27,6 +29,7 @@ export function RoleAssignmentTable({ assignments, roles, faculties, currentUser
   const [roleId, setRoleId] = useState<string>();
   const [open, setOpen] = useState(false);
   const [form] = Form.useForm<GrantValues>();
+  const [isGranting, startGranting] = useTransition();
   const selectedRoleId = Form.useWatch("roleId", form);
   const needsFaculty = roles.find((role) => role.id === selectedRoleId)?.scope === "faculty";
 
@@ -45,36 +48,39 @@ export function RoleAssignmentTable({ assignments, roles, faculties, currentUser
   const revoke = (row: RoleAssignment) =>
     modal.confirm({
       title: `Thu hồi quyền của ${row.userName}?`,
-      content: `${row.userName} mất vai trò ${roleName(row.roleId)} ngay lập tức và bị đăng xuất khỏi cổng quản trị. Thao tác được ghi vào nhật ký.`,
+      content: `${row.userName} mất vai trò ${roleName(row.roleId)} ngay lập tức. Hết vai trò quản trị thì không vào được cổng quản trị nữa.`,
       okText: "Thu hồi",
       okButtonProps: { danger: true },
       cancelText: "Hủy",
       mask: { closable: false },
-      onOk: () => {
+      onOk: async () => {
+        const result = await revokeRole(row.id).catch(() => null);
+        if (!result?.ok) {
+          messageApi.error(result?.message ?? "Chưa thu hồi được, kiểm tra kết nối rồi thử lại.");
+          return;
+        }
         setRows((current) => current.filter((entry) => entry.id !== row.id));
         messageApi.success(`Đã thu hồi vai trò ${roleName(row.roleId)} của ${row.userName}`);
       },
     });
 
-  const grant = (values: GrantValues) => {
-    const role = roles.find((entry) => entry.id === values.roleId)!;
-    setRows((current) => [
-      {
-        id: `pq-moi-${current.length + 1}`,
-        userId: `cb-moi-${current.length + 1}`,
-        userName: values.userName.trim(),
-        userCode: values.userCode.trim().toUpperCase(),
-        unit: values.unit.trim(),
-        roleId: values.roleId,
-        faculty: role.scope === "faculty" ? (values.faculty ?? null) : null,
-        grantedAt: dayjs().toISOString(),
-        grantedBy: viewerName,
-      },
-      ...current,
-    ]);
-    messageApi.success(`Đã cấp vai trò ${role.name} cho ${values.userName}`);
-    setOpen(false);
-  };
+  const grant = (values: GrantValues) =>
+    startGranting(async () => {
+      const result = await grantRole(values).catch(() => null);
+      if (!result) {
+        messageApi.error("Chưa cấp quyền được, kiểm tra kết nối rồi thử lại.");
+        return;
+      }
+      if (!result.ok) {
+        form.setFields(toFormFields(result.fieldErrors));
+        messageApi.error(result.message);
+        return;
+      }
+      const assignment = result.data;
+      setRows((current) => [assignment, ...current]);
+      messageApi.success(`Đã cấp vai trò ${roleName(assignment.roleId)} cho ${assignment.userName}`);
+      setOpen(false);
+    });
 
   const columns: TableColumnsType<RoleAssignment> = [
     {
@@ -165,24 +171,25 @@ export function RoleAssignmentTable({ assignments, roles, faculties, currentUser
         footer={
           <div className="flex justify-end gap-2">
             <Button onClick={() => setOpen(false)}>Hủy</Button>
-            <Button type="primary" onClick={() => form.submit()}>
+            <Button type="primary" loading={isGranting} onClick={() => form.submit()}>
               Cấp quyền
             </Button>
           </div>
         }
       >
         <Form form={form} layout="vertical" onFinish={grant}>
-          <Form.Item name="userName" label="Họ và tên" rules={[{ required: true, whitespace: true, message: "Chưa nhập họ và tên" }]}>
-            <Input autoComplete="off" />
+          <Form.Item
+            name="userId"
+            label="Cán bộ"
+            extra="Chỉ cán bộ, giảng viên đã có tài khoản đăng nhập."
+            rules={[{ required: true, message: "Chưa chọn cán bộ" }]}
+          >
+            <Select
+              showSearch={{ optionFilterProp: "label" }}
+              placeholder="Tìm theo tên hoặc mã"
+              options={candidates.map((candidate) => ({ value: candidate.userId, label: `${candidate.name} · ${candidate.code}${candidate.unit ? ` · ${candidate.unit}` : ""}` }))}
+            />
           </Form.Item>
-          <div className="grid gap-x-3 sm:grid-cols-2">
-            <Form.Item name="userCode" label="Mã cán bộ" rules={[{ required: true, whitespace: true, message: "Chưa nhập mã cán bộ" }]}>
-              <Input autoComplete="off" />
-            </Form.Item>
-            <Form.Item name="unit" label="Đơn vị công tác" rules={[{ required: true, whitespace: true, message: "Chưa nhập đơn vị" }]}>
-              <Input autoComplete="off" />
-            </Form.Item>
-          </div>
           <Form.Item name="roleId" label="Vai trò" rules={[{ required: true, message: "Chưa chọn vai trò" }]}>
             <Select options={roles.map((role) => ({ value: role.id, label: role.name }))} />
           </Form.Item>

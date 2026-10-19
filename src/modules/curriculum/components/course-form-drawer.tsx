@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useTransition } from "react";
 import { Button, Drawer, Form, Input, InputNumber, Select, Switch } from "antd";
 import { COURSE_TYPE_OPTIONS, KNOWLEDGE_BLOCK_OPTIONS } from "@/modules/curriculum/curriculum.constant";
 import type { Course, CourseFormValues } from "@/modules/curriculum/curriculum.type";
+import { toFormFields } from "@/shared/libs/form.lib";
 
 type CourseFormDrawerProps = {
   open: boolean;
@@ -11,7 +12,8 @@ type CourseFormDrawerProps = {
   courses: Course[];
   faculties: string[];
   onClose: () => void;
-  onSubmit: (values: CourseFormValues) => void;
+  // Trả lỗi theo ô khi server từ chối, để drawer gắn vào đúng ô.
+  onSubmit: (values: CourseFormValues) => Promise<Record<string, string> | undefined>;
 };
 
 const EMPTY_VALUES: Partial<CourseFormValues> = {
@@ -28,6 +30,7 @@ const EMPTY_VALUES: Partial<CourseFormValues> = {
 
 export function CourseFormDrawer({ open, course, courses, faculties, onClose, onSubmit }: CourseFormDrawerProps) {
   const [form] = Form.useForm<CourseFormValues>();
+  const [isPending, startTransition] = useTransition();
 
   useEffect(() => {
     if (!open) return;
@@ -50,13 +53,22 @@ export function CourseFormDrawer({ open, course, courses, faculties, onClose, on
       footer={
         <div className="flex justify-end gap-2">
           <Button onClick={onClose}>Hủy</Button>
-          <Button type="primary" onClick={() => form.submit()}>
+          <Button type="primary" loading={isPending} onClick={() => form.submit()}>
             {course ? "Lưu thay đổi" : "Thêm học phần"}
           </Button>
         </div>
       }
     >
-      <Form form={form} layout="vertical" onFinish={onSubmit}>
+      <Form
+        form={form}
+        layout="vertical"
+        onFinish={(values) =>
+          startTransition(async () => {
+            const fieldErrors = await onSubmit(values);
+            if (fieldErrors) form.setFields(toFormFields(fieldErrors));
+          })
+        }
+      >
         <div className="grid gap-x-3 sm:grid-cols-[160px_1fr]">
           <Form.Item
             name="code"

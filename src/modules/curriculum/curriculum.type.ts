@@ -21,6 +21,12 @@ export type Course = {
 
 export type ProgramStatus = "active" | "draft" | "archived";
 
+export type Major = {
+  code: string;
+  name: string;
+  faculty: string;
+};
+
 export type Program = {
   id: string;
   code: string;

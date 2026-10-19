@@ -181,7 +181,12 @@ PostgreSQL 18.4, khoá chính `uuid` mặc định `uuidv7()`. Ràng buộc đ�
 - Làm thử trọn vẹn trên `facilities` (phòng học) để chốt khuôn mẫu trước khi nhân ra module khác.
 - Đã làm: `action.lib.ts` (`ActionResult`, `parseInput`, `actionFailure`), `requireSession()`, phân quyền admin đọc từ `role_assignments` (thêm `roles.key`, bỏ nút "Xem thử" vai trò người khác), module `facilities` đọc/ghi DB thật (12 phòng, 3 cơ sở trong seed), `tests/facilities.test.ts`. Quy ước ghi ở ARCHITECTURE.md mục 10. Đổi định danh URL sang uuid làm dần theo từng module khi nối dữ liệu (phòng học không có trang chi tiết). Trang quản lý phân quyền (`/administrator/settings/access`) vẫn đọc danh sách vai trò mẫu, nối ở Giai đoạn 5.
 
-### Giai đoạn 5 — Danh mục (admin)
+### Giai đoạn 5 — Danh mục (admin) — phần đào tạo và phân quyền ✅
+- Đã làm: khoa, ngành, học phần (kèm tiên quyết, song hành, tương đương), chương trình đào tạo (kèm khóa áp dụng) đọc/ghi DB thật; seed nạp đủ 45 học phần, 8 chương trình, 6 ngành. Trang Phân quyền: sửa quyền của vai trò, cấp vai trò cho tài khoản cán bộ/giảng viên có thật (chọn từ danh sách), thu hồi; `user.role` tự thêm/bỏ `admin` theo vai trò được cấp. Link chương trình dùng uuid, link cũ trả 404. Tài khoản admin seed có 2 vai trò để thử đổi vai trò. `tests/curriculum.test.ts`.
+- Chuyển sang Giai đoạn 6: học kỳ, đợt đăng ký, lớp học phần, người dùng, phân công cố vấn và giảng dạy. Các bảng này đang được dữ liệu mẫu của module khác tham chiếu theo id (`hk1-2026`, `sv-29`, `hk1-2026-comp1020-01`), nối riêng sẽ làm vỡ các trang còn dùng mock, nên nối cùng lúc với module đăng ký học phần.
+- Còn lại của phần đào tạo: sửa khung chương trình (thêm, bớt học phần theo học kỳ) trên trang chi tiết chương trình chưa có giao diện sửa.
+
+#### Kế hoạch ban đầu của giai đoạn 5
 - Khoa, ngành, học phần + tiên quyết, chương trình đào tạo, học kỳ, đợt đăng ký, lớp học phần (buổi học, nhóm thực hành, giữ chỗ), người dùng, phân công cố vấn và giảng dạy.
 - Tạo và sửa dùng **cùng một form** (evon `D3`).
 - Kiểm: tạo đủ dữ liệu cho một kỳ hoàn toàn qua giao diện admin.

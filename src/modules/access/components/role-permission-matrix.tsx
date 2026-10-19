@@ -1,20 +1,20 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import { Alert, Button, Card, Checkbox, message } from "antd";
 import { Lock } from "defeat-icons-react";
 import { StatusTag } from "@/shared/components/ui/status-tag";
 import { PERMISSION_GROUPS, SCOPE_LABEL } from "@/modules/access/access.constant";
-import type { Permission, Role } from "@/modules/access/access.type";
+import { saveRolePermissions } from "@/modules/access/access.action";
+import type { Permission, RoleRow } from "@/modules/access/access.type";
 import { SectionCard } from "@/shared/components/ui/section-card";
-
-export type RoleRow = Role & { memberCount: number };
 
 export function RolePermissionMatrix({ roles }: { roles: RoleRow[] }) {
   const [messageApi, contextHolder] = message.useMessage();
   const [rows, setRows] = useState(roles);
   const [selectedId, setSelectedId] = useState(roles[0]?.id);
   const [draft, setDraft] = useState<Permission[]>(roles[0]?.permissions ?? []);
+  const [isSaving, startSaving] = useTransition();
   const selected = rows.find((role) => role.id === selectedId);
   const isDirty = selected ? JSON.stringify([...draft].toSorted()) !== JSON.stringify([...selected.permissions].toSorted()) : false;
 
@@ -28,8 +28,17 @@ export function RolePermissionMatrix({ roles }: { roles: RoleRow[] }) {
 
   const save = () => {
     if (!selected) return;
-    setRows((current) => current.map((role) => (role.id === selected.id ? { ...role, permissions: draft } : role)));
-    messageApi.success(`Đã lưu quyền cho vai trò ${selected.name}, áp dụng từ lần đăng nhập kế tiếp của ${selected.memberCount} người`);
+    startSaving(async () => {
+      const result = await saveRolePermissions(selected.id, draft).catch(() => null);
+      if (!result?.ok) {
+        messageApi.error(result?.message ?? "Chưa lưu được, kiểm tra kết nối rồi thử lại.");
+        return;
+      }
+      const permissions = result.data;
+      setRows((current) => current.map((role) => (role.id === selected.id ? { ...role, permissions } : role)));
+      setDraft(permissions);
+      messageApi.success(`Đã lưu quyền cho vai trò ${selected.name}, áp dụng ngay cho ${selected.memberCount} người`);
+    });
   };
 
   return (
@@ -92,7 +101,7 @@ export function RolePermissionMatrix({ roles }: { roles: RoleRow[] }) {
                 <Button disabled={!isDirty} onClick={() => setDraft(selected.permissions)}>
                   Hoàn tác
                 </Button>
-                <Button type="primary" disabled={!isDirty || draft.length === 0} onClick={save}>
+                <Button type="primary" loading={isSaving} disabled={!isDirty || draft.length === 0} onClick={save}>
                   Lưu quyền
                 </Button>
               </div>

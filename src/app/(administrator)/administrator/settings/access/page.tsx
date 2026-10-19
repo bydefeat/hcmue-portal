@@ -1,15 +1,14 @@
 import type { Metadata } from "next";
 import { PageHeader } from "@/shared/components/ui/page-header";
-import { MOCK_MAJORS } from "@/shared/libs/mock.lib";
 import { AccessManager } from "@/modules/access/components/access-manager";
-import { getRoleAssignments, getRoles, requirePermission } from "@/modules/access/access.query";
+import { getGrantCandidates, getRoleAssignments, getRoles, requirePermission } from "@/modules/access/access.query";
+import { getFacultyNames } from "@/modules/curriculum/curriculum.query";
 
 export const metadata: Metadata = { title: "Phân quyền" };
 
 export default async function Page() {
   const viewer = await requirePermission("access.manage");
-  const [roles, assignments] = await Promise.all([getRoles(), getRoleAssignments()]);
-  const faculties = [...new Set(MOCK_MAJORS.map((major) => major.faculty))];
+  const [roles, assignments, faculties, candidates] = await Promise.all([getRoles(), getRoleAssignments(), getFacultyNames(), getGrantCandidates()]);
 
   return (
     <>
@@ -21,8 +20,8 @@ export default async function Page() {
         roles={roles}
         assignments={assignments}
         faculties={faculties}
+        candidates={candidates}
         currentUserId={viewer.id}
-        viewerName={viewer.name}
       />
     </>
   );

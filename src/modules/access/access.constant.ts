@@ -72,3 +72,8 @@ export function inScope(viewer: Pick<Viewer, "faculty">, faculty: string) {
 }
 
 export const SCOPE_LABEL = { university: "Toàn trường", faculty: "Theo khoa" } as const;
+
+export const ACCESS_CONSTRAINT_MESSAGE: Partial<Record<string, string>> = {
+  role_assignments_user_id_role_id_faculty_id_unique: "Cán bộ này đã có vai trò này.",
+  roles_name_unique: "Đã có vai trò cùng tên.",
+};

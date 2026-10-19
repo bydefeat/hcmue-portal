@@ -25,7 +25,8 @@ Tham khảo tài liệu route groups trong `node_modules/next/dist/docs/01-app/0
 src/
 ├── proxy.ts                         # entry Next bắt buộc: ghép các proxy trong src/proxies/
 ├── proxies/                         # từng proxy nhỏ theo mục đích
-│   └── authentication.proxy.ts      # chưa có cookie session → /authentication/sign-in
+│   ├── authentication.proxy.ts      # chưa có cookie session → /authentication/sign-in
+│   └── route-param.proxy.ts         # tham số đường dẫn phải là uuid mà sai định dạng → 404 thật
 │
 ├── app/                             # CHỈ routing: page/layout mỏng, gọi xuống shared + modules
 │   ├── layout.tsx                   # root layout DUY NHẤT: <html>, AntdRegistry, ConfigProvider (theme)
@@ -127,7 +128,9 @@ src/
     │   ├── db-column.lib.ts         # cột dùng chung: primaryId() mặc định uuidv7(), timestamps()
     │   ├── auth-client.lib.ts       # createAuthClient() (client), plugin username + emailOTP
     │   ├── student-code.lib.ts      # MSSV: chuẩn hoá về 10 chữ số, hiển thị "50.01.104.013", email @student.hcmue.edu.vn
-    │   └── search.lib.ts            # normalizeSearch(): lọc tại chỗ không dấu, bỏ dấu chấm
+    │   ├── search.lib.ts            # normalizeSearch(): lọc tại chỗ không dấu, bỏ dấu chấm
+    │   ├── action.lib.ts            # ActionResult, parseInput, actionFailure cho server action
+    │   └── form.lib.ts              # toFormFields(): lỗi theo ô từ action → form.setFields của antd
     └── stores/                      # zustand store CHỈ cho state UI
         └── sidebar.store.ts         # export useSidebarStore
 ```
@@ -343,6 +346,8 @@ npm run db:studio                 # xem dữ liệu
 | Query (`*.query.ts`) | `import "server-only"`, dòng đầu gọi `requireSession()` (hoặc `requirePermission()` nếu dữ liệu chỉ cán bộ được xem), chọn đúng cột cần qua một object cột (`ROOM_COLUMNS`) để kiểu trả về khớp kiểu frontend, không trả cả dòng DB |
 | Action (`*.action.ts`) | `"use server"`, thứ tự: kiểm quyền (`requirePermission`) → `parseInput(schema, input)` → `try { lệnh DB } catch { return actionFailure(error, MODULE_CONSTRAINT_MESSAGE) }` → `revalidatePath`. Trả `ActionResult<T>` (`shared/libs/action.lib.ts`), không throw lỗi nghiệp vụ ra client. Chỉ bọc lệnh DB trong `try`, kiểm quyền đặt trước để `forbidden()`/`redirect()` của Next đi tiếp |
 | Lỗi ràng buộc | Mỗi module có `*_CONSTRAINT_MESSAGE` (tên ràng buộc → câu tiếng Việt) trong `*.constant.ts`. Form chặn trước, DB chặn lần cuối, cả hai cùng một câu |
+| Drawer form | Prop `onSubmit` trả `Promise<fieldErrors | undefined>`: bảng cha gọi action, drawer tự bật loading và gắn lỗi vào ô bằng `toFormFields` (`course-form-drawer.tsx`, `program-form-drawer.tsx`) |
+| Định danh trên URL | Trang chi tiết nhận uuid; thêm route vào `UUID_ROUTES` trong `route-param.proxy.ts` để sai định dạng trả 404 thật, query vẫn kiểm `isUuid()` trước khi gửi xuống Postgres |
 | Component | Gọi action trong `useTransition`; `result.ok` thì cập nhật state từ `result.data` (dữ liệu DB trả về, không phải giá trị form), không thì `form.setFields` theo `fieldErrors` và hiện `result.message` |
 | Test | Schema zod và câu báo lỗi ràng buộc test bằng `node:test` trên DB thật (`tests/facilities.test.ts`); action cần phiên đăng nhập nên kiểm tay trên trình duyệt |
 

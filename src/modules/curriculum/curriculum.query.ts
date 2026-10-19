@@ -1,44 +1,155 @@
-import { mockDelay } from "@/shared/libs/mock-request.lib";
+import "server-only";
+import { asc, count, eq } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
+import { db } from "@/shared/libs/db.lib";
+import { isUuid } from "@/shared/libs/id.lib";
+import { requireSession } from "@/modules/authentication/authentication.query";
 import { KNOWLEDGE_BLOCK_LABEL } from "@/modules/curriculum/curriculum.constant";
-import { COURSES, PROGRAM_COURSES, PROGRAMS } from "@/modules/curriculum/curriculum.mock";
-import type { KnowledgeBlock, ProgramDetail, ProgramSummary } from "@/modules/curriculum/curriculum.type";
+import { courseRelations, courses, faculties, majors, programCohorts, programCourses, programs } from "@/modules/curriculum/curriculum.schema";
+import type { Course, KnowledgeBlock, Major, Program, ProgramDetail, ProgramSummary } from "@/modules/curriculum/curriculum.type";
 
-export async function getCourses() {
-  await mockDelay();
-  return COURSES;
-}
+const relatedCourses = alias(courses, "related_courses");
 
-export async function getPrograms(): Promise<ProgramSummary[]> {
-  await mockDelay();
-  return PROGRAMS.map((program) => ({
-    ...program,
-    courseCount: PROGRAM_COURSES[program.id]?.length ?? 0,
+async function courseRows(id?: string): Promise<Course[]> {
+  const [rows, relations] = await Promise.all([
+    db
+      .select({
+        id: courses.id,
+        code: courses.code,
+        name: courses.name,
+        credits: courses.credits,
+        theoryCredits: courses.theoryCredits,
+        practiceCredits: courses.practiceCredits,
+        faculty: faculties.name,
+        type: courses.type,
+        block: courses.block,
+        isActive: courses.isActive,
+        description: courses.description,
+      })
+      .from(courses)
+      .innerJoin(faculties, eq(faculties.id, courses.facultyId))
+      .where(id ? eq(courses.id, id) : undefined)
+      .orderBy(asc(courses.code)),
+    db
+      .select({ courseId: courseRelations.courseId, kind: courseRelations.kind, code: relatedCourses.code })
+      .from(courseRelations)
+      .innerJoin(relatedCourses, eq(relatedCourses.id, courseRelations.relatedCourseId))
+      .where(id ? eq(courseRelations.courseId, id) : undefined)
+      .orderBy(asc(relatedCourses.code)),
+  ]);
+  const codesOf = (courseId: string, kind: (typeof relations)[number]["kind"]) =>
+    relations.filter((relation) => relation.courseId === courseId && relation.kind === kind).map((relation) => relation.code);
+  return rows.map((row) => ({
+    ...row,
+    prerequisiteCodes: codesOf(row.id, "prerequisite"),
+    corequisiteCodes: codesOf(row.id, "corequisite"),
+    equivalentCodes: codesOf(row.id, "equivalent"),
   }));
 }
 
+export async function getCourses(): Promise<Course[]> {
+  await requireSession();
+  return courseRows();
+}
+
+export async function getCourseById(id: string): Promise<Course | null> {
+  await requireSession();
+  if (!isUuid(id)) return null;
+  const [course] = await courseRows(id);
+  return course ?? null;
+}
+
+export async function getFacultyNames(): Promise<string[]> {
+  await requireSession();
+  const rows = await db.select({ name: faculties.name }).from(faculties).orderBy(asc(faculties.name));
+  return rows.map((row) => row.name);
+}
+
+export async function getMajors(): Promise<Major[]> {
+  await requireSession();
+  return db
+    .select({ code: majors.code, name: majors.name, faculty: faculties.name })
+    .from(majors)
+    .innerJoin(faculties, eq(faculties.id, majors.facultyId))
+    .orderBy(asc(majors.name));
+}
+
+async function programRows(id?: string): Promise<Program[]> {
+  const [rows, cohorts] = await Promise.all([
+    db
+      .select({
+        id: programs.id,
+        code: programs.code,
+        name: programs.name,
+        majorCode: majors.code,
+        faculty: faculties.name,
+        degree: programs.degree,
+        totalCredits: programs.totalCredits,
+        durationYears: programs.durationYears,
+        status: programs.status,
+        updatedAt: programs.updatedAt,
+      })
+      .from(programs)
+      .innerJoin(majors, eq(majors.id, programs.majorId))
+      .innerJoin(faculties, eq(faculties.id, majors.facultyId))
+      .where(id ? eq(programs.id, id) : undefined)
+      .orderBy(asc(programs.name)),
+    db
+      .select()
+      .from(programCohorts)
+      .where(id ? eq(programCohorts.programId, id) : undefined)
+      .orderBy(asc(programCohorts.cohort)),
+  ]);
+  return rows.map((row) => ({
+    ...row,
+    updatedAt: row.updatedAt.toISOString(),
+    cohorts: cohorts.filter((entry) => entry.programId === row.id).map((entry) => entry.cohort),
+  }));
+}
+
+export async function getPrograms(id?: string): Promise<ProgramSummary[]> {
+  await requireSession();
+  if (id !== undefined && !isUuid(id)) return [];
+  const [rows, counts] = await Promise.all([
+    programRows(id),
+    db
+      .select({ programId: programCourses.programId, total: count() })
+      .from(programCourses)
+      .where(id ? eq(programCourses.programId, id) : undefined)
+      .groupBy(programCourses.programId),
+  ]);
+  const countOf = new Map(counts.map((entry) => [entry.programId, entry.total]));
+  return rows.map((row) => ({ ...row, courseCount: countOf.get(row.id) ?? 0 }));
+}
+
 export async function getProgram(id: string): Promise<ProgramDetail | null> {
-  await mockDelay();
-  const program = PROGRAMS.find((entry) => entry.id === id);
+  await requireSession();
+  if (!isUuid(id)) return null;
+  const [[program], allCourses, plan] = await Promise.all([
+    programRows(id),
+    getCourses(),
+    db.select({ courseId: programCourses.courseId, semester: programCourses.semester }).from(programCourses).where(eq(programCourses.programId, id)),
+  ]);
   if (!program) return null;
-  const courseByCode = new Map(COURSES.map((course) => [course.code, course]));
-  const plan = PROGRAM_COURSES[id] ?? [];
+  const courseById = new Map(allCourses.map((course) => [course.id, course]));
   const semesterNumbers = [...new Set(plan.map((entry) => entry.semester))].toSorted((a, b) => a - b);
   const semesters = semesterNumbers.map((semester) => {
-    const courses = plan
+    const semesterCourses = plan
       .filter((entry) => entry.semester === semester)
-      .map((entry) => courseByCode.get(entry.courseCode))
-      .filter((course) => course !== undefined);
-    return { semester, courses, credits: courses.reduce((sum, course) => sum + course.credits, 0) };
+      .map((entry) => courseById.get(entry.courseId))
+      .filter((course) => course !== undefined)
+      .toSorted((a, b) => a.code.localeCompare(b.code));
+    return { semester, courses: semesterCourses, credits: semesterCourses.reduce((sum, course) => sum + course.credits, 0) };
   });
-  const allCourses = semesters.flatMap((semester) => semester.courses);
+  const plannedCourses = semesters.flatMap((semester) => semester.courses);
   const creditsByBlock = (Object.keys(KNOWLEDGE_BLOCK_LABEL) as KnowledgeBlock[]).map((block) => ({
     block,
-    credits: allCourses.filter((course) => course.block === block).reduce((sum, course) => sum + course.credits, 0),
+    credits: plannedCourses.filter((course) => course.block === block).reduce((sum, course) => sum + course.credits, 0),
   }));
   return {
     ...program,
     semesters,
-    plannedCredits: allCourses.reduce((sum, course) => sum + course.credits, 0),
+    plannedCredits: plannedCourses.reduce((sum, course) => sum + course.credits, 0),
     creditsByBlock,
   };
 }

@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import { hashPassword } from "better-auth/crypto";
 import { db } from "@/shared/libs/db.lib";
+import { MOCK_MAJORS } from "@/shared/libs/mock.lib";
 import { formatStudentCode, studentEmailOf } from "@/shared/libs/student-code.lib";
 import { roleAssignments, rolePermissions, roles } from "@/modules/access/access.schema";
 import { ROLES } from "@/modules/access/access.mock";
@@ -32,7 +33,6 @@ if (process.env.NODE_ENV === "production") throw new Error("Không chạy seed t
 
 const STUDENT_CODE = "5001104001";
 const PASSWORD = process.env.DEFEAT_SEED_ACCOUNT_PASSWORD || "Hcmue@2026";
-const PROGRAM_ID = "ctdt-cntt-2023";
 
 const FACULTY_CODES: Record<string, string> = {
   "Khoa Lý luận chính trị": "LLCT",
@@ -41,6 +41,8 @@ const FACULTY_CODES: Record<string, string> = {
   "Khoa Toán - Tin học": "TOAN",
   "Khoa Tiếng Anh": "ANH",
   "Khoa Tâm lý học": "TLH",
+  "Khoa Ngữ văn": "VAN",
+  "Khoa Vật lý": "VL",
 };
 
 const PASSED: Record<string, [score: number, letter: string, point: number]> = {
@@ -63,9 +65,7 @@ function by<T, K>(rows: T[], key: (row: T) => K) {
 }
 
 async function main() {
-  const programSeed = PROGRAMS.find((program) => program.id === PROGRAM_ID)!;
-  const programCodes = new Set(PROGRAM_COURSES[PROGRAM_ID].map((entry) => entry.courseCode));
-  const courseSeeds = COURSES.filter((course) => programCodes.has(course.code) || course.code === "COMP1121" || course.code === "MATH1014");
+  const courseSeeds = COURSES;
   const passwordHash = await hashPassword(PASSWORD);
 
   await db.transaction(async (tx) => {
@@ -79,7 +79,12 @@ async function main() {
     const facultyByName = by(facultyRows, (row) => row.name);
     const it = facultyByName.get("Khoa Công nghệ Thông tin")!;
 
-    const [major] = await tx.insert(majors).values({ code: programSeed.majorCode, name: programSeed.name, facultyId: it.id }).returning();
+    const majorRows = await tx
+      .insert(majors)
+      .values(MOCK_MAJORS.map((entry) => ({ code: entry.code, name: entry.name, facultyId: facultyByName.get(entry.faculty)!.id })))
+      .returning();
+    const majorByCode = by(majorRows, (row) => row.code);
+    const major = majorByCode.get("104")!;
 
     const courseRows = await tx
       .insert(courses)
@@ -115,22 +120,28 @@ async function main() {
     );
     await tx.insert(courseRelations).values(relations);
 
-    const [program] = await tx
+    const programRows = await tx
       .insert(programs)
-      .values({
-        code: programSeed.code,
-        name: programSeed.name,
-        majorId: major.id,
-        degree: programSeed.degree,
-        totalCredits: programSeed.totalCredits,
-        durationYears: programSeed.durationYears,
-        status: programSeed.status,
-      })
+      .values(
+        PROGRAMS.map((entry) => ({
+          code: entry.code,
+          name: entry.name,
+          majorId: majorByCode.get(entry.majorCode)!.id,
+          degree: entry.degree,
+          totalCredits: entry.totalCredits,
+          durationYears: entry.durationYears,
+          status: entry.status,
+          updatedAt: new Date(entry.updatedAt),
+        })),
+      )
       .returning();
-    await tx.insert(programCohorts).values(programSeed.cohorts.map((cohort) => ({ programId: program.id, cohort })));
-    await tx
-      .insert(programCourses)
-      .values(PROGRAM_COURSES[PROGRAM_ID].map((entry) => ({ programId: program.id, courseId: courseByCode.get(entry.courseCode)!.id, semester: entry.semester })));
+    const programIdOf = new Map(PROGRAMS.map((entry, index) => [entry.id, programRows[index].id]));
+    await tx.insert(programCohorts).values(PROGRAMS.flatMap((entry) => entry.cohorts.map((cohort) => ({ programId: programIdOf.get(entry.id)!, cohort }))));
+    await tx.insert(programCourses).values(
+      Object.entries(PROGRAM_COURSES).flatMap(([programKey, plan]) =>
+        plan.map((entry) => ({ programId: programIdOf.get(programKey)!, courseId: courseByCode.get(entry.courseCode)!.id, semester: entry.semester })),
+      ),
+    );
 
     const campusRows = await tx
       .insert(campuses)
@@ -219,7 +230,9 @@ async function main() {
     const roleByKey = by(roleRows, (row) => row.key);
     const roleByName = by(roleRows, (row) => row.name);
     await tx.insert(rolePermissions).values(ROLES.flatMap((role) => role.permissions.map((permission) => ({ roleId: roleByName.get(role.name)!.id, permission }))));
+    // Tài khoản admin seed có 2 vai trò để thử đổi vai trò: Trưởng phòng Đào tạo (mặc định) và Quản trị hệ thống (có quyền Phân quyền).
     await tx.insert(roleAssignments).values({ userId: adminUser.id, roleId: roleByKey.get("academic-head")!.id, grantedByUserId: adminUser.id });
+    await tx.insert(roleAssignments).values({ userId: adminUser.id, roleId: roleByKey.get("system-admin")!.id, grantedByUserId: adminUser.id });
 
     const { grading, credits, warning, attendance, workflow } = REGULATION;
     await tx.insert(regulations).values({

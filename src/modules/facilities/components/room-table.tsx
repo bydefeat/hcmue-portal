@@ -7,6 +7,7 @@ import { EmptyState } from "@/shared/components/ui/empty-state";
 import { MeterBar } from "@/shared/components/ui/meter-bar";
 import { StatusTag } from "@/shared/components/ui/status-tag";
 import { EQUIPMENT_OPTIONS, ROOM_STATUS, ROOM_TYPE_LABEL, ROOM_TYPE_OPTIONS } from "@/modules/facilities/facilities.constant";
+import { toFormFields } from "@/shared/libs/form.lib";
 import { updateRoom } from "@/modules/facilities/facilities.action";
 import type { Campus, Room, RoomStatus, RoomType } from "@/modules/facilities/facilities.type";
 import { RoomWeekGrid, type RoomBooking } from "@/modules/facilities/components/room-week-grid";
@@ -60,7 +61,7 @@ export function RoomTable({ rooms, campuses, bookings, termName }: RoomTableProp
         return;
       }
       if (!result.ok) {
-        form.setFields(Object.entries(result.fieldErrors ?? {}).map(([name, error]) => ({ name: name as keyof RoomFormValues, errors: [error] })));
+        form.setFields(toFormFields(result.fieldErrors));
         messageApi.error(result.message);
         return;
       }

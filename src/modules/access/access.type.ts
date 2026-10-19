@@ -33,6 +33,15 @@ export type Role = {
   isSystem: boolean;
 };
 
+export type RoleRow = Role & { memberCount: number };
+
+export type GrantCandidate = {
+  userId: string;
+  name: string;
+  code: string;
+  unit: string;
+};
+
 export type RoleAssignment = {
   id: string;
   userId: string;

@@ -3,8 +3,8 @@
 import { useState } from "react";
 import type { Dayjs } from "dayjs";
 import Link from "next/link";
-import { Button } from "antd";
-import { CalendarDays, ChevronLeft, ChevronRight } from "defeat-icons-react";
+import { Select } from "antd";
+import { CalendarDays } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { BREAKS, PERIODS, periodLabel, periodTimeRange, WEEKDAYS } from "@/shared/constants/period.constant";
 import { dayjs, formatShortDate, weekdayOf } from "@/shared/libs/date.lib";
@@ -19,6 +19,14 @@ type WeekScheduleProps = {
 
 function startOfWeek(value: Dayjs) {
   return value.startOf("day").subtract(weekdayOf(value) - 2, "day");
+}
+
+function termWeeks(termStart: string, termEnd: string) {
+  const first = startOfWeek(dayjs(termStart));
+  const last = dayjs(termEnd);
+  const weeks: Dayjs[] = [];
+  for (let week = first; !week.isAfter(last, "day"); week = week.add(1, "week")) weeks.push(week);
+  return weeks;
 }
 
 function EventBlock({ event, compact = false }: { event: ScheduleEvent; compact?: boolean }) {
@@ -49,31 +57,39 @@ function breakTitle(period: number) {
 }
 
 export function WeekSchedule({ events, termStart, termEnd }: WeekScheduleProps) {
-  const [weekStart, setWeekStart] = useState(() => startOfWeek(dayjs()));
+  const weeks = termWeeks(termStart, termEnd);
+  const currentWeek = startOfWeek(dayjs());
+  const [weekStart, setWeekStart] = useState(() => {
+    if (currentWeek.isBefore(weeks[0], "day")) return weeks[0];
+    if (currentWeek.isAfter(weeks.at(-1), "day")) return weeks.at(-1) ?? currentWeek;
+    return currentWeek;
+  });
   const today = dayjs().startOf("day");
   const isInTerm = !weekStart.add(6, "day").isBefore(termStart) && !weekStart.isAfter(termEnd);
   const visibleEvents = isInTerm ? events : [];
   const days = WEEKDAYS.map((day, index) => ({ ...day, date: weekStart.add(index, "day") }));
-  const isCurrentWeek = weekStart.isSame(startOfWeek(dayjs()), "day");
 
   return (
     <div className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center gap-2">
-        <Button aria-label="Tuần trước" icon={<ChevronLeft size={16} aria-hidden />} onClick={() => setWeekStart(weekStart.subtract(1, "week"))} />
-        <Button aria-label="Tuần sau" icon={<ChevronRight size={16} aria-hidden />} onClick={() => setWeekStart(weekStart.add(1, "week"))} />
-        <Button disabled={isCurrentWeek} onClick={() => setWeekStart(startOfWeek(dayjs()))}>
-          Tuần này
-        </Button>
-        <span className="text-sm font-medium tabular-nums">
-          {formatShortDate(weekStart)} - {weekStart.add(6, "day").format("DD/MM/YYYY")}
-        </span>
+        <Select
+          aria-label="Chọn tuần"
+          value={weekStart.valueOf()}
+          onChange={(value) => setWeekStart(dayjs(value))}
+          showSearch={{ optionFilterProp: "label" }}
+          className="w-full sm:w-80"
+          options={weeks.map((week, index) => ({
+            value: week.valueOf(),
+            label: `Tuần ${index + 1}: ${formatShortDate(week)} - ${week.add(6, "day").format("DD/MM/YYYY")}${week.isSame(currentWeek, "day") ? " (tuần này)" : ""}`,
+          }))}
+        />
       </div>
 
       {visibleEvents.length === 0 ? (
         <SectionCard flush>
           <EmptyState
             icon={CalendarDays}
-            title="Tuần này không có buổi dạy"
+            title="Tuần đã chọn không có lịch"
             description={isInTerm ? "Chưa có lớp học phần nào xếp lịch trong tuần." : "Tuần đang xem nằm ngoài thời gian học kỳ."}
           />
         </SectionCard>

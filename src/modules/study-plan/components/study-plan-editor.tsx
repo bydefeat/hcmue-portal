@@ -99,14 +99,14 @@ function CourseCard({
             size="small"
             aria-label={`Kéo ${course.name}`}
             className="shrink-0 cursor-grab touch-none text-muted"
-            icon={<GripDotsVertical size={16} aria-hidden />}
+            icon={<GripDotsVertical size={16} aria-hidden className="text-zinc-500" />}
             {...listeners}
             {...attributes}
           />
         }
         menu={
           <Dropdown menu={{ items }} trigger={["click"]}>
-            <Button type="text" size="small" aria-label={`Chuyển ${course.name}`} icon={<DotsVertical size={16} aria-hidden />} />
+            <Button type="text" size="small" aria-label={`Chuyển ${course.name}`} icon={<DotsVertical size={16} aria-hidden className="text-zinc-500" />} />
           </Dropdown>
         }
       />

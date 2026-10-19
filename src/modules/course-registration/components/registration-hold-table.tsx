@@ -157,7 +157,7 @@ export function RegistrationHoldTable({ holds, students, actorName, studentHrefB
       width: 110,
       render: (_, row) =>
         row.releasedAt ? null : (
-          <Button size="small" icon={<LockOpen size={14} aria-hidden />} onClick={() => setReleasing(row)}>
+          <Button size="small" icon={<LockOpen size={14} aria-hidden className="text-zinc-500" />} onClick={() => setReleasing(row)}>
             Gỡ khóa
           </Button>
         ),

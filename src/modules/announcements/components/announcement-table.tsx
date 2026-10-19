@@ -158,7 +158,7 @@ export function AnnouncementTable({ announcements }: { announcements: Announceme
           <Button
             type="text"
             aria-label={`Sửa ${row.title}`}
-            icon={<Pen size={16} aria-hidden />}
+            icon={<Pen size={16} aria-hidden className="text-zinc-500" />}
             onClick={() => {
               setEditing(row);
               setIsDrawerOpen(true);

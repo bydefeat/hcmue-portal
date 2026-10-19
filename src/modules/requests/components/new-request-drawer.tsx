@@ -218,7 +218,7 @@ export function NewRequestDrawer({ open, requester, sections, overloadMinCpa, on
                 onRemove={(file) => setFiles((current) => current.filter((entry) => entry.uid !== file.uid))}
                 accept=".pdf,.png,.jpg,.jpeg"
               >
-                <Button icon={<UploadIcon size={16} aria-hidden />}>Chọn tệp</Button>
+                <Button icon={<UploadIcon size={16} aria-hidden className="text-zinc-500" />}>Chọn tệp</Button>
               </Upload>
             </Form.Item>
           </>

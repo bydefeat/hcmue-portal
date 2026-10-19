@@ -89,7 +89,7 @@ export function NotificationBell({ items, viewAllHref }: NotificationBellProps) 
         aria-label={unread > 0 ? `Thông báo, ${unread} chưa đọc` : "Thông báo"}
         icon={
           <Badge count={unread} size="small" offset={[2, -2]}>
-            <Bell size={20} aria-hidden className="text-foreground" />
+            <Bell size={20} aria-hidden className="text-zinc-500" />
           </Badge>
         }
       />

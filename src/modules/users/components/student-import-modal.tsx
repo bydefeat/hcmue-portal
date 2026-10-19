@@ -102,7 +102,7 @@ export function StudentImportModal({ open, existingCodes, onClose, onImport }: S
           <Button onClick={close}>Hủy</Button>
           {invalid.length > 0 && (
             <Button
-              icon={<Download size={16} aria-hidden />}
+              icon={<Download size={16} aria-hidden className="text-zinc-500" />}
               onClick={() =>
                 download(
                   "dong-loi-nhap-sinh-vien.csv",
@@ -132,7 +132,7 @@ export function StudentImportModal({ open, existingCodes, onClose, onImport }: S
             Tệp gồm {IMPORT_COLUMNS.length} cột theo đúng thứ tự của file mẫu. Hệ thống kiểm tra từng dòng trước khi nhập; dòng lỗi được bỏ qua và
             tải về được để sửa.
           </p>
-          <Button icon={<Download size={16} aria-hidden />} onClick={() => download("mau-nhap-sinh-vien.csv", templateCsv())} className="w-fit">
+          <Button icon={<Download size={16} aria-hidden className="text-zinc-500" />} onClick={() => download("mau-nhap-sinh-vien.csv", templateCsv())} className="w-fit">
             Tải file mẫu
           </Button>
           <Upload.Dragger

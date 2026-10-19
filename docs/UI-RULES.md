@@ -127,6 +127,7 @@ Nguồn màu duy nhất: `src/shared/constants/theme.constant.ts` (sinh CSS vari
 | Trạng thái rỗng | `EmptyState` (antd `Empty`) | |
 | Lỗi, 404, 403 | antd `Result` qua `ErrorState`, `NotFoundState`, `app/forbidden.tsx` | |
 | Nút, nút dạng chữ | antd `Button` (`type="link"` hoặc `"text"` cho nút dạng chữ) | Điều hướng thuần dùng `Link` của Next |
+| Icon trong nút, icon menu chưa chọn | Thêm `className="text-zinc-500"` cho icon | Nút `primary`, `danger`, `link` và mục menu đang chọn giữ màu của nút |
 | Nhãn + ô nhập | antd `Form` + `Form.Item` | Không tự viết `<label>` bọc control |
 | Bảng | antd `Table` | `<table>` chỉ cho bản in (`hidden print:block`) |
 | Được tự dựng vì antd không có | Dock và sidebar trượt trên điện thoại, menu cây ở sidebar, lưới thời khóa biểu theo tiết | |

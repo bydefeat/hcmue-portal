@@ -143,7 +143,7 @@ export function LecturerExamBoard({ lecturerId, teaching, proctoring, teachingSl
       align: "right",
       render: (_, exam) =>
         exam.status !== "done" && paperOf(exam) !== "approved" ? (
-          <Button size="small" icon={<FileArrowIn size={14} aria-hidden />} onClick={() => setUploading(exam)}>
+          <Button size="small" icon={<FileArrowIn size={14} aria-hidden className="text-zinc-500" />} onClick={() => setUploading(exam)}>
             {paperOf(exam) === "submitted" ? "Nộp lại" : "Nộp đề"}
           </Button>
         ) : null,
@@ -189,7 +189,7 @@ export function LecturerExamBoard({ lecturerId, teaching, proctoring, teachingSl
       align: "right",
       render: (_, exam) =>
         exam.status !== "done" && !swapRequested.includes(exam.id) ? (
-          <Button size="small" icon={<ArrowsTransaction size={14} aria-hidden />} onClick={() => setSwapping(exam)}>
+          <Button size="small" icon={<ArrowsTransaction size={14} aria-hidden className="text-zinc-500" />} onClick={() => setSwapping(exam)}>
             Đổi ca
           </Button>
         ) : null,

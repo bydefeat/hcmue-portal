@@ -66,7 +66,7 @@ export function LecturerProfileCard({ lecturer }: { lecturer: Lecturer }) {
           ]}
         />
         <Button
-          icon={<Pen size={16} aria-hidden />}
+          icon={<Pen size={16} aria-hidden className="text-zinc-500" />}
           onClick={() => setIsOpen(true)}
           className="self-start"
         >

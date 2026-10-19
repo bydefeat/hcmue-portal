@@ -30,7 +30,7 @@ export function IcsExportButton({ events, termStart, termEnd, calendarName, file
   return (
     <>
       {contextHolder}
-      <Button icon={<CalendarDownload size={16} aria-hidden />} disabled={events.length === 0} onClick={download}>
+      <Button icon={<CalendarDownload size={16} aria-hidden className="text-zinc-500" />} disabled={events.length === 0} onClick={download}>
         Xuất lịch .ics
       </Button>
     </>

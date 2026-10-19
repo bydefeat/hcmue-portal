@@ -121,7 +121,7 @@ export function AdminStudentRegistration({
     <SectionCard
       title="Đăng ký học phần"
       extra={
-        <Button icon={<Plus size={16} aria-hidden />} onClick={() => setIsAdding(true)}>
+        <Button icon={<Plus size={16} aria-hidden className="text-zinc-500" />} onClick={() => setIsAdding(true)}>
           Đăng ký hộ
         </Button>
       }

@@ -121,7 +121,7 @@ export function InvoiceList({ invoices, studentCode }: { invoices: TuitionInvoic
                               type="text"
                               size="small"
                               aria-label="Sao chép số tài khoản"
-                              icon={<Copy size={14} aria-hidden />}
+                              icon={<Copy size={14} aria-hidden className="text-zinc-500" />}
                               onClick={() => copy(BANK_ACCOUNT.accountNumber.replace(/\s/g, ""), "số tài khoản")}
                             />
                           </span>
@@ -137,7 +137,7 @@ export function InvoiceList({ invoices, studentCode }: { invoices: TuitionInvoic
                               type="text"
                               size="small"
                               aria-label="Sao chép nội dung chuyển khoản"
-                              icon={<Copy size={14} aria-hidden />}
+                              icon={<Copy size={14} aria-hidden className="text-zinc-500" />}
                               onClick={() => copy(content, "nội dung chuyển khoản")}
                             />
                           </span>

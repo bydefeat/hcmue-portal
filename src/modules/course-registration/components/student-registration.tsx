@@ -355,7 +355,7 @@ export function StudentRegistration({
                             Đã đăng ký
                           </span>
                         ) : isPlanned ? (
-                          <Button onClick={() => removePlanned(section)} icon={<Trash size={16} aria-hidden />}>
+                          <Button onClick={() => removePlanned(section)} icon={<Trash size={16} aria-hidden className="text-zinc-500" />}>
                             Bỏ chọn
                           </Button>
                         ) : isWaiting ? (
@@ -383,7 +383,7 @@ export function StudentRegistration({
                             Vào danh sách chờ
                           </Button>
                         ) : (
-                          <Button onClick={() => add(section)} disabled={blocked} icon={<Plus size={16} aria-hidden />}>
+                          <Button onClick={() => add(section)} disabled={blocked} icon={<Plus size={16} aria-hidden className="text-zinc-500" />}>
                             Chọn lớp
                           </Button>
                         )}
@@ -451,7 +451,7 @@ export function StudentRegistration({
                           </span>
                         ))}
                     </span>
-                    <Button size="small" type="text" aria-label={`Bỏ ${section.code}`} icon={<Trash size={16} aria-hidden />} onClick={() => removePlanned(section)} />
+                    <Button size="small" type="text" aria-label={`Bỏ ${section.code}`} icon={<Trash size={16} aria-hidden className="text-zinc-500" />} onClick={() => removePlanned(section)} />
                   </li>
                 ))}
               </ul>

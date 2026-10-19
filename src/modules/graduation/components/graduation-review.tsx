@@ -95,7 +95,7 @@ export function GraduationReview({ candidates }: { candidates: GraduationCandida
         <Select allowClear value={status} onChange={setStatus} placeholder="Mọi trạng thái" aria-label="Trạng thái" options={Object.entries(GRADUATION_STATUS).map(([value, meta]) => ({ value, label: meta.label }))} className="min-w-0 flex-1 sm:w-52 sm:flex-none" />
         <Select allowClear value={faculty} onChange={setFaculty} placeholder="Mọi khoa" aria-label="Khoa" options={faculties.map((value) => ({ value, label: value }))} className="min-w-0 flex-1 sm:w-56 sm:flex-none" />
         <div className="flex gap-2 sm:ml-auto">
-          <Button icon={<TableDownload size={16} aria-hidden />} onClick={() => messageApi.success(`Đã xuất ${visible.length} dòng ra tệp Excel theo mẫu của Bộ`)}>
+          <Button icon={<TableDownload size={16} aria-hidden className="text-zinc-500" />} onClick={() => messageApi.success(`Đã xuất ${visible.length} dòng ra tệp Excel theo mẫu của Bộ`)}>
             Xuất danh sách
           </Button>
           <Button type="primary" disabled={chosen.length === 0} onClick={approve}>

@@ -63,10 +63,10 @@ export function ClassRosterTable({ roster, classCode }: { roster: RosterEntry[];
           {filtered.length === roster.length ? `${roster.length} sinh viên` : `${filtered.length}/${roster.length} sinh viên`}
         </span>
         <div className="flex gap-2 sm:ml-auto">
-          <Button icon={<Envelope size={16} aria-hidden />} href={`mailto:?bcc=${roster.map((entry) => emailOf(entry.studentCode)).join(",")}&subject=${encodeURIComponent(`[${classCode}] `)}`}>
+          <Button icon={<Envelope size={16} aria-hidden className="text-zinc-500" />} href={`mailto:?bcc=${roster.map((entry) => emailOf(entry.studentCode)).join(",")}&subject=${encodeURIComponent(`[${classCode}] `)}`}>
             Email cả lớp
           </Button>
-          <Button icon={<Download size={16} aria-hidden />} onClick={() => messageApi.success(`Đã xuất danh sách ${roster.length} sinh viên lớp ${classCode} ra tệp Excel.`)}>
+          <Button icon={<Download size={16} aria-hidden className="text-zinc-500" />} onClick={() => messageApi.success(`Đã xuất danh sách ${roster.length} sinh viên lớp ${classCode} ra tệp Excel.`)}>
             Xuất danh sách
           </Button>
         </div>

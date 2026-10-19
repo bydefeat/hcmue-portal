@@ -88,7 +88,7 @@ export function LecturerTable({ lecturers, initialQuery = "" }: { lecturers: Lec
         <Button
           type="text"
           aria-label={`Sửa ${row.displayName}`}
-          icon={<Pen size={16} aria-hidden />}
+          icon={<Pen size={16} aria-hidden className="text-zinc-500" />}
           onClick={() => {
             setEditing(row);
             setIsDrawerOpen(true);

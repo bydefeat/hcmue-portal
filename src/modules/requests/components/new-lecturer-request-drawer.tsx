@@ -327,7 +327,7 @@ export function NewLecturerRequestDrawer({ open, onClose, onCreated, classes, bu
               }}
               onRemove={(file) => setFiles((current) => current.filter((name) => name !== file.name))}
             >
-              <Button icon={<Paperclip size={16} aria-hidden />}>Đính kèm tệp</Button>
+              <Button icon={<Paperclip size={16} aria-hidden className="text-zinc-500" />}>Đính kèm tệp</Button>
             </Upload>
           </Form.Item>
         </Form>

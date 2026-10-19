@@ -137,7 +137,7 @@ export function StudentTable({ students }: { students: StudentRow[] }) {
       key: "actions",
       width: 56,
       align: "right",
-      render: (_, row) => <Button type="text" aria-label={`Sửa ${row.fullName}`} icon={<Pen size={16} aria-hidden />} onClick={() => openEdit(row)} />,
+      render: (_, row) => <Button type="text" aria-label={`Sửa ${row.fullName}`} icon={<Pen size={16} aria-hidden className="text-zinc-500" />} onClick={() => openEdit(row)} />,
     },
   ];
 
@@ -166,7 +166,7 @@ export function StudentTable({ students }: { students: StudentRow[] }) {
           className="min-w-0 flex-1 sm:w-44 sm:flex-none"
         />
         <div className="flex w-full gap-2 lg:ml-auto lg:w-auto">
-          <Button icon={<FileArrowIn size={16} aria-hidden />} onClick={() => setIsImportOpen(true)}>
+          <Button icon={<FileArrowIn size={16} aria-hidden className="text-zinc-500" />} onClick={() => setIsImportOpen(true)}>
             Nhập từ Excel
           </Button>
           <Button type="primary" icon={<Plus size={16} aria-hidden />} onClick={openCreate}>

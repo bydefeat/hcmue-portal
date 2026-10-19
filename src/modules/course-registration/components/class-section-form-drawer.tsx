@@ -165,7 +165,7 @@ export function ClassSectionFormDrawer({ open, section, termName, courses, lectu
                   </Form.Item>
                 </Card>
               ))}
-              <Button icon={<Plus size={16} aria-hidden />} onClick={() => add({ label: "", seats: 5, majorCodes: [], cohorts: [] })} className="self-start">
+              <Button icon={<Plus size={16} aria-hidden className="text-zinc-500" />} onClick={() => add({ label: "", seats: 5, majorCodes: [], cohorts: [] })} className="self-start">
                 Thêm nhóm dành riêng
               </Button>
             </div>
@@ -216,7 +216,7 @@ export function ClassSectionFormDrawer({ open, section, termName, courses, lectu
                 </Card>
               ))}
               <Form.ErrorList errors={errors} />
-              <Button icon={<Plus size={16} aria-hidden />} onClick={() => add({ dayOfWeek: 2, startPeriod: 1, endPeriod: 3, room: ROOMS[0] })} className="self-start">
+              <Button icon={<Plus size={16} aria-hidden className="text-zinc-500" />} onClick={() => add({ dayOfWeek: 2, startPeriod: 1, endPeriod: 3, room: ROOMS[0] })} className="self-start">
                 Thêm buổi học
               </Button>
             </div>
@@ -255,7 +255,7 @@ export function ClassSectionFormDrawer({ open, section, termName, courses, lectu
                 </Card>
               ))}
               <Button
-                icon={<Plus size={16} aria-hidden />}
+                icon={<Plus size={16} aria-hidden className="text-zinc-500" />}
                 onClick={() => add({ code: `TH${fields.length + 1}`, dayOfWeek: 7, startPeriod: 1, endPeriod: 3, room: ROOMS[6], capacity: 20 })}
                 className="self-start"
               >

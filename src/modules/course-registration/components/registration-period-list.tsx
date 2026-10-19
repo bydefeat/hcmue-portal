@@ -185,7 +185,7 @@ export function RegistrationPeriodList({ terms, periods }: RegistrationPeriodLis
               {canAdd && (
                 <Button
                   type={term.isRegistrationTarget ? "primary" : "default"}
-                  icon={<Plus size={16} aria-hidden />}
+                  icon={<Plus size={16} aria-hidden className={term.isRegistrationTarget ? undefined : "text-zinc-500"} />}
                   onClick={() => setEditing({ termId: term.id, period: null })}
                 >
                   Mở đợt mới

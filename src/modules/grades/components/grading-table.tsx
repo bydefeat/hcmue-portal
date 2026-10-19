@@ -198,17 +198,17 @@ export function GradingTable({ sheet, students, classCode, classId, returnReason
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button icon={<Download size={16} aria-hidden />} onClick={() => messageApi.success(`Đã xuất bảng điểm ${classCode} ra tệp Excel.`)}>
+            <Button icon={<Download size={16} aria-hidden className="text-zinc-500" />} onClick={() => messageApi.success(`Đã xuất bảng điểm ${classCode} ra tệp Excel.`)}>
               Xuất Excel
             </Button>
             {canRequestChange && requestOptions && (
-              <Button icon={<FilePen size={16} aria-hidden />} onClick={() => setIsRequestOpen(true)}>
+              <Button icon={<FilePen size={16} aria-hidden className="text-zinc-500" />} onClick={() => setIsRequestOpen(true)}>
                 Đề nghị sửa điểm
               </Button>
             )}
             {!isLocked && (
               <>
-                <Button icon={<Upload size={16} aria-hidden />} onClick={() => messageApi.info("Chọn tệp Excel theo mẫu đã xuất, điểm sẽ được điền vào các ô tương ứng.")}>
+                <Button icon={<Upload size={16} aria-hidden className="text-zinc-500" />} onClick={() => messageApi.info("Chọn tệp Excel theo mẫu đã xuất, điểm sẽ được điền vào các ô tương ứng.")}>
                   Nhập từ Excel
                 </Button>
                 <Button type="primary" danger icon={<LockKey size={16} aria-hidden />} onClick={requestLock}>

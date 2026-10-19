@@ -131,7 +131,7 @@ export function SyllabusEditor({ syllabus: initial, gradeComponents, classCode }
             </>
           ) : (
             <>
-              <Button icon={<Pen size={16} aria-hidden />} onClick={startEdit}>
+              <Button icon={<Pen size={16} aria-hidden className="text-zinc-500" />} onClick={startEdit}>
                 Sửa đề cương
               </Button>
               {syllabus.status === "draft" && (
@@ -169,10 +169,10 @@ export function SyllabusEditor({ syllabus: initial, gradeComponents, classCode }
                       <Form.Item name={[field.name, "text"]} className="mb-0 min-w-0 flex-1" rules={[{ required: true, whitespace: true, message: "Chưa nhập nội dung" }]}>
                         <Input aria-label={`Chuẩn đầu ra ${index + 1}`} />
                       </Form.Item>
-                      <Button type="text" aria-label="Xóa chuẩn đầu ra" icon={<Trash size={16} aria-hidden />} onClick={() => remove(field.name)} />
+                      <Button type="text" aria-label="Xóa chuẩn đầu ra" icon={<Trash size={16} aria-hidden className="text-zinc-500" />} onClick={() => remove(field.name)} />
                     </div>
                   ))}
-                  <Button icon={<Plus size={16} aria-hidden />} onClick={() => add({ code: "", text: "" })} className="self-start">
+                  <Button icon={<Plus size={16} aria-hidden className="text-zinc-500" />} onClick={() => add({ code: "", text: "" })} className="self-start">
                     Thêm chuẩn đầu ra
                   </Button>
                 </div>
@@ -183,7 +183,7 @@ export function SyllabusEditor({ syllabus: initial, gradeComponents, classCode }
           <SectionCard
             title="Đánh giá"
             extra={
-              <Button size="small" icon={<ArrowsTransaction size={14} aria-hidden />} onClick={syncFromGradeSheet}>
+              <Button size="small" icon={<ArrowsTransaction size={14} aria-hidden className="text-zinc-500" />} onClick={syncFromGradeSheet}>
                 Lấy theo bảng điểm
               </Button>
             }
@@ -208,10 +208,10 @@ export function SyllabusEditor({ syllabus: initial, gradeComponents, classCode }
                       <Form.Item name={[field.name, "key"]} hidden>
                         <Input />
                       </Form.Item>
-                      <Button type="text" aria-label="Xóa hình thức đánh giá" icon={<Trash size={16} aria-hidden />} onClick={() => remove(field.name)} className="md:mt-8" />
+                      <Button type="text" aria-label="Xóa hình thức đánh giá" icon={<Trash size={16} aria-hidden className="text-zinc-500" />} onClick={() => remove(field.name)} className="md:mt-8" />
                     </div>
                   ))}
-                  <Button icon={<Plus size={16} aria-hidden />} onClick={() => add({ key: `custom-${Date.now()}`, label: "", weight: 0, method: "", outcomes: [] })} className="self-start">
+                  <Button icon={<Plus size={16} aria-hidden className="text-zinc-500" />} onClick={() => add({ key: `custom-${Date.now()}`, label: "", weight: 0, method: "", outcomes: [] })} className="self-start">
                     Thêm hình thức đánh giá
                   </Button>
                 </div>
@@ -251,10 +251,10 @@ export function SyllabusEditor({ syllabus: initial, gradeComponents, classCode }
                       <Form.Item name={[field.name, "text"]} className="mb-0 min-w-0 flex-1">
                         <Input aria-label={`Tài liệu ${index + 1}`} />
                       </Form.Item>
-                      <Button type="text" aria-label="Xóa tài liệu" icon={<Trash size={16} aria-hidden />} onClick={() => remove(field.name)} />
+                      <Button type="text" aria-label="Xóa tài liệu" icon={<Trash size={16} aria-hidden className="text-zinc-500" />} onClick={() => remove(field.name)} />
                     </div>
                   ))}
-                  <Button icon={<Plus size={16} aria-hidden />} onClick={() => add({ text: "" })} className="self-start">
+                  <Button icon={<Plus size={16} aria-hidden className="text-zinc-500" />} onClick={() => add({ text: "" })} className="self-start">
                     Thêm tài liệu
                   </Button>
                 </div>

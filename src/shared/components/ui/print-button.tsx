@@ -5,7 +5,7 @@ import { Print } from "defeat-icons-react";
 
 export function PrintButton({ label = "In" }: { label?: string }) {
   return (
-    <Button icon={<Print size={16} aria-hidden />} onClick={() => window.print()} className="print:hidden">
+    <Button icon={<Print size={16} aria-hidden className="text-zinc-500" />} onClick={() => window.print()} className="print:hidden">
       {label}
     </Button>
   );

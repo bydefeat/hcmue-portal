@@ -26,6 +26,9 @@ export const lecturers = pgTable(
       .references(() => faculties.id, { onDelete: "restrict" }),
     email: text().notNull().unique("lecturers_email_unique"),
     phone: text().notNull().default(""),
+    personalEmail: text().notNull().default(""),
+    office: text().notNull().default(""),
+    officeHours: text().notNull().default(""),
     status: lecturerStatusEnum().notNull().default("active"),
     ...timestamps(),
   },
@@ -73,6 +76,10 @@ export const students = pgTable(
     email: text().notNull().unique("students_email_unique"),
     phone: text().notNull().default(""),
     hometown: text().notNull().default(""),
+    personalEmail: text().notNull().default(""),
+    address: text().notNull().default(""),
+    emergencyContactName: text().notNull().default(""),
+    emergencyContactPhone: text().notNull().default(""),
     administrativeClassId: uuid()
       .notNull()
       .references(() => administrativeClasses.id, { onDelete: "restrict" }),

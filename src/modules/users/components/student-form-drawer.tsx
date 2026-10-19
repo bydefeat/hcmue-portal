@@ -1,18 +1,20 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useTransition } from "react";
 import { AutoComplete, Button, DatePicker, Drawer, Form, Input, Radio, Select } from "antd";
 import { dayjs } from "@/shared/libs/date.lib";
 import { MOCK_MAJORS } from "@/shared/libs/mock.lib";
 import { COHORT_OPTIONS, MAJOR_OPTIONS, STUDENT_STATUS_OPTIONS } from "@/modules/users/users.constant";
 import type { Student, StudentFormValues } from "@/modules/users/users.type";
 import { formatStudentCode, isStudentCode } from "@/shared/libs/student-code.lib";
+import { toFormFields } from "@/shared/libs/form.lib";
 
 type StudentFormDrawerProps = {
   open: boolean;
   student: Student | null;
   onClose: () => void;
-  onSubmit: (values: StudentFormValues) => void;
+  // Trả lỗi theo ô khi server từ chối, để drawer gắn vào đúng ô.
+  onSubmit: (values: StudentFormValues) => Promise<Record<string, string> | undefined>;
 };
 
 type FormShape = Omit<StudentFormValues, "dateOfBirth"> & { dateOfBirth?: dayjs.Dayjs };
@@ -28,6 +30,7 @@ export function StudentFormDrawer({ open, student, onClose, onSubmit }: StudentF
   const cohort = Form.useWatch("cohort", form);
   const majorCode = Form.useWatch("majorCode", form);
   const isEdit = student !== null;
+  const [isPending, startTransition] = useTransition();
 
   useEffect(() => {
     if (!open) return;
@@ -46,7 +49,7 @@ export function StudentFormDrawer({ open, student, onClose, onSubmit }: StudentF
       footer={
         <div className="flex justify-end gap-2">
           <Button onClick={onClose}>Hủy</Button>
-          <Button type="primary" onClick={() => form.submit()}>
+          <Button type="primary" loading={isPending} onClick={() => form.submit()}>
             {isEdit ? "Lưu thay đổi" : "Thêm sinh viên"}
           </Button>
         </div>
@@ -56,7 +59,12 @@ export function StudentFormDrawer({ open, student, onClose, onSubmit }: StudentF
         form={form}
         layout="vertical"
         initialValues={{ status: "studying" }}
-        onFinish={(values) => onSubmit({ ...values, code: formatStudentCode(values.code), dateOfBirth: values.dateOfBirth?.format("YYYY-MM-DD") ?? "" })}
+        onFinish={(values) =>
+          startTransition(async () => {
+            const fieldErrors = await onSubmit({ ...values, code: formatStudentCode(values.code), dateOfBirth: values.dateOfBirth?.format("YYYY-MM-DD") ?? "" });
+            if (fieldErrors) form.setFields(toFormFields(fieldErrors));
+          })
+        }
       >
         <div className="grid gap-x-3 sm:grid-cols-2">
           <Form.Item

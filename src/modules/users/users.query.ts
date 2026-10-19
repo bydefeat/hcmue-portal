@@ -88,6 +88,9 @@ async function lecturerRows(where?: SQL): Promise<Lecturer[]> {
       faculty: faculties.name,
       email: lecturers.email,
       phone: lecturers.phone,
+      personalEmail: lecturers.personalEmail,
+      office: lecturers.office,
+      officeHours: lecturers.officeHours,
       status: lecturers.status,
       advisedClasses: advisedClassCount.total,
     })
@@ -112,6 +115,21 @@ export async function getLecturer(id: string) {
   if (!isUuid(id)) return null;
   const [lecturer] = await lecturerRows(eq(lecturers.id, id));
   return lecturer ?? null;
+}
+
+// Thông tin liên hệ thêm của sinh viên đang đăng nhập, chỉ hiện ở trang hồ sơ của chính sinh viên.
+export async function getMyStudentContact() {
+  const student = await getCurrentStudent();
+  const [row] = await db
+    .select({
+      personalEmail: students.personalEmail,
+      address: students.address,
+      emergencyName: students.emergencyContactName,
+      emergencyPhone: students.emergencyContactPhone,
+    })
+    .from(students)
+    .where(eq(students.id, student.id));
+  return row;
 }
 
 export const getCurrentLecturer = cache(async () => {

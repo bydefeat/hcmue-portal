@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { Checkbox, Input, message, Select, Table, type TableColumnsType } from "antd";
 import { Magnifier } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
@@ -8,6 +8,7 @@ import { StatusTag } from "@/shared/components/ui/status-tag";
 import { COHORT_OPTIONS, FACULTY_OPTIONS } from "@/modules/users/users.constant";
 import type { AdvisorAssignment, Lecturer } from "@/modules/users/users.type";
 import { paginationItemRender } from "@/shared/constants/antd.constant";
+import { assignAdvisor } from "@/modules/users/users.action";
 
 const UNASSIGNED = { label: "Chưa có cố vấn", tone: "warning" } as const;
 
@@ -19,6 +20,7 @@ type AdvisorAssignmentTableProps = {
 export function AdvisorAssignmentTable({ assignments, lecturers }: AdvisorAssignmentTableProps) {
   const [messageApi, contextHolder] = message.useMessage();
   const [rows, setRows] = useState(assignments);
+  const [isSaving, startSaving] = useTransition();
   const [query, setQuery] = useState("");
   const [faculty, setFaculty] = useState<string>();
   const [cohort, setCohort] = useState<number>();
@@ -42,20 +44,27 @@ export function AdvisorAssignmentTable({ assignments, lecturers }: AdvisorAssign
 
   const unassignedCount = rows.filter((row) => !row.advisorId).length;
 
-  const assign = (className: string, advisorId: string | null) => {
-    const advisor = lecturers.find((lecturer) => lecturer.id === advisorId) ?? null;
-    setRows((current) =>
-      current.map((row) => (row.className === className ? { ...row, advisorId, advisorName: advisor?.displayName ?? null } : row)),
-    );
-    if (advisor) messageApi.success(`Đã phân công ${advisor.displayName} làm cố vấn lớp ${className}`);
-    else messageApi.warning(`Lớp ${className} chưa có cố vấn, sinh viên sẽ không nộp được kế hoạch học tập`);
-  };
+  const assign = (className: string, advisorId: string | null) =>
+    startSaving(async () => {
+      const advisor = lecturers.find((lecturer) => lecturer.id === advisorId) ?? null;
+      const result = await assignAdvisor(className, advisorId).catch(() => null);
+      if (!result?.ok) {
+        messageApi.error(result?.message ?? "Chưa lưu được, kiểm tra kết nối rồi thử lại.");
+        return;
+      }
+      setRows((current) =>
+        current.map((row) => (row.className === className ? { ...row, advisorId, advisorName: advisor?.displayName ?? null } : row)),
+      );
+      if (advisor) messageApi.success(`Đã phân công ${advisor.displayName} làm cố vấn lớp ${className}`);
+      else messageApi.warning(`Lớp ${className} chưa có cố vấn, sinh viên sẽ không nộp được kế hoạch học tập`);
+    });
 
   const advisorSelect = (row: AdvisorAssignment) => (
     <div className="flex flex-wrap items-center gap-2">
       <Select
         allowClear
         value={row.advisorId ?? undefined}
+        disabled={isSaving}
         onChange={(value?: string) => assign(row.className, value ?? null)}
         placeholder="Chọn giảng viên"
         aria-label={`Cố vấn lớp ${row.className}`}

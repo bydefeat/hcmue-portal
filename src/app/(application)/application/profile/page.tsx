@@ -3,7 +3,7 @@ import { Envelope, Phone } from "defeat-icons-react";
 import { StudentProfileCard } from "@/modules/users/components/student-profile-card";
 import { StudentProfileContactForm } from "@/modules/users/components/student-profile-contact-form";
 import { StudentProfileDecisions } from "@/modules/users/components/student-profile-decisions";
-import { getAdvisorOf, getCurrentStudent, getDecisions } from "@/modules/users/users.query";
+import { getAdvisorOf, getCurrentStudent, getDecisions, getMyStudentContact } from "@/modules/users/users.query";
 import { PageHeader } from "@/shared/components/ui/page-header";
 import { SectionCard } from "@/shared/components/ui/section-card";
 
@@ -11,7 +11,7 @@ export const metadata: Metadata = { title: "Hồ sơ" };
 
 export default async function Page() {
   const student = await getCurrentStudent();
-  const [advisor, decisions] = await Promise.all([getAdvisorOf(student.id), getDecisions(student.id)]);
+  const [advisor, decisions, contact] = await Promise.all([getAdvisorOf(student.id), getDecisions(student.id), getMyStudentContact()]);
 
   return (
     <>
@@ -40,14 +40,7 @@ export default async function Page() {
         </div>
         <div className="flex min-w-0 flex-col gap-4">
           <StudentProfileContactForm
-            initialValues={{
-              schoolEmail: student.email,
-              personalEmail: "",
-              phone: student.phone,
-              address: "",
-              emergencyName: "",
-              emergencyPhone: "",
-            }}
+            initialValues={{ schoolEmail: student.email, phone: student.phone, ...contact }}
           />
           <StudentProfileDecisions decisions={decisions} />
         </div>

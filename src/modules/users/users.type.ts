@@ -31,6 +31,9 @@ export type Lecturer = {
   faculty: string;
   email: string;
   phone: string;
+  personalEmail: string;
+  office: string;
+  officeHours: string;
   status: LecturerStatus;
   isAdvisor: boolean;
   roles: string[];
@@ -62,12 +65,12 @@ export type StudentFormValues = {
 export type LecturerFormValues = {
   code: string;
   fullName: string;
+  gender: MockGender;
   title: string;
   faculty: string;
   email: string;
   phone: string;
   status: LecturerStatus;
-  roles: string[];
 };
 
 export type DecisionKind = "reserve" | "resume" | "suspend" | "expel" | "major-change" | "reward" | "discipline" | "graduate";

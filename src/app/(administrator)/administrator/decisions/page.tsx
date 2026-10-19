@@ -20,7 +20,6 @@ export default async function Page() {
       }}
       decisions={scoped}
       students={students.filter((student) => inScope(viewer, student.faculty)).map(({ id, code, fullName, className, faculty }) => ({ id, code, fullName, className, faculty }))}
-      signerName={viewer.name}
     />
   );
 }

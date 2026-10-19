@@ -11,6 +11,7 @@ import type { Lecturer, LecturerFormValues } from "@/modules/users/users.type";
 import { LecturerFormDrawer } from "@/modules/users/components/lecturer-form-drawer";
 import { paginationItemRender } from "@/shared/constants/antd.constant";
 import { normalizeSearch } from "@/shared/libs/search.lib";
+import { saveLecturer } from "@/modules/users/users.action";
 
 const ROLE_LABEL = Object.fromEntries(USER_ROLES.map((role) => [role.value, role.label]));
 
@@ -41,22 +42,21 @@ export function LecturerTable({
     });
   }, [rows, query, faculty, role]);
 
-  const handleSubmit = (values: LecturerFormValues) => {
-    const next = (base?: Lecturer): Lecturer => ({
-      id: base?.id ?? `gv-new-${values.code}`,
-      gender: base?.gender ?? "female",
-      ...values,
-      displayName: `${values.title} ${values.fullName}`,
-      isAdvisor: values.roles.includes("advisor"),
-    });
-    if (editing) {
-      setRows((current) => current.map((row) => (row.id === editing.id ? next(editing) : row)));
-      messageApi.success(`Đã lưu thông tin ${values.title} ${values.fullName}`);
-    } else {
-      setRows((current) => [next(), ...current]);
-      messageApi.success(`Đã thêm ${values.title} ${values.fullName}, tài khoản được gửi tới ${values.email}`);
+  const handleSubmit = async (values: LecturerFormValues) => {
+    const result = await saveLecturer(editing?.id ?? null, values).catch(() => null);
+    if (!result) {
+      messageApi.error("Chưa lưu được, kiểm tra kết nối rồi thử lại.");
+      return undefined;
     }
+    if (!result.ok) {
+      messageApi.error(result.message);
+      return result.fieldErrors;
+    }
+    const saved = result.data;
+    setRows((current) => (editing ? current.map((row) => (row.id === saved.id ? saved : row)) : [saved, ...current]));
+    messageApi.success(editing ? `Đã lưu thông tin ${saved.displayName}` : `Đã thêm ${saved.displayName}`);
     setIsDrawerOpen(false);
+    return undefined;
   };
 
   const columns: TableColumnsType<Lecturer> = [

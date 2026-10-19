@@ -16,6 +16,8 @@ import {
 } from "@/modules/course-registration/course-registration.schema";
 import { PAST_TERMS } from "@/modules/grades/grades.mock";
 import { STUDENTS } from "@/modules/users/users.mock";
+import { overlaps } from "@/modules/course-registration/course-registration.constant";
+import type { ClassMeeting } from "@/modules/course-registration/course-registration.type";
 import { by, type SeedContext } from "./context";
 
 const TERM_KEY = /^hk([1-3])-(\d{4})$/;
@@ -129,6 +131,8 @@ export async function seedRegistration(tx: Transaction, context: SeedContext) {
   // Danh sách lớp lấy theo cùng thứ tự chọn của dữ liệu mẫu, bỏ sinh viên không còn đang học và sinh viên đã có lớp khác
   // của cùng học phần trong học kỳ (DB chặn bằng enrollments_active_per_course_term).
   const taken = new Set<string>();
+  const busy = new Map<string, ClassMeeting[]>();
+  const clashes = (key: string, meetings: ClassMeeting[]) => (busy.get(key) ?? []).some((theirs) => meetings.some((mine) => overlaps(mine, theirs)));
   const rows: (typeof enrollments.$inferInsert)[] = [];
   for (const section of CLASS_SECTIONS) {
     if (section.status !== "open" || section.enrolled === 0) continue;
@@ -141,7 +145,9 @@ export async function seedRegistration(tx: Transaction, context: SeedContext) {
       if (count >= section.enrolled) break;
       const student = STUDENTS[index];
       const key = `${student.id}:${section.termId}:${section.courseCode}`;
-      if (student.status !== "studying" || taken.has(key)) continue;
+      const slotKey = `${student.id}:${section.termId}`;
+      // Không xếp sinh viên vào hai lớp trùng giờ trong cùng học kỳ.
+      if (student.status !== "studying" || taken.has(key) || clashes(slotKey, section.meetings)) continue;
       let labGroupId: string | null = null;
       if (section.labGroups.length > 0) {
         // Chia vào nhóm thực hành đang ít người nhất còn chỗ.
@@ -151,7 +157,13 @@ export async function seedRegistration(tx: Transaction, context: SeedContext) {
         labLoad[position] += 1;
         labGroupId = section.labGroups[position].id;
       }
+      const labMeeting = section.labGroups.find((group) => group.id === labGroupId)?.meeting;
+      if (labMeeting && clashes(slotKey, [labMeeting])) {
+        labLoad[section.labGroups.findIndex((group) => group.id === labGroupId)] -= 1;
+        continue;
+      }
       taken.add(key);
+      busy.set(slotKey, [...(busy.get(slotKey) ?? []), ...section.meetings, ...(labMeeting ? [labMeeting] : [])]);
       count += 1;
       rows.push({
         id: mockId(`enrollment:${section.id}:${student.id}`),

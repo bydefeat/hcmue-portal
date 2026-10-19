@@ -1,16 +1,18 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { Button, DatePicker, Drawer, Form, Input, message, Modal, Select, Table, type TableColumnsType } from "antd";
 import type { Dayjs } from "dayjs";
 import { Magnifier, Plus } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { PageHeader } from "@/shared/components/ui/page-header";
 import { StatusTag } from "@/shared/components/ui/status-tag";
-import { dayjs, formatDate } from "@/shared/libs/date.lib";
+import { formatDate } from "@/shared/libs/date.lib";
+import { toFormFields } from "@/shared/libs/form.lib";
 import { DECISION_KIND_LABEL, DECISION_KIND_OPTIONS, DECISION_STATUS } from "@/modules/users/users.constant";
 import type { DecisionKind, DecisionStatus, StudentDecision } from "@/modules/users/users.type";
 import { DecisionPreview } from "@/modules/users/components/decision-preview";
+import { advanceDecision, createDecision } from "@/modules/users/users.action";
 import { paginationItemRender } from "@/shared/constants/antd.constant";
 import { normalizeSearch } from "@/shared/libs/search.lib";
 
@@ -19,13 +21,14 @@ export type DecisionStudentOption = { id: string; code: string; fullName: string
 type DecisionTableProps = {
   decisions: StudentDecision[];
   students: DecisionStudentOption[];
-  signerName: string;
   header: { title: string; description?: React.ReactNode };
 };
 
 type CreateValues = { studentId: string; kind: DecisionKind; title: string; effectiveDate: Dayjs; basis: string };
 
-export function DecisionTable({ decisions, students, signerName, header }: DecisionTableProps) {
+const NETWORK_ERROR = "Chưa lưu được, kiểm tra kết nối rồi thử lại.";
+
+export function DecisionTable({ decisions, students, header }: DecisionTableProps) {
   const [messageApi, contextHolder] = message.useMessage();
   const [modal, modalContextHolder] = Modal.useModal();
   const [rows, setRows] = useState(decisions);
@@ -35,6 +38,7 @@ export function DecisionTable({ decisions, students, signerName, header }: Decis
   const [creating, setCreating] = useState(false);
   const [previewId, setPreviewId] = useState<string | null>(null);
   const [form] = Form.useForm<CreateValues>();
+  const [isSaving, startSaving] = useTransition();
   const preview = rows.find((row) => row.id === previewId) ?? null;
 
   useEffect(() => {
@@ -48,12 +52,23 @@ export function DecisionTable({ decisions, students, signerName, header }: Decis
       (!query.trim() || normalizeSearch(`${row.studentName} ${row.studentCode} ${row.number ?? ""} ${row.title}`).includes(normalizeSearch(query.trim()))),
   );
 
-  const update = (id: string, patch: Partial<StudentDecision>) => setRows((current) => current.map((row) => (row.id === id ? { ...row, ...patch } : row)));
+  const replace = (saved: StudentDecision) => setRows((current) => current.map((row) => (row.id === saved.id ? saved : row)));
 
-  const submitForSignature = (row: StudentDecision) => {
-    update(row.id, { status: "pending-signature", number: `${1300 + rows.length}/QĐ-ĐHSP` });
-    messageApi.success(`Đã trình ký quyết định cho ${row.studentName}`);
+  const advance = async (row: StudentDecision, step: "submit" | "sign" | "revoke") => {
+    const result = await advanceDecision(row.id, step).catch(() => null);
+    if (!result?.ok) {
+      messageApi.error(result?.message ?? NETWORK_ERROR);
+      return null;
+    }
+    replace(result.data);
+    return result.data;
   };
+
+  const submitForSignature = (row: StudentDecision) =>
+    startSaving(async () => {
+      const saved = await advance(row, "submit");
+      if (saved) messageApi.success(`Đã trình ký quyết định ${saved.number} cho ${row.studentName}`);
+    });
 
   const sign = (row: StudentDecision) =>
     modal.confirm({
@@ -63,50 +78,40 @@ export function DecisionTable({ decisions, students, signerName, header }: Decis
       okButtonProps: { danger: true },
       cancelText: "Hủy",
       mask: { closable: false },
-      onOk: () => {
-        update(row.id, { status: "signed", signedBy: `${signerName}, người ký`, signedAt: dayjs().toISOString() });
-        messageApi.success(`Đã ký quyết định ${row.number}`);
+      onOk: async () => {
+        if (await advance(row, "sign")) messageApi.success(`Đã ký quyết định ${row.number}`);
       },
     });
 
   const revoke = (row: StudentDecision) =>
     modal.confirm({
       title: `Thu hồi quyết định ${row.number}?`,
-      content: "Quyết định hết hiệu lực, trạng thái của sinh viên trở về như trước khi ký. Cần có quyết định thu hồi kèm theo.",
+      content: "Quyết định hết hiệu lực, trạng thái của sinh viên trở về đang học. Cần có quyết định thu hồi kèm theo.",
       okText: "Thu hồi",
       okButtonProps: { danger: true },
       cancelText: "Hủy",
       mask: { closable: false },
-      onOk: () => {
-        update(row.id, { status: "revoked" });
-        messageApi.success(`Đã thu hồi quyết định ${row.number}`);
+      onOk: async () => {
+        if (await advance(row, "revoke")) messageApi.success(`Đã thu hồi quyết định ${row.number}`);
       },
     });
 
-  const create = (values: CreateValues) => {
-    const student = students.find((entry) => entry.id === values.studentId)!;
-    setRows((current) => [
-      {
-        id: `qd-moi-${current.length + 1}`,
-        number: null,
-        kind: values.kind,
-        studentId: student.id,
-        studentCode: student.code,
-        studentName: student.fullName,
-        className: student.className,
-        faculty: student.faculty,
-        title: values.title.trim(),
-        effectiveDate: values.effectiveDate.toISOString(),
-        signedBy: null,
-        signedAt: null,
-        status: "draft",
-        basis: values.basis.trim(),
-      },
-      ...current,
-    ]);
-    setCreating(false);
-    messageApi.success(`Đã lập dự thảo quyết định cho ${student.fullName}`);
-  };
+  const create = (values: CreateValues) =>
+    startSaving(async () => {
+      const result = await createDecision({ ...values, effectiveDate: values.effectiveDate.format("YYYY-MM-DD") }).catch(() => null);
+      if (!result) {
+        messageApi.error(NETWORK_ERROR);
+        return;
+      }
+      if (!result.ok) {
+        form.setFields(toFormFields(result.fieldErrors));
+        messageApi.error(result.message);
+        return;
+      }
+      setRows((current) => [result.data, ...current]);
+      setCreating(false);
+      messageApi.success(`Đã lập dự thảo quyết định cho ${result.data.studentName}`);
+    });
 
   const numberLink = (row: StudentDecision) => (
     <Button type="link" size="small" onClick={() => setPreviewId(row.id)} className="h-auto p-0 text-xs">
@@ -153,7 +158,7 @@ export function DecisionTable({ decisions, students, signerName, header }: Decis
       render: (_, row) => (
         <div className="flex justify-end">
           {row.status === "draft" && (
-            <Button size="small" type="text" onClick={() => submitForSignature(row)}>
+            <Button size="small" type="text" disabled={isSaving} onClick={() => submitForSignature(row)}>
               Trình ký
             </Button>
           )}
@@ -209,7 +214,7 @@ export function DecisionTable({ decisions, students, signerName, header }: Decis
           footer={
             <div className="flex justify-end gap-2">
               <Button onClick={() => setCreating(false)}>Hủy</Button>
-              <Button type="primary" onClick={() => form.submit()}>
+              <Button type="primary" loading={isSaving} onClick={() => form.submit()}>
                 Lưu dự thảo
               </Button>
             </div>

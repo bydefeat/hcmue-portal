@@ -1,12 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { Avatar, Button, Descriptions, Form, Input, message, Modal } from "antd";
 import { Pen } from "defeat-icons-react";
 import { SectionCard } from "@/shared/components/ui/section-card";
 import { StatusTag } from "@/shared/components/ui/status-tag";
 import { LECTURER_STATUS, USER_ROLES } from "@/modules/users/users.constant";
+import { saveMyLecturerContact } from "@/modules/users/users.action";
 import type { Lecturer } from "@/modules/users/users.type";
+import { toFormFields } from "@/shared/libs/form.lib";
 
 type ContactValues = {
   phone: string;
@@ -15,19 +17,19 @@ type ContactValues = {
   officeHours: string;
 };
 
-const DEFAULT_CONTACT: Omit<ContactValues, "phone"> = {
-  personalEmail: "",
-  office: "Văn phòng khoa, phòng B.201",
-  officeHours: "Thứ 3 và thứ 5, 14:00 - 16:00",
-};
-
 function initialsOf(name: string) {
   return name.trim().split(/\s+/).at(-1)?.[0]?.toUpperCase() ?? "";
 }
 
 export function LecturerProfileCard({ lecturer }: { lecturer: Lecturer }) {
   const [messageApi, contextHolder] = message.useMessage();
-  const [contact, setContact] = useState<ContactValues>({ phone: lecturer.phone, ...DEFAULT_CONTACT });
+  const [contact, setContact] = useState<ContactValues>({
+    phone: lecturer.phone,
+    personalEmail: lecturer.personalEmail,
+    office: lecturer.office,
+    officeHours: lecturer.officeHours,
+  });
+  const [isSaving, startSaving] = useTransition();
   const [isOpen, setIsOpen] = useState(false);
   const [form] = Form.useForm<ContactValues>();
   useEffect(() => {
@@ -78,6 +80,7 @@ export function LecturerProfileCard({ lecturer }: { lecturer: Lecturer }) {
           okText="Lưu"
           cancelText="Hủy"
           onOk={() => form.submit()}
+          confirmLoading={isSaving}
           onCancel={() => setIsOpen(false)}
           mask={{ closable: false }}
           destroyOnHidden
@@ -85,11 +88,19 @@ export function LecturerProfileCard({ lecturer }: { lecturer: Lecturer }) {
           <Form
             form={form}
             layout="vertical"
-            onFinish={(values: ContactValues) => {
-              setContact(values);
-              setIsOpen(false);
-              messageApi.success("Đã lưu thông tin liên hệ. Sinh viên cố vấn thấy giờ tiếp mới ngay.");
-            }}
+            onFinish={(values: ContactValues) =>
+              startSaving(async () => {
+                const result = await saveMyLecturerContact(values).catch(() => null);
+                if (!result?.ok) {
+                  if (result) form.setFields(toFormFields(result.fieldErrors));
+                  messageApi.error(result?.message ?? "Chưa lưu được, kiểm tra kết nối rồi thử lại.");
+                  return;
+                }
+                setContact(values);
+                setIsOpen(false);
+                messageApi.success("Đã lưu thông tin liên hệ. Sinh viên cố vấn thấy giờ tiếp mới ngay.");
+              })
+            }
           >
             <Form.Item
               name="phone"

@@ -57,6 +57,13 @@
       "when": 1792427376693,
       "tag": "0007_requests_workflow",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1792427771058,
+      "tag": "0008_users_contact",
+      "breakpoints": true
     }
   ]
 }

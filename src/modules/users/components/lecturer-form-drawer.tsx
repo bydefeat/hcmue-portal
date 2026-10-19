@@ -1,21 +1,24 @@
 "use client";
 
-import { useEffect } from "react";
-import { Button, Checkbox, Drawer, Form, Input, Select } from "antd";
-import { FACULTY_OPTIONS, LECTURER_STATUS, LECTURER_TITLES, USER_ROLES } from "@/modules/users/users.constant";
+import { useEffect, useTransition } from "react";
+import { Button, Drawer, Form, Input, Radio, Select } from "antd";
+import { FACULTY_OPTIONS, LECTURER_STATUS, LECTURER_TITLES } from "@/modules/users/users.constant";
 import type { Lecturer, LecturerFormValues, LecturerStatus } from "@/modules/users/users.type";
+import { toFormFields } from "@/shared/libs/form.lib";
 
 type LecturerFormDrawerProps = {
   open: boolean;
   lecturer: Lecturer | null;
   onClose: () => void;
-  onSubmit: (values: LecturerFormValues) => void;
+  // Trả lỗi theo ô khi server từ chối, để drawer gắn vào đúng ô.
+  onSubmit: (values: LecturerFormValues) => Promise<Record<string, string> | undefined>;
 };
 
 const STATUS_OPTIONS = (Object.keys(LECTURER_STATUS) as LecturerStatus[]).map((value) => ({ value, label: LECTURER_STATUS[value].label }));
 
 export function LecturerFormDrawer({ open, lecturer, onClose, onSubmit }: LecturerFormDrawerProps) {
   const [form] = Form.useForm<LecturerFormValues>();
+  const [isPending, startTransition] = useTransition();
   const isEdit = lecturer !== null;
 
   useEffect(() => {
@@ -35,13 +38,23 @@ export function LecturerFormDrawer({ open, lecturer, onClose, onSubmit }: Lectur
       footer={
         <div className="flex justify-end gap-2">
           <Button onClick={onClose}>Hủy</Button>
-          <Button type="primary" onClick={() => form.submit()}>
+          <Button type="primary" loading={isPending} onClick={() => form.submit()}>
             {isEdit ? "Lưu thay đổi" : "Thêm giảng viên"}
           </Button>
         </div>
       }
     >
-      <Form form={form} layout="vertical" initialValues={{ status: "active", roles: ["lecturer"] }} onFinish={onSubmit}>
+      <Form
+        form={form}
+        layout="vertical"
+        initialValues={{ status: "active" }}
+        onFinish={(values) =>
+          startTransition(async () => {
+            const fieldErrors = await onSubmit(values);
+            if (fieldErrors) form.setFields(toFormFields(fieldErrors));
+          })
+        }
+      >
         <div className="grid gap-x-3 sm:grid-cols-2">
           <Form.Item name="code" label="Mã giảng viên" rules={[{ required: true, message: "Chưa nhập mã giảng viên" }]}>
             <Input disabled={isEdit} />
@@ -50,9 +63,19 @@ export function LecturerFormDrawer({ open, lecturer, onClose, onSubmit }: Lectur
             <Select placeholder="Chọn học hàm, học vị" options={LECTURER_TITLES.map((value) => ({ value, label: value }))} />
           </Form.Item>
         </div>
-        <Form.Item name="fullName" label="Họ và tên" rules={[{ required: true, whitespace: true, message: "Chưa nhập họ và tên" }]}>
-          <Input autoComplete="off" />
-        </Form.Item>
+        <div className="grid gap-x-3 sm:grid-cols-[1fr_auto]">
+          <Form.Item name="fullName" label="Họ và tên" rules={[{ required: true, whitespace: true, message: "Chưa nhập họ và tên" }]}>
+            <Input autoComplete="off" />
+          </Form.Item>
+          <Form.Item name="gender" label="Giới tính" rules={[{ required: true, message: "Chưa chọn giới tính" }]}>
+            <Radio.Group
+              options={[
+                { value: "female", label: "Nữ" },
+                { value: "male", label: "Nam" },
+              ]}
+            />
+          </Form.Item>
+        </div>
         <Form.Item name="faculty" label="Khoa" rules={[{ required: true, message: "Chưa chọn khoa" }]}>
           <Select options={FACULTY_OPTIONS} />
         </Form.Item>
@@ -73,14 +96,6 @@ export function LecturerFormDrawer({ open, lecturer, onClose, onSubmit }: Lectur
         </div>
         <Form.Item name="status" label="Tình trạng">
           <Select options={STATUS_OPTIONS} />
-        </Form.Item>
-        <Form.Item
-          name="roles"
-          label="Vai trò"
-          extra="Vai trò Cố vấn học tập mở mục Cố vấn trên cổng giảng viên"
-          rules={[{ required: true, message: "Chọn ít nhất một vai trò" }]}
-        >
-          <Checkbox.Group options={USER_ROLES} />
         </Form.Item>
       </Form>
     </Drawer>

@@ -1,8 +1,11 @@
 "use client";
 
+import { useTransition } from "react";
 import Link from "next/link";
 import { Button, Form, Input, message } from "antd";
 import { SectionCard } from "@/shared/components/ui/section-card";
+import { toFormFields } from "@/shared/libs/form.lib";
+import { saveMyStudentContact } from "@/modules/users/users.action";
 
 type ContactValues = {
   schoolEmail: string;
@@ -16,6 +19,7 @@ type ContactValues = {
 export function StudentProfileContactForm({ initialValues }: { initialValues: ContactValues }) {
   const [form] = Form.useForm<ContactValues>();
   const [messageApi, contextHolder] = message.useMessage();
+  const [isSaving, startSaving] = useTransition();
 
   return (
     <SectionCard title="Thông tin liên hệ">
@@ -25,7 +29,17 @@ export function StudentProfileContactForm({ initialValues }: { initialValues: Co
         form={form}
         layout="vertical"
         initialValues={initialValues}
-        onFinish={() => messageApi.success("Đã lưu thông tin liên hệ")}
+        onFinish={({ schoolEmail: _schoolEmail, ...values }) =>
+          startSaving(async () => {
+            const result = await saveMyStudentContact(values).catch(() => null);
+            if (!result?.ok) {
+              if (result) form.setFields(toFormFields(result.fieldErrors));
+              messageApi.error(result?.message ?? "Chưa lưu được, kiểm tra kết nối rồi thử lại.");
+              return;
+            }
+            messageApi.success("Đã lưu thông tin liên hệ");
+          })
+        }
       >
         <div className="grid gap-x-3 sm:grid-cols-2">
           <Form.Item name="schoolEmail" label="Email sinh viên" extra="Do nhà trường cấp, không đổi được">
@@ -58,7 +72,7 @@ export function StudentProfileContactForm({ initialValues }: { initialValues: Co
           <Link href="/authentication/forgot-password" className="text-sm">
             Đổi mật khẩu
           </Link>
-          <Button type="primary" htmlType="submit">
+          <Button type="primary" htmlType="submit" loading={isSaving}>
             Lưu thay đổi
           </Button>
         </div>

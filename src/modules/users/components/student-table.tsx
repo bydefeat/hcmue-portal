@@ -1,38 +1,26 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { Button, Card, Dropdown, Input, message, Select, Table, type TableColumnsType } from "antd";
 import { FileArrowIn, Magnifier, Pen, Plus } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { PageHeader } from "@/shared/components/ui/page-header";
 import { StatusTag } from "@/shared/components/ui/status-tag";
-import { MOCK_MAJORS } from "@/shared/libs/mock.lib";
 import { COHORT_OPTIONS, FACULTY_OPTIONS, STUDENT_STATUS, STUDENT_STATUS_OPTIONS } from "@/modules/users/users.constant";
 import type { Student, StudentFormValues, StudentStatus } from "@/modules/users/users.type";
 import { StudentFormDrawer } from "@/modules/users/components/student-form-drawer";
 import { StudentImportModal } from "@/modules/users/components/student-import-modal";
 import { paginationItemRender } from "@/shared/constants/antd.constant";
 import { normalizeSearch } from "@/shared/libs/search.lib";
-import { normalizeStudentCode } from "@/shared/libs/student-code.lib";
+import { importStudents, saveStudent, setStudentsStatus } from "@/modules/users/users.action";
 
 export type StudentRow = Student & {
   cpa4: number | null;
   standingLabel: string | null;
 };
 
-function toStudent(values: StudentFormValues, base?: StudentRow): StudentRow {
-  const major = MOCK_MAJORS.find((entry) => entry.code === values.majorCode)!;
-  return {
-    id: base?.id ?? `sv-new-${values.code}`,
-    hometown: base?.hometown ?? "",
-    cpa4: base?.cpa4 ?? null,
-    standingLabel: base?.standingLabel ?? null,
-    ...values,
-    faculty: major.faculty,
-    majorName: major.name,
-  };
-}
+const NETWORK_ERROR = "Chưa lưu được, kiểm tra kết nối rồi thử lại.";
 
 export function StudentTable({ students, header }: { students: StudentRow[]; header: { title: string; description?: React.ReactNode } }) {
   const [messageApi, contextHolder] = message.useMessage();
@@ -45,6 +33,7 @@ export function StudentTable({ students, header }: { students: StudentRow[]; hea
   const [editing, setEditing] = useState<StudentRow | null>(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [isImportOpen, setIsImportOpen] = useState(false);
+  const [isSaving, startSaving] = useTransition();
 
   const filtered = useMemo(() => {
     const needle = normalizeSearch(query.trim());
@@ -67,27 +56,36 @@ export function StudentTable({ students, header }: { students: StudentRow[]; hea
     setIsDrawerOpen(true);
   };
 
-  const handleSubmit = (values: StudentFormValues) => {
-    if (editing) {
-      setRows((current) => current.map((row) => (row.id === editing.id ? toStudent(values, editing) : row)));
-      messageApi.success(`Đã lưu hồ sơ ${values.fullName}`);
-    } else {
-      if (rows.some((row) => normalizeStudentCode(row.code) === normalizeStudentCode(values.code))) {
-        messageApi.error(`Mã ${values.code} đã thuộc về sinh viên khác. Kiểm tra lại mã trên giấy báo nhập học.`);
-        return;
-      }
-      setRows((current) => [toStudent(values), ...current]);
-      messageApi.success(`Đã thêm ${values.fullName} vào lớp ${values.className}`);
+  const handleSubmit = async (values: StudentFormValues) => {
+    const result = await saveStudent(editing?.id ?? null, values).catch(() => null);
+    if (!result) {
+      messageApi.error(NETWORK_ERROR);
+      return undefined;
     }
+    if (!result.ok) {
+      messageApi.error(result.message);
+      return result.fieldErrors;
+    }
+    const saved: StudentRow = { ...result.data, cpa4: editing?.cpa4 ?? null, standingLabel: editing?.standingLabel ?? null };
+    setRows((current) => (editing ? current.map((row) => (row.id === saved.id ? saved : row)) : [saved, ...current]));
+    messageApi.success(editing ? `Đã lưu hồ sơ ${saved.fullName}` : `Đã thêm ${saved.fullName} vào lớp ${saved.className}`);
     setIsDrawerOpen(false);
+    return undefined;
   };
 
-  const changeStatus = (next: StudentStatus) => {
-    const ids = new Set(selectedIds);
-    setRows((current) => current.map((row) => (ids.has(row.id) ? { ...row, status: next } : row)));
-    messageApi.success(`Đã chuyển ${ids.size} sinh viên sang "${STUDENT_STATUS[next].label}"`);
-    setSelectedIds([]);
-  };
+  const changeStatus = (next: StudentStatus) =>
+    startSaving(async () => {
+      const ids = selectedIds.map(String);
+      const result = await setStudentsStatus(ids, next).catch(() => null);
+      if (!result?.ok) {
+        messageApi.error(result?.message ?? NETWORK_ERROR);
+        return;
+      }
+      const chosen = new Set(ids);
+      setRows((current) => current.map((row) => (chosen.has(row.id) ? { ...row, status: next } : row)));
+      messageApi.success(`Đã chuyển ${result.data.updated} sinh viên sang "${STUDENT_STATUS[next].label}"`);
+      setSelectedIds([]);
+    });
 
   const columns: TableColumnsType<StudentRow> = [
     {
@@ -202,7 +200,9 @@ export function StudentTable({ students, header }: { students: StudentRow[]; hea
                 onClick: ({ key }) => changeStatus(key as StudentStatus),
               }}
             >
-              <Button size="small">Đổi trạng thái</Button>
+              <Button size="small" loading={isSaving}>
+                Đổi trạng thái
+              </Button>
             </Dropdown>
             <Button size="small" type="text" onClick={() => setSelectedIds([])}>
               Bỏ chọn
@@ -235,9 +235,15 @@ export function StudentTable({ students, header }: { students: StudentRow[]; hea
           open={isImportOpen}
           existingCodes={rows.map((row) => row.code)}
           onClose={() => setIsImportOpen(false)}
-          onImport={(values) => {
-            setRows((current) => [...values.map((value) => toStudent(value)), ...current]);
-            messageApi.success(`Đã nhập ${values.length} sinh viên mới`);
+          onImport={async (values) => {
+            const result = await importStudents(values).catch(() => null);
+            if (!result?.ok) {
+              messageApi.error(result?.message ?? NETWORK_ERROR);
+              return false;
+            }
+            setRows((current) => [...result.data.map((student) => ({ ...student, cpa4: null, standingLabel: null })), ...current]);
+            messageApi.success(`Đã nhập ${result.data.length} sinh viên mới`);
+            return true;
           }}
         />
       </div>

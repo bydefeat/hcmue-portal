@@ -57,3 +57,14 @@ export const DECISION_STATUS: Record<DecisionStatus, StatusMeta> = {
 };
 
 export const DECISION_KIND_OPTIONS = Object.entries(DECISION_KIND_LABEL).map(([value, label]) => ({ value, label }));
+
+export const USERS_CONSTRAINT_MESSAGE: Partial<Record<string, string>> = {
+  students_code_unique: "Mã sinh viên đã thuộc về sinh viên khác. Kiểm tra lại mã trên giấy báo nhập học.",
+  students_email_unique: "Email đã được dùng cho sinh viên khác.",
+  students_user_id_unique: "Tài khoản đăng nhập đã gắn với sinh viên khác.",
+  lecturers_code_unique: "Mã giảng viên đã có.",
+  lecturers_email_unique: "Email công vụ đã được dùng cho giảng viên khác.",
+  administrative_classes_code_unique: "Mã lớp sinh hoạt đã có.",
+  student_decisions_number_index: "Số quyết định đã được dùng, thử lại.",
+  student_decisions_signed_fields: "Quyết định đã ký phải có số và ngày ký.",
+};

@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { MOCK_COHORTS, MOCK_MAJORS } from "@/shared/libs/mock.lib";
 import type { StudentFormValues } from "@/modules/users/users.type";
 import { formatStudentCode, isStudentCode, normalizeStudentCode, studentEmailOf } from "@/shared/libs/student-code.lib";
@@ -69,3 +70,69 @@ export function templateCsv() {
   ];
   return [IMPORT_COLUMNS.join(","), ...sample.map((line) => line.join(","))].join("\n");
 }
+
+const PHONE = /^0\d{9}$/;
+const optionalPhone = z.string().trim().refine((value) => value === "" || PHONE.test(value.replace(/\s/g, "")), "Số điện thoại gồm 10 số, bắt đầu bằng 0");
+const optionalEmail = z.string().trim().refine((value) => value === "" || z.email().safeParse(value).success, "Email cần có dấu @ và tên miền");
+
+// Hồ sơ sinh viên do Phòng Đào tạo nhập; MSSV lưu 10 chữ số, lớp sinh hoạt tự tạo nếu chưa có.
+export const STUDENT_SCHEMA = z.object({
+  code: z
+    .string()
+    .trim()
+    .transform(normalizeStudentCode)
+    .pipe(z.string().regex(/^\d{10}$/, "Mã sinh viên gồm 10 chữ số, ví dụ 49.01.104.012")),
+  fullName: z.string().trim().min(1, "Chưa nhập họ và tên").max(120),
+  gender: z.enum(["female", "male"]),
+  dateOfBirth: z.iso.date("Ngày sinh không hợp lệ"),
+  email: optionalEmail,
+  phone: optionalPhone,
+  majorCode: z.string().trim().min(1, "Chưa chọn ngành"),
+  cohort: z.int().min(1).max(99),
+  className: z.string().trim().min(1, "Chưa nhập lớp sinh hoạt").max(40),
+  status: z.enum(["studying", "reserved", "suspended", "graduated"]),
+});
+
+export type StudentInput = z.input<typeof STUDENT_SCHEMA>;
+
+export const LECTURER_SCHEMA = z.object({
+  code: z.string().trim().toUpperCase().min(1, "Chưa nhập mã giảng viên").max(20),
+  fullName: z.string().trim().min(1, "Chưa nhập họ và tên").max(120),
+  gender: z.enum(["female", "male"], "Chưa chọn giới tính"),
+  title: z.string().trim().min(1, "Chưa chọn học hàm, học vị").max(20),
+  faculty: z.string().trim().min(1, "Chưa chọn khoa"),
+  email: z.string().trim().toLowerCase().pipe(z.email("Email không hợp lệ")).refine((value) => value.endsWith("@hcmue.edu.vn"), "Dùng email công vụ có đuôi @hcmue.edu.vn"),
+  phone: optionalPhone,
+  status: z.enum(["active", "on-leave"]),
+});
+
+export type LecturerInput = z.input<typeof LECTURER_SCHEMA>;
+
+export const STUDENT_CONTACT_SCHEMA = z.object({
+  personalEmail: optionalEmail,
+  phone: z.string().trim().regex(PHONE, "Số điện thoại gồm 10 chữ số, bắt đầu bằng 0"),
+  address: z.string().trim().max(300),
+  emergencyName: z.string().trim().max(120),
+  emergencyPhone: optionalPhone,
+});
+
+export type StudentContactInput = z.input<typeof STUDENT_CONTACT_SCHEMA>;
+
+export const LECTURER_CONTACT_SCHEMA = z.object({
+  phone: z.string().trim().regex(PHONE, "Số điện thoại gồm 10 chữ số, bắt đầu bằng 0"),
+  personalEmail: optionalEmail,
+  office: z.string().trim().max(200),
+  officeHours: z.string().trim().max(200),
+});
+
+export type LecturerContactInput = z.input<typeof LECTURER_CONTACT_SCHEMA>;
+
+export const DECISION_SCHEMA = z.object({
+  studentId: z.uuid("Chưa chọn sinh viên"),
+  kind: z.enum(["reserve", "resume", "suspend", "expel", "major-change", "reward", "discipline", "graduate"]),
+  title: z.string().trim().min(1, "Chưa nhập nội dung").max(300),
+  basis: z.string().trim().min(1, "Chưa nhập căn cứ").max(500),
+  effectiveDate: z.iso.date("Chưa chọn ngày"),
+});
+
+export type DecisionInput = z.input<typeof DECISION_SCHEMA>;

@@ -48,6 +48,9 @@ export async function seedPeople(tx: Transaction, context: SeedContext) {
       facultyId: context.facultyByName.get(lecturer.faculty)!.id,
       email: lecturer.email,
       phone: lecturer.phone,
+      personalEmail: lecturer.personalEmail,
+      office: lecturer.office,
+      officeHours: lecturer.officeHours,
       status: lecturer.status,
     })),
   );

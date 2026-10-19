@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import { Alert, Button, Modal, Table, Upload, type TableColumnsType } from "antd";
 import { CircleCheck, CircleWarning, Download, FileArrowIn } from "defeat-icons-react";
 import { IMPORT_COLUMNS, templateCsv, validateImportRow, type ImportResult, type ImportRow } from "@/modules/users/users.rule";
@@ -13,7 +13,8 @@ type StudentImportModalProps = {
   open: boolean;
   existingCodes: string[];
   onClose: () => void;
-  onImport: (values: StudentFormValues[]) => void;
+  // Trả true khi server đã ghi xong, modal mới đóng.
+  onImport: (values: StudentFormValues[]) => Promise<boolean>;
 };
 
 const XLSX_SAMPLE: string[][] = [
@@ -63,6 +64,7 @@ const COLUMNS: TableColumnsType<ImportResult> = [
 ];
 
 export function StudentImportModal({ open, existingCodes, onClose, onImport }: StudentImportModalProps) {
+  const [isImporting, startImporting] = useTransition();
   const [fileName, setFileName] = useState<string | null>(null);
   const [results, setResults] = useState<ImportResult[]>([]);
   const valid = results.filter((result) => result.values !== null);
@@ -110,11 +112,13 @@ export function StudentImportModal({ open, existingCodes, onClose, onImport }: S
           )}
           <Button
             type="primary"
+            loading={isImporting}
             disabled={valid.length === 0}
-            onClick={() => {
-              onImport(valid.map((result) => result.values!));
-              close();
-            }}
+            onClick={() =>
+              startImporting(async () => {
+                if (await onImport(valid.map((result) => result.values!))) close();
+              })
+            }
           >
             {valid.length > 0 ? `Nhập ${valid.length} dòng hợp lệ` : "Nhập dữ liệu"}
           </Button>

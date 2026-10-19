@@ -64,6 +64,20 @@
       "when": 1792427771058,
       "tag": "0008_users_contact",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1792428024207,
+      "tag": "0009_modules_on_postgres",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1792428051393,
+      "tag": "0010_grades_lock_guard",
+      "breakpoints": true
     }
   ]
 }

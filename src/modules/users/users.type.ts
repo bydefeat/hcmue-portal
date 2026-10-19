@@ -107,3 +107,39 @@ export type StudentDecision = {
   status: DecisionStatus;
   basis: string;
 };
+
+// Tài khoản đăng nhập của một hồ sơ: chưa cấp, đã cấp nhưng chưa từng đăng nhập, đang dùng, bị khóa.
+export type AccountStatus = "none" | "pending" | "active" | "locked";
+
+export type AccountState = {
+  status: AccountStatus;
+  lastSignInAt: string | null;
+};
+
+export type AccountKind = "student" | "lecturer";
+
+// Kết quả một thao tác tài khoản hàng loạt: trạng thái mới theo id hồ sơ, số dòng bị bỏ qua kèm lý do.
+export type AccountBatchResult = {
+  accounts: Record<string, AccountState>;
+  changed: number;
+  mailed: number;
+  mailFailed: number;
+  skipped: { id: string; name: string; reason: string }[];
+};
+
+export type StaffFormValues = {
+  code: string;
+  fullName: string;
+  unit: string;
+  email: string;
+  provisionAccount: boolean;
+};
+
+export type MailOutcome = { sent: number; failed: number };
+
+export type SavedProfile<T> = {
+  profile: T;
+  account: AccountState;
+  // Thư kích hoạt khi vừa cấp tài khoản; null nếu lần lưu này không cấp.
+  mail: MailOutcome | null;
+};

@@ -22,6 +22,21 @@ const schema = z.object({
   DEFEAT_CRON_SECRET: blankAsUnset(z.string().min(32).optional()),
   // Thư mục lưu tệp tải lên (minh chứng đơn từ, đề thi), tương đối thì tính từ thư mục chạy app.
   DEFEAT_STORAGE_DIRECTORY: blankAsUnset(z.string().trim().min(1).default("./storage")),
+  // Header chứa IP thật của người dùng, do reverse proxy ghi đè (rate limit đăng nhập, nhật ký thao tác).
+  DEFEAT_TRUSTED_IP_HEADER: blankAsUnset(z.string().trim().toLowerCase().default("x-forwarded-for")),
+  // IP hoặc dải CIDR của các reverse proxy, cách nhau bởi dấu phẩy. Bỏ trống thì chỉ tin header có đúng một IP.
+  DEFEAT_TRUSTED_PROXIES: blankAsUnset(
+    z
+      .string()
+      .transform((value) => value.split(",").map((entry) => entry.trim()).filter(Boolean))
+      .default([]),
+  ),
 });
 
-export const env = schema.parse(process.env);
+// Production thiếu khóa Resend thì mail.lib in cả mã OTP ra log: không cho chạy (bước next build vẫn qua để dựng được bản build).
+export const env = schema
+  .refine((value) => process.env.NODE_ENV !== "production" || process.env.NEXT_PHASE === "phase-production-build" || Boolean(value.DEFEAT_RESEND_API_KEY), {
+    message: "DEFEAT_RESEND_API_KEY bắt buộc khi NODE_ENV=production",
+    path: ["DEFEAT_RESEND_API_KEY"],
+  })
+  .parse(process.env);

@@ -5,7 +5,6 @@ import { db } from "@/shared/libs/db.lib";
 import { isUuid } from "@/shared/libs/id.lib";
 import { requirePermission } from "@/modules/access/access.query";
 import { requireSession } from "@/modules/authentication/authentication.query";
-import { user } from "@/modules/authentication/authentication.schema";
 import { auditLogs } from "@/modules/audit/audit.schema";
 import type { AuditEntityType, AuditEntry } from "@/modules/audit/audit.type";
 import { classSections } from "@/modules/course-registration/course-registration.schema";
@@ -51,8 +50,7 @@ export async function getAuditLog(filter?: AuditFilter): Promise<AuditEntry[]> {
     .select({
       id: auditLogs.id,
       at: auditLogs.at,
-      actorLabel: auditLogs.actorLabel,
-      actorName: user.name,
+      actorName: auditLogs.actorLabel,
       actorRole: auditLogs.actorRole,
       action: auditLogs.action,
       entityType: auditLogs.entityType,
@@ -63,10 +61,9 @@ export async function getAuditLog(filter?: AuditFilter): Promise<AuditEntry[]> {
       ip: auditLogs.ip,
     })
     .from(auditLogs)
-    .leftJoin(user, eq(user.id, auditLogs.actorUserId))
     .where(and(...conditions))
     .orderBy(desc(auditLogs.at), desc(auditLogs.id))
     .limit(2000);
-  // Tên người thao tác lấy theo tài khoản hiện tại; tài khoản đã xóa thì giữ tên lưu lúc ghi.
-  return rows.map(({ at, actorLabel, actorName, ip, ...row }) => ({ ...row, at: at.toISOString(), actorName: actorName ?? actorLabel, ip: ip ?? "" }));
+  // Tên người thao tác là nhãn lưu lúc ghi: đổi tên tài khoản sau đó không sửa ngược được nhật ký.
+  return rows.map(({ at, ip, ...row }) => ({ ...row, at: at.toISOString(), ip: ip ?? "" }));
 }

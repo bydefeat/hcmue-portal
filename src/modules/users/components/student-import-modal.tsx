@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Alert, Button, Modal, Table, Upload, type TableColumnsType } from "antd";
+import { Alert, Button, Checkbox, Modal, Table, Upload, type TableColumnsType } from "antd";
 import { CircleCheck, CircleWarning, Download, FileArrowIn } from "defeat-icons-react";
 import { IMPORT_COLUMNS, templateCsv, validateImportRow, type ImportCatalog, type ImportResult, type ImportRow } from "@/modules/users/users.rule";
 import type { StudentFormValues } from "@/modules/users/users.type";
@@ -16,7 +16,7 @@ type StudentImportModalProps = {
   catalog: ImportCatalog;
   onClose: () => void;
   // Trả true khi server đã ghi xong, modal mới đóng.
-  onImport: (values: StudentFormValues[]) => Promise<boolean>;
+  onImport: (values: StudentFormValues[], options: { provisionAccounts: boolean }) => Promise<boolean>;
 };
 
 // Bỏ dòng tiêu đề; số dòng tính theo tệp (dòng 1 là tiêu đề) để người dùng tìm lại trong Excel.
@@ -57,12 +57,14 @@ export function StudentImportModal({ open, existingCodes, catalog, onClose, onIm
   const [isImporting, startImporting] = useTransition();
   const [fileName, setFileName] = useState<string | null>(null);
   const [results, setResults] = useState<ImportResult[]>([]);
+  const [provisionAccounts, setProvisionAccounts] = useState(true);
   const valid = results.filter((result) => result.values !== null);
   const invalid = results.filter((result) => result.values === null);
 
   const reset = () => {
     setFileName(null);
     setResults([]);
+    setProvisionAccounts(true);
   };
 
   const close = () => {
@@ -106,7 +108,7 @@ export function StudentImportModal({ open, existingCodes, catalog, onClose, onIm
             disabled={valid.length === 0}
             onClick={() =>
               startImporting(async () => {
-                if (await onImport(valid.map((result) => result.values!))) close();
+                if (await onImport(valid.map((result) => result.values!), { provisionAccounts })) close();
               })
             }
           >
@@ -162,6 +164,9 @@ export function StudentImportModal({ open, existingCodes, catalog, onClose, onIm
             pagination={{ itemRender: paginationItemRender, pageSize: 8, hideOnSinglePage: true }}
             scroll={{ x: 560 }}
           />
+          <Checkbox checked={provisionAccounts} onChange={(event) => setProvisionAccounts(event.target.checked)}>
+            Cấp tài khoản và gửi thư kích hoạt tới email trường của từng sinh viên
+          </Checkbox>
         </div>
       )}
     </Modal>

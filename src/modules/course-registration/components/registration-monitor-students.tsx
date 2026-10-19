@@ -40,12 +40,18 @@ export function RegistrationMonitorStudents({ students }: { students: Unregister
         messageApi.error(result.message);
         return;
       }
-      const { remindedIds, withoutAccount } = result.data;
+      const { remindedIds, withoutAccount, mailed, mailFailed } = result.data;
       setRemindedAt((current) => ({ ...current, ...Object.fromEntries(remindedIds.map((id) => [id, result.data.remindedAt])) }));
       setSelected([]);
-      messageApi.success(
-        `Đã gửi thông báo nhắc đăng ký tới ${remindedIds.length} sinh viên${withoutAccount > 0 ? `; ${withoutAccount} sinh viên chưa kích hoạt tài khoản cổng nên chưa nhận được` : ""}`,
-      );
+      const parts = [
+        `${remindedIds.length} sinh viên nhận thông báo trên cổng`,
+        `${mailed} sinh viên được gửi thư tới email trường`,
+        withoutAccount > 0 ? `${withoutAccount} sinh viên chưa có tài khoản cổng nên chỉ nhận thư` : null,
+        mailFailed > 0 ? `${mailFailed} thư chưa gửi được` : null,
+      ].filter(Boolean);
+      const text = `Đã nhắc đăng ký: ${parts.join("; ")}.`;
+      if (mailFailed > 0) messageApi.warning(text, 8);
+      else messageApi.success(text, 6);
     });
 
   const columns: TableColumnsType<UnregisteredStudent> = [

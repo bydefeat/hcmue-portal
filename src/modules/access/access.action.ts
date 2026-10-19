@@ -16,6 +16,7 @@ import { getRoleAssignments, getViewerAssignments, requirePermission } from "@/m
 import { GRANT_ROLE_SCHEMA, ROLE_PERMISSIONS_SCHEMA, type GrantRoleInput } from "@/modules/access/access.rule";
 import { roleAssignments, rolePermissions, roles } from "@/modules/access/access.schema";
 import { faculties } from "@/modules/curriculum/curriculum.schema";
+import { lecturers, staffMembers } from "@/modules/users/users.schema";
 import type { Permission, RoleAssignment } from "@/modules/access/access.type";
 
 const switchSchema = z.object({ assignmentId: z.uuid() });
@@ -77,8 +78,23 @@ export async function grantRole(input: GrantRoleInput): Promise<ActionResult<Rol
   let assignmentId: string;
   try {
     const result = await db.transaction(async (tx) => {
+      // Chỉ cấp vai trò quản trị cho tài khoản của cán bộ hoặc giảng viên; tài khoản sinh viên không bao giờ được vào cổng quản trị.
+      const [target] = await tx
+        .select({ role: users.role, staffId: staffMembers.id, lecturerId: lecturers.id })
+        .from(users)
+        .leftJoin(staffMembers, eq(staffMembers.userId, users.id))
+        .leftJoin(lecturers, eq(lecturers.userId, users.id))
+        .where(eq(users.id, userId));
+      if (!target) return actionError("Tài khoản không còn tồn tại, tải lại trang.", { userId: "Tài khoản không còn tồn tại" });
+      if (parseRoles(target.role).includes("student") || (!target.staffId && !target.lecturerId)) {
+        return actionError("Chỉ cấp vai trò quản trị cho tài khoản của cán bộ hoặc giảng viên.", { userId: "Không phải tài khoản cán bộ, giảng viên" });
+      }
       const [role] = await tx.select({ scope: roles.scope }).from(roles).where(eq(roles.id, roleId));
       if (!role) return actionError("Vai trò không còn tồn tại, tải lại trang.", { roleId: "Vai trò không còn tồn tại" });
+      // Người cấp có phạm vi theo khoa chỉ cấp được vai trò theo khoa, trong đúng khoa của mình.
+      if (viewer.faculty !== null && (role.scope !== "faculty" || faculty !== viewer.faculty)) {
+        return actionError(`Bạn chỉ cấp được vai trò theo khoa cho ${viewer.faculty}.`, { roleId: "Ngoài phạm vi khoa của bạn" });
+      }
       let facultyId: string | null = null;
       if (role.scope === "faculty") {
         const [row] = faculty ? await tx.select({ id: faculties.id }).from(faculties).where(eq(faculties.name, faculty)) : [];
@@ -104,8 +120,14 @@ export async function revokeRole(assignmentId: string): Promise<ActionResult> {
   if (!isUuid(assignmentId)) return actionError("Phân quyền không còn tồn tại, tải lại trang.");
   try {
     const revoked = await db.transaction(async (tx) => {
-      const [row] = await tx.select({ userId: roleAssignments.userId }).from(roleAssignments).where(eq(roleAssignments.id, assignmentId)).for("update");
+      const [row] = await tx
+        .select({ userId: roleAssignments.userId, faculty: faculties.name })
+        .from(roleAssignments)
+        .leftJoin(faculties, eq(faculties.id, roleAssignments.facultyId))
+        .where(eq(roleAssignments.id, assignmentId))
+        .for("update", { of: roleAssignments });
       if (!row) return "missing" as const;
+      if (viewer.faculty !== null && row.faculty !== viewer.faculty) return "scope" as const;
       // Không tự thu hồi quyền của mình, tránh khoá luôn người đang quản trị.
       if (row.userId === viewer.id) return "self" as const;
       await tx.delete(roleAssignments).where(and(eq(roleAssignments.id, assignmentId), eq(roleAssignments.userId, row.userId)));
@@ -114,6 +136,7 @@ export async function revokeRole(assignmentId: string): Promise<ActionResult> {
     });
     if (revoked === "missing") return actionError("Phân quyền đã được thu hồi trước đó.");
     if (revoked === "self") return actionError("Không thu hồi quyền của chính mình. Nhờ cán bộ quản trị khác thực hiện.");
+    if (revoked === "scope") return actionError("Phân quyền này thuộc khoa khác hoặc toàn trường, bạn không thu hồi được.");
   } catch (error) {
     return actionFailure(error, ACCESS_CONSTRAINT_MESSAGE);
   }

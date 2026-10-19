@@ -6,7 +6,7 @@ import { auth } from "@/modules/authentication/authentication.lib";
 import { account, rateLimit, user } from "@/modules/authentication/authentication.schema";
 import { db } from "@/shared/libs/db.lib";
 import { env } from "@/shared/libs/env.lib";
-import { safeNextPath } from "@/modules/authentication/authentication.constant";
+import { AUTH_ERROR_MESSAGE, safeNextPath } from "@/modules/authentication/authentication.constant";
 import { landingAfterSignIn, parseRoles } from "@/shared/constants/role.constant";
 import { formatStudentCode, isStudentCode, normalizeStudentCode, studentEmailOf } from "@/shared/libs/student-code.lib";
 
@@ -60,6 +60,21 @@ describe("trang đích sau đăng nhập", () => {
     assert.equal(landingAfterSignIn(["student"], "/announcements"), "/announcements");
     assert.equal(landingAfterSignIn(["student"], null), "/application/dashboard");
   });
+
+  test("chặn các dạng open redirect qua ?next=", () => {
+    // Next giải mã searchParams nên "%09" tới đây là ký tự tab; trình duyệt bỏ tab, đổi "\\" thành "/".
+    for (const attack of ["/\t/evil.com", "/\n/evil.com", "/\\evil.com", "/\\/evil.com", "//evil.com", "/.//evil.com", "/%2F/evil.com/..//x", "https:evil.com", "javascript:alert(1)", " /x"]) {
+      const safe = safeNextPath(attack);
+      assert.ok(safe === null || (safe.startsWith("/") && !safe.startsWith("//")), `${JSON.stringify(attack)} → ${safe}`);
+      const landing = landingAfterSignIn(["student"], attack);
+      assert.ok(landing.startsWith("/") && !landing.startsWith("//") && new URL(landing, "http://portal.invalid").origin === "http://portal.invalid", `${JSON.stringify(attack)} → ${landing}`);
+    }
+    assert.equal(safeNextPath("/\t/evil.com"), null);
+    assert.equal(safeNextPath("/.//evil.com"), null);
+    assert.equal(safeNextPath("/authentication/sign-in"), null);
+    assert.equal(safeNextPath("/application/grades?term=1#top"), "/application/grades?term=1#top");
+    assert.equal(landingAfterSignIn(["student"], "//evil.com"), "/application/dashboard");
+  });
 });
 
 describe("đăng nhập", () => {
@@ -99,6 +114,39 @@ describe("đăng nhập", () => {
     assert.equal(result.json?.code, "INVALID_USERNAME");
   });
 
+  test("endpoint app không dùng trả 404: tự đổi tên, tự đặt username, dò MSSV", async () => {
+    const signIn = await call("/sign-in/email", { email: "khoatm@hcmue.edu.vn", password: PASSWORD });
+    assert.equal(signIn.status, 200);
+    const cookie = signIn.cookie
+      .split(/,(?=\s*hcmue\.)/)
+      .map((part) => part.split(";")[0].trim())
+      .join("; ");
+    for (const [path, body] of [
+      ["/update-user", { name: "Tên giả" }],
+      ["/update-user", { username: "5001104013" }],
+      ["/is-username-available", { username: "5001104009" }],
+      ["/forget-password/email-otp", { email: "khoatm@hcmue.edu.vn" }],
+      ["/delete-user", {}],
+    ] as const) {
+      requestCount += 1;
+      const response = await auth.handler(
+        new Request(`${BASE_URL}/api/auth${path}`, {
+          method: "POST",
+          headers: { "content-type": "application/json", origin: BASE_URL, cookie, "x-forwarded-for": `10.0.1.${requestCount}` },
+          body: JSON.stringify(body),
+        }),
+      );
+      assert.equal(response.status, 404, path);
+    }
+    const [admin] = await db.select({ name: user.name, username: user.username }).from(user).where(eq(user.email, "khoatm@hcmue.edu.vn"));
+    assert.equal(admin.name, "Trần Minh Khoa");
+    assert.equal(admin.username, null);
+  });
+
+  test("câu báo tài khoản bị khóa bằng tiếng Việt", () => {
+    assert.match(AUTH_ERROR_MESSAGE.BANNED_USER, /bị khóa/);
+  });
+
   test("không có đăng ký và không đăng nhập bằng OTP", async () => {
     const signUp = await call("/sign-up/email", { email: "moi@hcmue.edu.vn", password: PASSWORD, name: "Người mới" });
     assert.notEqual(signUp.status, 200);
@@ -130,7 +178,8 @@ describe("khôi phục mật khẩu", () => {
     const warn = mock.method(console, "warn", () => {});
     try {
       assert.equal((await call("/email-otp/request-password-reset", { email })).status, 200);
-      const otp = String(warn.mock.calls.at(-1)?.arguments[0]).match(/: (\d{6})"/)?.[1];
+      // Chưa có khóa Resend: mail.lib in thư ra log, mã nằm ở tiêu đề "Mã đặt lại mật khẩu HCMUE Portal: 123456".
+      const otp = String(warn.mock.calls.at(-1)?.arguments[0]).match(/Portal: (\d{6})"/)?.[1];
       assert.ok(otp, "OTP được in ra log");
 
       const wrong = await call("/email-otp/check-verification-otp", { email, otp: otp === "000000" ? "111111" : "000000", type: "forget-password" });

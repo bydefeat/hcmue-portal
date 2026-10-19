@@ -39,8 +39,26 @@ const PORTAL_ROLE: [prefix: string, role: AccountRole][] = [
   ["/administrator", "admin"],
 ];
 
+const SAFE_PATH_BASE = "http://portal.invalid";
+
+// Chỉ nhận đường dẫn nội bộ cho ?next=. Trình duyệt bỏ tab, xuống dòng và đổi "\" thành "/", nên "/\tevil.com", "/\\evil.com"
+// thành "//evil.com" (sang trang khác): từ chối ký tự điều khiển và "\", rồi kiểm bằng URL và trả về dạng đã chuẩn hoá.
+export function safeInternalPath(value: string | null | undefined) {
+  if (!value || !value.startsWith("/")) return null;
+  if ([...value].some((char) => char === "\\" || char.charCodeAt(0) < 0x20 || char.charCodeAt(0) === 0x7f)) return null;
+  try {
+    const url = new URL(value, SAFE_PATH_BASE);
+    const path = `${url.pathname}${url.search}${url.hash}`;
+    if (url.origin !== SAFE_PATH_BASE || path.startsWith("//") || url.pathname.startsWith("/authentication") || url.pathname.startsWith("/api/")) return null;
+    return path;
+  } catch {
+    return null;
+  }
+}
+
 // Trang đích sau đăng nhập: quay lại trang đang mở dở nếu tài khoản vào được cổng đó, không thì về trang chủ của vai trò.
-export function landingAfterSignIn(roles: AccountRole[], next: string | null | undefined) {
+export function landingAfterSignIn(roles: AccountRole[], rawNext: string | null | undefined) {
+  const next = safeInternalPath(rawNext);
   if (next) {
     const portal = PORTAL_ROLE.find(([prefix]) => next === prefix || next.startsWith(`${prefix}/`) || next.startsWith(`${prefix}?`));
     if (!portal || roles.includes(portal[1])) return next;

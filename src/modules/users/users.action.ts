@@ -9,23 +9,50 @@ import { isUuid } from "@/shared/libs/id.lib";
 import { studentEmailOf } from "@/shared/libs/student-code.lib";
 import { inScope } from "@/modules/access/access.constant";
 import { requirePermission } from "@/modules/access/access.query";
+import { auditActorOf, recordAudit, type AuditActor } from "@/modules/audit/audit.lib";
 import { faculties, majors } from "@/modules/curriculum/curriculum.schema";
-import { USERS_CONSTRAINT_MESSAGE } from "@/modules/users/users.constant";
+import { ACCOUNT_STATUS, NO_ACCOUNT, USERS_CONSTRAINT_MESSAGE } from "@/modules/users/users.constant";
 import { getCurrentLecturer, getCurrentStudent, getDecisions, getLecturer, getStudent } from "@/modules/users/users.query";
 import {
+  createAccounts,
+  lockAccountProfiles,
+  randomPasswordHashes,
+  readAccountStates,
+  sendActivationMails,
+  setAccountsLocked,
+  syncAccountProfile,
+  type AccountProfile,
+  type NewAccount,
+} from "@/modules/users/users.account";
+import {
+  ACCOUNT_BATCH_SCHEMA,
   DECISION_SCHEMA,
   LECTURER_CONTACT_SCHEMA,
   LECTURER_SCHEMA,
+  STAFF_SCHEMA,
   STUDENT_CONTACT_SCHEMA,
   STUDENT_SCHEMA,
+  type AccountBatchInput,
   type DecisionInput,
   type LecturerContactInput,
   type LecturerInput,
+  type StaffInput,
   type StudentContactInput,
   type StudentInput,
 } from "@/modules/users/users.rule";
-import { administrativeClasses, lecturers, studentDecisions, students } from "@/modules/users/users.schema";
-import type { DecisionKind, Lecturer, Student, StudentDecision, StudentStatus } from "@/modules/users/users.type";
+import { administrativeClasses, lecturers, staffMembers, studentDecisions, students } from "@/modules/users/users.schema";
+import type {
+  AccountBatchResult,
+  AccountKind,
+  AccountState,
+  DecisionKind,
+  Lecturer,
+  MailOutcome,
+  SavedProfile,
+  Student,
+  StudentDecision,
+  StudentStatus,
+} from "@/modules/users/users.type";
 
 class InputError extends Error {
   constructor(
@@ -70,37 +97,78 @@ function studentColumns(values: z.output<typeof STUDENT_SCHEMA>, classId: string
   };
 }
 
-export async function saveStudent(id: string | null, input: StudentInput): Promise<ActionResult<Student>> {
+const ENTITY_OF = { student: "student", lecturer: "lecturer" } as const;
+
+// Ghi nhật ký cấp tài khoản trong cùng transaction: rollback thì không còn dòng nhật ký.
+async function auditCreatedAccounts(tx: Transaction, actor: AuditActor, created: NewAccount[]) {
+  for (const entry of created) {
+    await recordAudit(tx, {
+      actor,
+      action: "create",
+      entityType: entry.role === "admin" ? "role" : ENTITY_OF[entry.role],
+      entityId: entry.id,
+      entityLabel: `${entry.loginName} ${entry.name}`,
+      summary: `Cấp tài khoản đăng nhập ${entry.loginName}, gửi thư kích hoạt tới ${entry.email}`,
+    });
+  }
+}
+
+async function mailCreated(created: NewAccount[]): Promise<MailOutcome | null> {
+  return created.length > 0 ? sendActivationMails(created) : null;
+}
+
+export async function saveStudent(
+  id: string | null,
+  input: StudentInput,
+  options: { provisionAccount?: boolean } = {},
+): Promise<ActionResult<SavedProfile<Student>>> {
   const viewer = await requirePermission("students.manage");
   if (id !== null && !isUuid(id)) return actionError("Sinh viên không còn tồn tại, tải lại trang.");
   const parsed = parseInput(STUDENT_SCHEMA, input);
   if (!parsed.ok) return parsed;
   const values = parsed.data;
+  const provision = id === null && options.provisionAccount === true;
+  const hashes = provision ? await randomPasswordHashes(1) : [];
   let studentId: string;
+  let created: NewAccount[] = [];
   try {
-    studentId = await db.transaction(async (tx) => {
+    ({ studentId, created } = await db.transaction(async (tx) => {
       const { classId, faculty } = await classIdFor(tx, values.className, values.majorCode, values.cohort);
       if (!inScope(viewer, faculty)) throw new InputError("majorCode", "Ngành thuộc khoa khác, bạn không quản lý hồ sơ này");
+      // Sửa hồ sơ: khoa hiện tại của sinh viên cũng phải trong phạm vi, không thì chuyển được sinh viên khoa khác về khoa mình.
+      const [current] = id ? await lockAccountProfiles(tx, "student", [id]) : [];
+      if (current && !inScope(viewer, current.faculty)) throw new InputError("majorCode", "Sinh viên thuộc khoa khác, bạn không sửa được hồ sơ này");
       // MSSV không đổi sau khi tạo vì đã gắn với điểm, đăng ký và tài khoản đăng nhập.
       const [row] = id
-        ? await tx.update(students).set(studentColumns(values, classId)).where(eq(students.id, id)).returning({ id: students.id })
+        ? await tx.update(students).set(studentColumns(values, classId)).where(eq(students.id, id)).returning({ id: students.id, userId: students.userId })
         : await tx
             .insert(students)
             .values({ ...studentColumns(values, classId), code: values.code })
-            .returning({ id: students.id });
+            .returning({ id: students.id, userId: students.userId });
       if (!row) throw new InputError("code", "Sinh viên không còn tồn tại, tải lại trang.");
-      return row.id;
-    });
+      await syncAccountProfile(tx, row.userId, { name: values.fullName });
+      if (!provision) return { studentId: row.id, created: [] };
+      const result = await createAccounts(tx, await lockAccountProfiles(tx, "student", [row.id]), hashes);
+      if (result.skipped.length > 0) throw new InputError("code", result.skipped[0].reason);
+      await auditCreatedAccounts(tx, auditActorOf(viewer), result.created);
+      return { studentId: row.id, created: result.created };
+    }));
   } catch (error) {
     return failure(error);
   }
+  const mail = await mailCreated(created);
   revalidatePath("/administrator/users/students", "layout");
-  const student = await getStudent(studentId);
-  return student ? actionOk(student) : actionError("Đã lưu nhưng chưa đọc lại được, tải lại trang.");
+  const [student, accounts] = await Promise.all([getStudent(studentId), readAccountStates(db, "student", [studentId])]);
+  return student
+    ? actionOk({ profile: student, account: accounts[studentId] ?? NO_ACCOUNT, mail })
+    : actionError("Đã lưu nhưng chưa đọc lại được, tải lại trang.");
 }
 
 // Nhập nhiều sinh viên một lần: một dòng lỗi thì không dòng nào được ghi, để file nhập lại không bị trùng nửa chừng.
-export async function importStudents(inputs: StudentInput[]): Promise<ActionResult<Student[]>> {
+export async function importStudents(
+  inputs: StudentInput[],
+  options: { provisionAccounts?: boolean } = {},
+): Promise<ActionResult<{ students: (Student & { account: AccountState })[]; accountsCreated: number; mail: MailOutcome | null }>> {
   const viewer = await requirePermission("students.manage");
   if (inputs.length === 0 || inputs.length > 2000) return actionError("Mỗi lần nhập từ 1 đến 2000 sinh viên.");
   const rows: z.output<typeof STUDENT_SCHEMA>[] = [];
@@ -109,10 +177,12 @@ export async function importStudents(inputs: StudentInput[]): Promise<ActionResu
     if (!parsed.success) return actionError(`Dòng ${index + 1}: ${parsed.error.issues[0].message}`);
     rows.push(parsed.data);
   }
+  const hashes = options.provisionAccounts ? await randomPasswordHashes(rows.length) : [];
   let ids: string[];
+  let created: NewAccount[] = [];
   try {
-    ids = await db.transaction(async (tx) => {
-      const created: string[] = [];
+    ({ ids, created } = await db.transaction(async (tx) => {
+      const inserted: string[] = [];
       for (const [index, values] of rows.entries()) {
         const { classId, faculty } = await classIdFor(tx, values.className, values.majorCode, values.cohort).catch((error: unknown) => {
           throw error instanceof InputError ? new InputError(error.field, `Dòng ${index + 1}: ${error.message}`) : error;
@@ -122,16 +192,25 @@ export async function importStudents(inputs: StudentInput[]): Promise<ActionResu
           .insert(students)
           .values({ ...studentColumns(values, classId), code: values.code })
           .returning({ id: students.id });
-        created.push(row.id);
+        inserted.push(row.id);
       }
-      return created;
-    });
+      if (!options.provisionAccounts) return { ids: inserted, created: [] };
+      // MSSV, email trùng tài khoản cũ thì hồ sơ vẫn được nhập, chỉ không cấp tài khoản; bảng hiện "Chưa cấp".
+      const result = await createAccounts(tx, await lockAccountProfiles(tx, "student", inserted), hashes);
+      await auditCreatedAccounts(tx, auditActorOf(viewer), result.created);
+      return { ids: inserted, created: result.created };
+    }));
   } catch (error) {
     return failure(error);
   }
+  const mail = await mailCreated(created);
   revalidatePath("/administrator/users/students", "layout");
-  const all = await Promise.all(ids.map((id) => getStudent(id)));
-  return actionOk(all.filter((student) => student !== null));
+  const [all, accounts] = await Promise.all([Promise.all(ids.map((id) => getStudent(id))), readAccountStates(db, "student", ids)]);
+  return actionOk({
+    students: all.filter((student) => student !== null).map((student) => ({ ...student, account: accounts[student.id] ?? NO_ACCOUNT })),
+    accountsCreated: created.length,
+    mail,
+  });
 }
 
 export async function setStudentsStatus(ids: string[], status: StudentStatus): Promise<ActionResult<{ updated: number }>> {
@@ -155,34 +234,235 @@ export async function setStudentsStatus(ids: string[], status: StudentStatus): P
   }
 }
 
-export async function saveLecturer(id: string | null, input: LecturerInput): Promise<ActionResult<Lecturer>> {
-  await requirePermission("lecturers.manage");
+export async function saveLecturer(
+  id: string | null,
+  input: LecturerInput,
+  options: { provisionAccount?: boolean } = {},
+): Promise<ActionResult<SavedProfile<Lecturer>>> {
+  const viewer = await requirePermission("lecturers.manage");
   if (id !== null && !isUuid(id)) return actionError("Giảng viên không còn tồn tại, tải lại trang.");
   const parsed = parseInput(LECTURER_SCHEMA, input);
   if (!parsed.ok) return parsed;
   const { faculty, code, ...values } = parsed.data;
+  const provision = id === null && options.provisionAccount === true;
+  const hashes = provision ? await randomPasswordHashes(1) : [];
   let lecturerId: string;
+  let created: NewAccount[] = [];
   try {
     const [facultyRow] = await db.select({ id: faculties.id }).from(faculties).where(eq(faculties.name, faculty));
     if (!facultyRow) return actionError("Khoa không có trong danh mục", { faculty: "Khoa không có trong danh mục" });
-    const [row] = id
-      ? await db
-          .update(lecturers)
-          .set({ ...values, facultyId: facultyRow.id })
-          .where(eq(lecturers.id, id))
-          .returning({ id: lecturers.id })
-      : await db
-          .insert(lecturers)
-          .values({ ...values, code, facultyId: facultyRow.id })
-          .returning({ id: lecturers.id });
-    if (!row) return actionError("Giảng viên không còn tồn tại, tải lại trang.");
-    lecturerId = row.id;
+    if (!inScope(viewer, faculty)) return actionError("Khoa này ngoài phạm vi bạn quản lý.", { faculty: "Khoa này ngoài phạm vi bạn quản lý" });
+    const outcome = await db.transaction(async (tx) => {
+      const [current] = id ? await lockAccountProfiles(tx, "lecturer", [id]) : [];
+      if (current && !inScope(viewer, current.faculty)) throw new InputError("faculty", "Giảng viên thuộc khoa khác, bạn không sửa được hồ sơ này");
+      const [row] = id
+        ? await tx
+            .update(lecturers)
+            .set({ ...values, facultyId: facultyRow.id })
+            .where(eq(lecturers.id, id))
+            .returning({ id: lecturers.id, userId: lecturers.userId })
+        : await tx
+            .insert(lecturers)
+            .values({ ...values, code, facultyId: facultyRow.id })
+            .returning({ id: lecturers.id, userId: lecturers.userId });
+      if (!row) return null;
+      // Giảng viên đăng nhập bằng email công vụ: đổi email ở hồ sơ thì đổi luôn email đăng nhập.
+      await syncAccountProfile(tx, row.userId, { name: `${values.title} ${values.fullName}`, email: values.email });
+      if (!provision) return { lecturerId: row.id, created: [] };
+      const result = await createAccounts(tx, await lockAccountProfiles(tx, "lecturer", [row.id]), hashes);
+      if (result.skipped.length > 0) throw new InputError("email", result.skipped[0].reason);
+      await auditCreatedAccounts(tx, auditActorOf(viewer), result.created);
+      return { lecturerId: row.id, created: result.created };
+    });
+    if (!outcome) return actionError("Giảng viên không còn tồn tại, tải lại trang.");
+    ({ lecturerId, created } = outcome);
   } catch (error) {
     return failure(error);
   }
+  const mail = await mailCreated(created);
   revalidatePath("/administrator/users/lecturers");
-  const lecturer = await getLecturer(lecturerId);
-  return lecturer ? actionOk(lecturer) : actionError("Đã lưu nhưng chưa đọc lại được, tải lại trang.");
+  const [lecturer, accounts] = await Promise.all([getLecturer(lecturerId), readAccountStates(db, "lecturer", [lecturerId])]);
+  return lecturer
+    ? actionOk({ profile: lecturer, account: accounts[lecturerId] ?? NO_ACCOUNT, mail })
+    : actionError("Đã lưu nhưng chưa đọc lại được, tải lại trang.");
+}
+
+const MANAGE_PERMISSION = { student: "students.manage", lecturer: "lecturers.manage" } as const;
+const PAGE_OF = { student: "/administrator/users/students", lecturer: "/administrator/users/lecturers" } as const;
+const OUT_OF_SCOPE = "Có hồ sơ thuộc khoa khác, bạn không quản lý tài khoản của hồ sơ đó. Bỏ chọn rồi thử lại.";
+
+type Skipped = { profile: AccountProfile; reason: string };
+
+// Quyền theo loại hồ sơ, đọc trước khi parse vì phải biết loại mới biết cần quyền nào; loại sai thì parse chặn ngay sau.
+function permissionFor(input: { kind?: unknown } | null | undefined) {
+  return MANAGE_PERMISSION[input?.kind === "lecturer" ? "lecturer" : "student"];
+}
+
+function outOfScope(viewer: { faculty: string | null }, profiles: AccountProfile[]) {
+  return profiles.some((profile) => !inScope(viewer, profile.faculty));
+}
+
+async function batchResult(kind: AccountKind, ids: string[], changed: number, mail: MailOutcome | null, skipped: Skipped[]) {
+  return actionOk<AccountBatchResult>({
+    accounts: await readAccountStates(db, kind, ids),
+    changed,
+    mailed: mail?.sent ?? 0,
+    mailFailed: mail?.failed ?? 0,
+    skipped: skipped.map(({ profile, reason }) => ({ id: profile.id, name: profile.name, reason })),
+  });
+}
+
+// Cấp tài khoản cho các hồ sơ đã chọn; hồ sơ đã có tài khoản thì bỏ qua. Thư kích hoạt gửi sau khi commit.
+export async function provisionAccounts(input: AccountBatchInput): Promise<ActionResult<AccountBatchResult>> {
+  const viewer = await requirePermission(permissionFor(input));
+  const parsed = parseInput(ACCOUNT_BATCH_SCHEMA, input);
+  if (!parsed.ok) return parsed;
+  const { kind, ids } = parsed.data;
+  let created: NewAccount[];
+  let skipped: Skipped[];
+  try {
+    const missing = await readAccountStates(db, kind, ids);
+    const hashes = await randomPasswordHashes(ids.filter((id) => missing[id]?.status === "none").length);
+    const outcome = await db.transaction(async (tx) => {
+      const profiles = await lockAccountProfiles(tx, kind, ids);
+      if (outOfScope(viewer, profiles)) return null;
+      // Hồ sơ vừa được người khác cấp giữa lúc đọc và lúc khóa dòng: createAccounts chỉ tạo cho dòng còn trống, thiếu mật khẩu thì báo thử lại.
+      const result = await createAccounts(tx, profiles, hashes);
+      await auditCreatedAccounts(tx, auditActorOf(viewer), result.created);
+      const existing = profiles.filter((profile) => profile.userId !== null).map((profile) => ({ profile, reason: "Đã có tài khoản" }));
+      return { created: result.created, skipped: [...existing, ...result.skipped] };
+    });
+    if (!outcome) return actionError(OUT_OF_SCOPE);
+    ({ created, skipped } = outcome);
+  } catch (error) {
+    return failure(error);
+  }
+  if (created.length === 0) return actionError(skipped.length > 0 ? `Không cấp thêm tài khoản nào: ${skipped[0].profile.name}, ${skipped[0].reason.toLowerCase()}.` : "Không còn hồ sơ nào trong các dòng đã chọn, tải lại trang.");
+  const mail = await mailCreated(created);
+  revalidatePath(PAGE_OF[kind]);
+  return batchResult(kind, ids, created.length, mail, skipped);
+}
+
+// Gửi lại thư kích hoạt cho tài khoản đã cấp mà chưa từng đăng nhập.
+export async function resendActivation(input: AccountBatchInput): Promise<ActionResult<AccountBatchResult>> {
+  const viewer = await requirePermission(permissionFor(input));
+  const parsed = parseInput(ACCOUNT_BATCH_SCHEMA, input);
+  if (!parsed.ok) return parsed;
+  const { kind, ids } = parsed.data;
+  let targets: AccountProfile[];
+  let skipped: Skipped[];
+  try {
+    const outcome = await db.transaction(async (tx) => {
+      const profiles = await lockAccountProfiles(tx, kind, ids);
+      if (outOfScope(viewer, profiles)) return null;
+      const states = await readAccountStates(tx, kind, ids);
+      const statusOf = (profile: AccountProfile) => states[profile.id]?.status ?? "none";
+      return {
+        targets: profiles.filter((profile) => statusOf(profile) === "pending"),
+        skipped: profiles
+          .filter((profile) => statusOf(profile) !== "pending")
+          .map((profile) => ({ profile, reason: `Tài khoản ${ACCOUNT_STATUS[statusOf(profile)].label.toLowerCase()}` })),
+      };
+    });
+    if (!outcome) return actionError(OUT_OF_SCOPE);
+    ({ targets, skipped } = outcome);
+  } catch (error) {
+    return failure(error);
+  }
+  if (targets.length === 0) {
+    return actionError("Không có tài khoản nào đang chờ kích hoạt trong các dòng đã chọn. Thư kích hoạt chỉ gửi lại cho tài khoản đã cấp mà chưa đăng nhập lần nào.");
+  }
+  const mail = await sendActivationMails(targets);
+  return batchResult(kind, ids, targets.length, mail, skipped);
+}
+
+// Khóa: chặn đăng nhập và thu hồi mọi phiên đang mở. Mở khóa: đăng nhập lại được bằng mật khẩu cũ.
+export async function setAccountLock(input: AccountBatchInput & { locked: boolean }): Promise<ActionResult<AccountBatchResult>> {
+  const viewer = await requirePermission(permissionFor(input));
+  const parsed = parseInput(ACCOUNT_BATCH_SCHEMA.extend({ locked: z.boolean() }), input);
+  if (!parsed.ok) return parsed;
+  const { kind, ids, locked } = parsed.data;
+  let changed: AccountProfile[];
+  let skipped: Skipped[];
+  try {
+    const outcome = await db.transaction(async (tx) => {
+      const profiles = await lockAccountProfiles(tx, kind, ids);
+      if (outOfScope(viewer, profiles)) return "scope" as const;
+      if (locked && profiles.some((profile) => profile.userId === viewer.id)) return "self" as const;
+      const states = await readAccountStates(tx, kind, ids);
+      const statusOf = (profile: AccountProfile) => states[profile.id]?.status ?? "none";
+      const target = profiles.filter((profile) => (locked ? ["pending", "active"].includes(statusOf(profile)) : statusOf(profile) === "locked"));
+      const rest = profiles
+        .filter((profile) => !target.includes(profile))
+        .map((profile) => ({ profile, reason: profile.userId ? (locked ? "Đã khóa từ trước" : "Tài khoản không bị khóa") : "Chưa cấp tài khoản" }));
+      await setAccountsLocked(
+        tx,
+        target.map((profile) => profile.userId!),
+        locked,
+        `Khóa bởi ${viewer.name}, ${viewer.roleName}`,
+      );
+      for (const profile of target) {
+        await recordAudit(tx, {
+          actor: auditActorOf(viewer),
+          action: "permission",
+          entityType: ENTITY_OF[kind],
+          entityId: profile.id,
+          entityLabel: `${profile.loginName} ${profile.name}`,
+          summary: locked ? `Khóa tài khoản đăng nhập ${profile.loginName}, thu hồi các phiên đang mở` : `Mở khóa tài khoản đăng nhập ${profile.loginName}`,
+          changes: [{ field: "Tài khoản", before: locked ? "Đang mở" : "Đã khóa", after: locked ? "Đã khóa" : "Đang mở" }],
+        });
+      }
+      return { changed: target, skipped: rest };
+    });
+    if (outcome === "scope") return actionError(OUT_OF_SCOPE);
+    if (outcome === "self") return actionError("Không khóa được tài khoản của chính bạn. Bỏ chọn hồ sơ của mình rồi thử lại.");
+    ({ changed, skipped } = outcome);
+  } catch (error) {
+    return failure(error);
+  }
+  if (changed.length === 0) {
+    return actionError(locked ? "Các dòng đã chọn chưa có tài khoản hoặc đã khóa từ trước." : "Các dòng đã chọn không có tài khoản nào đang bị khóa.");
+  }
+  revalidatePath(PAGE_OF[kind]);
+  return batchResult(kind, ids, changed.length, null, skipped);
+}
+
+// Cán bộ mới (Phòng Đào tạo, văn phòng khoa...) kèm tài khoản vai trò "admin"; quyền cụ thể cấp ở trang Phân quyền.
+export async function createStaffMember(input: StaffInput): Promise<ActionResult<{ id: string; name: string; hasAccount: boolean; mail: MailOutcome | null }>> {
+  const viewer = await requirePermission("access.manage");
+  if (viewer.faculty !== null) return actionError("Chỉ quản trị phạm vi toàn trường được thêm cán bộ.");
+  const parsed = parseInput(STAFF_SCHEMA, input);
+  if (!parsed.ok) return parsed;
+  const { provisionAccount, ...values } = parsed.data;
+  const hashes = provisionAccount ? await randomPasswordHashes(1) : [];
+  let staffId: string;
+  let created: NewAccount[] = [];
+  try {
+    ({ staffId, created } = await db.transaction(async (tx) => {
+      const [row] = await tx.insert(staffMembers).values(values).returning({ id: staffMembers.id });
+      if (!provisionAccount) return { staffId: row.id, created: [] };
+      const profile: AccountProfile = {
+        id: row.id,
+        userId: null,
+        name: values.fullName,
+        faculty: "",
+        email: values.email,
+        username: null,
+        displayUsername: null,
+        loginName: values.email,
+        role: "admin",
+      };
+      const result = await createAccounts(tx, [profile], hashes);
+      if (result.skipped.length > 0) throw new InputError("email", result.skipped[0].reason);
+      await auditCreatedAccounts(tx, auditActorOf(viewer), result.created);
+      return { staffId: row.id, created: result.created };
+    }));
+  } catch (error) {
+    return failure(error);
+  }
+  const mail = await mailCreated(created);
+  revalidatePath("/administrator/settings/access");
+  return actionOk({ id: staffId, name: values.fullName, hasAccount: created.length > 0, mail });
 }
 
 export async function assignAdvisor(className: string, lecturerId: string | null): Promise<ActionResult> {

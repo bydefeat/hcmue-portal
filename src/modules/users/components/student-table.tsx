@@ -7,8 +7,18 @@ import { FileArrowIn, Magnifier, Pen, Plus } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { PageHeader } from "@/shared/components/ui/page-header";
 import { StatusTag } from "@/shared/components/ui/status-tag";
-import { cohortOptions, facultiesOf, facultyOptions, STUDENT_STATUS, STUDENT_STATUS_OPTIONS, withNextCohort } from "@/modules/users/users.constant";
-import type { MajorRef, Student, StudentFormValues, StudentStatus } from "@/modules/users/users.type";
+import {
+  ACCOUNT_STATUS_OPTIONS,
+  cohortOptions,
+  facultiesOf,
+  facultyOptions,
+  STUDENT_STATUS,
+  STUDENT_STATUS_OPTIONS,
+  withNextCohort,
+} from "@/modules/users/users.constant";
+import type { AccountState, AccountStatus as AccountStatusValue, MailOutcome, MajorRef, Student, StudentFormValues, StudentStatus } from "@/modules/users/users.type";
+import { AccountBulkActions } from "@/modules/users/components/account-bulk-actions";
+import { AccountStatus } from "@/modules/users/components/account-status";
 import { StudentFormDrawer } from "@/modules/users/components/student-form-drawer";
 import { StudentImportModal } from "@/modules/users/components/student-import-modal";
 import { paginationItemRender } from "@/shared/constants/antd.constant";
@@ -18,9 +28,15 @@ import { importStudents, saveStudent, setStudentsStatus } from "@/modules/users/
 export type StudentRow = Student & {
   cpa4: number | null;
   standingLabel: string | null;
+  account: AccountState;
 };
 
 const NETWORK_ERROR = "Chưa lưu được, kiểm tra kết nối rồi thử lại.";
+
+function mailNote(mail: MailOutcome | null) {
+  if (!mail) return "";
+  return mail.failed > 0 ? `; ${mail.failed} thư kích hoạt chưa gửi được, chọn dòng rồi "Gửi lại thư kích hoạt"` : `; đã gửi thư kích hoạt tới ${mail.sent} email trường`;
+}
 
 type StudentTableProps = {
   students: StudentRow[];
@@ -37,6 +53,7 @@ export function StudentTable({ students, majors, cohorts, header }: StudentTable
   const [faculty, setFaculty] = useState<string>();
   const [cohort, setCohort] = useState<number>();
   const [status, setStatus] = useState<StudentStatus>();
+  const [accountStatus, setAccountStatus] = useState<AccountStatusValue>();
   const [selectedIds, setSelectedIds] = useState<React.Key[]>([]);
   const [editing, setEditing] = useState<StudentRow | null>(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
@@ -59,9 +76,10 @@ export function StudentTable({ students, majors, cohorts, header }: StudentTable
       if (faculty && row.faculty !== faculty) return false;
       if (cohort && row.cohort !== cohort) return false;
       if (status && row.status !== status) return false;
+      if (accountStatus && row.account.status !== accountStatus) return false;
       return true;
     });
-  }, [rows, query, faculty, cohort, status]);
+  }, [rows, query, faculty, cohort, status, accountStatus]);
 
   const openCreate = () => {
     setEditing(null);
@@ -73,8 +91,8 @@ export function StudentTable({ students, majors, cohorts, header }: StudentTable
     setIsDrawerOpen(true);
   };
 
-  const handleSubmit = async (values: StudentFormValues) => {
-    const result = await saveStudent(editing?.id ?? null, values).catch(() => null);
+  const handleSubmit = async (values: StudentFormValues, options: { provisionAccount: boolean }) => {
+    const result = await saveStudent(editing?.id ?? null, values, options).catch(() => null);
     if (!result) {
       messageApi.error(NETWORK_ERROR);
       return undefined;
@@ -83,9 +101,9 @@ export function StudentTable({ students, majors, cohorts, header }: StudentTable
       messageApi.error(result.message);
       return result.fieldErrors;
     }
-    const saved: StudentRow = { ...result.data, cpa4: editing?.cpa4 ?? null, standingLabel: editing?.standingLabel ?? null };
+    const saved: StudentRow = { ...result.data.profile, account: result.data.account, cpa4: editing?.cpa4 ?? null, standingLabel: editing?.standingLabel ?? null };
     setRows((current) => (editing ? current.map((row) => (row.id === saved.id ? saved : row)) : [saved, ...current]));
-    messageApi.success(editing ? `Đã lưu hồ sơ ${saved.fullName}` : `Đã thêm ${saved.fullName} vào lớp ${saved.className}`);
+    messageApi.success(editing ? `Đã lưu hồ sơ ${saved.fullName}` : `Đã thêm ${saved.fullName} vào lớp ${saved.className}${mailNote(result.data.mail)}`);
     setIsDrawerOpen(false);
     return undefined;
   };
@@ -154,6 +172,13 @@ export function StudentTable({ students, majors, cohorts, header }: StudentTable
       render: (value: StudentStatus) => (value === "studying" ? <span className="text-muted">Đang học</span> : <StatusTag status={STUDENT_STATUS[value]} />),
     },
     {
+      title: "Tài khoản",
+      key: "account",
+      width: 130,
+      responsive: ["lg"],
+      render: (_, row) => <AccountStatus account={row.account} />,
+    },
+    {
       title: "",
       key: "actions",
       width: 80,
@@ -205,6 +230,15 @@ export function StudentTable({ students, majors, cohorts, header }: StudentTable
             options={STUDENT_STATUS_OPTIONS}
             className="min-w-0 sm:w-44"
           />
+          <Select
+            allowClear
+            value={accountStatus}
+            onChange={setAccountStatus}
+            placeholder="Mọi tài khoản"
+            aria-label="Tài khoản"
+            options={ACCOUNT_STATUS_OPTIONS}
+            className="min-w-0 sm:w-40"
+          />
         </div>
 
         {selectedIds.length > 0 && (
@@ -221,6 +255,11 @@ export function StudentTable({ students, majors, cohorts, header }: StudentTable
                 Đổi trạng thái
               </Button>
             </Dropdown>
+            <AccountBulkActions
+              kind="student"
+              selectedIds={selectedIds.map(String)}
+              onUpdated={(accounts) => setRows((current) => current.map((row) => (accounts[row.id] ? { ...row, account: accounts[row.id] } : row)))}
+            />
             <Button size="small" type="text" onClick={() => setSelectedIds([])}>
               Bỏ chọn
             </Button>
@@ -261,14 +300,19 @@ export function StudentTable({ students, majors, cohorts, header }: StudentTable
           existingCodes={rows.map((row) => row.code)}
           catalog={importCatalog}
           onClose={() => setIsImportOpen(false)}
-          onImport={async (values) => {
-            const result = await importStudents(values).catch(() => null);
+          onImport={async (values, options) => {
+            const result = await importStudents(values, options).catch(() => null);
             if (!result?.ok) {
               messageApi.error(result?.message ?? NETWORK_ERROR);
               return false;
             }
-            setRows((current) => [...result.data.map((student) => ({ ...student, cpa4: null, standingLabel: null })), ...current]);
-            messageApi.success(`Đã nhập ${result.data.length} sinh viên mới`);
+            const { students: imported, accountsCreated, mail } = result.data;
+            setRows((current) => [...imported.map((student) => ({ ...student, cpa4: null, standingLabel: null })), ...current]);
+            const skippedAccounts = options.provisionAccounts ? imported.length - accountsCreated : 0;
+            messageApi.success(
+              `Đã nhập ${imported.length} sinh viên mới${options.provisionAccounts ? `, cấp ${accountsCreated} tài khoản` : ""}${mailNote(mail)}${skippedAccounts > 0 ? `; ${skippedAccounts} hồ sơ chưa cấp được vì trùng tài khoản cũ` : ""}`,
+              8,
+            );
             return true;
           }}
         />

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useTransition } from "react";
-import { AutoComplete, Button, DatePicker, Drawer, Form, Input, Radio, Select } from "antd";
+import { AutoComplete, Button, Checkbox, DatePicker, Drawer, Form, Input, Radio, Select } from "antd";
 import { dayjs } from "@/shared/libs/date.lib";
 import { classSuggestions, cohortOptions, majorOptions, STUDENT_STATUS_OPTIONS } from "@/modules/users/users.constant";
 import type { ClassRef, MajorRef, Student, StudentFormValues } from "@/modules/users/users.type";
@@ -16,10 +16,10 @@ type StudentFormDrawerProps = {
   classes: ClassRef[];
   onClose: () => void;
   // Trả lỗi theo ô khi server từ chối, để drawer gắn vào đúng ô.
-  onSubmit: (values: StudentFormValues) => Promise<Record<string, string> | undefined>;
+  onSubmit: (values: StudentFormValues, options: { provisionAccount: boolean }) => Promise<Record<string, string> | undefined>;
 };
 
-type FormShape = Omit<StudentFormValues, "dateOfBirth"> & { dateOfBirth?: dayjs.Dayjs };
+type FormShape = Omit<StudentFormValues, "dateOfBirth"> & { dateOfBirth?: dayjs.Dayjs; provisionAccount?: boolean };
 
 export function StudentFormDrawer({ open, student, majors, cohorts, classes, onClose, onSubmit }: StudentFormDrawerProps) {
   const [form] = Form.useForm<FormShape>();
@@ -54,10 +54,14 @@ export function StudentFormDrawer({ open, student, majors, cohorts, classes, onC
       <Form
         form={form}
         layout="vertical"
-        initialValues={{ status: "studying" }}
-        onFinish={(values) =>
+        initialValues={{ status: "studying", provisionAccount: true }}
+        onFinish={({ provisionAccount, ...values }) =>
           startTransition(async () => {
-            const fieldErrors = await onSubmit({ ...values, code: formatStudentCode(values.code), dateOfBirth: values.dateOfBirth?.format("YYYY-MM-DD") ?? "" });
+            const fieldErrors = await onSubmit(
+              // Ô điện thoại để trống thì antd trả undefined; server cần chuỗi.
+              { ...values, phone: values.phone ?? "", code: formatStudentCode(values.code), dateOfBirth: values.dateOfBirth?.format("YYYY-MM-DD") ?? "" },
+              { provisionAccount: !isEdit && provisionAccount === true },
+            );
             if (fieldErrors) form.setFields(toFormFields(fieldErrors));
           })
         }
@@ -121,6 +125,15 @@ export function StudentFormDrawer({ open, student, majors, cohorts, classes, onC
             <Input autoComplete="off" inputMode="tel" className="tabular-nums" />
           </Form.Item>
         </div>
+        {!isEdit && (
+          <Form.Item
+            name="provisionAccount"
+            valuePropName="checked"
+            extra="Tên đăng nhập là mã số sinh viên. Thư gửi tới email trường dạng 5001104013@student.hcmue.edu.vn để sinh viên tự đặt mật khẩu."
+          >
+            <Checkbox>Cấp tài khoản và gửi thư kích hoạt</Checkbox>
+          </Form.Item>
+        )}
       </Form>
     </Drawer>
   );

@@ -1,13 +1,15 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Button, Input, message, Select, Table, type TableColumnsType } from "antd";
+import { Button, Card, Input, message, Select, Table, type TableColumnsType } from "antd";
 import { Magnifier, Pen, Plus } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { PageHeader } from "@/shared/components/ui/page-header";
 import { StatusTag } from "@/shared/components/ui/status-tag";
-import { facultyOptions, LECTURER_STATUS, USER_ROLES } from "@/modules/users/users.constant";
-import type { Lecturer, LecturerFormValues } from "@/modules/users/users.type";
+import { ACCOUNT_STATUS_OPTIONS, facultyOptions, LECTURER_STATUS, USER_ROLES } from "@/modules/users/users.constant";
+import type { AccountState, AccountStatus as AccountStatusValue, Lecturer, LecturerFormValues } from "@/modules/users/users.type";
+import { AccountBulkActions } from "@/modules/users/components/account-bulk-actions";
+import { AccountStatus } from "@/modules/users/components/account-status";
 import { LecturerFormDrawer } from "@/modules/users/components/lecturer-form-drawer";
 import { paginationItemRender } from "@/shared/constants/antd.constant";
 import { normalizeSearch } from "@/shared/libs/search.lib";
@@ -15,13 +17,15 @@ import { saveLecturer } from "@/modules/users/users.action";
 
 const ROLE_LABEL = Object.fromEntries(USER_ROLES.map((role) => [role.value, role.label]));
 
+export type LecturerRow = Lecturer & { account: AccountState };
+
 export function LecturerTable({
   lecturers,
   faculties,
   initialQuery = "",
   header,
 }: {
-  lecturers: Lecturer[];
+  lecturers: LecturerRow[];
   // Danh sách khoa đọc từ DB.
   faculties: string[];
   initialQuery?: string;
@@ -32,7 +36,9 @@ export function LecturerTable({
   const [query, setQuery] = useState(initialQuery);
   const [faculty, setFaculty] = useState<string>();
   const [role, setRole] = useState<string>();
-  const [editing, setEditing] = useState<Lecturer | null>(null);
+  const [accountStatus, setAccountStatus] = useState<AccountStatusValue>();
+  const [selectedIds, setSelectedIds] = useState<React.Key[]>([]);
+  const [editing, setEditing] = useState<LecturerRow | null>(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const facultyFilterOptions = useMemo(() => facultyOptions(faculties), [faculties]);
 
@@ -42,12 +48,13 @@ export function LecturerTable({
       if (needle && !normalizeSearch(`${row.fullName} ${row.code} ${row.email}`).includes(needle)) return false;
       if (faculty && row.faculty !== faculty) return false;
       if (role && !row.roles.includes(role)) return false;
+      if (accountStatus && row.account.status !== accountStatus) return false;
       return true;
     });
-  }, [rows, query, faculty, role]);
+  }, [rows, query, faculty, role, accountStatus]);
 
-  const handleSubmit = async (values: LecturerFormValues) => {
-    const result = await saveLecturer(editing?.id ?? null, values).catch(() => null);
+  const handleSubmit = async (values: LecturerFormValues, options: { provisionAccount: boolean }) => {
+    const result = await saveLecturer(editing?.id ?? null, values, options).catch(() => null);
     if (!result) {
       messageApi.error("Chưa lưu được, kiểm tra kết nối rồi thử lại.");
       return undefined;
@@ -56,14 +63,16 @@ export function LecturerTable({
       messageApi.error(result.message);
       return result.fieldErrors;
     }
-    const saved = result.data;
+    const saved: LecturerRow = { ...result.data.profile, account: result.data.account };
+    const mail = result.data.mail;
     setRows((current) => (editing ? current.map((row) => (row.id === saved.id ? saved : row)) : [saved, ...current]));
-    messageApi.success(editing ? `Đã lưu thông tin ${saved.displayName}` : `Đã thêm ${saved.displayName}`);
+    const mailNote = mail ? (mail.failed > 0 ? `; thư kích hoạt chưa gửi được, chọn dòng rồi "Gửi lại thư kích hoạt"` : `; đã gửi thư kích hoạt tới ${saved.email}`) : "";
+    messageApi.success(editing ? `Đã lưu thông tin ${saved.displayName}` : `Đã thêm ${saved.displayName}${mailNote}`);
     setIsDrawerOpen(false);
     return undefined;
   };
 
-  const columns: TableColumnsType<Lecturer> = [
+  const columns: TableColumnsType<LecturerRow> = [
     { title: "Mã GV", dataIndex: "code", width: 110, responsive: ["md"], render: (code: string) => <span className="text-xs">{code}</span> },
     {
       title: "Họ và tên",
@@ -96,6 +105,7 @@ export function LecturerTable({
       responsive: ["md"],
       render: (value: Lecturer["status"]) => (value === "active" ? <span className="text-muted">Đang giảng dạy</span> : <StatusTag status={LECTURER_STATUS[value]} />),
     },
+    { title: "Tài khoản", key: "account", width: 130, responsive: ["md"], render: (_, row) => <AccountStatus account={row.account} /> },
     {
       title: "",
       key: "actions",
@@ -150,12 +160,35 @@ export function LecturerTable({
           />
           <Select allowClear value={faculty} onChange={setFaculty} placeholder="Mọi khoa" aria-label="Khoa" options={facultyFilterOptions} className="w-full sm:w-60" />
           <Select allowClear value={role} onChange={setRole} placeholder="Mọi vai trò" aria-label="Vai trò" options={USER_ROLES} className="w-full sm:w-48" />
+          <Select
+            allowClear
+            value={accountStatus}
+            onChange={setAccountStatus}
+            placeholder="Mọi tài khoản"
+            aria-label="Tài khoản"
+            options={ACCOUNT_STATUS_OPTIONS}
+            className="w-full sm:w-40"
+          />
         </div>
+        {selectedIds.length > 0 && (
+          <Card size="small" classNames={{ body: "flex flex-wrap items-center gap-3 py-2" }}>
+            <span className="text-sm tabular-nums">Đã chọn {selectedIds.length} giảng viên</span>
+            <AccountBulkActions
+              kind="lecturer"
+              selectedIds={selectedIds.map(String)}
+              onUpdated={(accounts) => setRows((current) => current.map((row) => (accounts[row.id] ? { ...row, account: accounts[row.id] } : row)))}
+            />
+            <Button size="small" type="text" onClick={() => setSelectedIds([])}>
+              Bỏ chọn
+            </Button>
+          </Card>
+        )}
         <Table
           rowKey="id"
           size="middle"
           columns={columns}
           dataSource={filtered}
+          rowSelection={{ selectedRowKeys: selectedIds, onChange: setSelectedIds }}
           scroll={{ x: "max-content" }}
           pagination={{ itemRender: paginationItemRender, pageSize: 20, hideOnSinglePage: true, showTotal: (total) => `${total} giảng viên` }}
           locale={{ emptyText: <EmptyState illustration="search" title="Không có giảng viên khớp bộ lọc" description="Thử tìm theo mã giảng viên hoặc bỏ bớt điều kiện lọc." /> }}

@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { Button, message, Tabs } from "antd";
 import { Plus } from "defeat-icons-react";
-import { requestView } from "@/modules/requests/requests.constant";
 import type { RequestStatus, RequestView } from "@/modules/requests/requests.type";
 import { RequestInbox } from "@/modules/requests/components/request-inbox";
 import { NewLecturerRequestDrawer, type BusySlot, type RequestClassOption } from "@/modules/requests/components/new-lecturer-request-drawer";
@@ -46,7 +45,7 @@ export function LecturerRequestBoard({ assigned, own, classes, busySlots, rooms,
               <RequestInbox
                 requests={assigned}
                 mode="process"
-                actorName={requester.name}
+                processAs="lecturer"
                 actorId={requester.id}
                 actorRoles={["advisor", "lecturer"]}
                 initialStatus={initialStatus}
@@ -56,7 +55,7 @@ export function LecturerRequestBoard({ assigned, own, classes, busySlots, rooms,
           {
             key: "own",
             label: `Đơn của tôi (${ownRows.length})`,
-            children: <RequestInbox key={ownRows.length} requests={ownRows} mode="own" actorName={requester.name} showRequester={false} />,
+            children: <RequestInbox key={ownRows.length} requests={ownRows} mode="own" showRequester={false} />,
           },
         ]}
       />
@@ -68,7 +67,7 @@ export function LecturerRequestBoard({ assigned, own, classes, busySlots, rooms,
         rooms={rooms}
         requester={requester}
         onCreated={(request) => {
-          setOwnRows((current) => [requestView(request), ...current]);
+          setOwnRows((current) => [request, ...current]);
           setIsDrawerOpen(false);
           setTab("own");
           messageApi.success(`Đã gửi đơn ${request.code}, đang chờ ${request.steps[0].label.toLowerCase()}`);

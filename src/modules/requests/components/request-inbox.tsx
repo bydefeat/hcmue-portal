@@ -1,13 +1,14 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { Alert, Button, Card, Descriptions, Drawer, Input, message, Modal, Segmented, Select, Table, type TableColumnsType } from "antd";
 import { FileContent, Magnifier } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { StatusTag } from "@/shared/components/ui/status-tag";
 import { dayjs, formatDate, formatDateTime } from "@/shared/libs/date.lib";
-import { decideStep, REQUEST_KINDS, REQUEST_STATUS, requestView } from "@/modules/requests/requests.constant";
-import type { AcademicRequest, RequestKind, RequestStatus, RequestView, StepRole } from "@/modules/requests/requests.type";
+import { REQUEST_KINDS, REQUEST_STATUS } from "@/modules/requests/requests.constant";
+import { cancelRequest, decideAsLecturer, decideAsOffice } from "@/modules/requests/requests.action";
+import type { RequestKind, RequestStatus, RequestView, StepRole } from "@/modules/requests/requests.type";
 import { ApprovalSteps } from "@/modules/requests/components/approval-steps";
 import { paginationItemRender } from "@/shared/constants/antd.constant";
 import { normalizeSearch } from "@/shared/libs/search.lib";
@@ -15,7 +16,7 @@ import { normalizeSearch } from "@/shared/libs/search.lib";
 type RequestInboxProps = {
   requests: RequestView[];
   mode: "process" | "own";
-  actorName: string;
+  processAs?: "lecturer" | "office";
   actorId?: string;
   actorRoles?: StepRole[];
   initialStatus?: RequestStatus;
@@ -35,7 +36,7 @@ function waitingText(request: RequestView) {
 export function RequestInbox({
   requests,
   mode,
-  actorName,
+  processAs = "office",
   actorId,
   actorRoles = [],
   initialStatus,
@@ -49,6 +50,8 @@ export function RequestInbox({
   const [query, setQuery] = useState("");
   const [kind, setKind] = useState<RequestKind>();
   const [status, setStatus] = useState<RequestStatus | undefined>(initialStatus);
+  const [isPending, startTransition] = useTransition();
+  const [decision, setDecision] = useState<"approved" | "rejected">();
 
   const canAct = (request: RequestView) =>
     mode === "process" &&
@@ -71,18 +74,35 @@ export function RequestInbox({
     return true;
   });
 
-  const update = (next: AcademicRequest) => setRows((current) => current.map((row) => (row.id === next.id ? requestView(next) : row)));
+  const update = (next: RequestView) => setRows((current) => current.map((row) => (row.id === next.id ? next : row)));
 
-  const decide = (decision: "approved" | "rejected") => {
+  const decide = (choice: "approved" | "rejected") => {
     if (!opened) return;
-    if (decision === "rejected" && !comment.trim()) {
+    if (choice === "rejected" && !comment.trim()) {
       messageApi.warning("Ghi lý do không đồng ý để người gửi biết cần bổ sung gì");
       return;
     }
-    update(decideStep(opened, decision, actorName, comment.trim()));
-    messageApi.success(decision === "approved" ? `Đã đồng ý đơn ${opened.code}, chuyển bước tiếp theo` : `Đã từ chối đơn ${opened.code}`);
-    setComment("");
-    setOpenId(null);
+    const step = opened.steps.findIndex((entry) => entry.status === "pending");
+    const action = processAs === "lecturer" ? decideAsLecturer : decideAsOffice;
+    setDecision(choice);
+    startTransition(async () => {
+      const result = await action(opened.id, { step, decision: choice, comment });
+      if (!result.ok) {
+        messageApi.error(result.fieldErrors?.comment ?? result.message);
+        return;
+      }
+      update(result.data);
+      const next = result.data.currentStep;
+      messageApi.success(
+        choice === "rejected"
+          ? `Đã từ chối đơn ${opened.code}`
+          : next
+            ? `Đã đồng ý đơn ${opened.code}, chuyển sang bước ${next.label.toLowerCase()}`
+            : `Đã duyệt xong đơn ${opened.code}`,
+      );
+      setComment("");
+      setOpenId(null);
+    });
   };
 
   const cancel = (request: RequestView) =>
@@ -93,8 +113,13 @@ export function RequestInbox({
       okButtonProps: { danger: true },
       cancelText: "Giữ đơn",
       mask: { closable: false },
-      onOk: () => {
-        update({ ...request, cancelledAt: dayjs().toISOString() });
+      onOk: async () => {
+        const result = await cancelRequest(request.id);
+        if (!result.ok) {
+          messageApi.error(result.message);
+          return;
+        }
+        update(result.data);
         messageApi.success(`Đã hủy đơn ${request.code}`);
         setOpenId(null);
       },
@@ -279,10 +304,10 @@ export function RequestInbox({
                 className="mb-5"
               />
               <div className="flex justify-end gap-2">
-                <Button danger onClick={() => decide("rejected")}>
+                <Button danger disabled={isPending && decision !== "rejected"} loading={isPending && decision === "rejected"} onClick={() => decide("rejected")}>
                   Không đồng ý
                 </Button>
-                <Button type="primary" onClick={() => decide("approved")}>
+                <Button type="primary" disabled={isPending && decision !== "approved"} loading={isPending && decision === "approved"} onClick={() => decide("approved")}>
                   Đồng ý
                 </Button>
               </div>

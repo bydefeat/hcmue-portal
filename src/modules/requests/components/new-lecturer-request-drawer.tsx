@@ -1,12 +1,15 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Alert, Button, Drawer, Form, Input, InputNumber, Segmented, Select, Upload } from "antd";
+import { useEffect, useState, useTransition } from "react";
+import { Alert, Button, Drawer, Form, Input, InputNumber, message, Segmented, Select, Upload } from "antd";
 import { Paperclip } from "defeat-icons-react";
-import { PERIODS, periodLabel, periodTimeRange, WEEKDAYS, weekdayLabel } from "@/shared/constants/period.constant";
+import { PERIODS, periodLabel, WEEKDAYS, weekdayLabel } from "@/shared/constants/period.constant";
 import { dayjs, formatDate, weekdayOf } from "@/shared/libs/date.lib";
-import { LECTURER_REQUEST_KINDS, REQUEST_KINDS } from "@/modules/requests/requests.constant";
-import type { AcademicRequest, ApprovalStep, RequestKind } from "@/modules/requests/requests.type";
+import { toFormFields } from "@/shared/libs/form.lib";
+import { ATTACHMENT_LIMIT, LECTURER_REQUEST_KINDS, REQUEST_KINDS } from "@/modules/requests/requests.constant";
+import { createLecturerRequest } from "@/modules/requests/requests.action";
+import type { LecturerRequestInput } from "@/modules/requests/requests.rule";
+import type { RequestKind, RequestView } from "@/modules/requests/requests.type";
 
 export type RequestMeeting = {
   dayOfWeek: number;
@@ -40,7 +43,7 @@ type Requester = { id: string; name: string; code: string; unit: string };
 type NewLecturerRequestDrawerProps = {
   open: boolean;
   onClose: () => void;
-  onCreated: (request: AcademicRequest) => void;
+  onCreated: (request: RequestView) => void;
   classes: RequestClassOption[];
   busySlots: BusySlot[];
   rooms: string[];
@@ -93,24 +96,12 @@ function suggestSlot(busySlots: BusySlot[], length: number) {
   return null;
 }
 
-function buildSteps(kind: RequestKind): ApprovalStep[] {
-  return REQUEST_KINDS[kind].steps.map((template, index) => ({
-    role: template.role,
-    label: template.label,
-    assigneeId: null,
-    assigneeName: template.role === "faculty" ? "Trưởng khoa" : "Phòng Đào tạo",
-    status: index === 0 ? "pending" : "waiting",
-    actorName: null,
-    actedAt: null,
-    comment: null,
-    dueAt: index === 0 ? dayjs().add(template.slaDays, "day").toISOString() : null,
-  }));
-}
-
-export function NewLecturerRequestDrawer({ open, onClose, onCreated, classes, busySlots, rooms, requester, prefill }: NewLecturerRequestDrawerProps) {
+export function NewLecturerRequestDrawer({ open, onClose, onCreated, classes, busySlots, rooms, prefill }: NewLecturerRequestDrawerProps) {
   const [form] = Form.useForm<FormValues>();
   const [kind, setKind] = useState<RequestKind>(prefill?.kind ?? "grade-change");
-  const [files, setFiles] = useState<string[]>([]);
+  const [messageApi, contextHolder] = message.useMessage();
+  const [files, setFiles] = useState<{ uid: string; name: string; size: number; type: string }[]>([]);
+  const [isPending, startTransition] = useTransition();
   const values = Form.useWatch([], form) ?? {};
 
   const prefillKind = prefill?.kind;
@@ -154,49 +145,36 @@ export function NewLecturerRequestDrawer({ open, onClose, onCreated, classes, bu
   };
 
   const submit = (formValues: FormValues) => {
-    const option = classes.find((entry) => entry.id === formValues.classId)!;
-    let subject = "";
-    let details: { label: string; value: string }[] = [];
-    if (kind === "grade-change") {
-      const student = option.students.find((entry) => entry.studentId === formValues.studentId)!;
-      const component = option.components.find((entry) => entry.key === formValues.componentKey)!;
-      subject = `${option.code} ${option.courseName}`;
-      details = [
-        { label: "Sinh viên", value: `${student.fullName}, ${student.studentCode}` },
-        { label: "Cột điểm", value: component.label },
-        { label: "Điểm cũ", value: oldScore === null ? "Chưa có" : oldScore.toFixed(2).replace(".", ",") },
-        { label: "Điểm mới", value: (formValues.newScore ?? 0).toFixed(2).replace(".", ",") },
-      ];
-    } else {
-      const chosen = sessions.find((entry) => entry.value === formValues.sessionDate)!;
-      subject = `${option.code}, ${chosen.label.split(",").slice(0, 2).join(",")}`;
-      details = [
-        { label: "Buổi nghỉ", value: chosen.label },
-        {
-          label: "Dạy bù",
-          value: `${weekdayLabel(formValues.makeupDay!)}, ${periodLabel(formValues.makeupStart!, formValues.makeupEnd!)} (${periodTimeRange(formValues.makeupStart!, formValues.makeupEnd!)}), đề xuất phòng ${formValues.makeupRoom}`,
-        },
-      ];
-    }
-    const request: AcademicRequest = {
-      id: `don-moi-${dayjs().valueOf()}`,
-      code: `GV-${dayjs().year()}-${String(dayjs().valueOf()).slice(-5)}`,
-      kind,
-      requesterType: "lecturer",
-      requesterId: requester.id,
-      requesterName: requester.name,
-      requesterCode: requester.code,
-      requesterUnit: requester.unit,
-      faculty: requester.unit,
-      subject,
-      details,
-      reason: formValues.reason ?? "",
-      attachments: files,
-      createdAt: dayjs().toISOString(),
-      cancelledAt: null,
-      steps: buildSteps(kind),
-    };
-    onCreated(request);
+    const base = { classId: formValues.classId, reason: formValues.reason, attachments: files.map(({ name, size, type }) => ({ name, size, type })) };
+    const input =
+      kind === "grade-change"
+        ? {
+            ...base,
+            kind,
+            studentId: formValues.studentId,
+            componentKey: formValues.componentKey,
+            componentLabel: selectedClass?.components.find((entry) => entry.key === formValues.componentKey)?.label ?? "",
+            oldScore,
+            newScore: formValues.newScore,
+          }
+        : {
+            ...base,
+            kind,
+            sessionDate: formValues.sessionDate,
+            makeupDay: formValues.makeupDay,
+            makeupStart: formValues.makeupStart,
+            makeupEnd: formValues.makeupEnd,
+            makeupRoom: formValues.makeupRoom,
+          };
+    startTransition(async () => {
+      const result = await createLecturerRequest(input as LecturerRequestInput);
+      if (!result.ok) {
+        form.setFields(toFormFields(result.fieldErrors));
+        messageApi.error(result.fieldErrors?.attachments ?? result.message);
+        return;
+      }
+      onCreated(result.data);
+    });
   };
 
   const blocked = kind === "teaching-leave" && (makeupConflicts.length > 0 || invalidRange);
@@ -212,12 +190,13 @@ export function NewLecturerRequestDrawer({ open, onClose, onCreated, classes, bu
       footer={
         <div className="flex justify-end gap-2">
           <Button onClick={onClose}>Hủy</Button>
-          <Button type="primary" disabled={blocked} onClick={() => form.submit()}>
+          <Button type="primary" disabled={blocked} loading={isPending} onClick={() => form.submit()}>
             Gửi đơn
           </Button>
         </div>
       }
     >
+      {contextHolder}
       <div className="flex flex-col gap-4">
         <Segmented<RequestKind>
           block
@@ -318,14 +297,17 @@ export function NewLecturerRequestDrawer({ open, onClose, onCreated, classes, bu
           <Form.Item name="reason" label="Lý do" rules={[{ required: true, whitespace: true, message: "Chưa nhập lý do" }]}>
             <Input.TextArea autoSize={{ minRows: 3, maxRows: 6 }} maxLength={500} showCount />
           </Form.Item>
-          <Form.Item label="Minh chứng" extra={kind === "grade-change" ? "Biên bản chấm, bài thi đã scan hoặc ảnh bảng điểm gốc" : "Giấy mời, quyết định cử đi công tác"}>
+          <Form.Item
+            label="Minh chứng"
+            extra={`${kind === "grade-change" ? "Biên bản chấm, bài thi đã scan hoặc ảnh bảng điểm gốc" : "Giấy mời, quyết định cử đi công tác"}, tối đa ${ATTACHMENT_LIMIT.files} tệp, mỗi tệp không quá 5 MB`}
+          >
             <Upload
               multiple
               beforeUpload={(file) => {
-                setFiles((current) => [...current, file.name]);
+                setFiles((current) => [...current, { uid: file.uid, name: file.name, size: file.size, type: file.type }]);
                 return false;
               }}
-              onRemove={(file) => setFiles((current) => current.filter((name) => name !== file.name))}
+              onRemove={(file) => setFiles((current) => current.filter((entry) => entry.uid !== file.uid))}
             >
               <Button icon={<Paperclip size={16} aria-hidden className="text-zinc-500" />}>Đính kèm tệp</Button>
             </Upload>

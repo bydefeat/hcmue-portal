@@ -1,9 +1,9 @@
 import { dayjs } from "@/shared/libs/date.lib";
-import { mockDate, mockLecturerIdentity, mockStudentIdentity } from "@/shared/libs/mock.lib";
+import { mockDate, mockId, mockLecturerIdentity, mockStudentIdentity } from "@/shared/libs/mock.lib";
+import { ADVISOR_ASSIGNMENTS } from "@/modules/users/users.mock";
 import { REQUEST_KINDS } from "@/modules/requests/requests.constant";
 import type { AcademicRequest, ApprovalStep, RequestDetail, RequestKind } from "@/modules/requests/requests.type";
 
-const ADVISOR_CLASSES = ["49.01.CNTT.A", "50.01.CNTT.A"];
 const OFFICERS = { faculty: "Võ Thanh Trang", "academic-office": "Nguyễn Thị Thu Hà", "exam-office": "Huỳnh Văn Sơn" } as const;
 
 type Seed = {
@@ -72,12 +72,11 @@ function build(seed: Seed, index: number): AcademicRequest {
   const year = 2026;
   if (seed.student !== undefined) {
     const student = mockStudentIdentity(seed.student);
-    const advisorIdentity = ADVISOR_CLASSES.includes(student.className) ? mockLecturerIdentity(0) : null;
-    const advisor = advisorIdentity
-      ? { id: advisorIdentity.id, name: advisorIdentity.displayName }
-      : { id: `advisor-${student.className}`, name: `Cố vấn lớp ${student.className}` };
+    // Cố vấn đúng như phân công lớp sinh hoạt trong dữ liệu mẫu của module users.
+    const assignment = ADVISOR_ASSIGNMENTS.find((entry) => entry.className === student.className);
+    const advisor = assignment?.advisorId ? { id: assignment.advisorId, name: assignment.advisorName ?? "" } : null;
     return {
-      id: `don-${index + 1}`,
+      id: mockId(`request:${index + 1}`),
       code: `DT-${year}-${String(1240 + index * 3).padStart(5, "0")}`,
       kind: seed.kind,
       requesterType: "student",
@@ -97,7 +96,7 @@ function build(seed: Seed, index: number): AcademicRequest {
   }
   const lecturer = mockLecturerIdentity(seed.lecturer ?? 0);
   return {
-    id: `don-${index + 1}`,
+    id: mockId(`request:${index + 1}`),
     code: `GV-${year}-${String(310 + index * 2).padStart(5, "0")}`,
     kind: seed.kind,
     requesterType: "lecturer",

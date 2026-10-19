@@ -132,6 +132,17 @@ Khoá chính `uuidv7`. Ràng buộc đặt ở DB thay vì ở code:
 | `study-plan` | `study_plans`, `study_plan_items`, `advisor_assignments` | Một kế hoạch đang hiệu lực mỗi SV |
 | `announcements` | `announcements` (slug, nội dung, ngày đăng) | Slug `unique` |
 
+Định danh trên URL khi nối dữ liệu thật:
+
+| Đối tượng | Hiện tại (mock) | Khi làm thật |
+|---|---|---|
+| Lớp học phần, chương trình, học phần, đơn từ, quyết định, kỳ thi, khảo sát… | Chuỗi tự đặt, ví dụ `/lecturer/classes/hk1-2026-comp1020-01` | `uuid` (khoá chính `uuidv7` từ Postgres), ví dụ `/lecturer/classes/0192f3a4-…` |
+| Sinh viên, giảng viên | `sv-29`, `gv-3` | Không dùng uuid, dùng thẳng mã SV, mã GV (đã `unique`), ví dụ `/lecturer/advising/students/48.01.104.001` |
+| Thông báo công khai | slug | Giữ slug |
+
+- Route chỉ nhận đúng định dạng: param không phải uuid hợp lệ (hoặc không khớp mã SV/GV) thì `notFound()` trước khi truy vấn.
+- Mã lớp học phần (`COMP1020.01`) vẫn hiển thị trên giao diện và dùng để tìm kiếm, không dùng làm định danh trên URL.
+
 - Kiểm: migrate từ DB trắng chạy được; một file seed dữ liệu mẫu (1 khoa, 1 ngành, ~20 học phần, 1 kỳ, vài lớp, 3 tài khoản: SV, GV kiêm cố vấn, admin).
 
 ### Giai đoạn 3 — Xác thực

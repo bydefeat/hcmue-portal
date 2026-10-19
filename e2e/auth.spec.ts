@@ -17,9 +17,13 @@ test.describe("đăng nhập và đăng xuất", () => {
       await signInAs(page, role);
       await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
 
-      await page.getByRole("button", { name: MENU_BUTTON[role] }).click();
-      await page.getByRole("menuitem", { name: "Đăng xuất" }).click();
-      await page.waitForURL("**/authentication/sign-in");
+      // Trang vừa tải có thể chưa gắn sự kiện cho nút menu, hoặc lần bấm rơi vào lúc menu đang mở dần: bấm lại tới khi về trang đăng nhập.
+      const signOut = page.getByRole("menuitem", { name: "Đăng xuất" });
+      await expect(async () => {
+        if (!(await signOut.isVisible())) await page.getByRole("button", { name: MENU_BUTTON[role] }).click();
+        await signOut.click({ timeout: 2000 });
+        await page.waitForURL("**/authentication/sign-in", { timeout: 5000 });
+      }).toPass({ timeout: 30_000 });
 
       // Phiên đã bị hủy: mở lại trang cổng thì về trang đăng nhập, giữ đường dẫn để quay lại.
       await page.goto(SEED_ACCOUNTS[role].home);

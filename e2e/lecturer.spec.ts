@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import ExcelJS from "exceljs";
 import { asRole, dialog, expect, openAs, test, toast, vietnamDate, waitForAction } from "./support/fixtures";
 
 test.use(asRole("lecturer"));
@@ -28,18 +28,32 @@ test.describe("nhập điểm", () => {
     const downloading = page.waitForEvent("download");
     await page.getByRole("button", { name: "Xuất Excel" }).click();
     const download = await downloading;
-    expect(download.suggestedFilename()).toBe("bang-diem-COMP1020.01.csv");
-    const csv = await readFile(await download.path(), "utf8");
-    const [header, ...rows] = csv.replace(/^\uFEFF/, "").split(/\r?\n/);
-    expect(header).toBe("MSSV,Họ và tên,Chuyên cần (10%),Giữa kỳ (30%),Cuối kỳ (60%),Tổng,Điểm chữ");
-    expect(rows.find((row) => row.startsWith("49.01.104.101,Lý Tuấn Bảo,"))).toBeTruthy();
+    expect(download.suggestedFilename()).toBe("bang-diem-COMP1020.01.xlsx");
+    const book = new ExcelJS.Workbook();
+    await book.xlsx.readFile(await download.path());
+    const sheet = book.worksheets[0];
+    // Tìm hàng tiêu đề (có ô "MSSV") và cột "Cuối kỳ" thay vì cố định vị trí.
+    let headerRow = 0;
+    sheet.eachRow((row, number) => {
+      if (!headerRow && row.values && (row.values as unknown[]).includes("MSSV")) headerRow = number;
+    });
+    expect(headerRow).toBeGreaterThan(0);
+    const headers = Array.from(sheet.getRow(headerRow).values as unknown[], (value) => String(value ?? ""));
+    const finalColumn = headers.findIndex((value) => value.startsWith("Cuối kỳ"));
+    expect(finalColumn).toBeGreaterThan(0);
+    let target = 0;
+    sheet.eachRow((row, number) => {
+      if (number > headerRow && String(row.getCell(1).value) === "49.01.104.101") target = number;
+    });
+    expect(target).toBeGreaterThan(0);
+    // Sửa điểm cuối kỳ của Lý Tuấn Bảo trong tệp đã xuất rồi nhập lại.
+    sheet.getRow(target).getCell(finalColumn).value = 8.5;
+    const edited = Buffer.from(await book.xlsx.writeBuffer());
 
-    // Tệp theo đúng mẫu đã xuất, chỉ giữ dòng của Lý Tuấn Bảo và sửa điểm cuối kỳ; ô trống thì giữ điểm đang có.
-    const edited = Buffer.from(`${header}\n49.01.104.101,Lý Tuấn Bảo,,,"8,5"\n`, "utf8");
-
-    const saved = waitForAction(page);
-    await page.locator('input[type="file"][accept=".csv"]').setInputFiles({ name: "bang-diem-sua.csv", mimeType: "text/csv", buffer: edited });
-    await expect(toast(page, /Đã điền \d+ điểm từ tệp bang-diem-sua\.csv/)).toBeVisible();
+    // Tệp .xlsx được đọc bằng một server action; lưu nháp là lượt gọi sau đó (tự lưu sau khoảng 1 giây) mang điểm mới.
+    const saved = page.waitForResponse((response) => Boolean(response.request().headers()["next-action"]) && (response.request().postData() ?? "").includes('"score":8.5'));
+    await page.locator('input[type="file"][accept=".xlsx,.csv"]').setInputFiles({ name: "bang-diem-sua.xlsx", mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", buffer: edited });
+    await expect(toast(page, /Đã điền \d+ điểm từ tệp bang-diem-sua\.xlsx/)).toBeVisible();
     expect((await saved).ok()).toBe(true);
     await expect(page.getByText(/Đã lưu nháp lúc/)).toBeVisible();
 

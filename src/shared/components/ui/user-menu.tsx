@@ -92,9 +92,13 @@ export function UserMenu({ user, links = [], switcher, compact = false }: UserMe
       icon: <ArrowDoorOut size={16} aria-hidden />,
       label: "Đăng xuất",
       onClick: async () => {
-        await authClient.signOut();
-        router.replace("/authentication/sign-in");
-        router.refresh();
+        // Gọi đăng xuất lỗi (mạng chập chờn, phiên đã hết) vẫn đưa về trang đăng nhập; còn phiên thì trang đó tự chuyển lại.
+        try {
+          await authClient.signOut();
+        } finally {
+          router.replace("/authentication/sign-in");
+          router.refresh();
+        }
       },
     },
   ];

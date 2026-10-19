@@ -131,7 +131,8 @@
     {
       "files": [
         "scripts/**",
-        "tests/**"
+        "tests/**",
+        "e2e/**"
       ],
       "rules": {
         "no-console": "off"
@@ -139,10 +140,20 @@
     },
     {
       "files": [
-        "scripts/**"
+        "scripts/**",
+        "e2e/**"
       ],
       "rules": {
         "no-restricted-imports": "off"
+      }
+    },
+    {
+      "files": [
+        "e2e/**"
+      ],
+      "rules": {
+        "react/rules-of-hooks": "off",
+        "no-empty-pattern": "off"
       }
     },
     {

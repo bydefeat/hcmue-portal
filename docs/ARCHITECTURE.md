@@ -378,6 +378,26 @@ Phân quyền cổng quản trị đọc từ DB: `getViewer()` lấy các vai t
 | Tải xuống | Route handler `/api/files/requests/[attachmentId]` (người xem được đơn: người gửi, cố vấn khi đơn có bước cố vấn, giảng viên được giao bước, cán bộ có bước thuộc vai trò mình trong phạm vi khoa) và `/api/files/exams/[sessionId]/[paper|answer-key]` (giảng viên dạy lớp, cán bộ có `exams.manage` trong phạm vi khoa). Không quyền trả 404. Header: `Content-Disposition` RFC 6266/5987 giữ tên tiếng Việt, `Content-Type` đã lưu, `Cache-Control: private, no-store`, `X-Content-Type-Options: nosniff` |
 | Seed | Mỗi minh chứng, đề mẫu có một tệp PDF nhỏ "Tệp mẫu" (`scripts/seed/sample-file.ts`), khóa tất định theo id mock; seed xóa tệp cũ trong kho vì DB vừa bị xóa sạch |
 
+### Kiểm thử end-to-end (Playwright)
+
+> **CẢNH BÁO:** `npm run test:e2e` **xóa sạch và seed lại** database mà `DEFEAT_POSTGRES_PRIMARY_DATABASE_CONNECTION_URL` đang trỏ tới (`e2e/global-setup.ts` chạy `npm run db:seed` rồi cấp thêm 2 tài khoản riêng cho e2e). Chỉ chạy trên database phát triển/kiểm thử.
+
+```bash
+npm run test:e2e                                  # next build + next start (mặc định, như khi triển khai)
+E2E_SERVER=dev npm run test:e2e                   # next dev; dùng lại server đang chạy ở cổng của BASE_URL nếu có
+E2E_SERVER=dev E2E_SERVER_LOG=dev.log npm run test:e2e   # server tự bật bằng tay: chỉ log của nó để đọc mã OTP
+npx playwright test e2e/student.spec.ts           # một file
+```
+
+| Việc | Cách làm |
+|---|---|
+| Cấu trúc | `playwright.config.ts`, `e2e/*.spec.ts` (auth, access, pages, student, lecturer, admin), `e2e/support/` (fixture, tài khoản, cấp tài khoản e2e) |
+| Phiên đăng nhập | `e2e/auth.setup.ts` đăng nhập 3 tài khoản seed một lần, lưu `storageState` vào `e2e/.auth/` (thêm phiên admin đã đổi sang Quản trị hệ thống). Test tự đăng nhập dùng IP giả riêng trong `x-forwarded-for` để không chạm giới hạn 5 lần/phút |
+| Lỗi console | Fixture tự đánh trượt test có `console.error`/`pageerror`; test cố ý gây 401/403/404 khai báo `allowedConsoleErrors` |
+| Múi giờ | Server chạy `TZ=Asia/Ho_Chi_Minh`, trình duyệt cũng vậy: giờ được định dạng theo múi giờ tiến trình, lệch là hydration mismatch |
+| Thư | e2e không gửi thư thật: `next dev` bỏ trống khóa Resend (thư in ra log), `next start` dùng khóa giả (Resend từ chối, log có tiêu đề kèm mã OTP). Log server ở `e2e/.output/server.log` |
+| Kết quả | `e2e/.output/` (báo cáo HTML, trace khi lỗi), đã gitignore |
+
 ## 11. Lint (oxlint)
 
 Dự án chỉ dùng **oxlint**, không dùng ESLint. Cấu hình ở `.oxlintrc.json`.

@@ -9,7 +9,14 @@ import { account, rateLimit, session, user, verification } from "@/modules/authe
 import { AUTH_COOKIE_PREFIX, AUTH_ERROR, SESSION_MAX_AGE_SECONDS } from "@/modules/authentication/authentication.constant";
 import { db } from "@/shared/libs/db.lib";
 import { env } from "@/shared/libs/env.lib";
+import { sendMail } from "@/shared/libs/mail.lib";
 import { formatStudentCode, isStudentCode, isStudentEmail, normalizeStudentCode } from "@/shared/libs/student-code.lib";
+
+const OTP_PURPOSE: Record<string, string> = {
+  "forget-password": "đặt lại mật khẩu",
+  "email-verification": "xác minh email",
+  "sign-in": "đăng nhập",
+};
 
 // Đường dẫn bị chặn: sinh viên chỉ đăng nhập bằng MSSV; không ai đăng nhập bằng mã OTP qua email.
 const BLOCKED_PATHS = new Set(["/sign-in/email-otp"]);
@@ -83,8 +90,13 @@ export const auth = betterAuth({
       storeOTP: "hashed",
       disableSignUp: true,
       async sendVerificationOTP({ email, otp, type }) {
-        // Chưa có dịch vụ gửi email: in mã ra log server.
-        console.warn(`[auth] Chưa cấu hình gửi email, mã OTP ${type} cho ${email}: ${otp}`);
+        const purpose = OTP_PURPOSE[type] ?? "xác minh tài khoản";
+        // Không chờ gửi xong: thời gian phản hồi không được để lộ email có tài khoản hay không.
+        void sendMail({
+          to: email,
+          subject: `Mã ${purpose} HCMUE Portal: ${otp}`,
+          text: `Mã ${purpose} của bạn là ${otp}. Mã có hiệu lực 10 phút, chỉ dùng được một lần.\n\nNếu bạn không yêu cầu mã này, bỏ qua thư; mật khẩu của bạn không thay đổi.`,
+        });
       },
     }),
     // Phải đứng cuối để Set-Cookie từ server action đi được ra trình duyệt.

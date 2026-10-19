@@ -15,6 +15,11 @@ const schema = z.object({
       .transform((value) => value.split(",").map((origin) => origin.trim()).filter(Boolean))
       .default([]),
   ),
+  // Gửi email qua Resend. Bỏ trống khóa thì không gửi, chỉ in nội dung thư ra log server (môi trường phát triển).
+  DEFEAT_RESEND_API_KEY: blankAsUnset(z.string().startsWith("re_").optional()),
+  DEFEAT_MAIL_FROM: blankAsUnset(z.string().default("HCMUE Portal <onboarding@resend.dev>")),
+  // Khóa bí mật của bộ hẹn giờ gọi /api/cron/<tác vụ>. Bỏ trống thì endpoint tắt.
+  DEFEAT_CRON_SECRET: blankAsUnset(z.string().min(32).optional()),
 });
 
 export const env = schema.parse(process.env);

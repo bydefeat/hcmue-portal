@@ -1,11 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { Alert, Button, DatePicker, Drawer, Form, Input, InputNumber, message, Select, Upload, type UploadFile } from "antd";
 import { Plus, Upload as UploadIcon } from "defeat-icons-react";
 import { dayjs } from "@/shared/libs/date.lib";
-import { REQUEST_KINDS, requestView, STEP_ROLE_LABEL, STUDENT_REQUEST_KINDS } from "@/modules/requests/requests.constant";
-import type { AcademicRequest, RequestDetail, RequestKind, RequestView } from "@/modules/requests/requests.type";
+import { toFormFields } from "@/shared/libs/form.lib";
+import { ATTACHMENT_LIMIT, REQUEST_KINDS, STUDENT_REQUEST_FIELDS, STUDENT_REQUEST_KINDS } from "@/modules/requests/requests.constant";
+import { createStudentRequest } from "@/modules/requests/requests.action";
+import type { StudentRequestInput } from "@/modules/requests/requests.rule";
+import type { RequestKind, RequestView } from "@/modules/requests/requests.type";
 import { RequestInbox } from "@/modules/requests/components/request-inbox";
 import { PageHeader } from "@/shared/components/ui/page-header";
 
@@ -22,93 +25,20 @@ type Requester = {
   advisorName: string | null;
 };
 
-type FieldSpec = {
-  name: string;
-  label: string;
-  kind: "number" | "text" | "section" | "date" | "select";
-  options?: string[];
-  min?: number;
-  max?: number;
-};
-
-const FIELDS: Record<RequestKind, FieldSpec[]> = {
-  overload: [
-    { name: "credits", label: "Số tín chỉ xin đăng ký", kind: "number", min: 26, max: 30 },
-    { name: "extra", label: "Học phần muốn học thêm", kind: "text" },
-  ],
-  withdraw: [{ name: "section", label: "Lớp học phần", kind: "section" }],
-  "open-class": [
-    { name: "course", label: "Mã và tên học phần", kind: "text" },
-    { name: "peers", label: "Số sinh viên cùng đề nghị", kind: "number", min: 1, max: 200 },
-  ],
-  regrade: [
-    { name: "section", label: "Lớp học phần", kind: "section" },
-    { name: "score", label: "Điểm thi hiện tại", kind: "number", min: 0, max: 10 },
-  ],
-  "exam-postpone": [
-    { name: "section", label: "Lớp học phần", kind: "section" },
-    { name: "examDate", label: "Ngày thi", kind: "date" },
-  ],
-  reserve: [{ name: "duration", label: "Thời gian bảo lưu", kind: "select", options: ["1 học kỳ", "2 học kỳ"] }],
-  transcript: [
-    { name: "copies", label: "Số bản", kind: "number", min: 1, max: 10 },
-    { name: "language", label: "Ngôn ngữ", kind: "select", options: ["Tiếng Việt", "Tiếng Anh", "Cả hai"] },
-    { name: "delivery", label: "Hình thức nhận", kind: "select", options: ["Nhận tại Phòng Đào tạo", "Bản điện tử qua email"] },
-  ],
-  "credit-transfer": [
-    { name: "source", label: "Học phần đã học (mã, tên, số tín chỉ, điểm)", kind: "text" },
-    { name: "school", label: "Nơi học", kind: "text" },
-    { name: "target", label: "Học phần xin công nhận", kind: "text" },
-  ],
-  "grade-change": [],
-  "teaching-leave": [],
-};
-
 type FormValues = Record<string, string | number | dayjs.Dayjs | undefined> & { kind: RequestKind; reason: string };
 
-function fieldValueText(field: FieldSpec, value: FormValues[string], sections: SectionOption[]) {
-  if (value === undefined || value === "") return "";
-  if (field.kind === "section") return sections.find((option) => option.value === value)?.label ?? String(value);
-  if (field.kind === "date") return dayjs(value as dayjs.Dayjs).format("DD/MM/YYYY");
-  return String(value);
-}
-
-function buildRequest(values: FormValues, requester: Requester, sections: SectionOption[], files: UploadFile[], sequence: number): AcademicRequest {
-  const config = REQUEST_KINDS[values.kind];
-  const fields = FIELDS[values.kind];
-  const details: RequestDetail[] = fields
-    .map((field) => ({ label: field.label, value: fieldValueText(field, values[field.name], sections) }))
-    .filter((detail) => detail.value);
-  const now = dayjs();
-  const subjectField = fields.find((field) => field.kind === "section" || field.name === "course");
-  const subject = subjectField ? fieldValueText(subjectField, values[subjectField.name], sections) : config.label;
+function toInput(values: FormValues, files: UploadFile[]): StudentRequestInput {
+  const fields = Object.fromEntries(
+    STUDENT_REQUEST_FIELDS[values.kind].map((field) => {
+      const value = values[field.name];
+      return [field.name, field.kind === "date" && dayjs.isDayjs(value) ? value.format("YYYY-MM-DD") : value];
+    }),
+  );
   return {
-    id: `don-moi-${now.valueOf()}`,
-    code: `DT-${now.year()}-${String(9000 + sequence).padStart(5, "0")}`,
+    ...fields,
     kind: values.kind,
-    requesterType: "student",
-    requesterId: requester.id,
-    requesterName: requester.name,
-    requesterCode: requester.code,
-    requesterUnit: requester.unit,
-    faculty: requester.faculty,
-    subject,
-    details,
     reason: values.reason,
-    attachments: files.map((file) => file.name),
-    createdAt: now.toISOString(),
-    cancelledAt: null,
-    steps: config.steps.map((step, index) => ({
-      role: step.role,
-      label: step.label,
-      assigneeId: step.role === "advisor" ? requester.advisorId : null,
-      assigneeName: step.role === "advisor" ? requester.advisorName : STEP_ROLE_LABEL[step.role],
-      status: index === 0 ? "pending" : "waiting",
-      actorName: null,
-      actedAt: null,
-      comment: null,
-      dueAt: index === 0 ? now.add(step.slaDays, "day").toISOString() : null,
-    })),
+    attachments: files.map((file) => ({ name: file.name, size: file.size ?? 0, type: file.type ?? "" })),
   };
 }
 
@@ -118,13 +48,14 @@ type NewRequestDrawerProps = {
   sections: SectionOption[];
   overloadMinCpa: number;
   onClose: () => void;
-  onSubmit: (request: AcademicRequest) => void;
-  sequence: number;
+  onSubmit: (request: RequestView) => void;
 };
 
-export function NewRequestDrawer({ open, requester, sections, overloadMinCpa, onClose, onSubmit, sequence }: NewRequestDrawerProps) {
+export function NewRequestDrawer({ open, requester, sections, overloadMinCpa, onClose, onSubmit }: NewRequestDrawerProps) {
   const [form] = Form.useForm<FormValues>();
+  const [messageApi, contextHolder] = message.useMessage();
   const [files, setFiles] = useState<UploadFile[]>([]);
+  const [isPending, startTransition] = useTransition();
   const kind = Form.useWatch("kind", form);
   const config = kind ? REQUEST_KINDS[kind] : null;
   const blockedReason =
@@ -153,7 +84,7 @@ export function NewRequestDrawer({ open, requester, sections, overloadMinCpa, on
       footer={
         <div className="flex justify-end gap-2">
           <Button onClick={close}>Hủy</Button>
-          <Button type="primary" disabled={!kind || Boolean(blockedReason)} onClick={() => form.submit()}>
+          <Button type="primary" disabled={!kind || Boolean(blockedReason)} loading={isPending} onClick={() => form.submit()}>
             Gửi đơn
           </Button>
         </div>
@@ -162,11 +93,20 @@ export function NewRequestDrawer({ open, requester, sections, overloadMinCpa, on
       <Form<FormValues>
         form={form}
         layout="vertical"
-        onFinish={(values) => {
-          onSubmit(buildRequest(values, requester, sections, files, sequence));
-          setFiles([]);
-        }}
+        onFinish={(values) =>
+          startTransition(async () => {
+            const result = await createStudentRequest(toInput(values, files));
+            if (!result.ok) {
+              form.setFields(toFormFields(result.fieldErrors));
+              messageApi.error(result.fieldErrors?.attachments ?? result.message);
+              return;
+            }
+            setFiles([]);
+            onSubmit(result.data);
+          })
+        }
       >
+        {contextHolder}
         <Form.Item name="kind" label="Loại đơn" rules={[{ required: true, message: "Chưa chọn loại đơn" }]}>
           <Select options={STUDENT_REQUEST_KINDS.map((value) => ({ value, label: REQUEST_KINDS[value].label }))} />
         </Form.Item>
@@ -187,10 +127,10 @@ export function NewRequestDrawer({ open, requester, sections, overloadMinCpa, on
         {blockedReason && <Alert type="warning" showIcon title={blockedReason} className="mb-4" description="Đăng ký tối đa 25 tín chỉ trong học kỳ hoặc trao đổi với cố vấn học tập." />}
 
         {kind &&
-          FIELDS[kind].map((field) => (
+          STUDENT_REQUEST_FIELDS[kind].map((field) => (
             <Form.Item key={field.name} name={field.name} label={field.label} rules={[{ required: true, message: `Chưa nhập ${field.label.toLowerCase()}` }]}>
               {field.kind === "number" ? (
-                <InputNumber min={field.min} max={field.max} step={field.max === 10 ? 0.25 : 1} decimalSeparator="," className="w-full" />
+                <InputNumber min={field.min} max={field.max} step={field.step} decimalSeparator="," className="w-full" />
               ) : field.kind === "section" ? (
                 <Select options={sections} showSearch={{ optionFilterProp: "label" }} notFoundContent="Không có lớp đang học" />
               ) : field.kind === "date" ? (
@@ -212,7 +152,7 @@ export function NewRequestDrawer({ open, requester, sections, overloadMinCpa, on
               <Upload
                 fileList={files}
                 beforeUpload={(file) => {
-                  setFiles((current) => [...current, { uid: file.uid, name: file.name, status: "done" as const }].slice(0, 5));
+                  setFiles((current) => [...current, { uid: file.uid, name: file.name, size: file.size, type: file.type, status: "done" as const }].slice(0, ATTACHMENT_LIMIT.files));
                   return false;
                 }}
                 onRemove={(file) => setFiles((current) => current.filter((entry) => entry.uid !== file.uid))}
@@ -252,16 +192,15 @@ export function StudentRequestCenter({ requests, requester, sections, overloadMi
           </Button>
         }
       />
-      <RequestInbox key={rows.length} requests={rows} mode="own" actorName={requester.name} showRequester={false} />
+      <RequestInbox key={rows.length} requests={rows} mode="own" showRequester={false} />
       <NewRequestDrawer
         open={open}
         requester={requester}
         sections={sections}
         overloadMinCpa={overloadMinCpa}
-        sequence={rows.length}
         onClose={() => setOpen(false)}
         onSubmit={(request) => {
-          setRows((current) => [requestView(request), ...current]);
+          setRows((current) => [request, ...current]);
           setOpen(false);
           messageApi.success(`Đã gửi đơn ${request.code}. Theo dõi tiến độ trong danh sách.`);
         }}

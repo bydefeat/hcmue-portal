@@ -206,6 +206,7 @@ PostgreSQL 18.4, khoá chính `uuid` mặc định `uuidv7()`. Ràng buộc đ�
 
 ### Giai đoạn 9 — Cố vấn và đơn từ
 - Kế hoạch học tập (gửi duyệt, duyệt / trả lại), lịch hẹn và ghi chú cố vấn, đơn từ đi qua từng bước duyệt.
+- Đơn từ đã đọc/ghi DB thật (module `requests`): sinh viên, giảng viên gửi và hủy đơn; cố vấn, giảng viên, khoa, Phòng Đào tạo, Phòng Khảo thí duyệt hoặc từ chối đúng bước của mình (khóa dòng đơn khi chuyển bước, mỗi đơn một bước đang chờ); mã đơn cấp bằng bộ đếm `request_code_counters`; tệp minh chứng mới lưu tên và kích thước, chưa có kho lưu nội dung.
 
 ### Giai đoạn 10 — Phần còn lại
 - Học phí (hoá đơn, thanh toán), khảo sát ẩn danh, xét tốt nghiệp, thông báo, audit log, cảnh báo học vụ tự động (*cần ngưỡng của trường*), báo cáo và nhập / xuất Excel.

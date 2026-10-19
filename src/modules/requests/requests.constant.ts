@@ -1,6 +1,6 @@
 import type { StatusMeta } from "@/shared/constants/status.constant";
 import { dayjs } from "@/shared/libs/date.lib";
-import type { AcademicRequest, RequestKind, RequestKindConfig, RequestStatus, RequestView, StepRole, StepStatus } from "@/modules/requests/requests.type";
+import type { AcademicRequest, RequesterType, RequestKind, RequestKindConfig, RequestStatus, RequestView, StepRole, StepStatus } from "@/modules/requests/requests.type";
 
 export const STEP_ROLE_LABEL: Record<StepRole, string> = {
   advisor: "Cố vấn học tập",
@@ -145,17 +145,83 @@ export function requestView(request: AcademicRequest): RequestView {
   return { ...request, status, currentStep, isOverdue };
 }
 
-export function decideStep(request: AcademicRequest, decision: "approved" | "rejected", actorName: string, comment: string): AcademicRequest {
-  const index = request.steps.findIndex((step) => step.status === "pending");
-  if (index < 0) return request;
-  const now = dayjs();
-  const steps = request.steps.map((step, position) => {
-    if (position === index) return { ...step, status: decision, actorName, actedAt: now.toISOString(), comment: comment || null };
-    if (position === index + 1 && decision === "approved") {
-      const slaDays = REQUEST_KINDS[request.kind].steps[position]?.slaDays ?? 3;
-      return { ...step, status: "pending" as const, dueAt: now.add(slaDays, "day").toISOString() };
-    }
-    return step;
-  });
-  return { ...request, steps };
+// Bước của đơn vị quản trị: vai trò nào xử lý bước nào. Vai trò toàn quyền (Trưởng phòng, Quản trị) và vai trò tự tạo có quyền
+// xử lý đơn thì xử lý được mọi bước của khoa, phòng. Bước cố vấn, giảng viên chỉ xử lý ở cổng giảng viên.
+export function officeStepRoles(roleKey: string | null): StepRole[] {
+  if (roleKey === "faculty-secretary") return ["faculty"];
+  if (roleKey === "exam-office") return ["exam-office"];
+  if (roleKey === "academic-officer") return ["academic-office"];
+  return ["academic-office", "faculty", "exam-office"];
 }
+
+export const OFFICE_UNIT_LABEL: Record<Exclude<StepRole, "advisor" | "lecturer" | "faculty">, string> = {
+  "academic-office": "Phòng Đào tạo",
+  "exam-office": "Phòng Khảo thí",
+};
+
+export const REQUEST_CODE_PREFIX: Record<RequesterType, "DT" | "GV"> = { student: "DT", lecturer: "GV" };
+
+export const ATTACHMENT_LIMIT = { files: 5, bytes: 5 * 1024 * 1024 };
+
+export type RequestFieldSpec = {
+  name: string;
+  label: string;
+  kind: "number" | "text" | "section" | "date" | "select";
+  options?: string[];
+  min?: number;
+  max?: number;
+  step?: number;
+};
+
+// Thông tin riêng của từng loại đơn sinh viên: form hiện theo danh sách này, server kiểm lại và ghép thành phần chi tiết của đơn.
+export const STUDENT_REQUEST_FIELDS: Record<RequestKind, RequestFieldSpec[]> = {
+  overload: [
+    { name: "credits", label: "Số tín chỉ xin đăng ký", kind: "number", min: 26, max: 30, step: 1 },
+    { name: "extra", label: "Học phần muốn học thêm", kind: "text" },
+  ],
+  withdraw: [{ name: "section", label: "Lớp học phần", kind: "section" }],
+  "open-class": [
+    { name: "course", label: "Mã và tên học phần", kind: "text" },
+    { name: "peers", label: "Số sinh viên cùng đề nghị", kind: "number", min: 1, max: 200, step: 1 },
+  ],
+  regrade: [
+    { name: "section", label: "Lớp học phần", kind: "section" },
+    { name: "score", label: "Điểm thi hiện tại", kind: "number", min: 0, max: 10, step: 0.25 },
+  ],
+  "exam-postpone": [
+    { name: "section", label: "Lớp học phần", kind: "section" },
+    { name: "examDate", label: "Ngày thi", kind: "date" },
+  ],
+  reserve: [{ name: "duration", label: "Thời gian bảo lưu", kind: "select", options: ["1 học kỳ", "2 học kỳ"] }],
+  transcript: [
+    { name: "copies", label: "Số bản", kind: "number", min: 1, max: 10, step: 1 },
+    { name: "language", label: "Ngôn ngữ", kind: "select", options: ["Tiếng Việt", "Tiếng Anh", "Cả hai"] },
+    { name: "delivery", label: "Hình thức nhận", kind: "select", options: ["Nhận tại Phòng Đào tạo", "Bản điện tử qua email"] },
+  ],
+  "credit-transfer": [
+    { name: "source", label: "Học phần đã học (mã, tên, số tín chỉ, điểm)", kind: "text" },
+    { name: "school", label: "Nơi học", kind: "text" },
+    { name: "target", label: "Học phần xin công nhận", kind: "text" },
+  ],
+  "grade-change": [],
+  "teaching-leave": [],
+};
+
+export const REQUESTS_CONSTRAINT_MESSAGE: Partial<Record<string, string>> = {
+  academic_requests_code_unique: "Mã đơn vừa cấp bị trùng. Gửi lại đơn.",
+  academic_requests_code_format: "Mã đơn phải có dạng DT-2026-01255 hoặc GV-2026-00310.",
+  academic_requests_single_requester: "Đơn phải có đúng một người gửi.",
+  academic_requests_details_array: "Thông tin chi tiết của đơn không đúng định dạng.",
+  request_steps_request_id_position_unique: "Đơn đã có bước duyệt ở vị trí này.",
+  request_steps_position_positive: "Thứ tự bước duyệt bắt đầu từ 1.",
+  request_steps_one_pending: "Mỗi đơn chỉ có một bước đang chờ xử lý. Tải lại trang để xem tiến độ mới.",
+  request_steps_acted_fields: "Bước đã đồng ý hoặc không đồng ý phải có thời điểm xử lý.",
+  request_steps_actor_name: "Bước đã xử lý phải ghi tên người xử lý.",
+  request_steps_reject_comment: "Không đồng ý thì phải ghi lý do để người gửi biết cần bổ sung gì.",
+  request_steps_pending_due: "Bước đang chờ xử lý phải có hạn xử lý.",
+  request_steps_lecturer_assignee: "Bước của giảng viên phải gán giảng viên dạy lớp, bước khác không gán giảng viên.",
+  request_steps_assignee_lecturer_id_lecturers_id_fk: "Giảng viên còn bước đơn từ được giao, không xóa được.",
+  request_attachments_size_range: "Mỗi tệp minh chứng từ 1 byte đến 10 MB.",
+  request_attachments_storage_key_unique: "Tệp minh chứng bị trùng khóa lưu trữ.",
+  request_code_counters_last_value_range: "Đã hết số mã đơn của năm nay (tối đa 99999). Báo quản trị hệ thống.",
+};

@@ -60,7 +60,7 @@ export default async function Page() {
     getRegistrationPeriods(targetTerm.id),
     getAcademicWarnings(),
     getAnnouncements(),
-    getRequests(),
+    can(viewer, "requests.process") ? getRequests() : Promise.resolve([]),
   ]);
   const students = allStudents.filter((student) => inScope(viewer, student.faculty));
   const sections = allSections.filter((section) => inScope(viewer, section.faculty));

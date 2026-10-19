@@ -8,6 +8,8 @@ import { classSections, enrollments, terms } from "@/modules/course-registration
 import { CLASS_SECTIONS } from "@/modules/course-registration/course-registration.mock";
 import { CURRENT_LECTURER_ID, CURRENT_STUDENT_ID } from "@/modules/users/users.mock";
 import { lecturers, students } from "@/modules/users/users.schema";
+import { REQUESTS } from "@/modules/requests/requests.mock";
+import { academicRequests, requestAttachments, requestCodeCounters, requestSteps } from "@/modules/requests/requests.schema";
 
 after(() => db.$client.end());
 
@@ -42,5 +44,20 @@ describe("seed khớp dữ liệu mẫu", () => {
     assert.equal(lecturerAccount.id, CURRENT_LECTURER_ID);
     const [{ total }] = await db.select({ total: count() }).from(user).where(and(eq(user.role, "student"), isNotNull(user.username)));
     assert.equal(total, 1);
+  });
+
+  test("đơn từ: đủ đơn, bước, tệp của dữ liệu mẫu; bộ đếm mã nối tiếp mã lớn nhất", async () => {
+    const [requestCount] = await db.select({ total: count() }).from(academicRequests);
+    assert.equal(requestCount.total, REQUESTS.length);
+    const [stepCount] = await db.select({ total: count() }).from(requestSteps);
+    assert.equal(stepCount.total, REQUESTS.reduce((sum, request) => sum + request.steps.length, 0));
+    const [fileCount] = await db.select({ total: count() }).from(requestAttachments);
+    assert.equal(fileCount.total, REQUESTS.reduce((sum, request) => sum + request.attachments.length, 0));
+    const [first] = await db.select().from(academicRequests).where(eq(academicRequests.id, mockId("request:1")));
+    assert.equal(first?.code, REQUESTS[0].code);
+    assert.equal(first?.requesterStudentId, CURRENT_STUDENT_ID);
+    const [counter] = await db.select().from(requestCodeCounters).where(and(eq(requestCodeCounters.prefix, "DT"), eq(requestCodeCounters.year, 2026)));
+    const maxCode = Math.max(...REQUESTS.filter((request) => request.code.startsWith("DT-2026-")).map((request) => Number(request.code.slice(-5))));
+    assert.equal(counter?.lastValue, maxCode);
   });
 });

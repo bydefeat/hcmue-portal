@@ -42,7 +42,7 @@ export function RegistrationPeriodList({ terms, periods }: RegistrationPeriodLis
   const [rows, setRows] = useState(periods);
   const [editing, setEditing] = useState<{ termId: string; period: RegistrationPeriodView | null } | null>(null);
 
-  const orderedTerms = [...terms].sort((a, b) => termOrder(a) - termOrder(b) || b.startDate.localeCompare(a.startDate));
+  const orderedTerms = [...terms].toSorted((a, b) => termOrder(a) - termOrder(b) || b.startDate.localeCompare(a.startDate));
   const editingTerm = terms.find((term) => term.id === editing?.termId);
 
   const closeNow = (period: RegistrationPeriodView) => {
@@ -181,7 +181,7 @@ export function RegistrationPeriodList({ terms, periods }: RegistrationPeriodLis
       {messageHolder}
       {modalHolder}
       {orderedTerms.map((term) => {
-        const termPeriods = rows.filter((row) => row.termId === term.id).sort((a, b) => a.opensAt.localeCompare(b.opensAt));
+        const termPeriods = rows.filter((row) => row.termId === term.id).toSorted((a, b) => a.opensAt.localeCompare(b.opensAt));
         const canAdd = term.isRegistrationTarget || term.isCurrent;
         return (
           <SectionCard

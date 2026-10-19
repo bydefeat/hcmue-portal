@@ -54,7 +54,7 @@ export function AcademicCalendar({
 
   const visible = rows
     .filter((event) => event.termId === termId && (!kind || event.kind === kind))
-    .sort((a, b) => a.startDate.localeCompare(b.startDate));
+    .toSorted((a, b) => a.startDate.localeCompare(b.startDate));
   const months = [...new Set(visible.map((event) => dayjs(event.startDate).format("YYYY-MM")))];
 
   const submit = (values: EventValues) => {

@@ -4,5 +4,5 @@ import type { NotificationAudience } from "@/modules/notifications/notifications
 
 export async function getNotifications(audience: NotificationAudience) {
   await mockDelay();
-  return NOTIFICATIONS.filter((notification) => notification.audience === audience).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  return NOTIFICATIONS.filter((notification) => notification.audience === audience).toSorted((a, b) => b.createdAt.localeCompare(a.createdAt));
 }

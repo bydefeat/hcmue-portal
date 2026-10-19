@@ -41,12 +41,15 @@ function DeadlineCell({ deadline }: { deadline: string | null }) {
 }
 
 function sortRows(rows: Announcement[]) {
-  return [...rows].sort(
+  return [...rows].toSorted(
     (a, b) =>
       Number(b.isPinned) - Number(a.isPinned) ||
       dayjs(b.publishedAt ?? "2100-01-01").valueOf() - dayjs(a.publishedAt ?? "2100-01-01").valueOf(),
   );
 }
+
+const statusOf = (value: AnnouncementStatus) =>
+  value === "published" ? <span className="text-xs text-muted">{ANNOUNCEMENT_STATUS.published.label}</span> : <StatusTag status={ANNOUNCEMENT_STATUS[value]} />;
 
 export function AnnouncementTable({ announcements, header }: { announcements: Announcement[]; header: { title: string; description?: React.ReactNode } }) {
   const [messageApi, contextHolder] = message.useMessage();
@@ -110,9 +113,6 @@ export function AnnouncementTable({ announcements, header }: { announcements: An
       },
     });
   };
-
-  const statusOf = (value: AnnouncementStatus) =>
-    value === "published" ? <span className="text-xs text-muted">{ANNOUNCEMENT_STATUS.published.label}</span> : <StatusTag status={ANNOUNCEMENT_STATUS[value]} />;
 
   const columns: TableColumnsType<Announcement> = [
     {

@@ -9,19 +9,19 @@ function newestFirst(a: RequestView, b: RequestView) {
 
 export async function getRequests() {
   await mockDelay();
-  return REQUESTS.map(requestView).sort(newestFirst);
+  return REQUESTS.map(requestView).toSorted(newestFirst);
 }
 
 export async function getRequestsOf(requesterId: string) {
   await mockDelay();
-  return REQUESTS.filter((request) => request.requesterId === requesterId).map(requestView).sort(newestFirst);
+  return REQUESTS.filter((request) => request.requesterId === requesterId).map(requestView).toSorted(newestFirst);
 }
 
 export async function getRequestsForAssignee(assigneeId: string, roles: StepRole[]) {
   await mockDelay();
   return REQUESTS.filter((request) => request.steps.some((step) => roles.includes(step.role) && step.assigneeId === assigneeId))
     .map(requestView)
-    .sort(newestFirst);
+    .toSorted(newestFirst);
 }
 
 export async function getRequest(id: string) {

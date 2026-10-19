@@ -3,7 +3,7 @@ import { Geist } from "next/font/google";
 import { AntdRegistry } from "@/shared/components/antd-registry";
 import { AppProvider } from "@/shared/components/app-provider";
 import { CSS_VARIABLES } from "@/shared/constants/theme.constant";
-import "./globals.css";
+import "@/app/globals.css";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",

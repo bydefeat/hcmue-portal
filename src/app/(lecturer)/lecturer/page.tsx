@@ -29,7 +29,7 @@ type Slot = { section: ClassSectionView; meeting: ClassMeeting };
 function slotsOf(sections: ClassSectionView[]): Slot[] {
   return sections
     .flatMap((section) => section.meetings.map((meeting) => ({ section, meeting })))
-    .sort((a, b) => a.meeting.dayOfWeek - b.meeting.dayOfWeek || a.meeting.startPeriod - b.meeting.startPeriod);
+    .toSorted((a, b) => a.meeting.dayOfWeek - b.meeting.dayOfWeek || a.meeting.startPeriod - b.meeting.startPeriod);
 }
 
 function nextSlot(slots: Slot[], today: number) {
@@ -68,7 +68,7 @@ export default async function Page() {
     .slice(0, 3);
   const todayAppointments = appointments
     .filter((appointment) => appointment.status === "scheduled" && dayjs(appointment.date).isSame(dayjs(), "day"))
-    .sort((a, b) => a.startTime.localeCompare(b.startTime));
+    .toSorted((a, b) => a.startTime.localeCompare(b.startTime));
 
   const today = weekdayOf(dayjs());
   const slots = slotsOf(sections);
@@ -77,7 +77,7 @@ export default async function Page() {
   const sectionById = new Map(sections.map((section) => [section.id, section]));
   const urgentSheets = summaries
     .filter((summary) => summary.state === "overdue" || summary.state === "due-soon")
-    .sort((a, b) => dayjs(a.deadline).valueOf() - dayjs(b.deadline).valueOf());
+    .toSorted((a, b) => dayjs(a.deadline).valueOf() - dayjs(b.deadline).valueOf());
   const pendingPlans = plans.filter((plan) => plan.status === "pending");
   const stalePlans = pendingPlans.filter((plan) => plan.submittedAt && -daysUntil(plan.submittedAt) > PENDING_TOO_LONG_DAYS);
   const openWarnings = warnings.filter((warning) => warning.status !== "resolved");

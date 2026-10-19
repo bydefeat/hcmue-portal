@@ -11,8 +11,7 @@ import type { StatusMeta } from "@/shared/constants/status.constant";
 import { meetingText } from "@/modules/course-registration/course-registration.constant";
 import type { ClassSectionView } from "@/modules/course-registration/course-registration.type";
 import { computeWorkloads, lecturerClash, loadStateOf, type AssignableLecturer, type LoadState, type WorkloadRow } from "@/modules/course-registration/teaching-assignment.rule";
-import { paginationItemRender } from "@/shared/constants/antd.constant";
-import { TABS_MORE } from "@/shared/constants/antd.constant";
+import { paginationItemRender, TABS_MORE } from "@/shared/constants/antd.constant";
 
 const LOAD_STATE: Record<LoadState, StatusMeta> = {
   over: { label: "Vượt định mức", tone: "danger" },
@@ -129,7 +128,7 @@ export function TeachingAssignmentBoard({ sections, lecturers, terms, termId }: 
 
   const lecturerSelect = (section: ClassSectionView) => {
     const options = [...lecturers]
-      .sort((a, b) => Number(b.faculty === section.faculty) - Number(a.faculty === section.faculty))
+      .toSorted((a, b) => Number(b.faculty === section.faculty) - Number(a.faculty === section.faculty))
       .map((lecturer) => ({
         value: lecturer.id,
         disabled: lecturer.status === "on-leave",

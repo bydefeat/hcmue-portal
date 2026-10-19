@@ -27,7 +27,7 @@ export function RegistrationMonitorStudents({ students }: { students: PendingStu
   const [faculty, setFaculty] = useState<string>();
   const [selected, setSelected] = useState<string[]>([]);
   const [reminded, setReminded] = useState<string[]>([]);
-  const cohorts = [...new Set(students.map((student) => student.cohort))].sort();
+  const cohorts = [...new Set(students.map((student) => student.cohort))].toSorted();
   const faculties = [...new Set(students.map((student) => student.faculty))];
   const visible = students.filter(
     (student) =>

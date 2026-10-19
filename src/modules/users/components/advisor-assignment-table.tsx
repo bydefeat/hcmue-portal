@@ -38,7 +38,7 @@ export function AdvisorAssignmentTable({ assignments, lecturers }: AdvisorAssign
       if (onlyUnassigned && row.advisorId) return false;
       return true;
     })
-    .sort((a, b) => Number(Boolean(a.advisorId)) - Number(Boolean(b.advisorId)) || a.className.localeCompare(b.className));
+    .toSorted((a, b) => Number(Boolean(a.advisorId)) - Number(Boolean(b.advisorId)) || a.className.localeCompare(b.className));
 
   const unassignedCount = rows.filter((row) => !row.advisorId).length;
 

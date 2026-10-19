@@ -83,7 +83,7 @@ export function TranscriptView({ terms, inCard = false }: { terms: TranscriptTer
   if (terms.length === 0) {
     return <EmptyState illustration="document" title="Chưa có kết quả học tập" description="Sinh viên chưa hoàn thành học kỳ nào." />;
   }
-  const ordered = [...terms].reverse();
+  const ordered = [...terms].toReversed();
   const defaultOpen = ordered.find((term) => !term.isInProgress)?.termId;
 
   return (

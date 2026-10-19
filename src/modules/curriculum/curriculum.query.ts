@@ -22,7 +22,7 @@ export async function getProgram(id: string): Promise<ProgramDetail | null> {
   if (!program) return null;
   const courseByCode = new Map(COURSES.map((course) => [course.code, course]));
   const plan = PROGRAM_COURSES[id] ?? [];
-  const semesterNumbers = [...new Set(plan.map((entry) => entry.semester))].sort((a, b) => a - b);
+  const semesterNumbers = [...new Set(plan.map((entry) => entry.semester))].toSorted((a, b) => a - b);
   const semesters = semesterNumbers.map((semester) => {
     const courses = plan
       .filter((entry) => entry.semester === semester)

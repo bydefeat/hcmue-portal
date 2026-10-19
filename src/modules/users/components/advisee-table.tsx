@@ -33,7 +33,7 @@ export function AdviseeTable({ rows, studentHrefBase }: AdviseeTableProps) {
   const [query, setQuery] = useState("");
   const [className, setClassName] = useState<string>();
   const [onlyAttention, setOnlyAttention] = useState(false);
-  const classNames = [...new Set(rows.map((row) => row.student.className))].sort();
+  const classNames = [...new Set(rows.map((row) => row.student.className))].toSorted();
   const needle = normalize(query.trim());
   const filtered = rows.filter(
     (row) =>

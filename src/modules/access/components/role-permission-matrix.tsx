@@ -16,7 +16,7 @@ export function RolePermissionMatrix({ roles }: { roles: RoleRow[] }) {
   const [selectedId, setSelectedId] = useState(roles[0]?.id);
   const [draft, setDraft] = useState<Permission[]>(roles[0]?.permissions ?? []);
   const selected = rows.find((role) => role.id === selectedId);
-  const isDirty = selected ? JSON.stringify([...draft].sort()) !== JSON.stringify([...selected.permissions].sort()) : false;
+  const isDirty = selected ? JSON.stringify([...draft].toSorted()) !== JSON.stringify([...selected.permissions].toSorted()) : false;
 
   const select = (role: RoleRow) => {
     setSelectedId(role.id);

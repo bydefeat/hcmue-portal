@@ -12,5 +12,5 @@ export async function getRegulationVersions() {
 
 export async function getCalendarEvents(termId?: string) {
   await mockDelay();
-  return CALENDAR_EVENTS.filter((event) => !termId || event.termId === termId).sort((a, b) => a.startDate.localeCompare(b.startDate));
+  return CALENDAR_EVENTS.filter((event) => !termId || event.termId === termId).toSorted((a, b) => a.startDate.localeCompare(b.startDate));
 }

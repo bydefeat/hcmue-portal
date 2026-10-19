@@ -64,7 +64,7 @@ export default async function Page() {
   const today = weekdayOf(dayjs());
   const slots = timetable
     .flatMap(({ section }) => section.meetings.map((meeting) => ({ section, meeting })))
-    .sort((a, b) => a.meeting.dayOfWeek - b.meeting.dayOfWeek || a.meeting.startPeriod - b.meeting.startPeriod);
+    .toSorted((a, b) => a.meeting.dayOfWeek - b.meeting.dayOfWeek || a.meeting.startPeriod - b.meeting.startPeriod);
   const todaySlots = slots.filter((slot) => slot.meeting.dayOfWeek === today);
   const nextSlot = slots.find((slot) => slot.meeting.dayOfWeek > today) ?? slots[0];
   const period = periods.find((entry) => entry.cohorts.includes(student.cohort)) ?? null;

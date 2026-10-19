@@ -8,15 +8,15 @@ function byDate(a: ExamSession, b: ExamSession) {
 
 export async function getExamSessions(termId: string) {
   await mockDelay();
-  return EXAM_SESSIONS.filter((session) => session.termId === termId).sort(byDate);
+  return EXAM_SESSIONS.filter((session) => session.termId === termId).toSorted(byDate);
 }
 
 export async function getExamsForLecturer(lecturerId: string) {
   await mockDelay();
-  return EXAM_SESSIONS.filter((session) => session.lecturerId === lecturerId || session.proctors.some((proctor) => proctor.id === lecturerId)).sort(byDate);
+  return EXAM_SESSIONS.filter((session) => session.lecturerId === lecturerId || session.proctors.some((proctor) => proctor.id === lecturerId)).toSorted(byDate);
 }
 
 export async function getExamsForClassSections(classSectionIds: string[]) {
   await mockDelay();
-  return EXAM_SESSIONS.filter((session) => classSectionIds.includes(session.classSectionId)).sort(byDate);
+  return EXAM_SESSIONS.filter((session) => classSectionIds.includes(session.classSectionId)).toSorted(byDate);
 }

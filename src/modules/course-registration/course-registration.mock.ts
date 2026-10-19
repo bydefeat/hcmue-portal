@@ -224,7 +224,7 @@ export function rosterIndices(sectionId: string, size: number, preferMajor: numb
   const shuffle = (values: number[]) =>
     values
       .map((value) => ({ value, order: random() }))
-      .sort((a, b) => a.order - b.order)
+      .toSorted((a, b) => a.order - b.order)
       .map((entry) => entry.value);
   const picked = [...shuffle(preferred).slice(0, Math.round(size * 0.85)), ...shuffle(others)];
   return picked.slice(0, size);

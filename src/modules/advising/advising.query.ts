@@ -8,5 +8,5 @@ export async function getAppointments(advisorId: string) {
 
 export async function getMeetingNotes(studentIds: string[]) {
   await mockDelay();
-  return MEETING_NOTES.filter((note) => studentIds.includes(note.studentId)).sort((a, b) => b.at.localeCompare(a.at));
+  return MEETING_NOTES.filter((note) => studentIds.includes(note.studentId)).toSorted((a, b) => b.at.localeCompare(a.at));
 }

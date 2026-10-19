@@ -69,7 +69,7 @@ function advisorFor(faculty: string, cohort: number, section: string) {
   return pool[2 + (cohortIndex % 2)];
 }
 
-const CLASS_NAMES = [...new Set(STUDENTS.map((student) => student.className))].sort();
+const CLASS_NAMES = [...new Set(STUDENTS.map((student) => student.className))].toSorted();
 
 export const ADVISOR_ASSIGNMENTS: AdvisorAssignment[] = CLASS_NAMES.map((className) => {
   const members = STUDENTS.filter((student) => student.className === className);

@@ -29,7 +29,11 @@ export function daysUntil(value: ConfigType) {
   return dayjs(value).startOf("day").diff(dayjs().startOf("day"), "day");
 }
 
-export function weekdayOf(value: ConfigType) {
+export function currentYear() {
+  return dayjs().year();
+}
+
+export function weekdayOf(value?: ConfigType) {
   const day = dayjs(value).day();
   return day === 0 ? 8 : day + 1;
 }

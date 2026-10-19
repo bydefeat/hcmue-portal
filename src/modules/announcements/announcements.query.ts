@@ -8,12 +8,12 @@ function byNewest(a: { publishedAt: string | null }, b: { publishedAt: string | 
 
 export async function getAnnouncements() {
   await mockDelay();
-  return [...ANNOUNCEMENTS].sort((a, b) => Number(b.isPinned) - Number(a.isPinned) || byNewest(a, b));
+  return [...ANNOUNCEMENTS].toSorted((a, b) => Number(b.isPinned) - Number(a.isPinned) || byNewest(a, b));
 }
 
 export async function getPublishedAnnouncements(limit?: number) {
   await mockDelay();
-  const published = ANNOUNCEMENTS.filter((announcement) => announcement.status === "published").sort(
+  const published = ANNOUNCEMENTS.filter((announcement) => announcement.status === "published").toSorted(
     (a, b) => Number(b.isPinned) - Number(a.isPinned) || byNewest(a, b),
   );
   return limit ? published.slice(0, limit) : published;

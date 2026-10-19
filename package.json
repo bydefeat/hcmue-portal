@@ -6,13 +6,14 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "oxlint src && eslint",
+    "lint": "oxlint --deny-warnings",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio",
     "db:seed": "tsx --conditions=react-server --env-file=.env scripts/db-seed.ts",
     "test:db": "tsx --conditions=react-server --env-file=.env --test tests/*.test.ts",
-    "db:check": "drizzle-kit check"
+    "db:check": "drizzle-kit check",
+    "lint:fix": "oxlint --fix"
   },
   "dependencies": {
     "@ant-design/icons": "^6.3.4",
@@ -47,8 +48,6 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "drizzle-kit": "^0.31.11",
-    "eslint": "^9",
-    "eslint-config-next": "16.4.2",
     "oxlint": "^1.88.0",
     "tailwindcss": "^4",
     "typescript": "^5"

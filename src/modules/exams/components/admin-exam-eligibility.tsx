@@ -32,7 +32,7 @@ export function AdminExamEligibility({ rows: initialRows, limitPercent }: { rows
   const [section, setSection] = useState<string>();
   const [target, setTarget] = useState<EligibilityRow | null>(null);
   const [reason, setReason] = useState("");
-  const sections = [...new Set(rows.map((row) => row.sectionCode))].sort();
+  const sections = [...new Set(rows.map((row) => row.sectionCode))].toSorted();
   const visible = rows.filter(
     (row) => (!section || row.sectionCode === section) && (!query.trim() || normalize(`${row.fullName} ${row.studentCode} ${row.sectionCode}`).includes(normalize(query.trim()))),
   );

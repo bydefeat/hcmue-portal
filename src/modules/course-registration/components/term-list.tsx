@@ -71,7 +71,7 @@ const COLUMNS: TableColumnsType<TermRow> = [
 ];
 
 export function TermList({ terms }: { terms: TermRow[] }) {
-  const ordered = [...terms].sort((a, b) => b.startDate.localeCompare(a.startDate));
+  const ordered = [...terms].toSorted((a, b) => b.startDate.localeCompare(a.startDate));
   return (
     <Table
       rowKey="id"

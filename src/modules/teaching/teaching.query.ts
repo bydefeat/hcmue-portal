@@ -24,7 +24,7 @@ export async function getSyllabus(classSectionId: string, fallback: { courseCode
 
 export async function getClassAnnouncements(classSectionId: string) {
   await mockDelay();
-  return CLASS_ANNOUNCEMENTS.filter((announcement) => announcement.classSectionId === classSectionId).sort(
+  return CLASS_ANNOUNCEMENTS.filter((announcement) => announcement.classSectionId === classSectionId).toSorted(
     (a, b) => Number(b.isPinned) - Number(a.isPinned) || b.publishAt.localeCompare(a.publishAt),
   );
 }

@@ -32,7 +32,7 @@ export function CourseTable({
   const [editing, setEditing] = useState<Course | null>(null);
   const [isOpen, setIsOpen] = useState(false);
 
-  const faculties = [...new Set(rows.map((course) => course.faculty))].sort((a, b) => a.localeCompare(b, "vi"));
+  const faculties = [...new Set(rows.map((course) => course.faculty))].toSorted((a, b) => a.localeCompare(b, "vi"));
   const nameByCode = new Map(rows.map((course) => [course.code, course.name]));
   const needle = normalize(query.trim());
   const filtered = rows.filter((row) => {

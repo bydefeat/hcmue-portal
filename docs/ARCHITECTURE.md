@@ -288,12 +288,12 @@ Giờ tiết học ở `shared/constants/period.constant.ts`: 12 tiết, mỗi t
 | --- | --- |
 | `antd/es/index.js` có code chạy khi import nên Next không tối ưu barrel, mỗi route kéo cả thư viện | `modularizeImports` trong `next.config.ts` đổi `import { Button } from "antd"` thành `antd/es/button` |
 | Mock gọi nối tiếp làm mỗi lần chuyển trang chậm thêm | `mockDelay` mặc định 0ms, đặt `MOCK_DELAY_MS=120` khi cần xem skeleton |
-| ESLint chậm | `npm run lint` chạy `oxlint src` (khoảng 1 giây) trước, rồi `eslint` cho các rule của Next |
+| ESLint chậm | Bỏ ESLint, chỉ dùng oxlint (khoảng 1 giây cho toàn repo), xem mục 11 |
 
 ## 10. Cơ sở dữ liệu
 
 - **PostgreSQL 18** (đang chạy 18.4; Postgres 19 mới ở RC, dự kiến GA 19/11/2026, chưa dùng). Khóa chính `uuid` mặc định `uuidv7()` (hàm có sẵn từ Postgres 18): id tăng theo thời gian nên chỉ mục B-tree chèn tuần tự, không phân mảnh như UUID v4.
-- **Id luôn là UUID v7:** khóa chính mặc định `uuidv7()` ở DB; cần id trước khi ghi (tên file lưu trữ, id gửi kèm job) thì dùng `newId()` trong `@/shared/libs/id.lib.ts`. ESLint cấm `crypto.randomUUID()` (v4 ngẫu nhiên làm chỉ mục B-tree chèn rải rác và tách trang). `npm run test:db` kiểm mọi khóa chính uuid một cột đều mặc định `uuidv7()`.
+- **Id luôn là UUID v7:** khóa chính mặc định `uuidv7()` ở DB; cần id trước khi ghi (tên file lưu trữ, id gửi kèm job) thì dùng `newId()` trong `@/shared/libs/id.lib.ts`. oxlint cấm `crypto.randomUUID()` (v4 ngẫu nhiên làm chỉ mục B-tree chèn rải rác và tách trang). `npm run test:db` kiểm mọi khóa chính uuid một cột đều mặc định `uuidv7()`.
 - **Drizzle** `0.45` (bản ổn định mới nhất; 1.0 còn beta), `casing: "snake_case"`: tên cột trong code là camelCase, trong DB là snake_case.
 - **Đặt tên ràng buộc unique tường minh** (`.unique("bang_cot_unique")`, `unique("bang_a_b_unique").on(...)`). Drizzle 0.45 với `casing` vẫn sinh tên unique theo camelCase (`students_userId_unique`), phải tự đặt; kiểm tra bằng `SELECT conname FROM pg_constraint WHERE conname ~ '[A-Z]'` phải rỗng.
 - **`drizzle.config.ts`:** gom `src/modules/*/*.schema.ts`, `strict`, `verbose`, `breakpoints`, chỉ quản lý schema `public`, bảng lịch sử migration ở `drizzle.__drizzle_migrations`. `npm run db:check` kiểm tra migration nhất quán.
@@ -330,3 +330,38 @@ npm run test:db                   # 25 test: ràng buộc (tranh chỗ cuối, t
 npm run db:check                  # migration nhất quán
 npm run db:studio                 # xem dữ liệu
 ```
+
+## 11. Lint (oxlint)
+
+Dự án chỉ dùng **oxlint**, không dùng ESLint. Cấu hình ở `.oxlintrc.json`.
+
+```bash
+npm run lint        # oxlint --deny-warnings: có cảnh báo cũng là hỏng
+npm run lint:fix    # tự sửa những gì sửa được
+```
+
+Plugin bật: `typescript`, `react` (gồm react-hooks), `nextjs`, `jsx-a11y`, `import`, `unicorn`, `oxc`. Nhóm `correctness` là lỗi, nhóm `suspicious` là cảnh báo.
+
+| Quy tắc | Mức | Vì sao |
+|---|---|---|
+| `no-restricted-imports` với mẫu `^\.\.?/` | lỗi | Luôn import qua alias `@/`, không dùng `./`, `../` |
+| `no-restricted-properties` cấm `crypto.randomUUID` | lỗi | Id dùng `newId()` (UUID v7) để chỉ mục B-tree chèn tuần tự |
+| `react/rules-of-hooks`, `react/jsx-key` | lỗi | Hook gọi đúng chỗ, phần tử trong danh sách có `key` |
+| `react/exhaustive-deps` | cảnh báo | Thiếu phụ thuộc trong `useEffect`, `useMemo`... |
+| 21 rule `nextjs/*` (`no-img-element`, `no-html-link-for-pages`, `no-async-client-component`...) | lỗi | Thay cho `eslint-config-next` |
+| `jsx-a11y/alt-text`, `anchor-is-valid`, `aria-props`, `aria-role`... | lỗi | Truy cập được bằng trình đọc màn hình |
+| `typescript/no-explicit-any`, `typescript/consistent-type-imports` | lỗi | Không dùng `any`; import kiểu bằng `import type` |
+| `no-unused-vars` (cho phép tên bắt đầu `_`), `eqeqeq`, `import/no-cycle`, `import/no-duplicates` | lỗi | |
+| `unicorn/no-array-sort`, `unicorn/no-array-reverse` | cảnh báo | Dùng `toSorted()`, `toReversed()`: không sửa mảng gốc (mảng mock, props, state) |
+| `react/purity` | lỗi | Không gọi `new Date()`, `Math.random()` khi render; thời gian hiện tại lấy qua `@/shared/libs/date.lib` (`currentYear()`, `weekdayOf()`) |
+| `no-console` | cảnh báo (tắt trong `scripts/`, `tests/`) | Chỉ cho `console.warn`, `console.error` |
+
+Tắt có lý do:
+
+| Quy tắc | Phạm vi | Lý do |
+|---|---|---|
+| `react/no-danger` | chỉ `antd-registry.tsx` | Chèn CSS của antd khi render phía server bắt buộc dùng `dangerouslySetInnerHTML` |
+| `jsx-a11y/prefer-tag-over-role` | toàn repo | Sheet menu mobile (`role="dialog"`) và biểu đồ (`role="img"`) không có thẻ HTML thay thế tương đương |
+| `jsx-a11y/no-autofocus` | toàn repo | Trang đăng nhập cố ý đặt con trỏ vào ô email |
+| `react/no-unstable-nested-components` | cho phép trong props | `optionRender`, `expandedRowRender` của antd là hàm render, không phải component lồng |
+| `import/no-unassigned-import` | cho phép CSS, `server-only`, `dayjs/locale/*` | Import để lấy tác dụng phụ |

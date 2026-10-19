@@ -1,4 +1,5 @@
 import Image from "next/image";
+import { currentYear } from "@/shared/libs/date.lib";
 import { Layout } from "antd";
 import { Envelope, House, Phone, Print } from "defeat-icons-react";
 
@@ -55,7 +56,7 @@ export function PublicFooter() {
         <div className="grid grid-cols-2 items-center gap-4 border-b border-primary-tint/16 pb-4 md:grid-cols-[1fr_auto_1fr]">
           <FooterLinks links={LEFT_LINKS} className="items-start justify-start" />
           <p className="order-last col-span-2 text-center text-xs text-primary-tint md:order-none md:col-span-1">
-            Bản quyền © {new Date().getFullYear()} Trường Đại học Sư phạm Thành phố Hồ Chí Minh
+            Bản quyền © {currentYear()} Trường Đại học Sư phạm Thành phố Hồ Chí Minh
           </p>
           <FooterLinks links={RIGHT_LINKS} className="items-end justify-end" />
         </div>

@@ -219,7 +219,7 @@ describe("chương trình đào tạo", () => {
       .from(courseRelations)
       .innerJoin(courses, eq(courses.id, courseRelations.relatedCourseId))
       .where(and(eq(courseRelations.courseId, ids.courseId), eq(courseRelations.kind, "prerequisite")));
-    assert.deepEqual(rows.map((row) => row.code).sort(), ["COMP1031", "COMP1040"]);
+    assert.deepEqual(rows.map((row) => row.code).toSorted(), ["COMP1031", "COMP1040"]);
   });
 });
 
@@ -323,6 +323,6 @@ describe("khóa chính UUID v7", () => {
     const app = [newId(), newId(), newId()];
     for (const id of [first.id, second.id, ...app]) assert.equal(id[14], "7");
     assert.ok(first.id < second.id);
-    assert.deepEqual([...app].sort(), app);
+    assert.deepEqual([...app].toSorted(), app);
   });
 });

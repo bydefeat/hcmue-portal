@@ -13,7 +13,7 @@ export default async function Page() {
   const lecturer = await getCurrentLecturer();
   const [terms, advisedClasses] = await Promise.all([getTerms(), getAdvisedClasses(lecturer.id)]);
   const history = await Promise.all(
-    [...terms].reverse().map(async (term) => ({ term, sections: await getLecturerClassSections(lecturer.id, term.id) })),
+    [...terms].toReversed().map(async (term) => ({ term, sections: await getLecturerClassSections(lecturer.id, term.id) })),
   );
   const withSections = history.filter((entry) => entry.sections.length > 0);
 

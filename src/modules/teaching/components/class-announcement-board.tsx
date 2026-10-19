@@ -53,7 +53,7 @@ export function ClassAnnouncementBoard({ announcements, classSectionId, classCod
     }
   }, [isOpen, editing, form]);
 
-  const ordered = [...rows].sort((a, b) => Number(b.isPinned) - Number(a.isPinned) || b.publishAt.localeCompare(a.publishAt));
+  const ordered = [...rows].toSorted((a, b) => Number(b.isPinned) - Number(a.isPinned) || b.publishAt.localeCompare(a.publishAt));
 
   const openCompose = (announcement: ClassAnnouncement | null) => {
     setEditing(announcement);

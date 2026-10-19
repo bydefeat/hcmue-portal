@@ -14,5 +14,5 @@ export async function getInvoices(params: {
         buildInvoice({ ...term, majorCode: params.majorCode, termIndex: index, includeInsurance: term.termName.startsWith("Học kỳ 1") }),
       ),
     )
-    .reverse();
+    .toReversed();
 }

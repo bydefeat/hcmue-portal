@@ -38,14 +38,14 @@ export function StudyPlanReview({ plans }: { plans: StudyPlan[] }) {
     () =>
       plans
         .map((plan) => ({ ...plan, ...updates[plan.id] }))
-        .sort(
+        .toSorted(
           (a, b) =>
             STATUS_ORDER[a.status] - STATUS_ORDER[b.status] ||
             dayjs(a.submittedAt ?? "2100-01-01").valueOf() - dayjs(b.submittedAt ?? "2100-01-01").valueOf(),
         ),
     [plans, updates],
   );
-  const classNames = useMemo(() => [...new Set(plans.map((plan) => plan.className))].sort(), [plans]);
+  const classNames = useMemo(() => [...new Set(plans.map((plan) => plan.className))].toSorted(), [plans]);
   const needle = normalize(query.trim());
   const filtered = rows.filter(
     (row) =>

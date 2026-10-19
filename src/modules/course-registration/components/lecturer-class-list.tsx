@@ -23,10 +23,10 @@ export function sectionScheduleText(section: Pick<ClassSectionView, "meetings">)
 }
 
 export function LecturerClassList({ items }: { items: LecturerClassItem[] }) {
-  const today = weekdayOf(new Date());
+  const today = weekdayOf();
   const rows = items
     .map((item) => ({ ...item, todayMeeting: item.section.meetings.find((meeting) => meeting.dayOfWeek === today) }))
-    .sort(
+    .toSorted(
       (a, b) =>
         Number(Boolean(b.todayMeeting)) - Number(Boolean(a.todayMeeting)) ||
         TONE_RANK[a.gradeStatus.tone] - TONE_RANK[b.gradeStatus.tone] ||

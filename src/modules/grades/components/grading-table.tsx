@@ -76,7 +76,7 @@ export function GradingTable({ sheet, students, classCode, classId, returnReason
 
   const updateScore = (studentId: string, key: string, value: number | null) => {
     setScores((current) => ({ ...current, [studentId]: { ...current[studentId], [key]: value } }));
-    setVersion((value) => value + 1);
+    setVersion((current) => current + 1);
   };
 
   const focusCell = (rowIndex: number, columnIndex: number) => inputs.current.get(`${rowIndex}:${columnIndex}`)?.focus();

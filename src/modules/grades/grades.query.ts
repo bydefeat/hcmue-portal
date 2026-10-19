@@ -119,7 +119,7 @@ export async function getAcademicWarnings(studentIds?: string[]): Promise<Academ
         createdAt: mockDate(-Math.floor(random() * 20) - 2, "09:00"),
       } satisfies AcademicWarning;
     })
-    .sort((a, b) => b.level - a.level || a.cpa4 - b.cpa4);
+    .toSorted((a, b) => b.level - a.level || a.cpa4 - b.cpa4);
 }
 
 export async function getStandingSummary(): Promise<FacultyStandingSummary[]> {

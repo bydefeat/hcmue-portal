@@ -20,7 +20,7 @@ function normalize(value: string) {
 
 function cohortText(cohorts: number[]) {
   if (cohorts.length === 0) return "";
-  const sorted = [...cohorts].sort((a, b) => a - b);
+  const sorted = [...cohorts].toSorted((a, b) => a - b);
   return sorted.length > 1 ? `K${sorted[0]} đến K${sorted.at(-1)}` : `K${sorted[0]}`;
 }
 

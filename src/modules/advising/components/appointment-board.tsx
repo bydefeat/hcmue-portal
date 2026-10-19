@@ -76,8 +76,8 @@ export function AppointmentBoard({ appointments, advisees, notes: initialNotes, 
   }, [isCreateOpen, createForm]);
 
   const now = dayjs();
-  const upcoming = rows.filter((row) => row.status === "scheduled" && !startOf(row).add(row.durationMinutes, "minute").isBefore(now)).sort((a, b) => startOf(a).valueOf() - startOf(b).valueOf());
-  const past = rows.filter((row) => !upcoming.includes(row)).sort((a, b) => startOf(b).valueOf() - startOf(a).valueOf());
+  const upcoming = rows.filter((row) => row.status === "scheduled" && !startOf(row).add(row.durationMinutes, "minute").isBefore(now)).toSorted((a, b) => startOf(a).valueOf() - startOf(b).valueOf());
+  const past = rows.filter((row) => !upcoming.includes(row)).toSorted((a, b) => startOf(b).valueOf() - startOf(a).valueOf());
   const visible = view === "upcoming" ? upcoming : past;
   const today = upcoming.filter((row) => dayjs(row.date).isSame(now, "day")).length;
   const classNames = [...new Set(advisees.map((student) => student.className))];

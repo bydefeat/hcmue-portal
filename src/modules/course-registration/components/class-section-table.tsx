@@ -43,6 +43,15 @@ function withConflicts(sections: ClassSectionView[]) {
   }));
 }
 
+const statusOf = (row: ClassSectionView) =>
+  row.status === "open" && row.isFull ? (
+    <StatusTag status={CLASS_FULL_STATUS} />
+  ) : row.status === "open" ? (
+    <span className="text-xs text-muted">{CLASS_SECTION_STATUS.open.label}</span>
+  ) : (
+    <StatusTag status={CLASS_SECTION_STATUS[row.status]} />
+  );
+
 export function ClassSectionTable({ sections, terms, termId, initialQuery = "", courses, lecturers, header }: ClassSectionTableProps) {
   const router = useRouter();
   const [messageApi, contextHolder] = message.useMessage();
@@ -55,7 +64,7 @@ export function ClassSectionTable({ sections, terms, termId, initialQuery = "", 
   const [isOpen, setIsOpen] = useState(false);
 
   const term = terms.find((entry) => entry.id === termId);
-  const faculties = [...new Set(rows.map((row) => row.faculty))].sort((a, b) => a.localeCompare(b, "vi"));
+  const faculties = [...new Set(rows.map((row) => row.faculty))].toSorted((a, b) => a.localeCompare(b, "vi"));
   const needle = normalize(query.trim());
   const filtered = rows.filter((row) => {
     if (needle && !normalize(`${row.code} ${row.courseName} ${row.lecturerName ?? ""}`).includes(needle)) return false;
@@ -140,15 +149,6 @@ export function ClassSectionTable({ sections, terms, termId, initialQuery = "", 
       messageApi.success(editing ? `Đã lưu lớp ${code}` : `Đã mở lớp ${code}`);
     }
   };
-
-  const statusOf = (row: ClassSectionView) =>
-    row.status === "open" && row.isFull ? (
-      <StatusTag status={CLASS_FULL_STATUS} />
-    ) : row.status === "open" ? (
-      <span className="text-xs text-muted">{CLASS_SECTION_STATUS.open.label}</span>
-    ) : (
-      <StatusTag status={CLASS_SECTION_STATUS[row.status]} />
-    );
 
   const columns: TableColumnsType<ClassSectionView> = [
     {

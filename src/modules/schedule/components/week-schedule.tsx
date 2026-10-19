@@ -168,7 +168,7 @@ export function WeekSchedule({ events, termStart, termEnd }: WeekScheduleProps) 
 
           <div className="flex flex-col gap-3 md:hidden">
             {days
-              .map((day) => ({ day, items: visibleEvents.filter((event) => event.dayOfWeek === day.value).sort((a, b) => a.startPeriod - b.startPeriod) }))
+              .map((day) => ({ day, items: visibleEvents.filter((event) => event.dayOfWeek === day.value).toSorted((a, b) => a.startPeriod - b.startPeriod) }))
               .filter(({ items }) => items.length > 0)
               .map(({ day, items }) => {
                 const isToday = day.date.isSame(today, "day");

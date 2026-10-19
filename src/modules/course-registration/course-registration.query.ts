@@ -82,7 +82,7 @@ export async function getClassRoster(sectionId: string): Promise<RosterEntry[]> 
         registeredAt: dayjs(term.startDate).subtract(30, "day").add(Math.floor(random() * 6 * 24), "hour").toISOString(),
       };
     })
-    .sort((a, b) => a.fullName.split(" ").at(-1)!.localeCompare(b.fullName.split(" ").at(-1)!, "vi") || a.fullName.localeCompare(b.fullName, "vi"));
+    .toSorted((a, b) => a.fullName.split(" ").at(-1)!.localeCompare(b.fullName.split(" ").at(-1)!, "vi") || a.fullName.localeCompare(b.fullName, "vi"));
 }
 
 export async function getRegistrationSummary(termId: string): Promise<FacultyRegistrationSummary[]> {
@@ -97,7 +97,7 @@ export async function getRegistrationSummary(termId: string): Promise<FacultyReg
     if (section.enrolled >= section.capacity) entry.fullSections += 1;
     summary.set(section.faculty, entry);
   }
-  return [...summary.values()].sort((a, b) => b.enrolled / b.capacity - a.enrolled / a.capacity);
+  return [...summary.values()].toSorted((a, b) => b.enrolled / b.capacity - a.enrolled / a.capacity);
 }
 
 const TEACHING_WEEKS = 15;
@@ -157,7 +157,7 @@ export async function getLecturerWorkloads(termId: string): Promise<LecturerWork
 
 export async function getRegistrationHolds(studentId?: string) {
   await mockDelay();
-  return REGISTRATION_HOLDS.filter((hold) => !studentId || hold.studentId === studentId).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  return REGISTRATION_HOLDS.filter((hold) => !studentId || hold.studentId === studentId).toSorted((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
 
 export async function getRegistrationQueueStatus(): Promise<RegistrationQueueStatus | null> {

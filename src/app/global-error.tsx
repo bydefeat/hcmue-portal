@@ -3,7 +3,7 @@
 import { AppProvider } from "@/shared/components/app-provider";
 import { ErrorState, errorDigest } from "@/shared/components/ui/error-state";
 import { CSS_VARIABLES } from "@/shared/constants/theme.constant";
-import "./globals.css";
+import "@/app/globals.css";
 
 export default function GlobalError({ error, retry }: { error: unknown; retry: () => void }) {
   return (

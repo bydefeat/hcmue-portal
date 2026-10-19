@@ -75,7 +75,7 @@ export function ClassSectionFormDrawer({ open, section, termName, courses, lectu
   }, [open, section, form]);
 
   const lecturerOptions = [...lecturers]
-    .sort((a, b) => Number(b.faculty === faculty) - Number(a.faculty === faculty))
+    .toSorted((a, b) => Number(b.faculty === faculty) - Number(a.faculty === faculty))
     .map((lecturer) => ({ value: lecturer.id, label: `${lecturer.displayName} (${lecturer.faculty})` }));
 
   return (

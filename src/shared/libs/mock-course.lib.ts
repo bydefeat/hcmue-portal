@@ -57,7 +57,7 @@ export function mockCourseSequence(majorCode: string): CourseSeed[] {
   const pool = [...GENERAL, ...majorCourses(majorCode)];
   return pool
     .map((course, position) => ({ course, order: position < GENERAL.length ? position * 3 : position * 1.4 }))
-    .sort((a, b) => a.order - b.order)
+    .toSorted((a, b) => a.order - b.order)
     .map((entry) => entry.course);
 }
 

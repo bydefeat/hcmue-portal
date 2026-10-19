@@ -255,7 +255,7 @@ export function pickTimetable(
   const chosen: StudentEnrollment[] = [];
   const rank = (enrollment: StudentEnrollment) =>
     (enrollment.section.faculty === faculty ? 0 : 2) + (passedGrades[enrollment.section.courseCode] ? 1 : 0);
-  const ordered = [...enrollments].sort((a, b) => rank(a) - rank(b) || a.section.code.localeCompare(b.section.code));
+  const ordered = [...enrollments].toSorted((a, b) => rank(a) - rank(b) || a.section.code.localeCompare(b.section.code));
   for (const enrollment of ordered) {
     if (chosen.length >= maxSections) break;
     const { section } = enrollment;
@@ -372,5 +372,5 @@ export function buildRegistrationHistory(
     channel: "Hủy lớp dưới sĩ số",
     note: "Lớp chỉ có 9/60 sinh viên nên bị hủy. Đã gợi ý lớp POLI1004.01 còn 12 chỗ, bạn chưa chuyển lớp",
   });
-  return events.sort((a, b) => b.at.localeCompare(a.at));
+  return events.toSorted((a, b) => b.at.localeCompare(a.at));
 }

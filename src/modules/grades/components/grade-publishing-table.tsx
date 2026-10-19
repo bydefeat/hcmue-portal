@@ -60,7 +60,7 @@ export function GradePublishingTable({ rows: initialRows, canApprove, canPublish
         (!faculty || row.faculty === faculty) &&
         (!query.trim() || normalize(`${row.code} ${row.courseName} ${row.lecturerName ?? ""}`).includes(normalize(query.trim()))),
     )
-    .sort((a, b) => STATE_ORDER.indexOf(a.state) - STATE_ORDER.indexOf(b.state));
+    .toSorted((a, b) => STATE_ORDER.indexOf(a.state) - STATE_ORDER.indexOf(b.state));
   const chosen = rows.filter((row) => selected.includes(row.classSectionId));
   const approvable = chosen.filter((row) => row.state === "locked");
   const publishable = chosen.filter((row) => row.state === "approved");

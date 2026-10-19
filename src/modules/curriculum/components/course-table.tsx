@@ -92,21 +92,31 @@ export function CourseTable({ courses, initialQuery = "" }: { courses: Course[];
     { title: "Loại", dataIndex: "type", width: 96, render: (value: CourseType) => COURSE_TYPE_LABEL[value] },
     { title: "Khối kiến thức", dataIndex: "block", width: 160, render: (value: KnowledgeBlock) => KNOWLEDGE_BLOCK_LABEL[value] },
     {
-      title: "Tiên quyết",
-      dataIndex: "prerequisiteCodes",
-      width: 180,
-      render: (codes: string[]) =>
-        codes.length > 0 ? (
-          <span className="flex flex-wrap gap-x-2 gap-y-0.5">
-            {codes.map((code) => (
-              <span key={code} title={nameByCode.get(code)} className="font-mono text-xs">
-                {code}
+      title: "Ràng buộc",
+      key: "requisites",
+      width: 240,
+      render: (_, course) => {
+        const groups = [
+          { label: "Tiên quyết", codes: course.prerequisiteCodes },
+          { label: "Song hành", codes: course.corequisiteCodes },
+          { label: "Tương đương", codes: course.equivalentCodes },
+        ].filter((group) => group.codes.length > 0);
+        if (groups.length === 0) return <span className="text-muted">Không</span>;
+        return (
+          <span className="flex flex-col gap-0.5 text-xs">
+            {groups.map((group) => (
+              <span key={group.label} className="flex flex-wrap gap-x-2">
+                <span className="text-muted">{group.label}</span>
+                {group.codes.map((code) => (
+                  <span key={code} title={nameByCode.get(code)} className="font-mono">
+                    {code}
+                  </span>
+                ))}
               </span>
             ))}
           </span>
-        ) : (
-          <span className="text-muted">Không</span>
-        ),
+        );
+      },
     },
     {
       title: "",

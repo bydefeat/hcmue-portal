@@ -8,9 +8,19 @@ import { EmptyState } from "@/shared/components/ui/empty-state";
 import { MeterBar } from "@/shared/components/ui/meter-bar";
 import { StatusTag } from "@/shared/components/ui/status-tag";
 import { formatDateTime } from "@/shared/libs/date.lib";
-import { meetingText, REGISTRATION_PERIOD_STATE } from "../course-registration.constant";
-import { evaluateSection, sectionCredits, type RegistrationIssue } from "../course-registration.rule";
-import type { ClassSectionView, RegistrationPeriodState, RegistrationPeriodView } from "../course-registration.type";
+import { HOLD_KIND_LABEL, meetingText, REGISTRATION_PERIOD_STATE } from "../course-registration.constant";
+import {
+  basketProblems,
+  blockingHolds,
+  chosenMeetings,
+  evaluateSection,
+  sectionCredits,
+  type RegistrationIssue,
+  type RegistrationStudent,
+} from "../course-registration.rule";
+import type { ClassSectionView, RegistrationHold, RegistrationPeriodState, RegistrationPeriodView } from "../course-registration.type";
+import { LabGroupPicker } from "./lab-group-picker";
+import { RegistrationQueueModal } from "./registration-queue-modal";
 import { PeriodCountdown } from "./student-period-countdown";
 
 type StudentRegistrationProps = {
@@ -18,14 +28,18 @@ type StudentRegistrationProps = {
   period: RegistrationPeriodView | null;
   termName: string;
   cohort: number;
+  student: RegistrationStudent;
   passedGrades: Record<string, string>;
   prerequisites: Record<string, string[]>;
+  corequisites: Record<string, string[]>;
+  equivalents: Record<string, string[]>;
   courseNames: Record<string, string>;
-  credits: { min: number; max: number };
+  credits: { min: number; max: number; note?: string };
   planCodes: string[];
   inProgressCodes: string[];
   initialPlannedIds: string[];
-  tuitionWarning: string | null;
+  initialLabChoices: Record<string, string>;
+  holds: RegistrationHold[];
 };
 
 type Simulation = "actual" | RegistrationPeriodState;
@@ -114,20 +128,28 @@ export function StudentRegistration({
   period,
   termName,
   cohort,
+  student,
   passedGrades,
   prerequisites,
+  corequisites,
+  equivalents,
   courseNames,
   credits,
   planCodes,
   inProgressCodes,
   initialPlannedIds,
-  tuitionWarning,
+  initialLabChoices,
+  holds,
 }: StudentRegistrationProps) {
   const [messageApi, contextHolder] = message.useMessage();
   const [modal, modalContextHolder] = Modal.useModal();
   const [plannedIds, setPlannedIds] = useState(initialPlannedIds);
   const [registeredIds, setRegisteredIds] = useState<string[]>([]);
   const [waitlistIds, setWaitlistIds] = useState<string[]>([]);
+  const [labChoices, setLabChoices] = useState<Record<string, string>>(initialLabChoices);
+  const [pickerSection, setPickerSection] = useState<ClassSectionView | null>(null);
+  const [isQueueOpen, setIsQueueOpen] = useState(false);
+  const activeHolds = blockingHolds(holds);
   const [simulation, setSimulation] = useState<Simulation>("actual");
   const [query, setQuery] = useState("");
   const [faculty, setFaculty] = useState<string>();
@@ -142,7 +164,19 @@ export function StudentRegistration({
   const basket = [...registered, ...planned];
   const basketCredits = sectionCredits(basket);
   const faculties = [...new Set(sections.map((section) => section.faculty))];
-  const context = { planned: basket, passedGrades, prerequisites, courseNames, maxCredits: credits.max, inProgressCodes };
+  const context = {
+    planned: basket,
+    passedGrades,
+    prerequisites,
+    corequisites,
+    equivalents,
+    courseNames,
+    maxCredits: credits.max,
+    creditCapNote: credits.note,
+    inProgressCodes,
+    student,
+    labChoices,
+  };
 
   const rows = sections
     .map((section) => ({ section, issues: evaluateSection(section, context) }))
@@ -161,18 +195,47 @@ export function StudentRegistration({
       messageApi.error(blocking.message);
       return;
     }
+    if (section.labGroups.length > 0) {
+      setPickerSection(section);
+      return;
+    }
     setPlannedIds((current) => [...current, section.id]);
     messageApi.success(`Đã thêm ${section.code} vào giỏ dự kiến`);
   };
+
+  const confirmLab = (section: ClassSectionView, groupId: string) => {
+    setLabChoices((current) => ({ ...current, [section.id]: groupId }));
+    if (!plannedIds.includes(section.id) && !registeredIds.includes(section.id)) setPlannedIds((current) => [...current, section.id]);
+    const group = section.labGroups.find((entry) => entry.id === groupId);
+    messageApi.success(`Đã chọn ${section.code} với nhóm thực hành ${group?.code.split(".").at(-1) ?? ""}`);
+    setPickerSection(null);
+  };
+
+  const busyMeetingsExcept = (sectionId: string) =>
+    basket.filter((entry) => entry.id !== sectionId).flatMap((entry) => chosenMeetings(entry, labChoices).map((meeting) => ({ code: entry.code, meeting })));
 
   const removePlanned = (section: ClassSectionView) => setPlannedIds((current) => current.filter((id) => id !== section.id));
 
   const register = () => {
     if (!isOpen) return;
+    if (activeHolds.length > 0) {
+      messageApi.error(`Tài khoản đang bị khóa đăng ký: ${activeHolds[0].reason}. ${activeHolds[0].resolveHint}.`);
+      return;
+    }
     if (basketCredits < credits.min) {
       messageApi.warning(`Cần tối thiểu ${credits.min} tín chỉ, giỏ đang có ${basketCredits}. Thêm học phần rồi đăng ký lại.`);
       return;
     }
+    const problems = basketProblems(basket, { ...context });
+    if (problems.length > 0) {
+      messageApi.error(`${problems[0].section.code}: ${problems[0].issue.message}`);
+      return;
+    }
+    setIsQueueOpen(true);
+  };
+
+  const commitRegistration = () => {
+    setIsQueueOpen(false);
     setRegisteredIds((current) => [...current, ...plannedIds]);
     setPlannedIds([]);
     messageApi.success(`Đã đăng ký ${planned.length} lớp, tổng ${basketCredits} tín chỉ. Kết quả đã gửi về email sinh viên.`);
@@ -201,11 +264,28 @@ export function StudentRegistration({
           {termName}. Hệ thống kiểm tra tiên quyết, trùng lịch, sĩ số và hạn mức tín chỉ ngay khi bạn chọn lớp.
         </p>
         <PeriodBanner period={period} state={state} cohort={cohort} />
-        {tuitionWarning && <Alert type="warning" showIcon title={tuitionWarning} action={<Link href="/application/tuition">Xem học phí</Link>} />}
-        <label className="flex flex-wrap items-center gap-2 text-xs text-muted">
-          Xem thử trạng thái đợt
-          <Select<Simulation> size="small" value={simulation} onChange={setSimulation} options={SIMULATION_OPTIONS} className="w-48" />
-        </label>
+        {holds
+          .filter((hold) => !hold.releasedAt)
+          .map((hold) => (
+            <Alert
+              key={hold.id}
+              type={hold.blocking ? "error" : "warning"}
+              showIcon
+              title={`${hold.blocking ? "Bị khóa đăng ký" : "Lưu ý"} (${HOLD_KIND_LABEL[hold.kind]}): ${hold.reason}`}
+              description={hold.resolveHint}
+              action={hold.kind === "tuition" ? <Link href="/application/tuition">Xem học phí</Link> : undefined}
+            />
+          ))}
+        {credits.note && <Alert type="warning" showIcon title={credits.note} />}
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <label className="flex flex-wrap items-center gap-2 text-xs text-muted">
+            Xem thử trạng thái đợt
+            <Select<Simulation> size="small" value={simulation} onChange={setSimulation} options={SIMULATION_OPTIONS} className="w-48" />
+          </label>
+          <Link href="/application/registration/history" className="text-sm">
+            Lịch sử và phiếu đăng ký
+          </Link>
+        </div>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_340px] lg:items-start">
@@ -359,6 +439,27 @@ export function StudentRegistration({
                       <span className="text-xs text-muted">
                         <span className="font-mono">{section.code}</span> · <span className="tabular-nums">{section.credits} TC</span> · Dự kiến
                       </span>
+                      {section.labGroups.length > 0 && (
+                        <span className="text-xs">
+                          {labChoices[section.id] ? (
+                            <span className="text-muted">
+                              Thực hành {meetingText(section.labGroups.find((group) => group.id === labChoices[section.id])!.meeting)}
+                            </span>
+                          ) : (
+                            <span className="text-rose-700">Chưa chọn nhóm thực hành</span>
+                          )}{" "}
+                          <button type="button" onClick={() => setPickerSection(section)} className="cursor-pointer text-primary hover:underline">
+                            {labChoices[section.id] ? "Đổi nhóm" : "Chọn nhóm"}
+                          </button>
+                        </span>
+                      )}
+                      {basketProblems([section, ...basket.filter((entry) => entry.id !== section.id)], context)
+                        .filter((problem) => problem.section.id === section.id && problem.issue.kind !== "lab")
+                        .map((problem) => (
+                          <span key={problem.issue.kind} className="text-xs text-pretty text-rose-700">
+                            {problem.issue.message}
+                          </span>
+                        ))}
                     </span>
                     <Button size="small" type="text" aria-label={`Bỏ ${section.code}`} icon={<Trash size={16} aria-hidden />} onClick={() => removePlanned(section)} />
                   </li>
@@ -382,10 +483,25 @@ export function StudentRegistration({
             <span className="text-xs text-amber-700 tabular-nums">Cần tối thiểu {credits.min} tín chỉ, còn thiếu {credits.min - basketCredits}.</span>
           )}
         </div>
-        <Button type="primary" disabled={!isOpen || planned.length === 0} onClick={register} className="shrink-0">
-          {isOpen ? `Đăng ký ${planned.length} lớp` : state === "upcoming" ? "Chờ đợt đăng ký mở" : "Ngoài thời gian đăng ký"}
+        <Button type="primary" disabled={!isOpen || planned.length === 0 || activeHolds.length > 0} onClick={register} className="shrink-0">
+          {activeHolds.length > 0
+            ? "Đang bị khóa đăng ký"
+            : isOpen
+              ? `Đăng ký ${planned.length} lớp`
+              : state === "upcoming"
+                ? "Chờ đợt đăng ký mở"
+                : "Ngoài thời gian đăng ký"}
         </Button>
       </div>
+      <LabGroupPicker
+        key={pickerSection?.id ?? "none"}
+        section={pickerSection}
+        busyMeetings={pickerSection ? busyMeetingsExcept(pickerSection.id) : []}
+        initialGroupId={pickerSection ? labChoices[pickerSection.id] : undefined}
+        onCancel={() => setPickerSection(null)}
+        onConfirm={confirmLab}
+      />
+      <RegistrationQueueModal open={isQueueOpen} onAdmitted={commitRegistration} onLeave={() => setIsQueueOpen(false)} />
     </div>
   );
 }

@@ -18,6 +18,17 @@ import { AuditTimeline } from "@/modules/audit/components/audit-timeline";
 import { getAuditLog } from "@/modules/audit/audit.query";
 import { inScope } from "@/modules/access/access.constant";
 import { requirePermission } from "@/modules/access/access.query";
+import { AdminStudentRegistration } from "@/modules/course-registration/components/admin-student-registration";
+import { bestGrades, buildRegistrationHistory, creditCapOf } from "@/modules/course-registration/course-registration.rule";
+import {
+  getClassSections,
+  getRegistrationHolds,
+  getRegistrationPeriods,
+  getRegistrationTargetTerm,
+  getStudentEnrollments,
+} from "@/modules/course-registration/course-registration.query";
+import { getCourses } from "@/modules/curriculum/curriculum.query";
+import { getRegulation } from "@/modules/settings/settings.query";
 
 type PageProps = { params: Promise<{ studentId: string }> };
 
@@ -43,6 +54,19 @@ export default async function Page({ params }: PageProps) {
     getAuditLog({ entityType: "student", entityId: student.id }),
   ]);
   const advisorName = assignments.find((assignment) => assignment.className === student.className)?.advisorName ?? null;
+  const targetTerm = await getRegistrationTargetTerm();
+  const [targetSections, targetEnrollments, holds, periods, courses, regulation] = await Promise.all([
+    getClassSections(targetTerm.id),
+    getStudentEnrollments(student.id, targetTerm.id),
+    getRegistrationHolds(student.id),
+    getRegistrationPeriods(targetTerm.id),
+    getCourses(),
+    getRegulation(),
+  ]);
+  const period = periods.find((entry) => entry.cohorts.includes(student.cohort)) ?? periods[0];
+  const cap = creditCapOf(regulation.credits, standing.warningLevel);
+  const registrationEvents =
+    period && period.state !== "upcoming" ? buildRegistrationHistory(targetEnrollments, targetEnrollments, period.opensAt, student.fullName) : [];
   const hasResults = standing.earnedCredits > 0;
 
   return (
@@ -117,6 +141,22 @@ export default async function Page({ params }: PageProps) {
                 tone={standing.warningLevel > 0 ? "danger" : undefined}
               />
             </div>
+            <AdminStudentRegistration
+              studentName={student.fullName}
+              student={{ majorCode: student.majorCode, cohort: student.cohort }}
+              termName={targetTerm.name}
+              sections={targetSections.filter((section) => section.status === "open")}
+              registered={period && period.state !== "upcoming" ? targetEnrollments.map((entry) => entry.section) : []}
+              holds={holds}
+              events={registrationEvents.filter((event) => event.kind !== "section-cancelled")}
+              passedGrades={bestGrades(transcript)}
+              prerequisites={Object.fromEntries(courses.map((course) => [course.code, course.prerequisiteCodes]))}
+              corequisites={Object.fromEntries(courses.map((course) => [course.code, course.corequisiteCodes]))}
+              equivalents={Object.fromEntries(courses.map((course) => [course.code, course.equivalentCodes]))}
+              courseNames={Object.fromEntries(courses.map((course) => [course.code, course.name]))}
+              credits={cap}
+              actorName={viewer.name}
+            />
             <section className="flex flex-col gap-3">
               <h2 className="text-lg font-semibold">Kết quả học tập</h2>
               <TranscriptView terms={transcript} />

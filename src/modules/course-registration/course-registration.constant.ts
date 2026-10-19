@@ -1,14 +1,19 @@
 import { periodLabel, weekdayLabel } from "@/shared/constants/period.constant";
 import type { StatusMeta } from "@/shared/constants/status.constant";
 import { dayjs, hoursUntil } from "@/shared/libs/date.lib";
+import { MOCK_MAJORS } from "@/shared/libs/mock.lib";
 import type {
   ClassConflict,
   ClassMeeting,
   ClassSection,
   ClassSectionStatus,
+  HoldKind,
+  RegistrationEventKind,
   RegistrationPeriod,
   RegistrationPeriodState,
   RegistrationPeriodView,
+  ReservedSeat,
+  SectionAudience,
 } from "./course-registration.type";
 
 export const CLOSING_SOON_HOURS = 48;
@@ -39,19 +44,23 @@ export function overlaps(a: ClassMeeting, b: ClassMeeting) {
   return a.dayOfWeek === b.dayOfWeek && a.startPeriod <= b.endPeriod && b.startPeriod <= a.endPeriod;
 }
 
+export function allMeetings(section: Pick<ClassSection, "meetings" | "labGroups">) {
+  return [...section.meetings, ...section.labGroups.map((group) => group.meeting)];
+}
+
 export function conflictsOf(section: ClassSection, siblings: ClassSection[]): ClassConflict[] {
   if (section.status === "cancelled") return [];
   const conflicts: ClassConflict[] = [];
   for (const other of siblings) {
     if (other.id === section.id || other.status === "cancelled") continue;
-    for (const mine of section.meetings) {
-      for (const theirs of other.meetings) {
+    for (const mine of allMeetings(section)) {
+      for (const theirs of allMeetings(other)) {
         if (!overlaps(mine, theirs)) continue;
         const when = `${weekdayLabel(mine.dayOfWeek)}, ${periodLabel(theirs.startPeriod, theirs.endPeriod)}`;
         if (mine.room === theirs.room) {
           conflicts.push({ kind: "room", withCode: other.code, message: `Trùng phòng ${mine.room} với ${other.code} (${when})` });
         }
-        if (section.lecturerId && section.lecturerId === other.lecturerId) {
+        if (section.lecturerId && section.lecturerId === other.lecturerId && section.meetings.includes(mine) && other.meetings.includes(theirs)) {
           conflicts.push({ kind: "lecturer", withCode: other.code, message: `Giảng viên đã dạy ${other.code} cùng giờ (${when})` });
         }
       }
@@ -71,3 +80,40 @@ export function periodState(period: RegistrationPeriod): RegistrationPeriodView 
 export function meetingText(meeting: ClassMeeting) {
   return `${weekdayLabel(meeting.dayOfWeek)}, ${periodLabel(meeting.startPeriod, meeting.endPeriod)} · ${meeting.room}`;
 }
+
+export function majorNames(codes: string[]) {
+  return codes.map((code) => MOCK_MAJORS.find((major) => major.code === code)?.name ?? code);
+}
+
+export function audienceText(audience: SectionAudience) {
+  const parts = [
+    audience.majorCodes.length > 0 ? `ngành ${majorNames(audience.majorCodes).join(", ")}` : null,
+    audience.cohorts.length > 0 ? `khóa ${audience.cohorts.join(", ")}` : null,
+  ].filter(Boolean);
+  return `Chỉ ${parts.join(", ")}`;
+}
+
+export function reservedText(seat: ReservedSeat) {
+  return `${seat.label}: giữ ${seat.seats} chỗ, đã dùng ${seat.taken}`;
+}
+
+export const HOLD_KIND_LABEL: Record<HoldKind, string> = {
+  tuition: "Học phí",
+  discipline: "Kỷ luật",
+  documents: "Hồ sơ",
+  "academic-status": "Tình trạng học tập",
+  advisor: "Cố vấn học tập",
+};
+
+export const HOLD_KIND_OPTIONS = (Object.keys(HOLD_KIND_LABEL) as HoldKind[]).map((value) => ({ value, label: HOLD_KIND_LABEL[value] }));
+
+export const REGISTRATION_EVENT: Record<RegistrationEventKind, StatusMeta> = {
+  add: { label: "Đăng ký", tone: "success" },
+  drop: { label: "Hủy đăng ký", tone: "neutral" },
+  swap: { label: "Đổi lớp", tone: "neutral" },
+  waitlist: { label: "Vào danh sách chờ", tone: "warning" },
+  "waitlist-promoted": { label: "Được xếp từ danh sách chờ", tone: "success" },
+  "admin-add": { label: "Phòng Đào tạo đăng ký hộ", tone: "warning" },
+  "admin-drop": { label: "Phòng Đào tạo hủy hộ", tone: "warning" },
+  "section-cancelled": { label: "Lớp bị hủy", tone: "danger" },
+};

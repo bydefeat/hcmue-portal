@@ -21,6 +21,8 @@ const EMPTY_VALUES: Partial<CourseFormValues> = {
   type: "required",
   block: "major",
   prerequisiteCodes: [],
+  corequisiteCodes: [],
+  equivalentCodes: [],
   isActive: true,
 };
 
@@ -113,6 +115,12 @@ export function CourseFormDrawer({ open, course, courses, faculties, onClose, on
           </Form.Item>
         </div>
         <Form.Item name="prerequisiteCodes" label="Học phần tiên quyết" extra="Sinh viên phải đạt các học phần này trước khi đăng ký.">
+          <Select mode="multiple" options={prerequisiteOptions} showSearch={{ optionFilterProp: "label" }} />
+        </Form.Item>
+        <Form.Item name="corequisiteCodes" label="Học phần song hành" extra="Phải đạt trước hoặc học cùng học kỳ, ví dụ phần thực hành đi kèm lý thuyết.">
+          <Select mode="multiple" options={prerequisiteOptions} showSearch={{ optionFilterProp: "label" }} />
+        </Form.Item>
+        <Form.Item name="equivalentCodes" label="Học phần tương đương" extra="Đạt một học phần tương đương được tính như đã đạt học phần này, kể cả khi xét tiên quyết.">
           <Select mode="multiple" options={prerequisiteOptions} showSearch={{ optionFilterProp: "label" }} />
         </Form.Item>
         <Form.Item name="description" label="Mô tả tóm tắt">

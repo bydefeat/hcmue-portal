@@ -11,8 +11,10 @@ import {
   CLASS_FULL_STATUS,
   CLASS_SECTION_STATUS,
   CLASS_SECTION_STATUS_OPTIONS,
+  audienceText,
   conflictsOf,
   meetingText,
+  reservedText,
 } from "../course-registration.constant";
 import type { ClassSectionFormValues, ClassSectionStatus, ClassSectionView, Term } from "../course-registration.type";
 import { ClassSectionFormDrawer, type SectionCourseOption, type SectionLecturerOption } from "./class-section-form-drawer";
@@ -76,12 +78,34 @@ export function ClassSectionTable({ sections, terms, termId, initialQuery = "", 
       messageApi.error(`Lớp ${code} đã có trong học kỳ này. Đổi số thứ tự lớp rồi lưu lại.`);
       return;
     }
+    const existingLabs = editing?.labGroups ?? [];
     const base = {
       lecturerId: lecturer?.id ?? null,
       lecturerName: lecturer?.displayName ?? null,
       capacity: values.capacity,
       status: values.status,
       meetings: values.meetings,
+      minEnrollment: values.minEnrollment,
+      audience:
+        values.audienceMajors.length > 0 || values.audienceCohorts.length > 0
+          ? { majorCodes: values.audienceMajors, cohorts: values.audienceCohorts, note: values.audienceNote ?? "" }
+          : null,
+      reservedSeats: (values.reservedSeats ?? []).map((seat) => ({
+        ...seat,
+        majorCodes: seat.majorCodes ?? [],
+        cohorts: seat.cohorts ?? [],
+        taken: editing?.reservedSeats.find((entry) => entry.label === seat.label)?.taken ?? 0,
+      })),
+      labGroups: (values.labGroups ?? []).map((group) => {
+        const labCode = `${code}.${group.code}`;
+        return {
+          id: `${termId}-${labCode}`.toLowerCase().replace(/\./g, "-"),
+          code: labCode,
+          meeting: { dayOfWeek: group.dayOfWeek, startPeriod: group.startPeriod, endPeriod: group.endPeriod, room: group.room },
+          capacity: group.capacity,
+          enrolled: existingLabs.find((entry) => entry.code === labCode)?.enrolled ?? 0,
+        };
+      }),
     };
     const next = editing
       ? rows.map((row) => (row.id === editing.id ? { ...row, ...base } : row))
@@ -125,6 +149,12 @@ export function ClassSectionTable({ sections, terms, termId, initialQuery = "", 
         <span className="flex min-w-0 flex-col">
           <span className="font-mono text-xs font-medium">{row.code}</span>
           <span className="text-pretty">{row.courseName}</span>
+          {row.audience && <span className="text-xs text-pretty text-amber-700">{audienceText(row.audience)}</span>}
+          {row.reservedSeats.map((seat) => (
+            <span key={seat.label} className="text-xs text-pretty text-muted tabular-nums">
+              {reservedText(seat)}
+            </span>
+          ))}
         </span>
       ),
     },
@@ -143,12 +173,17 @@ export function ClassSectionTable({ sections, terms, termId, initialQuery = "", 
     },
     {
       title: "Lịch học",
-      dataIndex: "meetings",
-      width: 240,
-      render: (meetings: ClassSectionView["meetings"]) => (
+      key: "meetings",
+      width: 260,
+      render: (_, row) => (
         <ul className="flex flex-col gap-0.5 text-xs">
-          {meetings.map((meeting) => (
+          {row.meetings.map((meeting) => (
             <li key={`${meeting.dayOfWeek}-${meeting.startPeriod}`}>{meetingText(meeting)}</li>
+          ))}
+          {row.labGroups.map((group) => (
+            <li key={group.id} className="text-muted tabular-nums">
+              <span className="font-mono">{group.code.split(".").at(-1)}</span> {meetingText(group.meeting)} · {group.enrolled}/{group.capacity}
+            </li>
           ))}
         </ul>
       ),

@@ -17,6 +17,7 @@ import {
   getClassRoster,
   getClassSections,
   getRegistrationPeriods,
+  getRegistrationQueueStatus,
   getRegistrationSummary,
   getRegistrationTargetTerm,
 } from "@/modules/course-registration/course-registration.query";
@@ -33,11 +34,12 @@ function hoursText(hours: number) {
 export default async function Page() {
   const viewer = await requirePermission("registration.manage");
   const term = await getRegistrationTargetTerm();
-  const [periods, allSections, summary, students] = await Promise.all([
+  const [periods, allSections, summary, students, queue] = await Promise.all([
     getRegistrationPeriods(term.id),
     getClassSections(term.id),
     getRegistrationSummary(term.id),
     getStudents(),
+    getRegistrationQueueStatus(),
   ]);
   const sections = allSections.filter((section) => inScope(viewer, section.faculty));
   const active = periods.filter((period) => period.state === "open" || period.state === "closing");
@@ -91,11 +93,20 @@ export default async function Page() {
             ))}
           </div>
         )}
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
           <StatTile label="Chỗ đã đăng ký" value={`${capacity > 0 ? Math.round((enrolled / capacity) * 100) : 0}%`} hint={`${enrolled}/${capacity} chỗ`} />
           <StatTile label="Lớp đã đủ chỗ" value={open.filter((section) => section.isFull).length} hint="Cân nhắc mở thêm lớp" tone={open.some((section) => section.isFull) ? "warning" : undefined} />
           <StatTile label="Lớp chưa mở" value={sections.filter((section) => section.status === "draft").length} hint="Đang ở trạng thái nháp" />
           <StatTile label="Sinh viên chưa đăng ký" value={pending.length} hint="Trong các đợt đang mở" tone={pending.length > 0 ? "warning" : undefined} />
+          <StatTile
+            label="Hàng đợi giờ cao điểm"
+            value={queue ? queue.waiting.toLocaleString("vi-VN") : "Không có"}
+            hint={
+              queue
+                ? `${queue.activeSessions}/${queue.sessionLimit} phiên, chờ trung bình ${queue.averageWaitSeconds} giây, cao nhất hôm nay ${queue.peakWaitingToday.toLocaleString("vi-VN")}`
+                : "Chỉ bật khi có đợt đang mở"
+            }
+          />
         </div>
         <section className="flex flex-col gap-3">
           <h2 className="text-lg font-semibold">Lớp cần xử lý</h2>

@@ -28,8 +28,8 @@ export function buildIcs(params: { calendarName: string; events: ScheduleEvent[]
   const until = `${dayjs(params.termEnd).format("YYYYMMDD")}T235959`;
   const stamp = dayjs(params.generatedAt).format("YYYYMMDD[T]HHmmss");
   const body = params.events.flatMap((event) => {
-    const start = PERIODS.find((period) => period.period === event.startPeriod)?.start ?? "07:00";
-    const end = PERIODS.find((period) => period.period === event.endPeriod)?.end ?? "08:00";
+    const start = PERIODS.find((period) => period.period === event.startPeriod)?.start ?? "06:30";
+    const end = PERIODS.find((period) => period.period === event.endPeriod)?.end ?? "07:20";
     const date = firstOccurrence(params.termStart, event.dayOfWeek);
     return [
       "BEGIN:VEVENT",

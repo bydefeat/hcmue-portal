@@ -1,5 +1,5 @@
-import { createRandom, mockDate, mockLecturerIdentity } from "@/shared/libs/mock.lib";
-import type { ClassMeeting, ClassSection, ClassSectionStatus, RegistrationPeriod, Term } from "./course-registration.type";
+import { createRandom, mockDate, mockLecturerIdentity, mockStudentIdentity } from "@/shared/libs/mock.lib";
+import type { ClassMeeting, ClassSection, ClassSectionStatus, RegistrationHold, RegistrationPeriod, ReservedSeat, SectionAudience, Term } from "./course-registration.type";
 
 export const TERMS: Term[] = [
   { id: "hk2-2025", code: "2025-2026.2", name: "Học kỳ 2, năm học 2025-2026", shortName: "HK2 2025-2026", startDate: "2026-02-23", endDate: "2026-06-27", isCurrent: false, isRegistrationTarget: false },
@@ -37,6 +37,7 @@ export const COURSE_INFO: Record<string, { name: string; credits: number; facult
   COMP1090: { name: "Công nghệ phần mềm", credits: 3, faculty: "Khoa Công nghệ Thông tin" },
   COMP1100: { name: "Học máy", credits: 3, faculty: "Khoa Công nghệ Thông tin" },
   COMP1120: { name: "An toàn và bảo mật thông tin", credits: 3, faculty: "Khoa Công nghệ Thông tin" },
+  COMP1121: { name: "Thực hành an toàn thông tin", credits: 1, faculty: "Khoa Công nghệ Thông tin" },
   LITR1010: { name: "Văn học Việt Nam hiện đại", credits: 3, faculty: "Khoa Ngữ văn" },
   LITR1020: { name: "Lý luận văn học", credits: 3, faculty: "Khoa Ngữ văn" },
   ENGL2001: { name: "Nghe nói tiếng Anh nâng cao", credits: 3, faculty: "Khoa Tiếng Anh" },
@@ -101,6 +102,73 @@ const TARGET_TERM_SECTIONS: SectionSeed[] = [
   ["POLI1003", 1, null, 120, 77, [[7, 1, 3, "I.101 (Hội trường)"]]],
   ["COMP1080", 2, 0, 50, 0, [[6, 1, 3, "B.302"]], "draft"],
   ["MATH1011", 2, 1, 60, 0, [[2, 1, 3, "A.201"]], "cancelled"],
+  ["COMP1121", 1, 12, 40, 18, [[4, 10, 12, "C.301 (Phòng máy)"]]],
+  ["PSYC2001", 2, 11, 50, 9, [[6, 7, 9, "A.203"]]],
+];
+
+export const MIN_ENROLLMENT = 15;
+
+const AUDIENCES: Record<string, SectionAudience> = {
+  "hk2-2026:LITR1020.01": { majorCodes: ["601"], cohorts: [], note: "Lớp dành cho sinh viên ngành Sư phạm Ngữ văn" },
+  "hk2-2026:ENGL2001.01": { majorCodes: [], cohorts: [48, 49], note: "Lớp dành cho khóa 48 và 49 cần hoàn thành chuẩn đầu ra" },
+  "hk2-2026:MATH2020.01": { majorCodes: ["101"], cohorts: [], note: "Lớp dành cho sinh viên ngành Sư phạm Toán học" },
+  "hk2-2026:PSYC2001.02": { majorCodes: ["611", "101", "601", "102"], cohorts: [], note: "Ưu tiên ngành sư phạm và Tâm lý học" },
+};
+
+const RESERVED: Record<string, ReservedSeat[]> = {
+  "hk2-2026:COMP1060.01": [{ label: "Khóa 48 cần để tốt nghiệp đúng hạn", seats: 17, taken: 0, majorCodes: [], cohorts: [48] }],
+  "hk2-2026:COMP1040.01": [{ label: "Sinh viên học lại", seats: 5, taken: 2, majorCodes: ["104"], cohorts: [48, 49] }],
+  "hk2-2026:MATH1013.01": [{ label: "Ngành Sư phạm Toán học", seats: 15, taken: 9, majorCodes: ["101"], cohorts: [] }],
+};
+
+type LabSeed = [labCode: string, day: number, start: number, end: number, room: string, capacity: number, enrolled: number];
+
+const LABS: Record<string, LabSeed[]> = {
+  "hk2-2026:COMP1100.01": [
+    ["TH1", 7, 1, 3, "C.302 (Phòng máy)", 20, 20],
+    ["TH2", 7, 4, 6, "C.302 (Phòng máy)", 20, 20],
+  ],
+  "hk2-2026:COMP1100.02": [
+    ["TH1", 7, 1, 3, "C.301 (Phòng máy)", 20, 7],
+    ["TH2", 7, 7, 9, "C.301 (Phòng máy)", 20, 5],
+    ["TH3", 3, 10, 12, "C.302 (Phòng máy)", 20, 20],
+  ],
+  "hk2-2026:COMP1031.02": [
+    ["TH1", 5, 7, 9, "C.301 (Phòng máy)", 23, 21],
+    ["TH2", 5, 10, 12, "C.301 (Phòng máy)", 22, 18],
+  ],
+};
+
+export const REGISTRATION_HOLDS: RegistrationHold[] = [
+  ...[
+    [29, "tuition", true, "Nợ học phí học kỳ 2, năm học 2025-2026: 8.320.000 đ", "Nộp đủ học phí qua tài khoản định danh, khóa tự gỡ sau 1 ngày làm việc"],
+    [77, "discipline", true, "Đang trong thời gian kỷ luật đình chỉ học tập", "Chờ hết thời hạn kỷ luật theo quyết định 1229/QĐ-ĐHSP"],
+    [5, "academic-status", true, "Đang xét buộc thôi học do cảnh báo học vụ mức 3", "Chờ kết luận của Hội đồng xét học vụ"],
+    [60, "academic-status", true, "Đang làm thủ tục bảo lưu học kỳ 2", "Rút đơn bảo lưu tại Phòng Đào tạo nếu muốn tiếp tục học"],
+    [130, "tuition", true, "Nợ học phí học kỳ 1, năm học 2026-2027 quá hạn", "Nộp học phí hoặc nộp đơn xin gia hạn tại Phòng Kế hoạch - Tài chính"],
+    [204, "documents", true, "Chưa nộp bằng tốt nghiệp THPT bản chính để đối chiếu", "Mang bản chính đến Phòng Đào tạo, phòng A.102"],
+    [18, "advisor", false, "Kế hoạch học tập học kỳ 2 bị cố vấn trả lại", "Sửa kế hoạch theo góp ý của cố vấn và nộp lại"],
+    [12, "documents", false, "Thiếu bản sao giấy khai sinh trong hồ sơ nhập học", "Nộp tại Phòng Đào tạo trước 30/11, không ảnh hưởng đăng ký học phần"],
+    [96, "tuition", false, "Học phí học kỳ 1 còn thiếu 1.040.000 đ, hạn 28/10", "Nộp trước hạn để tránh bị khóa đăng ký"],
+  ].map(([index, kind, blocking, reason, resolveHint], position) => {
+    const student = mockStudentIdentity(index as number);
+    return {
+      id: `khoa-${position + 1}`,
+      studentId: student.id,
+      studentCode: student.code,
+      studentName: student.fullName,
+      className: student.className,
+      faculty: student.faculty,
+      kind: kind as RegistrationHold["kind"],
+      blocking: blocking as boolean,
+      reason: reason as string,
+      resolveHint: resolveHint as string,
+      createdAt: mockDate(-(position * 3 + 2), "09:00"),
+      createdBy: kind === "tuition" ? "Phòng Kế hoạch - Tài chính" : "Phòng Đào tạo",
+      releasedAt: null,
+      releasedBy: null,
+    };
+  }),
 ];
 
 function meeting([dayOfWeek, startPeriod, endPeriod, room]: SectionSeed[5][number]): ClassMeeting {
@@ -129,6 +197,16 @@ function buildSections(termId: string, seeds: SectionSeed[]): ClassSection[] {
       status,
       startDate: term.startDate,
       endDate: term.endDate,
+      minEnrollment: MIN_ENROLLMENT,
+      audience: AUDIENCES[`${termId}:${code}`] ?? null,
+      reservedSeats: RESERVED[`${termId}:${code}`] ?? [],
+      labGroups: (LABS[`${termId}:${code}`] ?? []).map(([labCode, day, start, end, room, labCapacity, labEnrolled]) => ({
+        id: `${termId}-${code}-${labCode}`.toLowerCase().replace(/\./g, "-"),
+        code: `${code}.${labCode}`,
+        meeting: { dayOfWeek: day, startPeriod: start, endPeriod: end, room },
+        capacity: labCapacity,
+        enrolled: labEnrolled,
+      })),
     };
   });
 }

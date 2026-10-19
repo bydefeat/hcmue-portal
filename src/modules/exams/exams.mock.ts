@@ -35,7 +35,7 @@ const ROOMS_FOR: Record<ExamFormat, string[]> = {
   project: ["B.302", "A.305"],
 };
 
-const START_TIMES = ["07:30", "09:30", "13:30", "15:30"];
+const START_TIMES = ["06:30", "09:10", "12:30", "15:10"];
 const PAPER_STATUSES: ExamPaperStatus[] = ["approved", "submitted", "not-submitted"];
 
 function proctorsFor(index: number, lecturerIndex: number | null) {

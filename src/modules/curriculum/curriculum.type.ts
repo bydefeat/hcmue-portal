@@ -13,6 +13,8 @@ export type Course = {
   type: CourseType;
   block: KnowledgeBlock;
   prerequisiteCodes: string[];
+  corequisiteCodes: string[];
+  equivalentCodes: string[];
   isActive: boolean;
   description: string;
 };
@@ -64,6 +66,8 @@ export type CourseFormValues = {
   type: CourseType;
   block: KnowledgeBlock;
   prerequisiteCodes: string[];
+  corequisiteCodes: string[];
+  equivalentCodes: string[];
   description: string;
   isActive: boolean;
 };

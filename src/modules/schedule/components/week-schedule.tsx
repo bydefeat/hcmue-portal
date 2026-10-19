@@ -6,7 +6,7 @@ import Link from "next/link";
 import { Button } from "antd";
 import { CalendarDays, ChevronLeft, ChevronRight } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
-import { PERIODS, periodLabel, periodTimeRange, WEEKDAYS } from "@/shared/constants/period.constant";
+import { BREAKS, PERIODS, periodLabel, periodTimeRange, WEEKDAYS } from "@/shared/constants/period.constant";
 import { dayjs, formatShortDate, weekdayOf } from "@/shared/libs/date.lib";
 import type { ScheduleEvent } from "../schedule.type";
 
@@ -39,6 +39,12 @@ function EventBlock({ event, compact = false }: { event: ScheduleEvent; compact?
       {body}
     </Link>
   );
+}
+
+
+function breakTitle(period: number) {
+  const pause = BREAKS.find((entry) => entry.afterPeriod === period);
+  return pause ? `${pause.label} ${pause.start} - ${pause.end}` : undefined;
 }
 
 export function WeekSchedule({ events, termStart, termEnd }: WeekScheduleProps) {
@@ -95,7 +101,8 @@ export function WeekSchedule({ events, termStart, termEnd }: WeekScheduleProps) 
                 <div
                   key={period.period}
                   style={{ gridColumn: 1, gridRow: index + 2 }}
-                  className="flex flex-col justify-center border-b border-border px-2 text-xs text-muted tabular-nums"
+                  title={breakTitle(period.period)}
+                  className={`flex flex-col justify-center border-b px-2 text-xs text-muted tabular-nums ${breakTitle(period.period) ? "border-border-strong" : "border-border"}`}
                 >
                   <span className="font-medium text-foreground">Tiết {period.period}</span>
                   <span>{period.start}</span>
@@ -106,7 +113,7 @@ export function WeekSchedule({ events, termStart, termEnd }: WeekScheduleProps) 
                   <div
                     key={`${day.value}-${period.period}`}
                     style={{ gridColumn: dayIndex + 2, gridRow: index + 2 }}
-                    className={`border-b border-l border-border ${day.date.isSame(today, "day") ? "bg-primary-light" : ""}`}
+                    className={`border-b border-l ${breakTitle(period.period) ? "border-b-border-strong" : ""} border-border ${day.date.isSame(today, "day") ? "bg-primary-light" : ""}`}
                   />
                 )),
               )}

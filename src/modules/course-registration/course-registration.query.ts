@@ -5,6 +5,7 @@ import { conflictsOf, periodState } from "./course-registration.constant";
 import {
   CLASS_SECTIONS,
   FACULTY_MAJOR_INDEX,
+  REGISTRATION_HOLDS,
   REGISTRATION_PERIODS,
   rosterIndices,
   TERMS,
@@ -14,6 +15,7 @@ import type {
   ClassSectionView,
   FacultyRegistrationSummary,
   LecturerWorkload,
+  RegistrationQueueStatus,
   RosterEntry,
   StudentEnrollment,
 } from "./course-registration.type";
@@ -151,4 +153,16 @@ export async function getLecturerWorkloads(termId: string): Promise<LecturerWork
       normHours: normHoursOf(lecturer.title),
     };
   });
+}
+
+export async function getRegistrationHolds(studentId?: string) {
+  await mockDelay();
+  return REGISTRATION_HOLDS.filter((hold) => !studentId || hold.studentId === studentId).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
+export async function getRegistrationQueueStatus(): Promise<RegistrationQueueStatus | null> {
+  await mockDelay();
+  const active = REGISTRATION_PERIODS.map(periodState).some((period) => period.state === "open" || period.state === "closing");
+  if (!active) return null;
+  return { waiting: 342, activeSessions: 500, sessionLimit: 500, admittedPerMinute: 2400, averageWaitSeconds: 9, peakWaitingToday: 3870 };
 }

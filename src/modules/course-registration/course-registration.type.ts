@@ -54,6 +54,32 @@ export type ClassSection = {
   status: ClassSectionStatus;
   startDate: string;
   endDate: string;
+  minEnrollment: number;
+  audience: SectionAudience | null;
+  reservedSeats: ReservedSeat[];
+  labGroups: LabGroup[];
+};
+
+export type SectionAudience = {
+  majorCodes: string[];
+  cohorts: number[];
+  note: string;
+};
+
+export type ReservedSeat = {
+  label: string;
+  seats: number;
+  taken: number;
+  majorCodes: string[];
+  cohorts: number[];
+};
+
+export type LabGroup = {
+  id: string;
+  code: string;
+  meeting: ClassMeeting;
+  capacity: number;
+  enrolled: number;
 };
 
 export type ClassConflict = {
@@ -91,6 +117,12 @@ export type ClassSectionFormValues = {
   capacity: number;
   status: ClassSectionStatus;
   meetings: ClassMeeting[];
+  minEnrollment: number;
+  audienceMajors: string[];
+  audienceCohorts: number[];
+  audienceNote?: string;
+  reservedSeats: { label: string; seats: number; majorCodes: string[]; cohorts: number[] }[];
+  labGroups: { code: string; dayOfWeek: number; startPeriod: number; endPeriod: number; room: string; capacity: number }[];
 };
 
 export type RegistrationPeriodFormValues = {
@@ -116,4 +148,45 @@ export type LecturerWorkload = {
   teachingHours: number;
   standardHours: number;
   normHours: number;
+};
+
+export type HoldKind = "tuition" | "discipline" | "documents" | "academic-status" | "advisor";
+
+export type RegistrationHold = {
+  id: string;
+  studentId: string;
+  studentCode: string;
+  studentName: string;
+  className: string;
+  faculty: string;
+  kind: HoldKind;
+  blocking: boolean;
+  reason: string;
+  resolveHint: string;
+  createdAt: string;
+  createdBy: string;
+  releasedAt: string | null;
+  releasedBy: string | null;
+};
+
+export type RegistrationEventKind = "add" | "drop" | "swap" | "waitlist" | "waitlist-promoted" | "admin-add" | "admin-drop" | "section-cancelled";
+
+export type RegistrationEvent = {
+  id: string;
+  at: string;
+  kind: RegistrationEventKind;
+  sectionCode: string;
+  courseName: string;
+  actor: string;
+  channel: string;
+  note: string;
+};
+
+export type RegistrationQueueStatus = {
+  waiting: number;
+  activeSessions: number;
+  sessionLimit: number;
+  admittedPerMinute: number;
+  averageWaitSeconds: number;
+  peakWaitingToday: number;
 };

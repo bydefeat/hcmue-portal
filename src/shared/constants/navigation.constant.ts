@@ -38,6 +38,7 @@ import {
   User,
   UserCap,
   UserChange,
+  UserLock,
   Users,
   UsersLink,
   UsersStar,
@@ -172,6 +173,7 @@ export const ADMINISTRATOR_NAVIGATION: NavGroup[] = [
     items: [
       { label: "Học kỳ và đợt đăng ký", shortLabel: "Học kỳ", href: "/administrator/terms", icon: CalendarClock, permission: "registration.manage" },
       { label: "Theo dõi đăng ký", href: "/administrator/registration-monitor", icon: ChartActivity, permission: "registration.manage" },
+      { label: "Khóa đăng ký", href: "/administrator/registration-holds", icon: UserLock, permission: "registration.manage" },
       { label: "Duyệt và công bố điểm", href: "/administrator/grade-publishing", icon: ClipboardCheck, permission: "grades.approve" },
       { label: "Quyết định sinh viên", href: "/administrator/decisions", icon: ScrollText, permission: "decisions.manage" },
       { label: "Xét tốt nghiệp", href: "/administrator/graduation", icon: AwardCertificate, permission: "graduation.manage" },

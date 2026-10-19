@@ -42,6 +42,8 @@ const COURSE_SEEDS: CourseSeed[] = [
   ["COMP1100", "Học máy", 3, IT, "elective", "major", ["COMP1080"]],
   ["COMP1110", "Phát triển ứng dụng di động", 3, IT, "elective", "major", ["COMP1031"]],
   ["COMP1120", "An toàn và bảo mật thông tin", 3, IT, "elective", "major", ["COMP1050"]],
+  ["COMP1121", "Thực hành an toàn thông tin", 1, IT, "elective", "major"],
+  ["MATH1014", "Xác suất thống kê ứng dụng (chương trình 2019)", 3, MATH, "required", "foundation", ["MATH1011"]],
   ["COMP1130", "Xử lý ngôn ngữ tự nhiên tiếng Việt", 3, IT, "elective", "major", ["COMP1100"]],
   ["COMP4900", "Thực tập nghề nghiệp", 4, IT, "required", "internship", ["COMP1070"]],
   ["COMP4990", "Khóa luận tốt nghiệp", 7, IT, "elective", "internship", ["COMP4900"]],
@@ -56,6 +58,17 @@ const COURSE_SEEDS: CourseSeed[] = [
   ["PSYC2010", "Tham vấn tâm lý học đường", 3, PSYCHOLOGY, "elective", "major", ["PSYC2001"]],
   ["COMP0999", "Tin học văn phòng nâng cao", 2, IT, "elective", "general"],
 ];
+
+const COREQUISITES: Record<string, string[]> = {
+  COMP1121: ["COMP1120"],
+  MATH2020: ["EDUC1002"],
+};
+
+const EQUIVALENTS: Record<string, string[]> = {
+  MATH1013: ["MATH1014"],
+  MATH1014: ["MATH1013"],
+  COMP1013: ["COMP0999"],
+};
 
 const DESCRIPTIONS: Record<string, string> = {
   COMP1020: "Mảng, danh sách liên kết, ngăn xếp, hàng đợi, cây, đồ thị và các giải thuật sắp xếp, tìm kiếm cơ bản.",
@@ -76,7 +89,9 @@ export const COURSES: Course[] = COURSE_SEEDS.map(([code, name, credits, faculty
     type,
     block,
     prerequisiteCodes: prerequisites,
-    isActive: code !== "COMP0999",
+    corequisiteCodes: COREQUISITES[code] ?? [],
+    equivalentCodes: EQUIVALENTS[code] ?? [],
+    isActive: code !== "COMP0999" && code !== "MATH1014",
     description: DESCRIPTIONS[code] ?? `Học phần ${name.toLowerCase()} thuộc khối ${block === "general" ? "đại cương" : "ngành"}.`,
   };
 });

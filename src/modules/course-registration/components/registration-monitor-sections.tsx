@@ -6,11 +6,17 @@ import { CircleCheck } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { MeterBar } from "@/shared/components/ui/meter-bar";
 import { StatusTag } from "@/shared/components/ui/status-tag";
-import { CLASS_SECTION_STATUS } from "../course-registration.constant";
+import { CLASS_SECTION_STATUS, meetingText } from "../course-registration.constant";
 import type { ClassSectionView } from "../course-registration.type";
 
 export const MIN_CLASS_SIZE = 15;
 const NEAR_FULL_RATIO = 0.9;
+
+type CancelOutcome = {
+  section: ClassSectionView;
+  alternatives: ClassSectionView[];
+  movedTo: string | null;
+};
 
 type Bucket = "full" | "near" | "under";
 
@@ -18,7 +24,7 @@ function bucketOf(section: ClassSectionView): Bucket | null {
   if (section.status !== "open") return null;
   if (section.enrolled >= section.capacity) return "full";
   if (section.enrolled >= section.capacity * NEAR_FULL_RATIO) return "near";
-  if (section.enrolled < MIN_CLASS_SIZE) return "under";
+  if (section.enrolled < (section.minEnrollment ?? MIN_CLASS_SIZE)) return "under";
   return null;
 }
 
@@ -28,6 +34,7 @@ export function RegistrationMonitorSections({ sections }: { sections: ClassSecti
   const [rows, setRows] = useState(sections);
   const [bucket, setBucket] = useState<Bucket>("full");
   const [selected, setSelected] = useState<string[]>([]);
+  const [outcomes, setOutcomes] = useState<CancelOutcome[]>([]);
   const counts = { full: 0, near: 0, under: 0 };
   for (const section of rows) {
     const value = bucketOf(section);
@@ -57,10 +64,40 @@ export function RegistrationMonitorSections({ sections }: { sections: ClassSecti
       mask: { closable: false },
       onOk: () => {
         setRows((current) => current.map((section) => (selected.includes(section.id) ? { ...section, status: "cancelled" } : section)));
-        messageApi.success(`Đã hủy ${chosen.length} lớp và gửi thông báo cho sinh viên`);
+        setOutcomes(
+          chosen.map((section) => ({
+            section,
+            movedTo: null,
+            alternatives: rows.filter(
+              (entry) =>
+                entry.courseCode === section.courseCode && entry.id !== section.id && entry.status === "open" && !selected.includes(entry.id) && entry.enrolled < entry.capacity,
+            ),
+          })),
+        );
+        messageApi.success(`Đã hủy ${chosen.length} lớp và gửi thông báo cho ${chosen.reduce((sum, section) => sum + section.enrolled, 0)} sinh viên`);
         setSelected([]);
       },
     });
+
+  const moveAll = (outcome: CancelOutcome, target: ClassSectionView) => {
+    const free = target.capacity - target.enrolled;
+    const moved = Math.min(free, outcome.section.enrolled);
+    setRows((current) =>
+      current.map((section) =>
+        section.id === target.id
+          ? { ...section, enrolled: section.enrolled + moved, isFull: section.enrolled + moved >= section.capacity }
+          : section.id === outcome.section.id
+            ? { ...section, enrolled: outcome.section.enrolled - moved }
+            : section,
+      ),
+    );
+    setOutcomes((current) => current.map((entry) => (entry.section.id === outcome.section.id ? { ...entry, movedTo: target.code } : entry)));
+    messageApi.success(
+      moved < outcome.section.enrolled
+        ? `Đã chuyển ${moved} sinh viên sang ${target.code}; còn ${outcome.section.enrolled - moved} sinh viên chưa có chỗ, đã được nhắc chọn lớp khác`
+        : `Đã chuyển cả ${moved} sinh viên sang ${target.code} và gửi email xác nhận`,
+    );
+  };
 
   const columns: TableColumnsType<ClassSectionView> = [
     {
@@ -132,6 +169,46 @@ export function RegistrationMonitorSections({ sections }: { sections: ClassSecti
         pagination={false}
         locale={{ emptyText: <EmptyState icon={CircleCheck} title="Không có lớp trong nhóm này" /> }}
       />
+      <Modal
+        open={outcomes.length > 0}
+        title="Kết quả hủy lớp"
+        onCancel={() => setOutcomes([])}
+        footer={<Button onClick={() => setOutcomes([])}>Xong</Button>}
+        width={640}
+        destroyOnHidden
+      >
+        <ul className="flex flex-col gap-3">
+          {outcomes.map((outcome) => (
+            <li key={outcome.section.id} className="flex flex-col gap-2 rounded-lg border border-border-strong p-3">
+              <span className="text-sm">
+                <span className="font-mono">{outcome.section.code}</span> đã hủy. Đã gửi thông báo cho{" "}
+                <span className="tabular-nums">{outcome.section.enrolled}</span> sinh viên kèm gợi ý lớp thay thế.
+              </span>
+              {outcome.movedTo ? (
+                <span className="text-sm text-green-700">Đã chuyển sinh viên sang {outcome.movedTo}</span>
+              ) : outcome.alternatives.length === 0 ? (
+                <span className="text-sm text-amber-700">
+                  Không còn lớp nào cùng học phần còn chỗ. Sinh viên được nhắc đăng ký học phần khác hoặc gửi đơn xin mở lớp.
+                </span>
+              ) : (
+                <ul className="flex flex-col gap-1">
+                  {outcome.alternatives.map((target) => (
+                    <li key={target.id} className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                      <span className="min-w-0">
+                        <span className="font-mono">{target.code}</span> · {target.meetings.map(meetingText).join("; ")} ·{" "}
+                        <span className="tabular-nums">còn {target.capacity - target.enrolled} chỗ</span>
+                      </span>
+                      <Button size="small" onClick={() => moveAll(outcome, target)}>
+                        Chuyển sinh viên sang lớp này
+                      </Button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </li>
+          ))}
+        </ul>
+      </Modal>
     </div>
   );
 }

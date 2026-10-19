@@ -257,6 +257,22 @@ Sinh tự động từ `src/app/**/page.tsx` (đường dẫn redirect như `/ap
 |---|---|---|
 | Công khai | 4 | `/`, `/about`, `/announcements`, `/announcements/[slug]` |
 | Xác thực | 4 | `/authentication`, `/authentication/forgot-password`, `/authentication/sign-in`, `/authentication/verify` |
-| Sinh viên | 13 | `/application`, `/application/curriculum`, `/application/dashboard`, `/application/exams`, `/application/grades`, `/application/notifications`, `/application/profile`, `/application/registration`, `/application/requests`, `/application/schedule`, `/application/study-plan`, `/application/surveys`, `/application/tuition` |
+| Sinh viên | 14 | `/application`, `/application/curriculum`, `/application/dashboard`, `/application/exams`, `/application/grades`, `/application/notifications`, `/application/profile`, `/application/registration`, `/application/registration/history`, `/application/requests`, `/application/schedule`, `/application/study-plan`, `/application/surveys`, `/application/tuition` |
 | Giảng viên | 19 | `/lecturer`, `/lecturer/advising`, `/lecturer/advising/academic-warnings`, `/lecturer/advising/appointments`, `/lecturer/advising/students`, `/lecturer/advising/students/[studentId]`, `/lecturer/advising/study-plans`, `/lecturer/classes`, `/lecturer/classes/[classId]`, `/lecturer/classes/[classId]/announcements`, `/lecturer/classes/[classId]/attendance`, `/lecturer/classes/[classId]/grading`, `/lecturer/classes/[classId]/syllabus`, `/lecturer/exams`, `/lecturer/notifications`, `/lecturer/profile`, `/lecturer/requests`, `/lecturer/schedule`, `/lecturer/workload` |
-| Phòng Đào tạo | 31 | `/administrator`, `/administrator/announcements`, `/administrator/class-sections`, `/administrator/courses`, `/administrator/decisions`, `/administrator/exams`, `/administrator/exams/eligibility`, `/administrator/grade-publishing`, `/administrator/graduation`, `/administrator/notifications`, `/administrator/profile`, `/administrator/programs`, `/administrator/programs/[programId]`, `/administrator/registration-monitor`, `/administrator/reports`, `/administrator/reports/academic-warnings`, `/administrator/reports/exports`, `/administrator/reports/surveys`, `/administrator/requests`, `/administrator/rooms`, `/administrator/settings`, `/administrator/settings/access`, `/administrator/settings/audit-log`, `/administrator/settings/calendar`, `/administrator/teaching-assignments`, `/administrator/terms`, `/administrator/users`, `/administrator/users/advisors`, `/administrator/users/lecturers`, `/administrator/users/students`, `/administrator/users/students/[studentId]` |
+| Phòng Đào tạo | 32 | `/administrator`, `/administrator/announcements`, `/administrator/class-sections`, `/administrator/courses`, `/administrator/decisions`, `/administrator/exams`, `/administrator/exams/eligibility`, `/administrator/grade-publishing`, `/administrator/graduation`, `/administrator/notifications`, `/administrator/profile`, `/administrator/programs`, `/administrator/programs/[programId]`, `/administrator/registration-holds`, `/administrator/registration-monitor`, `/administrator/reports`, `/administrator/reports/academic-warnings`, `/administrator/reports/exports`, `/administrator/reports/surveys`, `/administrator/requests`, `/administrator/rooms`, `/administrator/settings`, `/administrator/settings/access`, `/administrator/settings/audit-log`, `/administrator/settings/calendar`, `/administrator/teaching-assignments`, `/administrator/terms`, `/administrator/users`, `/administrator/users/advisors`, `/administrator/users/lecturers`, `/administrator/users/students`, `/administrator/users/students/[studentId]` |
+
+## 8. Quy tắc đăng ký học phần
+
+Hàm thuần trong `modules/course-registration/course-registration.rule.ts`, dùng chung cho trang sinh viên và đăng ký hộ của Phòng Đào tạo:
+
+| Kiểm tra | Nguồn dữ liệu | Hành vi |
+|---|---|---|
+| Khóa đăng ký | `RegistrationHold` (học phí, kỷ luật, hồ sơ, tình trạng học tập, cố vấn) | `blocking` chặn nút Đăng ký, không chặn thì chỉ nhắc |
+| Đối tượng lớp | `ClassSection.audience` (ngành, khóa) | Chặn nếu sinh viên không thuộc đối tượng |
+| Chỗ dành riêng | `ClassSection.reservedSeats` | Chỗ còn trống trừ phần giữ cho nhóm khác, hết thì cho vào danh sách chờ |
+| Tiên quyết, song hành, tương đương | `Course.prerequisiteCodes`, `corequisiteCodes`, `equivalentCodes` | Đạt học phần tương đương được tính là đạt; song hành phải có trong giỏ hoặc đã đạt |
+| Nhóm thực hành | `ClassSection.labGroups` | Bắt buộc chọn 1 nhóm, lịch nhóm tính vào kiểm tra trùng lịch |
+| Hạn mức tín chỉ | Quy chế + mức cảnh báo học vụ (`creditCapOf`) | Bị cảnh báo thì dùng `maxWhenWarned` |
+| Sĩ số tối thiểu | `ClassSection.minEnrollment` | Lớp dưới mức được đề xuất hủy, sinh viên nhận gợi ý lớp thay thế |
+
+Giờ tiết học ở `shared/constants/period.constant.ts`: 12 tiết, mỗi tiết 50 phút, bắt đầu 06:30, giải lao sau tiết 3 và 9, nghỉ trưa 11:40 đến 12:30, kết thúc 17:40.

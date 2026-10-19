@@ -1,37 +1,61 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { and, asc, desc, eq, gt, isNull, lte, sql } from "drizzle-orm";
+import { z } from "zod";
+import { and, asc, desc, eq, gt, inArray, isNull, lte, notInArray, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
-import { db } from "@/shared/libs/db.lib";
+import { db, type Transaction } from "@/shared/libs/db.lib";
 import { actionError, actionFailure, actionOk, parseInput, type ActionResult } from "@/shared/libs/action.lib";
 import { isUuid } from "@/shared/libs/id.lib";
 import {
+  ADMIN_REGISTER_SCHEMA,
   basketProblems,
+  CLASS_SECTION_SCHEMA,
+  HOLD_SCHEMA,
+  PERIOD_SCHEMA,
   creditCapOf,
   evaluateSection,
   REGISTER_SCHEMA,
   sectionCredits,
+  type AdminRegisterInput,
+  type ClassSectionInput,
   type EligibilityContext,
+  type HoldInput,
+  type PeriodInput,
   type RegisterInput,
 } from "@/modules/course-registration/course-registration.rule";
-import { REGISTRATION_CONSTRAINT_MESSAGE } from "@/modules/course-registration/course-registration.constant";
-import { getClassSections, getCurrentTerm, getRegistrationTargetTerm } from "@/modules/course-registration/course-registration.query";
+import { allMeetings, overlaps, REGISTRATION_CONSTRAINT_MESSAGE } from "@/modules/course-registration/course-registration.constant";
 import {
+  getClassSection,
+  getClassSections,
+  getCurrentTerm,
+  getRegistrationHolds,
+  getRegistrationPeriods,
+  getRegistrationTargetTerm,
+  readClassSectionAfterWrite,
+} from "@/modules/course-registration/course-registration.query";
+import {
+  classSectionAudienceMajors,
   classSections,
   enrollments,
+  labGroups,
   registrationEvents,
   registrationHolds,
   registrationPeriods,
   reservedSeatMajors,
   reservedSeats,
+  sectionMeetings,
+  terms,
   waitlistEntries,
 } from "@/modules/course-registration/course-registration.schema";
-import { courseRelations, courses, majors } from "@/modules/curriculum/curriculum.schema";
+import { rooms } from "@/modules/facilities/facilities.schema";
+import { inScope } from "@/modules/access/access.constant";
+import { requirePermission } from "@/modules/access/access.query";
+import { courseRelations, courses, faculties, majors } from "@/modules/curriculum/curriculum.schema";
 import { academicWarnings, courseResults } from "@/modules/grades/grades.schema";
 import { regulations } from "@/modules/settings/settings.schema";
-import { getCurrentStudent } from "@/modules/users/users.query";
-import type { ClassSectionView } from "@/modules/course-registration/course-registration.type";
+import { getCurrentStudent, getStudent } from "@/modules/users/users.query";
+import type { ClassSectionView, RegistrationHold, RegistrationPeriodView } from "@/modules/course-registration/course-registration.type";
 import type { Student } from "@/modules/users/users.type";
 
 const LETTER_RANK = ["A", "B+", "B", "C+", "C", "D+", "D", "F"];
@@ -264,5 +288,433 @@ export async function leaveWaitlist(sectionId: string): Promise<ActionResult> {
     return actionFailure(error, REGISTRATION_CONSTRAINT_MESSAGE);
   }
   revalidatePath("/application/registration");
+  return actionOk();
+}
+
+class InputError extends Error {
+  constructor(
+    readonly field: string,
+    message: string,
+  ) {
+    super(message);
+  }
+}
+
+function adminFailure(error: unknown) {
+  if (error instanceof InputError) return actionError(error.message, { [error.field]: error.message });
+  return actionFailure(error, REGISTRATION_CONSTRAINT_MESSAGE);
+}
+
+// Tra id theo mã (phòng, ngành); mã không có trong danh mục thì báo lỗi vào ô tương ứng.
+function idsByCode(rows: { id: string; code: string }[], wanted: string[], field: string, label: string) {
+  const map = new Map(rows.map((row) => [row.code, row.id]));
+  const missing = wanted.filter((code) => !map.has(code));
+  if (missing.length > 0) throw new InputError(field, `${label} ${missing.join(", ")} không có trong danh mục`);
+  return map;
+}
+
+// Lớp bị hủy: trả chỗ cho mọi sinh viên đang học và ghi lại để sinh viên biết vì sao mất lớp.
+async function dropAllForCancelledSection(tx: Transaction, sectionId: string, actorLabel: string) {
+  const dropped = await tx
+    .update(enrollments)
+    .set({ status: "dropped", droppedAt: new Date() })
+    .where(and(eq(enrollments.classSectionId, sectionId), eq(enrollments.status, "enrolled")))
+    .returning({ studentId: enrollments.studentId });
+  if (dropped.length > 0) {
+    await tx
+      .insert(registrationEvents)
+      .values(dropped.map((row) => ({ studentId: row.studentId, classSectionId: sectionId, kind: "section-cancelled" as const, actorLabel, channel: "Phòng Đào tạo" })));
+  }
+  return dropped.length;
+}
+
+export async function saveClassSection(termId: string, id: string | null, input: ClassSectionInput): Promise<ActionResult<ClassSectionView>> {
+  const viewer = await requirePermission("class-sections.manage");
+  if (!isUuid(termId) || (id !== null && !isUuid(id))) return actionError("Lớp học phần không còn tồn tại, tải lại trang.");
+  const parsed = parseInput(CLASS_SECTION_SCHEMA, input);
+  if (!parsed.ok) return parsed;
+  const values = parsed.data;
+  let sectionId: string;
+  try {
+    sectionId = await db.transaction(async (tx) => {
+      const [term] = await tx.select({ startDate: terms.startDate, endDate: terms.endDate }).from(terms).where(eq(terms.id, termId));
+      if (!term) throw new InputError("courseCode", "Học kỳ không còn tồn tại, tải lại trang.");
+      const [course] = await tx
+        .select({ id: courses.id, faculty: faculties.name })
+        .from(courses)
+        .innerJoin(faculties, eq(faculties.id, courses.facultyId))
+        .where(eq(courses.code, values.courseCode));
+      if (!course) throw new InputError("courseCode", "Học phần không có trong danh mục");
+      if (!inScope(viewer, course.faculty)) throw new InputError("courseCode", "Học phần thuộc khoa khác, bạn không mở lớp được");
+      const roomCodes = [...new Set([...values.meetings.map((meeting) => meeting.room), ...values.labGroups.map((group) => group.room)])];
+      const majorCodes = [...new Set([...values.audienceMajors, ...values.reservedSeats.flatMap((seat) => seat.majorCodes)])];
+      const [roomRows, majorRows] = await Promise.all([
+        tx.select({ id: rooms.id, code: rooms.code }).from(rooms).where(inArray(rooms.code, roomCodes)),
+        majorCodes.length > 0 ? tx.select({ id: majors.id, code: majors.code }).from(majors).where(inArray(majors.code, majorCodes)) : [],
+      ]);
+      const roomIds = idsByCode(roomRows, roomCodes, "meetings", "Phòng");
+      const majorIds = idsByCode(majorRows, majorCodes, "audienceMajors", "Ngành");
+      const code = `${values.courseCode}.${String(values.sectionNumber).padStart(2, "0")}`;
+      const columns = {
+        lecturerId: values.lecturerId ?? null,
+        capacity: values.capacity,
+        minEnrollment: values.minEnrollment,
+        status: values.status,
+        audienceCohorts: values.audienceCohorts.length > 0 ? values.audienceCohorts : null,
+        audienceNote: values.audienceNote || null,
+      };
+
+      let rowId: string;
+      if (id) {
+        const [existing] = await tx
+          .select({ status: classSections.status, enrolled: classSections.enrolledCount, courseId: classSections.courseId })
+          .from(classSections)
+          .where(and(eq(classSections.id, id), eq(classSections.termId, termId)))
+          .for("update");
+        if (!existing) throw new InputError("courseCode", "Lớp học phần không còn tồn tại, tải lại trang.");
+        if (existing.courseId !== course.id) throw new InputError("courseCode", "Không đổi được học phần của lớp đã mở");
+        if (values.status !== "cancelled" && values.capacity < existing.enrolled) {
+          throw new InputError("capacity", `Lớp đang có ${existing.enrolled} sinh viên, sĩ số tối đa không nhỏ hơn số này`);
+        }
+        if (values.status === "cancelled" && existing.status !== "cancelled") await dropAllForCancelledSection(tx, id, viewer.name);
+        await tx.update(classSections).set(columns).where(eq(classSections.id, id));
+        rowId = id;
+      } else {
+        const [row] = await tx
+          .insert(classSections)
+          .values({ ...columns, termId, courseId: course.id, sectionNumber: values.sectionNumber, code, startDate: term.startDate, endDate: term.endDate })
+          .returning({ id: classSections.id });
+        rowId = row.id;
+      }
+
+      await tx.delete(sectionMeetings).where(eq(sectionMeetings.classSectionId, rowId));
+      await tx.insert(sectionMeetings).values(values.meetings.map((meeting) => ({ classSectionId: rowId, dayOfWeek: meeting.dayOfWeek, startPeriod: meeting.startPeriod, endPeriod: meeting.endPeriod, roomId: roomIds.get(meeting.room)! })));
+
+      await tx.delete(classSectionAudienceMajors).where(eq(classSectionAudienceMajors.classSectionId, rowId));
+      if (values.audienceMajors.length > 0) {
+        await tx.insert(classSectionAudienceMajors).values(values.audienceMajors.map((majorCode) => ({ classSectionId: rowId, majorId: majorIds.get(majorCode)! })));
+      }
+
+      // Nhóm thực hành và chỗ dành riêng giữ theo mã/tên để không mất sinh viên đã xếp; bỏ nhóm đang có người thì DB chặn.
+      const labCodes = values.labGroups.map((group) => `${code}.${group.code}`);
+      await tx
+        .delete(labGroups)
+        .where(and(eq(labGroups.classSectionId, rowId), labCodes.length > 0 ? notInArray(labGroups.code, labCodes) : undefined));
+      for (const group of values.labGroups) {
+        const labValues = { dayOfWeek: group.dayOfWeek, startPeriod: group.startPeriod, endPeriod: group.endPeriod, roomId: roomIds.get(group.room)!, capacity: group.capacity };
+        await tx
+          .insert(labGroups)
+          .values({ ...labValues, classSectionId: rowId, code: `${code}.${group.code}` })
+          .onConflictDoUpdate({ target: [labGroups.classSectionId, labGroups.code], set: labValues });
+      }
+      const seatLabels = values.reservedSeats.map((seat) => seat.label);
+      await tx
+        .delete(reservedSeats)
+        .where(and(eq(reservedSeats.classSectionId, rowId), seatLabels.length > 0 ? notInArray(reservedSeats.label, seatLabels) : undefined));
+      for (const seat of values.reservedSeats) {
+        const [existingSeat] = await tx
+          .select({ id: reservedSeats.id })
+          .from(reservedSeats)
+          .where(and(eq(reservedSeats.classSectionId, rowId), eq(reservedSeats.label, seat.label)));
+        const seatId = existingSeat
+          ? (await tx.update(reservedSeats).set({ seats: seat.seats, cohorts: seat.cohorts }).where(eq(reservedSeats.id, existingSeat.id)).returning({ id: reservedSeats.id }))[0].id
+          : (await tx.insert(reservedSeats).values({ classSectionId: rowId, label: seat.label, seats: seat.seats, cohorts: seat.cohorts }).returning({ id: reservedSeats.id }))[0].id;
+        await tx.delete(reservedSeatMajors).where(eq(reservedSeatMajors.reservedSeatId, seatId));
+        if (seat.majorCodes.length > 0) await tx.insert(reservedSeatMajors).values(seat.majorCodes.map((majorCode) => ({ reservedSeatId: seatId, majorId: majorIds.get(majorCode)! })));
+      }
+      return rowId;
+    });
+  } catch (error) {
+    return adminFailure(error);
+  }
+  revalidatePath("/administrator/class-sections");
+  const section = await readClassSectionAfterWrite(sectionId);
+  return section ? actionOk(section) : actionError("Đã lưu nhưng chưa đọc lại được, tải lại trang.");
+}
+
+const sectionIdsSchema = z.array(z.uuid()).min(1, "Chọn ít nhất một lớp").max(100);
+
+export async function assignLecturer(sectionId: string, lecturerId: string | null): Promise<ActionResult<ClassSectionView>> {
+  const viewer = await requirePermission("teaching.assign");
+  if (!isUuid(sectionId) || (lecturerId !== null && !isUuid(lecturerId))) return actionError("Lớp hoặc giảng viên không còn tồn tại, tải lại trang.");
+  const section = await getClassSection(sectionId);
+  if (!section || !inScope(viewer, section.faculty)) return actionError("Lớp học phần không còn tồn tại hoặc thuộc khoa khác.");
+  if (lecturerId) {
+    // Trùng giờ dạy kiểm với lịch mới nhất của cả học kỳ, không tin danh sách ở trình duyệt.
+    const clash = (await getClassSections(section.termId)).find(
+      (other) =>
+        other.id !== section.id &&
+        other.lecturerId === lecturerId &&
+        other.status !== "cancelled" &&
+        allMeetings(other).some((theirs) => allMeetings(section).some((mine) => overlaps(mine, theirs))),
+    );
+    if (clash) return actionError(`Giảng viên đã dạy ${clash.code} cùng giờ với ${section.code}. Chọn giảng viên khác hoặc đổi lịch lớp trước.`);
+  }
+  try {
+    await db.update(classSections).set({ lecturerId }).where(eq(classSections.id, sectionId));
+  } catch (error) {
+    return adminFailure(error);
+  }
+  revalidatePath("/administrator", "layout");
+  const updated = await readClassSectionAfterWrite(sectionId);
+  return updated ? actionOk(updated) : actionError("Đã lưu nhưng chưa đọc lại được, tải lại trang.");
+}
+
+// Mở thêm lớp nháp cho học phần đang đầy: cùng lịch và sĩ số với lớp gốc, chưa có giảng viên, số thứ tự kế tiếp.
+export async function openExtraSections(sectionIds: string[]): Promise<ActionResult<ClassSectionView[]>> {
+  const viewer = await requirePermission("class-sections.manage");
+  const parsed = sectionIdsSchema.safeParse(sectionIds);
+  if (!parsed.success) return actionError("Chọn ít nhất một lớp.");
+  let createdIds: string[];
+  try {
+    createdIds = await db.transaction(async (tx) => {
+      const ids: string[] = [];
+      for (const sourceId of parsed.data) {
+        const source = await getClassSection(sourceId);
+        if (!source || !inScope(viewer, source.faculty)) throw new InputError("sectionIds", "Có lớp không còn tồn tại hoặc thuộc khoa khác.");
+        const [origin] = await tx.select().from(classSections).where(eq(classSections.id, sourceId));
+        const [{ next }] = await tx
+          .select({ next: sql<number>`coalesce(max(${classSections.sectionNumber}), 0) + 1` })
+          .from(classSections)
+          .where(and(eq(classSections.termId, origin.termId), eq(classSections.courseId, origin.courseId)));
+        const [created] = await tx
+          .insert(classSections)
+          .values({
+            termId: origin.termId,
+            courseId: origin.courseId,
+            sectionNumber: next,
+            code: `${source.courseCode}.${String(next).padStart(2, "0")}`,
+            capacity: origin.capacity,
+            minEnrollment: origin.minEnrollment,
+            status: "draft",
+            startDate: origin.startDate,
+            endDate: origin.endDate,
+            audienceCohorts: origin.audienceCohorts,
+            audienceNote: origin.audienceNote,
+          })
+          .returning({ id: classSections.id });
+        const meetings = await tx.select().from(sectionMeetings).where(eq(sectionMeetings.classSectionId, sourceId));
+        await tx.insert(sectionMeetings).values(meetings.map(({ id: _id, classSectionId: _sectionId, ...meeting }) => ({ ...meeting, classSectionId: created.id })));
+        ids.push(created.id);
+      }
+      return ids;
+    });
+  } catch (error) {
+    return adminFailure(error);
+  }
+  revalidatePath("/administrator", "layout");
+  const sections = await Promise.all(createdIds.map((id) => readClassSectionAfterWrite(id)));
+  return actionOk(sections.filter((section) => section !== null));
+}
+
+export async function cancelSections(sectionIds: string[]): Promise<ActionResult<{ dropped: number }>> {
+  const viewer = await requirePermission("class-sections.manage");
+  const parsed = sectionIdsSchema.safeParse(sectionIds);
+  if (!parsed.success) return actionError("Chọn ít nhất một lớp.");
+  try {
+    const dropped = await db.transaction(async (tx) => {
+      let total = 0;
+      for (const id of parsed.data.toSorted()) {
+        const section = await getClassSection(id);
+        if (!section || !inScope(viewer, section.faculty)) throw new InputError("sectionIds", "Có lớp không còn tồn tại hoặc thuộc khoa khác.");
+        if (section.status === "cancelled") continue;
+        total += await dropAllForCancelledSection(tx, id, viewer.name);
+        await tx.update(classSections).set({ status: "cancelled" }).where(eq(classSections.id, id));
+      }
+      return total;
+    });
+    revalidatePath("/administrator", "layout");
+    return actionOk({ dropped });
+  } catch (error) {
+    return adminFailure(error);
+  }
+}
+
+// Chuyển sinh viên của lớp vừa hủy sang lớp khác cùng học phần, đến khi lớp đích hết chỗ. Sinh viên đã tự đăng ký lớp khác thì bỏ qua.
+export async function moveCancelledStudents(fromId: string, toId: string): Promise<ActionResult<{ moved: number; remaining: number }>> {
+  const viewer = await requirePermission("class-sections.manage");
+  if (!isUuid(fromId) || !isUuid(toId)) return actionError("Lớp không còn tồn tại, tải lại trang.");
+  const [from, to] = await Promise.all([getClassSection(fromId), getClassSection(toId)]);
+  if (!from || !to || !inScope(viewer, to.faculty)) return actionError("Lớp không còn tồn tại hoặc thuộc khoa khác.");
+  if (from.status !== "cancelled" || to.status !== "open" || from.courseCode !== to.courseCode || from.termId !== to.termId) {
+    return actionError("Chỉ chuyển từ lớp đã hủy sang lớp đang mở của cùng học phần trong học kỳ.");
+  }
+  try {
+    const result = await db.transaction(async (tx) => {
+      const [target] = await tx.select().from(classSections).where(eq(classSections.id, toId)).for("update");
+      const candidates = await tx
+        .selectDistinct({ studentId: registrationEvents.studentId })
+        .from(registrationEvents)
+        .where(
+          and(
+            eq(registrationEvents.classSectionId, fromId),
+            eq(registrationEvents.kind, "section-cancelled"),
+            sql`NOT EXISTS (SELECT 1 FROM ${enrollments} e WHERE e.student_id = ${registrationEvents.studentId} AND e.term_id = ${target.termId} AND e.course_id = ${target.courseId} AND e.status = 'enrolled')`,
+          ),
+        );
+      const labs = await tx.select().from(labGroups).where(eq(labGroups.classSectionId, toId)).orderBy(asc(labGroups.code));
+      let free = target.capacity - target.enrolledCount;
+      let moved = 0;
+      for (const { studentId } of candidates) {
+        if (free <= 0) break;
+        const lab = labs.toSorted((a, b) => a.enrolledCount - b.enrolledCount).find((group) => group.enrolledCount < group.capacity);
+        if (labs.length > 0 && !lab) break;
+        await tx.insert(enrollments).values({ studentId, classSectionId: toId, termId: target.termId, courseId: target.courseId, labGroupId: lab?.id ?? null });
+        if (lab) lab.enrolledCount += 1;
+        await tx.insert(registrationEvents).values({ studentId, classSectionId: toId, kind: "admin-add", actorLabel: viewer.name, channel: "Phòng Đào tạo", note: `Chuyển từ lớp đã hủy ${from.code}` });
+        free -= 1;
+        moved += 1;
+      }
+      return { moved, remaining: candidates.length - moved };
+    });
+    revalidatePath("/administrator", "layout");
+    return actionOk(result);
+  } catch (error) {
+    return adminFailure(error);
+  }
+}
+
+export async function savePeriod(termId: string, id: string | null, input: PeriodInput): Promise<ActionResult<RegistrationPeriodView>> {
+  await requirePermission("registration.manage");
+  if (!isUuid(termId) || (id !== null && !isUuid(id))) return actionError("Đợt đăng ký không còn tồn tại, tải lại trang.");
+  const parsed = parseInput(PERIOD_SCHEMA, input);
+  if (!parsed.ok) return parsed;
+  const values = { ...parsed.data, opensAt: new Date(parsed.data.opensAt), closesAt: new Date(parsed.data.closesAt) };
+  let periodId: string;
+  try {
+    const [row] = id
+      ? await db
+          .update(registrationPeriods)
+          .set(values)
+          .where(and(eq(registrationPeriods.id, id), eq(registrationPeriods.termId, termId)))
+          .returning({ id: registrationPeriods.id })
+      : await db
+          .insert(registrationPeriods)
+          .values({ ...values, termId })
+          .returning({ id: registrationPeriods.id });
+    if (!row) return actionError("Đợt đăng ký không còn tồn tại, tải lại trang.");
+    periodId = row.id;
+  } catch (error) {
+    return adminFailure(error);
+  }
+  revalidatePath("/administrator", "layout");
+  revalidatePath("/application/registration");
+  const period = (await getRegistrationPeriods(termId)).find((entry) => entry.id === periodId);
+  return period ? actionOk(period) : actionError("Đã lưu nhưng chưa đọc lại được, tải lại trang.");
+}
+
+// Đóng sớm đợt đang mở: dời giờ đóng về hiện tại. Đợt đã đóng thì không mở lại được ở đây.
+export async function closePeriod(id: string): Promise<ActionResult<RegistrationPeriodView>> {
+  await requirePermission("registration.manage");
+  if (!isUuid(id)) return actionError("Đợt đăng ký không còn tồn tại, tải lại trang.");
+  const now = new Date();
+  const [row] = await db
+    .update(registrationPeriods)
+    .set({ closesAt: now })
+    .where(and(eq(registrationPeriods.id, id), lte(registrationPeriods.opensAt, now), gt(registrationPeriods.closesAt, now)))
+    .returning({ termId: registrationPeriods.termId });
+  if (!row) return actionError("Đợt không đang mở, không đóng được.");
+  revalidatePath("/administrator", "layout");
+  revalidatePath("/application/registration");
+  const period = (await getRegistrationPeriods(row.termId)).find((entry) => entry.id === id);
+  return period ? actionOk(period) : actionError("Đã đóng nhưng chưa đọc lại được, tải lại trang.");
+}
+
+export async function createHold(input: HoldInput): Promise<ActionResult<RegistrationHold>> {
+  const viewer = await requirePermission("registration.manage");
+  const parsed = parseInput(HOLD_SCHEMA, input);
+  if (!parsed.ok) return parsed;
+  let holdId: string;
+  try {
+    const [row] = await db
+      .insert(registrationHolds)
+      .values({ ...parsed.data, createdByUserId: viewer.id, createdByLabel: viewer.name })
+      .returning({ id: registrationHolds.id });
+    holdId = row.id;
+  } catch (error) {
+    return adminFailure(error);
+  }
+  revalidatePath("/administrator/registration-holds");
+  const hold = (await getRegistrationHolds(parsed.data.studentId)).find((entry) => entry.id === holdId);
+  return hold ? actionOk(hold) : actionError("Đã lưu nhưng chưa đọc lại được, tải lại trang.");
+}
+
+export async function releaseHold(id: string, note: string): Promise<ActionResult<RegistrationHold>> {
+  const viewer = await requirePermission("registration.manage");
+  if (!isUuid(id)) return actionError("Khóa đăng ký không còn tồn tại, tải lại trang.");
+  const basis = note.trim();
+  if (!basis) return actionError("Ghi căn cứ gỡ khóa, ví dụ số biên lai học phí hoặc tên giấy tờ đã nhận", { note: "Chưa ghi căn cứ" });
+  const [row] = await db
+    .update(registrationHolds)
+    .set({ releasedAt: new Date(), releasedByUserId: viewer.id, releasedByLabel: `${viewer.name}: ${basis.slice(0, 300)}` })
+    .where(and(eq(registrationHolds.id, id), isNull(registrationHolds.releasedAt)))
+    .returning({ studentId: registrationHolds.studentId });
+  if (!row) return actionError("Khóa này đã được gỡ trước đó.");
+  revalidatePath("/administrator/registration-holds");
+  const hold = (await getRegistrationHolds(row.studentId)).find((entry) => entry.id === id);
+  return hold ? actionOk(hold) : actionError("Đã gỡ nhưng chưa đọc lại được, tải lại trang.");
+}
+
+// Phòng Đào tạo đăng ký hộ: vẫn kiểm điều kiện như sinh viên, được bỏ qua điều kiện học vụ khi ghi lý do,
+// nhưng sĩ số và nhóm thực hành thì DB luôn chặn.
+export async function adminRegister(input: AdminRegisterInput): Promise<ActionResult<ClassSectionView>> {
+  const viewer = await requirePermission("registration.manage");
+  const parsed = parseInput(ADMIN_REGISTER_SCHEMA, input);
+  if (!parsed.ok) return parsed;
+  const { studentId, sectionId, labGroupId, reason, override } = parsed.data;
+  const [student, section] = await Promise.all([getStudent(studentId), getClassSection(sectionId)]);
+  if (!student || !section || section.status !== "open") return actionError("Sinh viên hoặc lớp không còn hợp lệ, tải lại trang.");
+  if (!inScope(viewer, student.faculty)) return actionError("Sinh viên thuộc khoa khác, bạn không đăng ký hộ được.");
+  const sections = await getClassSections(section.termId);
+  const enrolled = await db
+    .select({ sectionId: enrollments.classSectionId })
+    .from(enrollments)
+    .where(and(eq(enrollments.studentId, studentId), eq(enrollments.termId, section.termId), eq(enrollments.status, "enrolled")));
+  const registered = sections.filter((entry) => enrolled.some((row) => row.sectionId === entry.id));
+  const labChoices = labGroupId ? { [sectionId]: labGroupId } : {};
+  const { context } = await eligibilityOf({ student, termId: section.termId, sections, registered }, [], labChoices);
+  const issues = evaluateSection(section, context).filter((issue) => issue.blocking && issue.kind !== "lab" && issue.kind !== "full" && issue.kind !== "reserved");
+  if (issues.length > 0 && !override) return actionError(issues[0].message);
+  if (section.labGroups.length > 0 && !section.labGroups.some((group) => group.id === labGroupId)) return actionError(`Chọn nhóm thực hành cho ${section.code}.`, { labGroupId: "Chưa chọn nhóm" });
+  try {
+    await db.transaction(async (tx) => {
+      const seat = await claimSeat(tx, sectionId, student);
+      if (typeof seat === "string") throw new InputError("sectionId", seat);
+      const [course] = await tx.select({ id: courses.id }).from(courses).where(eq(courses.code, section.courseCode));
+      await tx.insert(enrollments).values({ studentId, classSectionId: sectionId, termId: section.termId, courseId: course.id, labGroupId: labGroupId ?? null, reservedSeatId: seat.reservedSeatId });
+      const skipped = override && issues.length > 0 ? `. Bỏ qua kiểm tra: ${issues.map((issue) => issue.message).join(" ")}` : "";
+      await tx.insert(registrationEvents).values({ studentId, classSectionId: sectionId, kind: "admin-add", actorUserId: viewer.id, actorLabel: viewer.name, channel: "Phòng Đào tạo", note: `${reason}${skipped}`.slice(0, 1000) });
+    });
+  } catch (error) {
+    return adminFailure(error);
+  }
+  revalidatePath("/administrator/users/students", "layout");
+  const updated = await readClassSectionAfterWrite(sectionId);
+  return updated ? actionOk(updated) : actionError("Đã đăng ký nhưng chưa đọc lại được, tải lại trang.");
+}
+
+export async function adminDrop(studentId: string, sectionId: string, reason: string): Promise<ActionResult> {
+  const viewer = await requirePermission("registration.manage");
+  if (!isUuid(studentId) || !isUuid(sectionId)) return actionError("Sinh viên hoặc lớp không còn hợp lệ, tải lại trang.");
+  const note = reason.trim();
+  if (!note) return actionError("Ghi lý do hủy hộ để sinh viên và cố vấn biết", { reason: "Chưa ghi lý do" });
+  const student = await getStudent(studentId);
+  if (!student || !inScope(viewer, student.faculty)) return actionError("Sinh viên không còn hợp lệ hoặc thuộc khoa khác.");
+  try {
+    const dropped = await db.transaction(async (tx) => {
+      const rows = await tx
+        .update(enrollments)
+        .set({ status: "dropped", droppedAt: new Date() })
+        .where(and(eq(enrollments.studentId, studentId), eq(enrollments.classSectionId, sectionId), eq(enrollments.status, "enrolled")))
+        .returning({ id: enrollments.id });
+      if (rows.length === 0) return false;
+      await tx.insert(registrationEvents).values({ studentId, classSectionId: sectionId, kind: "admin-drop", actorUserId: viewer.id, actorLabel: viewer.name, channel: "Phòng Đào tạo", note: note.slice(0, 1000) });
+      return true;
+    });
+    if (!dropped) return actionError("Sinh viên không còn trong lớp này.");
+  } catch (error) {
+    return adminFailure(error);
+  }
+  revalidatePath("/administrator/users/students", "layout");
   return actionOk();
 }

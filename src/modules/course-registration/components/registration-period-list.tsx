@@ -7,10 +7,11 @@ import { EmptyState } from "@/shared/components/ui/empty-state";
 import { SectionCard } from "@/shared/components/ui/section-card";
 import { MeterBar } from "@/shared/components/ui/meter-bar";
 import { StatusTag } from "@/shared/components/ui/status-tag";
-import { dayjs, formatDateTime, hoursUntil } from "@/shared/libs/date.lib";
-import { periodState, REGISTRATION_PERIOD_STATE } from "@/modules/course-registration/course-registration.constant";
+import { formatDateTime, hoursUntil } from "@/shared/libs/date.lib";
+import { REGISTRATION_PERIOD_STATE } from "@/modules/course-registration/course-registration.constant";
 import type { RegistrationPeriodView, Term } from "@/modules/course-registration/course-registration.type";
 import { RegistrationPeriodFormModal, type PeriodFormResult } from "@/modules/course-registration/components/registration-period-form-modal";
+import { closePeriod, savePeriod } from "@/modules/course-registration/course-registration.action";
 
 type RegistrationPeriodListProps = {
   terms: Term[];
@@ -36,6 +37,8 @@ function termOrder(term: Term) {
   return 2;
 }
 
+const NETWORK_ERROR = "Chưa thực hiện được, kiểm tra kết nối rồi thử lại.";
+
 export function RegistrationPeriodList({ terms, periods }: RegistrationPeriodListProps) {
   const [messageApi, messageHolder] = message.useMessage();
   const [modal, modalHolder] = Modal.useModal();
@@ -54,33 +57,34 @@ export function RegistrationPeriodList({ terms, periods }: RegistrationPeriodLis
       cancelText: "Hủy",
       okButtonProps: { danger: true },
       mask: { closable: false },
-      onOk: () => {
-        setRows((current) =>
-          current.map((row) => (row.id === period.id ? periodState({ ...row, closesAt: dayjs().subtract(1, "second").toISOString() }) : row)),
-        );
+      onOk: async () => {
+        const result = await closePeriod(period.id).catch(() => null);
+        if (!result?.ok) {
+          messageApi.error(result?.message ?? NETWORK_ERROR);
+          return;
+        }
+        setRows((current) => current.map((row) => (row.id === period.id ? result.data : row)));
         messageApi.success(`Đã đóng ${period.name}`);
       },
     });
   };
 
-  const submit = (values: PeriodFormResult) => {
-    if (!editing) return;
-    if (editing.period) {
-      const id = editing.period.id;
-      setRows((current) => current.map((row) => (row.id === id ? periodState({ ...row, ...values }) : row)));
-      messageApi.success(`Đã lưu ${values.name}`);
-    } else {
-      const created = periodState({
-        ...values,
-        id: `dot-moi-${Date.now()}`,
-        termId: editing.termId,
-        eligibleStudents: 0,
-        registeredStudents: 0,
-      });
-      setRows((current) => [...current, created]);
-      messageApi.success(`Đã tạo ${values.name}. Sinh viên thấy đợt này khi đến giờ mở.`);
+  const submit = async (values: PeriodFormResult) => {
+    if (!editing) return undefined;
+    const result = await savePeriod(editing.termId, editing.period?.id ?? null, values).catch(() => null);
+    if (!result) {
+      messageApi.error(NETWORK_ERROR);
+      return undefined;
     }
+    if (!result.ok) {
+      messageApi.error(result.message);
+      return result.fieldErrors;
+    }
+    const saved = result.data;
+    setRows((current) => (editing.period ? current.map((row) => (row.id === saved.id ? saved : row)) : [...current, saved]));
+    messageApi.success(editing.period ? `Đã lưu ${saved.name}` : `Đã tạo ${saved.name}. Sinh viên thấy đợt này khi đến giờ mở.`);
     setEditing(null);
+    return undefined;
   };
 
   const columns: TableColumnsType<RegistrationPeriodView> = [

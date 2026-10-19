@@ -1,12 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import { Button, Card, message, Modal, Segmented, Table, type TableColumnsType } from "antd";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { MeterBar } from "@/shared/components/ui/meter-bar";
 import { StatusTag } from "@/shared/components/ui/status-tag";
 import { CLASS_SECTION_STATUS, meetingText } from "@/modules/course-registration/course-registration.constant";
 import type { ClassSectionView } from "@/modules/course-registration/course-registration.type";
+import { cancelSections, moveCancelledStudents, openExtraSections } from "@/modules/course-registration/course-registration.action";
 
 export const MIN_CLASS_SIZE = 15;
 const NEAR_FULL_RATIO = 0.9;
@@ -27,6 +28,8 @@ function bucketOf(section: ClassSectionView): Bucket | null {
   return null;
 }
 
+const NETWORK_ERROR = "Chưa thực hiện được, kiểm tra kết nối rồi thử lại.";
+
 export function RegistrationMonitorSections({ sections }: { sections: ClassSectionView[] }) {
   const [messageApi, contextHolder] = message.useMessage();
   const [modal, modalContextHolder] = Modal.useModal();
@@ -34,6 +37,7 @@ export function RegistrationMonitorSections({ sections }: { sections: ClassSecti
   const [bucket, setBucket] = useState<Bucket>("full");
   const [selected, setSelected] = useState<string[]>([]);
   const [outcomes, setOutcomes] = useState<CancelOutcome[]>([]);
+  const [isWorking, startWorking] = useTransition();
   const counts = { full: 0, near: 0, under: 0 };
   for (const section of rows) {
     const value = bucketOf(section);
@@ -42,16 +46,18 @@ export function RegistrationMonitorSections({ sections }: { sections: ClassSecti
   const visible = rows.filter((section) => bucketOf(section) === bucket);
   const chosen = rows.filter((section) => selected.includes(section.id));
 
-  const openExtra = () => {
-    const created = chosen.map((section) => {
-      const siblings = rows.filter((entry) => entry.courseCode === section.courseCode).length;
-      const code = `${section.courseCode}.${String(siblings + 1).padStart(2, "0")}`;
-      return { ...section, id: `${section.id}-moi`, code, enrolled: 0, lecturerId: null, lecturerName: null, status: "draft" as const, conflicts: [], isFull: false };
+  const openExtra = () =>
+    startWorking(async () => {
+      const result = await openExtraSections(selected).catch(() => null);
+      if (!result?.ok) {
+        messageApi.error(result?.message ?? NETWORK_ERROR);
+        return;
+      }
+      const created = result.data;
+      setRows((current) => [...current, ...created]);
+      setSelected([]);
+      messageApi.success(`Đã tạo ${created.length} lớp nháp (${created.map((section) => section.code).join(", ")}). Phân công giảng viên và xếp phòng ở mục Lớp học phần rồi mở đăng ký.`);
     });
-    setRows((current) => [...current, ...created]);
-    setSelected([]);
-    messageApi.success(`Đã tạo ${created.length} lớp nháp (${created.map((section) => section.code).join(", ")}). Phân công giảng viên và xếp phòng ở mục Lớp học phần rồi mở đăng ký.`);
-  };
 
   const cancel = () =>
     modal.confirm({
@@ -61,7 +67,12 @@ export function RegistrationMonitorSections({ sections }: { sections: ClassSecti
       okButtonProps: { danger: true },
       cancelText: "Giữ lớp",
       mask: { closable: false },
-      onOk: () => {
+      onOk: async () => {
+        const result = await cancelSections(selected).catch(() => null);
+        if (!result?.ok) {
+          messageApi.error(result?.message ?? NETWORK_ERROR);
+          return;
+        }
         setRows((current) => current.map((section) => (selected.includes(section.id) ? { ...section, status: "cancelled" } : section)));
         setOutcomes(
           chosen.map((section) => ({
@@ -73,30 +84,31 @@ export function RegistrationMonitorSections({ sections }: { sections: ClassSecti
             ),
           })),
         );
-        messageApi.success(`Đã hủy ${chosen.length} lớp và gửi thông báo cho ${chosen.reduce((sum, section) => sum + section.enrolled, 0)} sinh viên`);
+        messageApi.success(`Đã hủy ${chosen.length} lớp, rút ${result.data.dropped} sinh viên khỏi lớp`);
         setSelected([]);
       },
     });
 
-  const moveAll = (outcome: CancelOutcome, target: ClassSectionView) => {
-    const free = target.capacity - target.enrolled;
-    const moved = Math.min(free, outcome.section.enrolled);
-    setRows((current) =>
-      current.map((section) =>
-        section.id === target.id
-          ? { ...section, enrolled: section.enrolled + moved, isFull: section.enrolled + moved >= section.capacity }
-          : section.id === outcome.section.id
-            ? { ...section, enrolled: outcome.section.enrolled - moved }
-            : section,
-      ),
-    );
-    setOutcomes((current) => current.map((entry) => (entry.section.id === outcome.section.id ? { ...entry, movedTo: target.code } : entry)));
-    messageApi.success(
-      moved < outcome.section.enrolled
-        ? `Đã chuyển ${moved} sinh viên sang ${target.code}; còn ${outcome.section.enrolled - moved} sinh viên chưa có chỗ, đã được nhắc chọn lớp khác`
-        : `Đã chuyển cả ${moved} sinh viên sang ${target.code} và gửi email xác nhận`,
-    );
-  };
+  const moveAll = (outcome: CancelOutcome, target: ClassSectionView) =>
+    startWorking(async () => {
+      const result = await moveCancelledStudents(outcome.section.id, target.id).catch(() => null);
+      if (!result?.ok) {
+        messageApi.error(result?.message ?? NETWORK_ERROR);
+        return;
+      }
+      const { moved, remaining } = result.data;
+      setRows((current) =>
+        current.map((section) =>
+          section.id === target.id ? { ...section, enrolled: section.enrolled + moved, isFull: section.enrolled + moved >= section.capacity } : section,
+        ),
+      );
+      setOutcomes((current) => current.map((entry) => (entry.section.id === outcome.section.id ? { ...entry, movedTo: target.code } : entry)));
+      messageApi.success(
+        remaining > 0
+          ? `Đã chuyển ${moved} sinh viên sang ${target.code}; còn ${remaining} sinh viên chưa có chỗ, cần chọn lớp khác`
+          : `Đã chuyển cả ${moved} sinh viên sang ${target.code}`,
+      );
+    });
 
   const columns: TableColumnsType<ClassSectionView> = [
     {
@@ -153,11 +165,11 @@ export function RegistrationMonitorSections({ sections }: { sections: ClassSecti
         />
         <div className="flex gap-2 sm:ml-auto">
           {bucket !== "under" ? (
-            <Button disabled={chosen.length === 0} onClick={openExtra}>
+            <Button loading={isWorking} disabled={chosen.length === 0} onClick={openExtra}>
               Mở thêm lớp {chosen.length > 0 ? `(${chosen.length})` : ""}
             </Button>
           ) : (
-            <Button danger disabled={chosen.length === 0} onClick={cancel}>
+            <Button danger disabled={chosen.length === 0 || isWorking} onClick={cancel}>
               Hủy lớp {chosen.length > 0 ? `(${chosen.length})` : ""}
             </Button>
           )}
@@ -203,7 +215,7 @@ export function RegistrationMonitorSections({ sections }: { sections: ClassSecti
                           {target.code} · {target.meetings.map(meetingText).join("; ")} ·{" "}
                           <span className="tabular-nums">còn {target.capacity - target.enrolled} chỗ</span>
                         </span>
-                        <Button size="small" onClick={() => moveAll(outcome, target)}>
+                        <Button size="small" loading={isWorking} onClick={() => moveAll(outcome, target)}>
                           Chuyển sinh viên sang lớp này
                         </Button>
                       </li>

@@ -1,8 +1,7 @@
 import { z } from "zod";
 import { periodLabel, weekdayLabel } from "@/shared/constants/period.constant";
-import { dayjs } from "@/shared/libs/date.lib";
 import { audienceText, overlaps } from "@/modules/course-registration/course-registration.constant";
-import type { ClassMeeting, ClassSectionView, RegistrationEvent, RegistrationHold, StudentEnrollment } from "@/modules/course-registration/course-registration.type";
+import type { ClassMeeting, ClassSectionView, RegistrationHold, StudentEnrollment } from "@/modules/course-registration/course-registration.type";
 
 export type RegistrationIssueKind =
   | "hold"
@@ -247,27 +246,10 @@ export function blockingHolds(holds: RegistrationHold[]) {
   return holds.filter((hold) => hold.blocking && !hold.releasedAt);
 }
 
-export function pickTimetable(
-  enrollments: StudentEnrollment[],
-  passedGrades: Record<string, string>,
-  options: { faculty?: string; prerequisites?: Record<string, string[]>; maxSections?: number } = {},
-) {
-  const { faculty, prerequisites = {}, maxSections = 5 } = options;
-  const chosen: StudentEnrollment[] = [];
-  const rank = (enrollment: StudentEnrollment) =>
-    (enrollment.section.faculty === faculty ? 0 : 2) + (passedGrades[enrollment.section.courseCode] ? 1 : 0);
-  const ordered = [...enrollments].toSorted((a, b) => rank(a) - rank(b) || a.section.code.localeCompare(b.section.code));
-  for (const enrollment of ordered) {
-    if (chosen.length >= maxSections) break;
-    const { section } = enrollment;
-    const grade = passedGrades[section.courseCode];
-    if (grade && grade !== "F" && !IMPROVABLE_GRADES.includes(grade)) continue;
-    if ((prerequisites[section.courseCode] ?? []).some((code) => !passedGrades[code] || passedGrades[code] === "F")) continue;
-    if (chosen.some((entry) => entry.section.courseCode === section.courseCode)) continue;
-    if (chosen.some((entry) => entry.section.meetings.some((theirs) => section.meetings.some((mine) => overlaps(mine, theirs))))) continue;
-    chosen.push(enrollment);
-  }
-  return chosen;
+// Thời khóa biểu của sinh viên là mọi lớp đang đăng ký (đã đọc từ bảng enrollments), xếp theo mã lớp.
+// Giữ chữ ký cũ để các trang đang gọi không phải sửa; hai tham số sau không còn dùng.
+export function pickTimetable(enrollments: StudentEnrollment[], _passedGrades?: Record<string, string>, _options?: unknown) {
+  return [...enrollments].toSorted((a, b) => a.section.code.localeCompare(b.section.code));
 }
 
 const LETTER_ORDER = ["A", "B+", "B", "C+", "C", "D+", "D", "F"];
@@ -285,98 +267,6 @@ export function bestGrades(terms: { isInProgress: boolean; courses: { courseCode
   return best;
 }
 
-export function buildRegistrationHistory(
-  timetable: StudentEnrollment[],
-  allEnrollments: StudentEnrollment[],
-  periodOpensAt: string,
-  studentName: string,
-): RegistrationEvent[] {
-  if (timetable.length === 0) return [];
-  const start = dayjs(periodOpensAt);
-  const events: RegistrationEvent[] = [];
-  const self = { actor: studentName, channel: "Cổng sinh viên" };
-  timetable.forEach(({ section }, index) => {
-    events.push({
-      id: `ev-add-${section.id}`,
-      at: start.add(index * 4 + 1, "minute").toISOString(),
-      kind: "add",
-      sectionCode: section.code,
-      courseName: section.courseName,
-      ...self,
-      note: `Đăng ký ${section.credits} tín chỉ`,
-    });
-  });
-  const extra = allEnrollments.filter((entry) => !timetable.some((chosen) => chosen.section.id === entry.section.id));
-  const dropped = extra[0];
-  if (dropped) {
-    events.push({
-      id: `ev-add-${dropped.section.id}`,
-      at: start.add(30, "minute").toISOString(),
-      kind: "add",
-      sectionCode: dropped.section.code,
-      courseName: dropped.section.courseName,
-      ...self,
-      note: `Đăng ký ${dropped.section.credits} tín chỉ`,
-    });
-    events.push({
-      id: `ev-drop-${dropped.section.id}`,
-      at: start.add(2, "day").hour(21).toISOString(),
-      kind: "drop",
-      sectionCode: dropped.section.code,
-      courseName: dropped.section.courseName,
-      ...self,
-      note: "Tự hủy trong thời gian đăng ký, hoàn trả chỗ cho sinh viên khác",
-    });
-  }
-  const swapped = timetable[1];
-  if (swapped) {
-    const previousCode = `${swapped.section.courseCode}.0${Number(swapped.section.code.split(".").at(-1)) === 1 ? 2 : 1}`;
-    events.push({
-      id: `ev-swap-${swapped.section.id}`,
-      at: start.add(1, "day").hour(8).minute(12).toISOString(),
-      kind: "swap",
-      sectionCode: swapped.section.code,
-      courseName: swapped.section.courseName,
-      ...self,
-      note: `Đổi từ lớp ${previousCode} sang ${swapped.section.code} để tránh trùng lịch`,
-    });
-  }
-  const waitlisted = timetable[2];
-  if (waitlisted) {
-    events.push({
-      id: `ev-wait-${waitlisted.section.id}`,
-      at: start.add(3, "minute").toISOString(),
-      kind: "waitlist",
-      sectionCode: waitlisted.section.code,
-      courseName: waitlisted.section.courseName,
-      ...self,
-      note: "Lớp đủ chỗ, vào danh sách chờ ở vị trí 4",
-    });
-    events.push({
-      id: `ev-promote-${waitlisted.section.id}`,
-      at: start.add(3, "day").hour(10).toISOString(),
-      kind: "waitlist-promoted",
-      sectionCode: waitlisted.section.code,
-      courseName: waitlisted.section.courseName,
-      actor: "Hệ thống",
-      channel: "Tự động",
-      note: "Có sinh viên hủy lớp, hệ thống tự đăng ký từ danh sách chờ và gửi email",
-    });
-  }
-  events.push({
-    id: "ev-cancelled",
-    at: start.add(9, "day").hour(16).toISOString(),
-    kind: "section-cancelled",
-    sectionCode: "POLI1004.03",
-    courseName: "Lịch sử Đảng Cộng sản Việt Nam",
-    actor: "Phòng Đào tạo",
-    channel: "Hủy lớp dưới sĩ số",
-    note: "Lớp chỉ có 9/60 sinh viên nên bị hủy. Đã gợi ý lớp POLI1004.01 còn 12 chỗ, bạn chưa chuyển lớp",
-  });
-  return events.toSorted((a, b) => b.at.localeCompare(a.at));
-}
-
-// Dữ liệu sinh viên gửi lên khi bấm Đăng ký: các lớp trong giỏ và nhóm thực hành đã chọn.
 export const REGISTER_SCHEMA = z.object({
   sectionIds: z
     .array(z.uuid())
@@ -387,3 +277,100 @@ export const REGISTER_SCHEMA = z.object({
 });
 
 export type RegisterInput = z.input<typeof REGISTER_SCHEMA>;
+
+const meetingSchema = z
+  .object({
+    dayOfWeek: z.int().min(2).max(8),
+    startPeriod: z.int().min(1).max(12),
+    endPeriod: z.int().min(1).max(12),
+    room: z.string().trim().min(1, "Chưa chọn phòng"),
+  })
+  .refine((meeting) => meeting.startPeriod <= meeting.endPeriod, { path: ["endPeriod"], message: "Tiết kết thúc không trước tiết bắt đầu" });
+
+// Dữ liệu form mở/sửa lớp học phần; DB còn chặn thêm sĩ số, khoảng tiết, tổng chỗ dành riêng.
+export const CLASS_SECTION_SCHEMA = z
+  .object({
+    courseCode: z.string().trim().regex(/^[A-Z]{4}\d{4}$/, "Chưa chọn học phần"),
+    sectionNumber: z.int().min(1).max(99),
+    lecturerId: z.uuid().nullish(),
+    capacity: z.int("Chưa nhập sĩ số").min(1).max(500),
+    status: z.enum(["draft", "open", "cancelled"]),
+    meetings: z.array(meetingSchema).min(1, "Lớp cần ít nhất một buổi học trong tuần").max(7),
+    minEnrollment: z.int().min(0),
+    audienceMajors: z.array(z.string()).default([]),
+    audienceCohorts: z.array(z.int()).default([]),
+    audienceNote: z.string().trim().max(300).nullish(),
+    reservedSeats: z
+      .array(
+        z.object({
+          label: z.string().trim().min(1, "Chưa nhập tên nhóm dành riêng").max(120),
+          seats: z.int().min(1),
+          majorCodes: z.array(z.string()).default([]),
+          cohorts: z.array(z.int()).default([]),
+        }),
+      )
+      .default([]),
+    labGroups: z
+      .array(
+        z
+          .object({
+            code: z.string().trim().regex(/^TH\d{1,2}$/, "Mã nhóm dạng TH1, TH2"),
+            dayOfWeek: z.int().min(2).max(8),
+            startPeriod: z.int().min(1).max(12),
+            endPeriod: z.int().min(1).max(12),
+            room: z.string().trim().min(1, "Chưa chọn phòng"),
+            capacity: z.int().min(1),
+          })
+          .refine((group) => group.startPeriod <= group.endPeriod, { path: ["endPeriod"], message: "Tiết kết thúc không trước tiết bắt đầu" }),
+      )
+      .default([]),
+  })
+  .refine((section) => section.minEnrollment <= section.capacity, { path: ["minEnrollment"], message: "Sĩ số tối thiểu không lớn hơn sĩ số tối đa" })
+  .refine((section) => section.reservedSeats.reduce((sum, seat) => sum + seat.seats, 0) <= section.capacity, {
+    path: ["reservedSeats"],
+    message: "Tổng chỗ dành riêng vượt sĩ số tối đa",
+  })
+  .refine((section) => new Set(section.labGroups.map((group) => group.code)).size === section.labGroups.length, { path: ["labGroups"], message: "Mã nhóm thực hành bị trùng" })
+  .refine((section) => new Set(section.reservedSeats.map((seat) => seat.label)).size === section.reservedSeats.length, {
+    path: ["reservedSeats"],
+    message: "Tên nhóm dành riêng bị trùng",
+  });
+
+export type ClassSectionInput = z.input<typeof CLASS_SECTION_SCHEMA>;
+
+export const PERIOD_SCHEMA = z
+  .object({
+    name: z.string().trim().min(1, "Chưa nhập tên đợt").max(120),
+    cohorts: z
+      .array(z.int().min(1).max(99))
+      .min(1, "Chọn ít nhất một khóa")
+      .transform((cohorts) => [...new Set(cohorts)].toSorted((a, b) => a - b)),
+    opensAt: z.iso.datetime({ offset: true }),
+    closesAt: z.iso.datetime({ offset: true }),
+    minCredits: z.int().min(0).max(40),
+    maxCredits: z.int().min(1).max(40),
+  })
+  .refine((period) => new Date(period.opensAt) < new Date(period.closesAt), { path: ["range"], message: "Thời điểm đóng phải sau thời điểm mở" })
+  .refine((period) => period.minCredits <= period.maxCredits, { path: ["minCredits"], message: "Tối thiểu không lớn hơn tối đa" });
+
+export type PeriodInput = z.input<typeof PERIOD_SCHEMA>;
+
+export const HOLD_SCHEMA = z.object({
+  studentId: z.uuid("Chưa chọn sinh viên"),
+  kind: z.enum(["tuition", "discipline", "documents", "academic-status", "advisor"]),
+  blocking: z.boolean(),
+  reason: z.string().trim().min(1, "Chưa nhập lý do").max(300),
+  resolveHint: z.string().trim().min(1, "Chưa nhập cách gỡ").max(300),
+});
+
+export type HoldInput = z.input<typeof HOLD_SCHEMA>;
+
+export const ADMIN_REGISTER_SCHEMA = z.object({
+  studentId: z.uuid(),
+  sectionId: z.uuid("Chưa chọn lớp"),
+  labGroupId: z.uuid().nullish(),
+  reason: z.string().trim().min(1, "Ghi lý do đăng ký hộ").max(300),
+  override: z.boolean().default(false),
+});
+
+export type AdminRegisterInput = z.input<typeof ADMIN_REGISTER_SCHEMA>;

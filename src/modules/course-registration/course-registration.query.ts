@@ -12,6 +12,7 @@ import {
   classSections,
   enrollments,
   labGroups,
+  registrationEvents,
   registrationHolds,
   registrationPeriods,
   reservedSeatMajors,
@@ -28,6 +29,7 @@ import type {
   ClassSectionView,
   FacultyRegistrationSummary,
   LecturerWorkload,
+  RegistrationEvent,
   RegistrationHold,
   RegistrationPeriod,
   RegistrationQueueStatus,
@@ -118,7 +120,7 @@ const lecturer = alias(lecturers, "section_lecturer");
 
 // Toàn bộ lớp của một học kỳ, ghép buổi học, nhóm thực hành, chỗ dành riêng, đối tượng. Xung đột phòng và giảng viên
 // tính trên cả học kỳ nên luôn tải theo học kỳ rồi lọc.
-const termSections = cache(async (termId: string): Promise<ClassSectionView[]> => {
+async function loadTermSections(termId: string): Promise<ClassSectionView[]> {
   if (!isUuid(termId)) return [];
   const rows = await db
     .select({
@@ -214,7 +216,9 @@ const termSections = cache(async (termId: string): Promise<ClassSectionView[]> =
     };
   });
   return sections.map((section) => ({ ...section, isFull: section.enrolled >= section.capacity, conflicts: conflictsOf(section, sections) }));
-});
+}
+
+const termSections = cache(loadTermSections);
 
 export async function getClassSections(termId: string) {
   await requireSession();
@@ -227,6 +231,14 @@ export async function getClassSection(id: string) {
   const [row] = await db.select({ termId: classSections.termId }).from(classSections).where(eq(classSections.id, id));
   if (!row) return null;
   return (await termSections(row.termId)).find((section) => section.id === id) ?? null;
+}
+
+// Đọc lại lớp ngay sau khi ghi trong server action: bỏ qua cache của request vì cache còn giữ bản trước khi ghi.
+export async function readClassSectionAfterWrite(id: string) {
+  await requireSession();
+  const [row] = await db.select({ termId: classSections.termId }).from(classSections).where(eq(classSections.id, id));
+  if (!row) return null;
+  return (await loadTermSections(row.termId)).find((section) => section.id === id) ?? null;
 }
 
 export async function getLecturerClassSections(lecturerId: string, termId: string) {
@@ -306,6 +318,60 @@ export async function getStudentWaitlist(studentId: string, termId: string): Pro
     if (row.studentId === studentId) positions[row.sectionId] = position;
   }
   return positions;
+}
+
+// Lịch sử đăng ký của sinh viên trong học kỳ, mới nhất trước. Đăng ký có từ trước khi ghi sự kiện (dữ liệu nhập ban đầu)
+// được hiện thành một mốc "Đăng ký" theo thời điểm đăng ký.
+export async function getRegistrationEvents(studentId: string, termId: string): Promise<RegistrationEvent[]> {
+  await requireSession();
+  if (!isUuid(studentId) || !isUuid(termId)) return [];
+  const [events, enrolled] = await Promise.all([
+    db
+      .select({
+        id: registrationEvents.id,
+        at: registrationEvents.at,
+        kind: registrationEvents.kind,
+        sectionId: classSections.id,
+        sectionCode: classSections.code,
+        courseName: courses.name,
+        actor: registrationEvents.actorLabel,
+        channel: registrationEvents.channel,
+        note: registrationEvents.note,
+      })
+      .from(registrationEvents)
+      .innerJoin(classSections, eq(classSections.id, registrationEvents.classSectionId))
+      .innerJoin(courses, eq(courses.id, classSections.courseId))
+      .where(and(eq(registrationEvents.studentId, studentId), eq(classSections.termId, termId))),
+    db
+      .select({
+        id: enrollments.id,
+        at: enrollments.registeredAt,
+        sectionId: classSections.id,
+        sectionCode: classSections.code,
+        courseName: courses.name,
+        credits: courses.credits,
+        studentName: students.fullName,
+      })
+      .from(enrollments)
+      .innerJoin(classSections, eq(classSections.id, enrollments.classSectionId))
+      .innerJoin(courses, eq(courses.id, classSections.courseId))
+      .innerJoin(students, eq(students.id, enrollments.studentId))
+      .where(and(eq(enrollments.studentId, studentId), eq(enrollments.termId, termId))),
+  ]);
+  const logged = new Set(events.filter((event) => event.kind === "add" || event.kind === "admin-add").map((event) => event.sectionId));
+  const imported: RegistrationEvent[] = enrolled
+    .filter((entry) => !logged.has(entry.sectionId))
+    .map((entry) => ({
+      id: entry.id,
+      at: entry.at.toISOString(),
+      kind: "add",
+      sectionCode: entry.sectionCode,
+      courseName: entry.courseName,
+      actor: entry.studentName,
+      channel: "Cổng sinh viên",
+      note: `Đăng ký ${entry.credits} tín chỉ`,
+    }));
+  return [...events.map(({ sectionId: _sectionId, ...event }) => ({ ...event, at: event.at.toISOString() })), ...imported].toSorted((a, b) => b.at.localeCompare(a.at));
 }
 
 const TEACHING_WEEKS = 15;

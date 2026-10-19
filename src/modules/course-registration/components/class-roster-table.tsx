@@ -5,6 +5,7 @@ import { Button, Input, message, Table, type TableColumnsType } from "antd";
 import { Download, Envelope, Magnifier } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { formatDate } from "@/shared/libs/date.lib";
+import { downloadFile, toCsv } from "@/shared/libs/download.lib";
 import type { RosterEntry } from "@/modules/course-registration/course-registration.type";
 import { paginationItemRender } from "@/shared/constants/antd.constant";
 import { normalizeSearch } from "@/shared/libs/search.lib";
@@ -65,7 +66,16 @@ export function ClassRosterTable({ roster, classCode }: { roster: RosterEntry[];
           <Button icon={<Envelope size={16} aria-hidden className="text-zinc-500" />} href={`mailto:?bcc=${roster.map((entry) => emailOf(entry.studentCode)).join(",")}&subject=${encodeURIComponent(`[${classCode}] `)}`}>
             Email cả lớp
           </Button>
-          <Button icon={<Download size={16} aria-hidden className="text-zinc-500" />} onClick={() => messageApi.success(`Đã xuất danh sách ${roster.length} sinh viên lớp ${classCode} ra tệp Excel.`)}>
+          <Button icon={<Download size={16} aria-hidden className="text-zinc-500" />} onClick={() => {
+              downloadFile(
+                `danh-sach-${classCode}.csv`,
+                toCsv([
+                  ["STT", "Mã sinh viên", "Họ và tên", "Lớp sinh hoạt", "Email", "Ngày đăng ký"],
+                  ...roster.map((entry, index) => [index + 1, entry.studentCode, entry.fullName, entry.className, emailOf(entry.studentCode), formatDate(entry.registeredAt)]),
+                ]),
+              );
+              messageApi.success(`Đã tải danh sách ${roster.length} sinh viên lớp ${classCode}`);
+            }}>
             Xuất danh sách
           </Button>
         </div>

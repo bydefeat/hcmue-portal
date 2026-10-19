@@ -19,14 +19,8 @@ import { getAuditLog } from "@/modules/audit/audit.query";
 import { inScope } from "@/modules/access/access.constant";
 import { requirePermission } from "@/modules/access/access.query";
 import { AdminStudentRegistration } from "@/modules/course-registration/components/admin-student-registration";
-import { bestGrades, buildRegistrationHistory, creditCapOf } from "@/modules/course-registration/course-registration.rule";
-import {
-  getClassSections,
-  getRegistrationHolds,
-  getRegistrationPeriods,
-  getRegistrationTargetTerm,
-  getStudentEnrollments,
-} from "@/modules/course-registration/course-registration.query";
+import { bestGrades, creditCapOf } from "@/modules/course-registration/course-registration.rule";
+import { getClassSections, getRegistrationEvents, getRegistrationHolds, getRegistrationPeriods, getRegistrationTargetTerm, getStudentEnrollments } from "@/modules/course-registration/course-registration.query";
 import { getCourses } from "@/modules/curriculum/curriculum.query";
 import { getRegulation } from "@/modules/settings/settings.query";
 import { SectionCard } from "@/shared/components/ui/section-card";
@@ -66,8 +60,7 @@ export default async function Page({ params }: PageProps) {
   ]);
   const period = periods.find((entry) => entry.cohorts.includes(student.cohort)) ?? periods[0];
   const cap = creditCapOf(regulation.credits, standing.warningLevel);
-  const registrationEvents =
-    period && period.state !== "upcoming" ? buildRegistrationHistory(targetEnrollments, targetEnrollments, period.opensAt, student.fullName) : [];
+  const registrationEvents = await getRegistrationEvents(student.id, targetTerm.id);
   const hasResults = standing.earnedCredits > 0;
 
   return (
@@ -146,6 +139,7 @@ export default async function Page({ params }: PageProps) {
               />
             </div>
             <AdminStudentRegistration
+              studentId={student.id}
               studentName={student.fullName}
               student={{ majorCode: student.majorCode, cohort: student.cohort }}
               termName={targetTerm.name}

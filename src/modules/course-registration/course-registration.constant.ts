@@ -38,7 +38,6 @@ export const CLASS_SECTION_STATUS_OPTIONS = Object.entries(CLASS_SECTION_STATUS)
   label: meta.label,
 }));
 
-export const ROOMS = ["A.201", "A.203", "A.305", "B.302", "B.405", "B.408", "C.301 (Phòng máy)", "C.302 (Phòng máy)", "H.2.04", "H.3.11", "I.101 (Hội trường)"];
 
 export function overlaps(a: ClassMeeting, b: ClassMeeting) {
   return a.dayOfWeek === b.dayOfWeek && a.startPeriod <= b.endPeriod && b.startPeriod <= a.endPeriod;

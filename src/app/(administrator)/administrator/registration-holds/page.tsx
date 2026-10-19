@@ -23,7 +23,6 @@ export default async function Page() {
       students={students
         .filter((student) => inScope(viewer, student.faculty) && student.status !== "graduated")
         .map(({ id, code, fullName, className, faculty }) => ({ id, code, fullName, className, faculty }))}
-      actorName={viewer.name}
       studentHrefBase="/administrator/users/students/"
     />
   );

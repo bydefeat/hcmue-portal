@@ -1,10 +1,8 @@
 import type { Metadata } from "next";
 import { RegistrationHistoryList } from "@/modules/course-registration/components/registration-history-list";
 import { RegistrationReceipt } from "@/modules/course-registration/components/registration-receipt";
-import { bestGrades, buildRegistrationHistory, pickTimetable } from "@/modules/course-registration/course-registration.rule";
-import { getCurrentTerm, getRegistrationPeriods, getStudentEnrollments } from "@/modules/course-registration/course-registration.query";
-import { getCourses } from "@/modules/curriculum/curriculum.query";
-import { getTranscript } from "@/modules/grades/grades.query";
+import { pickTimetable } from "@/modules/course-registration/course-registration.rule";
+import { getCurrentTerm, getRegistrationEvents, getRegistrationPeriods, getStudentEnrollments } from "@/modules/course-registration/course-registration.query";
 import { getCurrentStudent } from "@/modules/users/users.query";
 import { PageHeader } from "@/shared/components/ui/page-header";
 import { PrintButton } from "@/shared/components/ui/print-button";
@@ -18,19 +16,16 @@ function verificationCodeOf(value: string) {
 }
 
 export default async function Page() {
-  const [student, term, courses] = await Promise.all([getCurrentStudent(), getCurrentTerm(), getCourses()]);
-  const [enrollments, transcript, periods] = await Promise.all([
+  const [student, term] = await Promise.all([getCurrentStudent(), getCurrentTerm()]);
+  const [enrollments, periods, events] = await Promise.all([
     getStudentEnrollments(student.id, term.id),
-    getTranscript(student.id),
     getRegistrationPeriods(term.id),
+    getRegistrationEvents(student.id, term.id),
   ]);
-  const timetable = pickTimetable(enrollments, bestGrades(transcript), {
-    faculty: student.faculty,
-    prerequisites: Object.fromEntries(courses.map((course) => [course.code, course.prerequisiteCodes])),
-  });
-  const period = periods.find((entry) => entry.cohorts.includes(student.cohort)) ?? periods[0];
-  const events = buildRegistrationHistory(timetable, enrollments, period.opensAt, student.fullName);
-  const confirmedAt = period.closesAt;
+  const timetable = pickTimetable(enrollments);
+  const period = periods.find((entry) => entry.cohorts.includes(student.cohort)) ?? periods.at(-1);
+  // Phiếu xác nhận theo lúc đóng đợt đăng ký của khóa; học kỳ chưa có đợt thì theo lần đăng ký gần nhất.
+  const confirmedAt = period?.closesAt ?? events[0]?.at ?? term.startDate;
   const verificationCode = verificationCodeOf(`${student.id}:${term.id}:${timetable.map(({ section }) => section.id).join(",")}`);
 
   return (

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "@bprogress/next/app";
 import { Input, message, Segmented, Select, Table, Tabs, type TableColumnsType } from "antd";
 import { Magnifier } from "defeat-icons-react";
@@ -13,6 +13,7 @@ import type { ClassSectionView } from "@/modules/course-registration/course-regi
 import { computeWorkloads, lecturerClash, loadStateOf, type AssignableLecturer, type LoadState, type WorkloadRow } from "@/modules/course-registration/teaching-assignment.rule";
 import { paginationItemRender, TABS_MORE } from "@/shared/constants/antd.constant";
 import { normalizeSearch } from "@/shared/libs/search.lib";
+import { assignLecturer } from "@/modules/course-registration/course-registration.action";
 
 const LOAD_STATE: Record<LoadState, StatusMeta> = {
   over: { label: "Vượt định mức", tone: "danger" },
@@ -32,6 +33,7 @@ export function TeachingAssignmentBoard({ sections, lecturers, terms, termId }: 
   const router = useRouter();
   const [messageApi, contextHolder] = message.useMessage();
   const [rows, setRows] = useState(sections);
+  const [isSaving, startSaving] = useTransition();
   const [query, setQuery] = useState("");
   const [faculty, setFaculty] = useState<string>();
   const [load, setLoad] = useState<LoadState>();
@@ -50,8 +52,15 @@ export function TeachingAssignmentBoard({ sections, lecturers, terms, termId }: 
       }
     }
     const lecturer = lecturers.find((entry) => entry.id === lecturerId) ?? null;
-    setRows((current) => current.map((entry) => (entry.id === section.id ? { ...entry, lecturerId, lecturerName: lecturer?.displayName ?? null } : entry)));
-    messageApi.success(lecturer ? `Đã phân công ${lecturer.displayName} dạy ${section.code}` : `Đã bỏ phân công lớp ${section.code}`);
+    startSaving(async () => {
+      const result = await assignLecturer(section.id, lecturerId).catch(() => null);
+      if (!result?.ok) {
+        messageApi.error(result?.message ?? "Chưa lưu được, kiểm tra kết nối rồi thử lại.");
+        return;
+      }
+      setRows((current) => current.map((entry) => (entry.id === section.id ? { ...entry, lecturerId: result.data.lecturerId, lecturerName: result.data.lecturerName } : entry)));
+      messageApi.success(lecturer ? `Đã phân công ${lecturer.displayName} dạy ${section.code}` : `Đã bỏ phân công lớp ${section.code}`);
+    });
   };
 
   const visibleWorkloads = workloads.filter(
@@ -138,6 +147,7 @@ export function TeachingAssignmentBoard({ sections, lecturers, terms, termId }: 
         value={section.lecturerId ?? undefined}
         placeholder="Chưa phân công"
         status={section.lecturerId ? undefined : "warning"}
+        disabled={isSaving}
         onChange={(value?: string) => assign(section, value ?? null)}
         options={options}
         aria-label={`Giảng viên lớp ${section.code}`}

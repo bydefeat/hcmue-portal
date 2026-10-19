@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useTransition } from "react";
 import { Button, Card, Divider, Drawer, Form, Input, InputNumber, Select } from "antd";
 import { Plus, Trash } from "defeat-icons-react";
 import { PERIODS, WEEKDAYS } from "@/shared/constants/period.constant";
-import { MOCK_COHORTS, MOCK_MAJORS } from "@/shared/libs/mock.lib";
-import { CLASS_SECTION_STATUS_OPTIONS, ROOMS } from "@/modules/course-registration/course-registration.constant";
+import { MOCK_COHORTS } from "@/shared/libs/mock.lib";
+import { toFormFields } from "@/shared/libs/form.lib";
+import { CLASS_SECTION_STATUS_OPTIONS } from "@/modules/course-registration/course-registration.constant";
 import type { ClassSectionFormValues, ClassSectionView } from "@/modules/course-registration/course-registration.type";
 
 export type SectionCourseOption = { code: string; name: string; credits: number; faculty: string };
@@ -17,21 +18,22 @@ type ClassSectionFormDrawerProps = {
   termName: string;
   courses: SectionCourseOption[];
   lecturers: SectionLecturerOption[];
+  rooms: string[];
+  majors: { code: string; name: string }[];
   onClose: () => void;
-  onSubmit: (values: ClassSectionFormValues) => void;
+  // Trả lỗi theo ô khi server từ chối, để drawer gắn vào đúng ô.
+  onSubmit: (values: ClassSectionFormValues) => Promise<Record<string, string> | undefined>;
 };
 
 const DAY_OPTIONS = WEEKDAYS.map((day) => ({ value: day.value, label: day.label }));
 const PERIOD_OPTIONS = PERIODS.map((item) => ({ value: item.period, label: `Tiết ${item.period} (${item.start})` }));
-const ROOM_OPTIONS = ROOMS.map((room) => ({ value: room, label: room }));
-const MAJOR_OPTIONS = MOCK_MAJORS.map((major) => ({ value: major.code, label: major.name }));
 const COHORT_OPTIONS = MOCK_COHORTS.map((cohort) => ({ value: cohort, label: `Khóa ${cohort}` }));
 
 const EMPTY_VALUES: Partial<ClassSectionFormValues> = {
   sectionNumber: 1,
   capacity: 45,
   status: "draft",
-  meetings: [{ dayOfWeek: 2, startPeriod: 1, endPeriod: 3, room: ROOMS[0] }],
+  meetings: [{ dayOfWeek: 2, startPeriod: 1, endPeriod: 3, room: "" }],
   minEnrollment: 15,
   audienceMajors: [],
   audienceCohorts: [],
@@ -63,8 +65,11 @@ function toValues(section: ClassSectionView): ClassSectionFormValues {
   };
 }
 
-export function ClassSectionFormDrawer({ open, section, termName, courses, lecturers, onClose, onSubmit }: ClassSectionFormDrawerProps) {
+export function ClassSectionFormDrawer({ open, section, termName, courses, lecturers, rooms, majors, onClose, onSubmit }: ClassSectionFormDrawerProps) {
   const [form] = Form.useForm<ClassSectionFormValues>();
+  const [isPending, startTransition] = useTransition();
+  const roomOptions = rooms.map((room) => ({ value: room, label: room }));
+  const majorOptions = majors.map((major) => ({ value: major.code, label: major.name }));
   const courseCode = Form.useWatch("courseCode", form);
   const faculty = courses.find((course) => course.code === courseCode)?.faculty;
 
@@ -89,13 +94,22 @@ export function ClassSectionFormDrawer({ open, section, termName, courses, lectu
       footer={
         <div className="flex justify-end gap-2">
           <Button onClick={onClose}>Hủy</Button>
-          <Button type="primary" onClick={() => form.submit()}>
+          <Button type="primary" loading={isPending} onClick={() => form.submit()}>
             {section ? "Lưu thay đổi" : "Mở lớp"}
           </Button>
         </div>
       }
     >
-      <Form form={form} layout="vertical" onFinish={onSubmit}>
+      <Form
+        form={form}
+        layout="vertical"
+        onFinish={(values) =>
+          startTransition(async () => {
+            const fieldErrors = await onSubmit(values);
+            if (fieldErrors) form.setFields(toFormFields(fieldErrors));
+          })
+        }
+      >
         <div className="grid gap-x-3 sm:grid-cols-[1fr_120px]">
           <Form.Item name="courseCode" label="Học phần" rules={[{ required: true, message: "Chưa chọn học phần" }]}>
             <Select
@@ -133,7 +147,7 @@ export function ClassSectionFormDrawer({ open, section, termName, courses, lectu
         <p className="mb-3 text-xs text-pretty text-muted">Để trống cả hai ô nếu lớp mở cho mọi sinh viên.</p>
         <div className="grid gap-x-3 sm:grid-cols-2">
           <Form.Item name="audienceMajors" label="Chỉ các ngành">
-            <Select mode="multiple" allowClear options={MAJOR_OPTIONS} />
+            <Select mode="multiple" allowClear options={majorOptions} />
           </Form.Item>
           <Form.Item name="audienceCohorts" label="Chỉ các khóa">
             <Select mode="multiple" allowClear options={COHORT_OPTIONS} />
@@ -158,7 +172,7 @@ export function ClassSectionFormDrawer({ open, section, termName, courses, lectu
                     <Button type="text" danger icon={<Trash size={16} aria-hidden />} aria-label="Xóa nhóm dành riêng" onClick={() => remove(field.name)} />
                   </div>
                   <Form.Item name={[field.name, "majorCodes"]} label="Ngành" className="col-span-2 sm:col-span-1">
-                    <Select mode="multiple" allowClear options={MAJOR_OPTIONS} />
+                    <Select mode="multiple" allowClear options={majorOptions} />
                   </Form.Item>
                   <Form.Item name={[field.name, "cohorts"]} label="Khóa" className="col-span-2">
                     <Select mode="multiple" allowClear options={COHORT_OPTIONS} />
@@ -189,7 +203,7 @@ export function ClassSectionFormDrawer({ open, section, termName, courses, lectu
                     <Select options={DAY_OPTIONS} />
                   </Form.Item>
                   <Form.Item name={[field.name, "room"]} label="Phòng" rules={[{ required: true, message: "Chưa chọn" }]}>
-                    <Select options={ROOM_OPTIONS} />
+                    <Select options={roomOptions} />
                   </Form.Item>
                   <Form.Item name={[field.name, "startPeriod"]} label="Từ tiết" rules={[{ required: true, message: "Chưa chọn" }]}>
                     <Select options={PERIOD_OPTIONS} />
@@ -216,7 +230,7 @@ export function ClassSectionFormDrawer({ open, section, termName, courses, lectu
                 </Card>
               ))}
               <Form.ErrorList errors={errors} />
-              <Button icon={<Plus size={16} aria-hidden className="text-zinc-500" />} onClick={() => add({ dayOfWeek: 2, startPeriod: 1, endPeriod: 3, room: ROOMS[0] })} className="self-start">
+              <Button icon={<Plus size={16} aria-hidden className="text-zinc-500" />} onClick={() => add({ dayOfWeek: 2, startPeriod: 1, endPeriod: 3, room: rooms[0] ?? "" })} className="self-start">
                 Thêm buổi học
               </Button>
             </div>
@@ -238,7 +252,7 @@ export function ClassSectionFormDrawer({ open, section, termName, courses, lectu
                     <Select options={DAY_OPTIONS} />
                   </Form.Item>
                   <Form.Item name={[field.name, "room"]} label="Phòng" rules={[{ required: true, message: "Chưa chọn" }]}>
-                    <Select options={ROOM_OPTIONS} />
+                    <Select options={roomOptions} />
                   </Form.Item>
                   <Form.Item name={[field.name, "capacity"]} label="Sĩ số" rules={[{ required: true, message: "Chưa nhập" }]}>
                     <InputNumber min={5} max={60} className="w-full" />
@@ -256,7 +270,7 @@ export function ClassSectionFormDrawer({ open, section, termName, courses, lectu
               ))}
               <Button
                 icon={<Plus size={16} aria-hidden className="text-zinc-500" />}
-                onClick={() => add({ code: `TH${fields.length + 1}`, dayOfWeek: 7, startPeriod: 1, endPeriod: 3, room: ROOMS[6], capacity: 20 })}
+                onClick={() => add({ code: `TH${fields.length + 1}`, dayOfWeek: 7, startPeriod: 1, endPeriod: 3, room: rooms.find((room) => room.includes("máy")) ?? rooms[0] ?? "", capacity: 20 })}
                 className="self-start"
               >
                 Thêm nhóm thực hành

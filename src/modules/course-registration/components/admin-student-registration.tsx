@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
+import { useRouter } from "@bprogress/next/app";
 import Link from "next/link";
 import { Alert, Button, Card, Checkbox, Drawer, Form, Input, message, Modal, Select } from "antd";
 import { CircleXmark, Plus } from "defeat-icons-react";
@@ -10,9 +11,11 @@ import { HOLD_KIND_LABEL, keepCurrencyTogether, meetingText } from "@/modules/co
 import { blockingHolds, evaluateSection, sectionCredits, type RegistrationStudent } from "@/modules/course-registration/course-registration.rule";
 import type { ClassSectionView, RegistrationEvent, RegistrationHold } from "@/modules/course-registration/course-registration.type";
 import { RegistrationHistoryList } from "@/modules/course-registration/components/registration-history-list";
+import { adminDrop, adminRegister } from "@/modules/course-registration/course-registration.action";
 import { SectionCard } from "@/shared/components/ui/section-card";
 
 type AdminStudentRegistrationProps = {
+  studentId: string;
   studentName: string;
   student: RegistrationStudent;
   termName: string;
@@ -29,7 +32,10 @@ type AdminStudentRegistrationProps = {
   actorName: string;
 };
 
+const NETWORK_ERROR = "Chưa thực hiện được, kiểm tra kết nối rồi thử lại.";
+
 export function AdminStudentRegistration({
+  studentId,
   studentName,
   student,
   termName,
@@ -45,7 +51,9 @@ export function AdminStudentRegistration({
   credits,
   actorName,
 }: AdminStudentRegistrationProps) {
+  const router = useRouter();
   const [messageApi, contextHolder] = message.useMessage();
+  const [isSaving, startSaving] = useTransition();
   const [registered, setRegistered] = useState(initialRegistered);
   const [events, setEvents] = useState(initialEvents);
   const [isAdding, setIsAdding] = useState(false);
@@ -93,15 +101,23 @@ export function AdminStudentRegistration({
   const submitAdd = () => {
     if (!selected || !canSubmit) return;
     const lab = selected.labGroups.find((group) => group.id === labId);
-    setRegistered((current) => [...current, selected]);
-    logEvent({
-      kind: "admin-add",
-      sectionCode: selected.code,
-      courseName: selected.courseName,
-      note: `${reason.trim()}${lab ? `. Nhóm thực hành ${lab.code}` : ""}${override ? `. Bỏ qua kiểm tra: ${blockingIssues.map((issue) => issue.kind).join(", ")}` : ""}`,
+    startSaving(async () => {
+      const result = await adminRegister({ studentId, sectionId: selected.id, labGroupId: labId ?? null, reason, override }).catch(() => null);
+      if (!result?.ok) {
+        messageApi.error(result?.message ?? NETWORK_ERROR);
+        return;
+      }
+      setRegistered((current) => [...current, result.data]);
+      logEvent({
+        kind: "admin-add",
+        sectionCode: selected.code,
+        courseName: selected.courseName,
+        note: `${reason.trim()}${lab ? `. Nhóm thực hành ${lab.code}` : ""}${override && blockingIssues.length > 0 ? ". Bỏ qua kiểm tra điều kiện" : ""}`,
+      });
+      messageApi.success(`Đã đăng ký hộ ${selected.code} cho ${studentName}.`);
+      closeAdd();
+      router.refresh();
     });
-    messageApi.success(`Đã đăng ký hộ ${selected.code} cho ${studentName}. Thao tác được ghi vào nhật ký và gửi email cho sinh viên.`);
-    closeAdd();
   };
 
   const submitDrop = () => {
@@ -110,11 +126,19 @@ export function AdminStudentRegistration({
       messageApi.warning("Ghi lý do hủy hộ để sinh viên và cố vấn biết");
       return;
     }
-    setRegistered((current) => current.filter((section) => section.id !== dropping.id));
-    logEvent({ kind: "admin-drop", sectionCode: dropping.code, courseName: dropping.courseName, note: dropReason.trim() });
-    messageApi.success(`Đã hủy hộ ${dropping.code}, chỗ được trả cho danh sách chờ`);
-    setDropping(null);
-    setDropReason("");
+    startSaving(async () => {
+      const result = await adminDrop(studentId, dropping.id, dropReason).catch(() => null);
+      if (!result?.ok) {
+        messageApi.error(result?.message ?? NETWORK_ERROR);
+        return;
+      }
+      setRegistered((current) => current.filter((section) => section.id !== dropping.id));
+      logEvent({ kind: "admin-drop", sectionCode: dropping.code, courseName: dropping.courseName, note: dropReason.trim() });
+      messageApi.success(`Đã hủy hộ ${dropping.code}, chỗ được trả lại cho lớp`);
+      setDropping(null);
+      setDropReason("");
+      router.refresh();
+    });
   };
 
   return (
@@ -181,7 +205,7 @@ export function AdminStudentRegistration({
           footer={
             <div className="flex justify-end gap-2">
               <Button onClick={closeAdd}>Hủy</Button>
-              <Button type="primary" disabled={!canSubmit} onClick={submitAdd}>
+              <Button type="primary" loading={isSaving} disabled={!canSubmit} onClick={submitAdd}>
                 Đăng ký hộ
               </Button>
             </div>
@@ -269,7 +293,7 @@ export function AdminStudentRegistration({
           open={dropping !== null}
           title={dropping ? `Hủy hộ ${dropping.code} của ${studentName}?` : ""}
           okText="Hủy hộ"
-          okButtonProps={{ danger: true }}
+          okButtonProps={{ danger: true, loading: isSaving }}
           cancelText="Giữ lớp"
           onOk={submitDrop}
           onCancel={() => {

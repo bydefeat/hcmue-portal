@@ -17,6 +17,7 @@ import {
   meetingText,
   reservedText,
 } from "@/modules/course-registration/course-registration.constant";
+import { saveClassSection } from "@/modules/course-registration/course-registration.action";
 import type { ClassSectionFormValues, ClassSectionStatus, ClassSectionView, Term } from "@/modules/course-registration/course-registration.type";
 import { ClassSectionFormDrawer, type SectionCourseOption, type SectionLecturerOption } from "@/modules/course-registration/components/class-section-form-drawer";
 import { paginationItemRender } from "@/shared/constants/antd.constant";
@@ -29,6 +30,8 @@ type ClassSectionTableProps = {
   initialQuery?: string;
   courses: SectionCourseOption[];
   lecturers: SectionLecturerOption[];
+  rooms: string[];
+  majors: { code: string; name: string }[];
   header: { title: string; description?: React.ReactNode };
 };
 
@@ -49,7 +52,7 @@ const statusOf = (row: ClassSectionView) =>
     <StatusTag status={CLASS_SECTION_STATUS[row.status]} />
   );
 
-export function ClassSectionTable({ sections, terms, termId, initialQuery = "", courses, lecturers, header }: ClassSectionTableProps) {
+export function ClassSectionTable({ sections, terms, termId, initialQuery = "", courses, lecturers, rooms, majors, header }: ClassSectionTableProps) {
   const router = useRouter();
   const [messageApi, contextHolder] = message.useMessage();
   const [rows, setRows] = useState(sections);
@@ -79,72 +82,26 @@ export function ClassSectionTable({ sections, terms, termId, initialQuery = "", 
     setIsOpen(true);
   };
 
-  const submit = (values: ClassSectionFormValues) => {
-    const course = courses.find((entry) => entry.code === values.courseCode);
-    const lecturer = lecturers.find((entry) => entry.id === values.lecturerId);
-    const code = `${values.courseCode}.${String(values.sectionNumber).padStart(2, "0")}`;
-    if (!editing && rows.some((row) => row.code === code)) {
-      messageApi.error(`Lớp ${code} đã có trong học kỳ này. Đổi số thứ tự lớp rồi lưu lại.`);
-      return;
+  const submit = async (values: ClassSectionFormValues) => {
+    const result = await saveClassSection(termId, editing?.id ?? null, { ...values, lecturerId: values.lecturerId ?? null }).catch(() => null);
+    if (!result) {
+      messageApi.error("Chưa lưu được, kiểm tra kết nối rồi thử lại.");
+      return undefined;
     }
-    const existingLabs = editing?.labGroups ?? [];
-    const base = {
-      lecturerId: lecturer?.id ?? null,
-      lecturerName: lecturer?.displayName ?? null,
-      capacity: values.capacity,
-      status: values.status,
-      meetings: values.meetings,
-      minEnrollment: values.minEnrollment,
-      audience:
-        values.audienceMajors.length > 0 || values.audienceCohorts.length > 0
-          ? { majorCodes: values.audienceMajors, cohorts: values.audienceCohorts, note: values.audienceNote ?? "" }
-          : null,
-      reservedSeats: (values.reservedSeats ?? []).map((seat) => ({
-        ...seat,
-        majorCodes: seat.majorCodes ?? [],
-        cohorts: seat.cohorts ?? [],
-        taken: editing?.reservedSeats.find((entry) => entry.label === seat.label)?.taken ?? 0,
-      })),
-      labGroups: (values.labGroups ?? []).map((group) => {
-        const labCode = `${code}.${group.code}`;
-        return {
-          id: `${termId}-${labCode}`.toLowerCase().replace(/\./g, "-"),
-          code: labCode,
-          meeting: { dayOfWeek: group.dayOfWeek, startPeriod: group.startPeriod, endPeriod: group.endPeriod, room: group.room },
-          capacity: group.capacity,
-          enrolled: existingLabs.find((entry) => entry.code === labCode)?.enrolled ?? 0,
-        };
-      }),
-    };
-    const next = editing
-      ? rows.map((row) => (row.id === editing.id ? { ...row, ...base } : row))
-      : [
-          {
-            ...base,
-            id: `${termId}-${code.toLowerCase().replace(".", "-")}`,
-            code,
-            termId,
-            courseCode: values.courseCode,
-            courseName: course?.name ?? values.courseCode,
-            credits: course?.credits ?? 0,
-            faculty: course?.faculty ?? "",
-            enrolled: 0,
-            startDate: term?.startDate ?? "",
-            endDate: term?.endDate ?? "",
-            isFull: false,
-            conflicts: [],
-          },
-          ...rows,
-        ];
-    const recomputed = withConflicts(next);
+    if (!result.ok) {
+      messageApi.error(result.message);
+      return result.fieldErrors;
+    }
+    const recomputed = withConflicts(editing ? rows.map((row) => (row.id === result.data.id ? result.data : row)) : [result.data, ...rows]);
     setRows(recomputed);
     setIsOpen(false);
-    const saved = recomputed.find((row) => row.code === (editing?.code ?? code));
+    const saved = recomputed.find((row) => row.id === result.data.id);
     if (saved && saved.conflicts.length > 0) {
       messageApi.warning(`Đã lưu lớp ${saved.code} nhưng còn ${saved.conflicts.length} xung đột lịch. Xem cột Xung đột để xử lý.`);
     } else {
-      messageApi.success(editing ? `Đã lưu lớp ${code}` : `Đã mở lớp ${code}`);
+      messageApi.success(editing ? `Đã lưu lớp ${result.data.code}` : `Đã mở lớp ${result.data.code}`);
     }
+    return undefined;
   };
 
   const columns: TableColumnsType<ClassSectionView> = [
@@ -346,6 +303,8 @@ export function ClassSectionTable({ sections, terms, termId, initialQuery = "", 
           termName={term?.name ?? ""}
           courses={courses}
           lecturers={lecturers}
+          rooms={rooms}
+          majors={majors}
           onClose={() => setIsOpen(false)}
           onSubmit={submit}
         />

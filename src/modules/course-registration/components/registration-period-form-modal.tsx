@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useTransition } from "react";
 import type { Dayjs } from "dayjs";
 import { DatePicker, Form, Input, InputNumber, Modal, Select } from "antd";
 import { dayjs } from "@/shared/libs/date.lib";
 import { MOCK_COHORTS } from "@/shared/libs/mock.lib";
 import type { RegistrationPeriod } from "@/modules/course-registration/course-registration.type";
+import { toFormFields } from "@/shared/libs/form.lib";
 
 export type PeriodFormResult = {
   name: string;
@@ -29,13 +30,15 @@ type RegistrationPeriodFormModalProps = {
   period: RegistrationPeriod | null;
   termName: string;
   onClose: () => void;
-  onSubmit: (values: PeriodFormResult) => void;
+  // Trả lỗi theo ô khi server từ chối, để modal gắn vào đúng ô.
+  onSubmit: (values: PeriodFormResult) => Promise<Record<string, string> | undefined>;
 };
 
 const COHORT_OPTIONS = MOCK_COHORTS.map((cohort) => ({ value: cohort, label: `Khóa ${cohort}` }));
 
 export function RegistrationPeriodFormModal({ open, period, termName, onClose, onSubmit }: RegistrationPeriodFormModalProps) {
   const [form] = Form.useForm<FormShape>();
+  const [isPending, startTransition] = useTransition();
 
   useEffect(() => {
     if (!open) return;
@@ -52,6 +55,7 @@ export function RegistrationPeriodFormModal({ open, period, termName, onClose, o
       open={open}
       onCancel={onClose}
       onOk={() => form.submit()}
+      confirmLoading={isPending}
       width={640}
       destroyOnHidden
       mask={{ closable: false }}
@@ -64,13 +68,16 @@ export function RegistrationPeriodFormModal({ open, period, termName, onClose, o
         form={form}
         layout="vertical"
         onFinish={(values) =>
-          onSubmit({
-            name: values.name,
-            cohorts: values.cohorts,
-            opensAt: values.range[0].toISOString(),
-            closesAt: values.range[1].toISOString(),
-            minCredits: values.minCredits,
-            maxCredits: values.maxCredits,
+          startTransition(async () => {
+            const fieldErrors = await onSubmit({
+              name: values.name,
+              cohorts: values.cohorts,
+              opensAt: values.range[0].toISOString(),
+              closesAt: values.range[1].toISOString(),
+              minCredits: values.minCredits,
+              maxCredits: values.maxCredits,
+            });
+            if (fieldErrors) form.setFields(toFormFields(fieldErrors));
           })
         }
       >

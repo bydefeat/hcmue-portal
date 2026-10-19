@@ -7,6 +7,7 @@ import { IMPORT_COLUMNS, templateCsv, validateImportRow, type ImportResult, type
 import type { StudentFormValues } from "@/modules/users/users.type";
 import { paginationItemRender } from "@/shared/constants/antd.constant";
 import { normalizeStudentCode } from "@/shared/libs/student-code.lib";
+import { downloadFile } from "@/shared/libs/download.lib";
 
 type StudentImportModalProps = {
   open: boolean;
@@ -34,14 +35,6 @@ function parseCsv(text: string): ImportRow[] {
     .filter((row) => row.cells.some((cell) => cell.trim()));
 }
 
-function download(name: string, content: string) {
-  const url = URL.createObjectURL(new Blob([`﻿${content}`], { type: "text/csv;charset=utf-8" }));
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = name;
-  link.click();
-  URL.revokeObjectURL(url);
-}
 
 const COLUMNS: TableColumnsType<ImportResult> = [
   { title: "Dòng", dataIndex: "line", width: 64, render: (value: number) => <span className="tabular-nums">{value}</span> },
@@ -106,7 +99,7 @@ export function StudentImportModal({ open, existingCodes, onClose, onImport }: S
             <Button
               icon={<Download size={16} aria-hidden className="text-zinc-500" />}
               onClick={() =>
-                download(
+                downloadFile(
                   "dong-loi-nhap-sinh-vien.csv",
                   [[...IMPORT_COLUMNS, "Lỗi"].join(","), ...invalid.map((row) => [...row.raw, row.errors.join("; ")].join(","))].join("\n"),
                 )
@@ -134,7 +127,7 @@ export function StudentImportModal({ open, existingCodes, onClose, onImport }: S
             Tệp gồm {IMPORT_COLUMNS.length} cột theo đúng thứ tự của file mẫu. Hệ thống kiểm tra từng dòng trước khi nhập; dòng lỗi được bỏ qua và
             tải về được để sửa.
           </p>
-          <Button icon={<Download size={16} aria-hidden className="text-zinc-500" />} onClick={() => download("mau-nhap-sinh-vien.csv", templateCsv())} className="w-fit">
+          <Button icon={<Download size={16} aria-hidden className="text-zinc-500" />} onClick={() => downloadFile("mau-nhap-sinh-vien.csv", templateCsv())} className="w-fit">
             Tải file mẫu
           </Button>
           <Upload.Dragger

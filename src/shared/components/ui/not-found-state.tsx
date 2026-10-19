@@ -1,5 +1,5 @@
-import Link from "next/link";
-import { Card, Result } from "antd";
+import { Button, Card, Result } from "antd";
+import { FileSearch } from "defeat-icons-react";
 
 type NotFoundStateProps = {
   title?: string;
@@ -16,7 +16,16 @@ export function NotFoundState({
 }: NotFoundStateProps) {
   return (
     <Card>
-      <Result status="404" title={<h1 className="text-xl font-semibold">{title}</h1>} subTitle={description} extra={<Link href={homeHref}>{homeLabel}</Link>} />
+      <Result
+        icon={<FileSearch size={56} aria-hidden className="mx-auto text-zinc-500" />}
+        title={<h1 className="text-xl font-semibold">{title}</h1>}
+        subTitle={description}
+        extra={
+          <Button type="primary" href={homeHref}>
+            {homeLabel}
+          </Button>
+        }
+      />
     </Card>
   );
 }

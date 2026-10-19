@@ -9,6 +9,7 @@ import { StatusTag } from "@/shared/components/ui/status-tag";
 import { formatDateTime } from "@/shared/libs/date.lib";
 import { formatPoint, GRADE_SHEET_STATE, LETTER_SCALE } from "../grades.constant";
 import type { GradeSheetState } from "../grades.type";
+import { paginationItemRender } from "@/shared/constants/antd.constant";
 
 export type PublishingRow = {
   classSectionId: string;
@@ -207,7 +208,7 @@ export function GradePublishingTable({ rows: initialRows, canApprove, canPublish
           getCheckboxProps: (row) => ({ disabled: !((row.state === "locked" && canApprove) || (row.state === "approved" && canPublish)) }),
         }}
         scroll={{ x: "max-content" }}
-        pagination={{ pageSize: 25, hideOnSinglePage: true }}
+        pagination={{ itemRender: paginationItemRender, pageSize: 25, hideOnSinglePage: true }}
         locale={{ emptyText: <EmptyState icon={ClipboardCheck} title="Không có bảng điểm ở trạng thái này" /> }}
       />
 

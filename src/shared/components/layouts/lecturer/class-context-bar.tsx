@@ -5,6 +5,7 @@ import { useRouter } from "@bprogress/next/app";
 import { usePathname } from "next/navigation";
 import { Tabs } from "antd";
 import { ChevronLeft } from "defeat-icons-react";
+import { TABS_MORE } from "@/shared/constants/antd.constant";
 
 export type ClassContext = {
   id: string;
@@ -55,6 +56,7 @@ export function ClassContextBar({ classContext }: { classContext: ClassContext }
         </div>
         <p className="mt-1 text-sm text-muted">{classContext.scheduleText}</p>
         <Tabs
+          more={TABS_MORE}
           activeKey={activeKey}
           items={TABS.map((tab) => ({ key: tab.key, label: tab.label }))}
           onChange={(key) => router.push(key === "roster" ? baseHref : `${baseHref}/${key}`)}

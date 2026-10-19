@@ -5,6 +5,7 @@ import { Alert, Button, Modal, Table, Upload, type TableColumnsType } from "antd
 import { CircleCheck, CircleWarning, Download, FileArrowIn } from "defeat-icons-react";
 import { IMPORT_COLUMNS, templateCsv, validateImportRow, type ImportResult, type ImportRow } from "../users.rule";
 import type { StudentFormValues } from "../users.type";
+import { paginationItemRender } from "@/shared/constants/antd.constant";
 
 type StudentImportModalProps = {
   open: boolean;
@@ -174,7 +175,7 @@ export function StudentImportModal({ open, existingCodes, onClose, onImport }: S
             size="small"
             columns={COLUMNS}
             dataSource={results}
-            pagination={{ pageSize: 8, hideOnSinglePage: true }}
+            pagination={{ itemRender: paginationItemRender, pageSize: 8, hideOnSinglePage: true }}
             scroll={{ x: 560 }}
           />
         </div>

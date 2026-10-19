@@ -8,6 +8,7 @@ import { EmptyState } from "@/shared/components/ui/empty-state";
 import { StatusTag } from "@/shared/components/ui/status-tag";
 import type { StatusMeta } from "@/shared/constants/status.constant";
 import type { Student } from "../users.type";
+import { paginationItemRender } from "@/shared/constants/antd.constant";
 
 export type AdviseeRow = {
   student: Student;
@@ -136,7 +137,7 @@ export function AdviseeTable({ rows, studentHrefBase }: AdviseeTableProps) {
         columns={columns}
         dataSource={filtered}
         scroll={{ x: 1100 }}
-        pagination={{ pageSize: 30, hideOnSinglePage: true, showTotal: (total) => `${total} sinh viên` }}
+        pagination={{ itemRender: paginationItemRender, pageSize: 30, hideOnSinglePage: true, showTotal: (total) => `${total} sinh viên` }}
         locale={{ emptyText }}
         className="hidden md:block"
       />

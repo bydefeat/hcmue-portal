@@ -6,6 +6,7 @@ import { Download, Envelope, Magnifier, Users } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { formatDate } from "@/shared/libs/date.lib";
 import type { RosterEntry } from "../course-registration.type";
+import { paginationItemRender } from "@/shared/constants/antd.constant";
 
 function normalize(value: string) {
   return value.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/đ/gi, "d").toLowerCase();
@@ -77,7 +78,7 @@ export function ClassRosterTable({ roster, classCode }: { roster: RosterEntry[];
         columns={columns}
         dataSource={filtered}
         scroll={{ x: 920 }}
-        pagination={{ pageSize: 50, hideOnSinglePage: true }}
+        pagination={{ itemRender: paginationItemRender, pageSize: 50, hideOnSinglePage: true }}
         locale={{
           emptyText: (
             <EmptyState

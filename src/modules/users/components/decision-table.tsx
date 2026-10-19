@@ -11,6 +11,7 @@ import { dayjs, formatDate } from "@/shared/libs/date.lib";
 import { DECISION_KIND_LABEL, DECISION_KIND_OPTIONS, DECISION_STATUS } from "../users.constant";
 import type { DecisionKind, DecisionStatus, StudentDecision } from "../users.type";
 import { DecisionPreview } from "./decision-preview";
+import { paginationItemRender } from "@/shared/constants/antd.constant";
 
 export type DecisionStudentOption = { id: string; code: string; fullName: string; className: string; faculty: string };
 
@@ -198,7 +199,7 @@ export function DecisionTable({ decisions, students, signerName, header }: Decis
           columns={columns}
           dataSource={visible}
           scroll={{ x: "max-content" }}
-          pagination={{ pageSize: 20, hideOnSinglePage: true }}
+          pagination={{ itemRender: paginationItemRender, pageSize: 20, hideOnSinglePage: true }}
           locale={{ emptyText: <EmptyState icon={ScrollText} title="Không có quyết định khớp bộ lọc" /> }}
         />
         <Drawer

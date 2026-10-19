@@ -9,6 +9,7 @@ import { dayjs, formatDate, formatDateTime } from "@/shared/libs/date.lib";
 import { decideStep, REQUEST_KINDS, REQUEST_STATUS, requestView } from "../requests.constant";
 import type { AcademicRequest, RequestKind, RequestStatus, RequestView, StepRole } from "../requests.type";
 import { ApprovalSteps } from "./approval-steps";
+import { paginationItemRender } from "@/shared/constants/antd.constant";
 
 type RequestInboxProps = {
   requests: RequestView[];
@@ -217,7 +218,7 @@ export function RequestInbox({
         onRow={(row) => ({ onClick: () => setOpenId(row.id), className: "cursor-pointer" })}
         rowClassName={(row) => (row.isOverdue ? "bg-rose-50/40" : "")}
         scroll={{ x: showRequester ? 1150 : 950 }}
-        pagination={{ pageSize: 15, hideOnSinglePage: true, showTotal: (total) => `${total} đơn` }}
+        pagination={{ itemRender: paginationItemRender, pageSize: 15, hideOnSinglePage: true, showTotal: (total) => `${total} đơn` }}
         locale={{ emptyText }}
         className="hidden md:block"
       />

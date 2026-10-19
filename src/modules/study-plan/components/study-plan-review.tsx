@@ -8,6 +8,7 @@ import { StatusTag } from "@/shared/components/ui/status-tag";
 import { dayjs, formatDateTime } from "@/shared/libs/date.lib";
 import { PENDING_TOO_LONG_DAYS, STUDY_PLAN_CREDIT_LIMIT, STUDY_PLAN_STATUS } from "../study-plan.constant";
 import type { StudyPlan, StudyPlanStatus } from "../study-plan.type";
+import { paginationItemRender } from "@/shared/constants/antd.constant";
 
 const STATUS_ORDER: Record<StudyPlanStatus, number> = { pending: 0, returned: 1, draft: 2, approved: 3 };
 
@@ -172,7 +173,7 @@ export function StudyPlanReview({ plans }: { plans: StudyPlan[] }) {
         columns={columns}
         dataSource={filtered}
         scroll={{ x: 860 }}
-        pagination={{ pageSize: 20, hideOnSinglePage: true, showTotal: (total) => `${total} kế hoạch` }}
+        pagination={{ itemRender: paginationItemRender, pageSize: 20, hideOnSinglePage: true, showTotal: (total) => `${total} kế hoạch` }}
         locale={{ emptyText }}
         className="hidden md:block"
       />

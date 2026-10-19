@@ -11,6 +11,8 @@ import type { StatusMeta } from "@/shared/constants/status.constant";
 import { meetingText } from "../course-registration.constant";
 import type { ClassSectionView } from "../course-registration.type";
 import { computeWorkloads, lecturerClash, loadStateOf, type AssignableLecturer, type LoadState, type WorkloadRow } from "../teaching-assignment.rule";
+import { paginationItemRender } from "@/shared/constants/antd.constant";
+import { TABS_MORE } from "@/shared/constants/antd.constant";
 
 const LOAD_STATE: Record<LoadState, StatusMeta> = {
   over: { label: "Vượt định mức", tone: "danger" },
@@ -187,6 +189,7 @@ export function TeachingAssignmentBoard({ sections, lecturers, terms, termId }: 
         <Select allowClear value={faculty} onChange={setFaculty} placeholder="Mọi khoa" aria-label="Khoa" options={faculties.map((value) => ({ value, label: value }))} className="w-full sm:w-60" />
       </div>
       <Tabs
+        more={TABS_MORE}
         items={[
           {
             key: "workload",
@@ -200,7 +203,7 @@ export function TeachingAssignmentBoard({ sections, lecturers, terms, termId }: 
                   columns={workloadColumns}
                   dataSource={visibleWorkloads}
                   scroll={{ x: "max-content" }}
-                  pagination={{ pageSize: 25, hideOnSinglePage: true }}
+                  pagination={{ itemRender: paginationItemRender, pageSize: 25, hideOnSinglePage: true }}
                   locale={{ emptyText: <EmptyState icon={Suitcase} title="Không có giảng viên khớp bộ lọc" /> }}
                 />
               </div>
@@ -226,7 +229,7 @@ export function TeachingAssignmentBoard({ sections, lecturers, terms, termId }: 
                   columns={sectionColumns}
                   dataSource={visibleSections}
                   scroll={{ x: "max-content" }}
-                  pagination={{ pageSize: 25, hideOnSinglePage: true }}
+                  pagination={{ itemRender: paginationItemRender, pageSize: 25, hideOnSinglePage: true }}
                   locale={{ emptyText: <EmptyState icon={Suitcase} title={onlyUnassigned ? "Mọi lớp đã có giảng viên" : "Không có lớp khớp bộ lọc"} /> }}
                 />
               </div>

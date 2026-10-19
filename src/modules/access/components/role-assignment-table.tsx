@@ -6,6 +6,7 @@ import { Magnifier, Plus, ShieldUser } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { dayjs, formatDate } from "@/shared/libs/date.lib";
 import type { Role, RoleAssignment } from "../access.type";
+import { paginationItemRender } from "@/shared/constants/antd.constant";
 
 type RoleAssignmentTableProps = {
   assignments: RoleAssignment[];
@@ -165,7 +166,7 @@ export function RoleAssignmentTable({ assignments, roles, faculties, currentUser
         columns={columns}
         dataSource={filtered}
         scroll={{ x: 900 }}
-        pagination={{ pageSize: 20, hideOnSinglePage: true }}
+        pagination={{ itemRender: paginationItemRender, pageSize: 20, hideOnSinglePage: true }}
         locale={{ emptyText: <EmptyState icon={ShieldUser} title="Không có cán bộ khớp bộ lọc" /> }}
       />
       <Drawer

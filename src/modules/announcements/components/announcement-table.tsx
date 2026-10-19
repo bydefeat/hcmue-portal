@@ -16,6 +16,7 @@ import {
 } from "../announcements.constant";
 import type { Announcement, AnnouncementFormValues, AnnouncementStatus } from "../announcements.type";
 import { AnnouncementFormDrawer } from "./announcement-form-drawer";
+import { paginationItemRender } from "@/shared/constants/antd.constant";
 
 function normalize(value: string) {
   return value.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/đ/gi, "d").toLowerCase();
@@ -227,7 +228,7 @@ export function AnnouncementTable({ announcements, header }: { announcements: An
           columns={columns}
           dataSource={filtered}
           scroll={{ x: "max-content" }}
-          pagination={{ pageSize: 20, hideOnSinglePage: true }}
+          pagination={{ itemRender: paginationItemRender, pageSize: 20, hideOnSinglePage: true }}
           locale={{
             emptyText: (
               <EmptyState

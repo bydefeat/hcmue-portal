@@ -10,6 +10,7 @@ import { StatusTag } from "@/shared/components/ui/status-tag";
 import { dayjs, formatDate } from "@/shared/libs/date.lib";
 import { EXAM_FORMAT_LABEL, EXAM_FORMAT_OPTIONS, EXAM_PAPER_STATUS, EXAM_STATUS, examConflicts, PROCTORS_PER_ROOM } from "../exams.constant";
 import type { ExamFormat, ExamKind, ExamPaperStatus, ExamSession } from "../exams.type";
+import { paginationItemRender } from "@/shared/constants/antd.constant";
 
 export type ExamRoomOption = { code: string; examCapacity: number; isAvailable: boolean };
 export type ProctorOption = { id: string; name: string; faculty: string };
@@ -242,7 +243,7 @@ export function AdminExamSchedule({ sessions, rooms, proctors, header }: AdminEx
           columns={columns}
           dataSource={visible}
           scroll={{ x: "max-content" }}
-          pagination={{ pageSize: 25, hideOnSinglePage: true }}
+          pagination={{ itemRender: paginationItemRender, pageSize: 25, hideOnSinglePage: true }}
           locale={{ emptyText: <EmptyState icon={CalendarCheck} title="Không có ca thi khớp bộ lọc" /> }}
         />
         <Drawer

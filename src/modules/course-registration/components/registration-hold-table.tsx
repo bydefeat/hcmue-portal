@@ -11,6 +11,7 @@ import type { StatusMeta } from "@/shared/constants/status.constant";
 import { dayjs, formatDate, formatDateTime } from "@/shared/libs/date.lib";
 import { HOLD_KIND_LABEL, HOLD_KIND_OPTIONS, keepCurrencyTogether } from "../course-registration.constant";
 import type { HoldKind, RegistrationHold } from "../course-registration.type";
+import { paginationItemRender } from "@/shared/constants/antd.constant";
 
 export type HoldStudentOption = {
   id: string;
@@ -216,7 +217,7 @@ export function RegistrationHoldTable({ holds, students, actorName, studentHrefB
           columns={columns}
           dataSource={visible}
           scroll={{ x: "max-content" }}
-          pagination={{ pageSize: 20, hideOnSinglePage: true }}
+          pagination={{ itemRender: paginationItemRender, pageSize: 20, hideOnSinglePage: true }}
           locale={{
             emptyText: (
               <EmptyState

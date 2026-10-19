@@ -140,7 +140,7 @@ Khoá chính `uuidv7`. Ràng buộc đặt ở DB thay vì ở code:
 | Sinh viên, giảng viên | `sv-29`, `gv-3` | Không dùng uuid, dùng thẳng mã SV, mã GV (đã `unique`), ví dụ `/lecturer/advising/students/48.01.104.001` |
 | Thông báo công khai | slug | Giữ slug |
 
-- Route chỉ nhận đúng định dạng: param không phải uuid hợp lệ (hoặc không khớp mã SV/GV) thì `notFound()` trước khi truy vấn.
+- Route chỉ nhận đúng định dạng: param không phải uuid hợp lệ (hoặc không khớp mã SV/GV) thì trả 404 trong `proxy.ts`, trước khi render. Kiểm tra ở page bằng `notFound()` vẫn hiện đúng giao diện 404 nhưng mã HTTP là 200, vì `loading.tsx` đã bắt đầu stream (Next gắn `noindex`).
 - Mã lớp học phần (`COMP1020.01`) vẫn hiển thị trên giao diện và dùng để tìm kiếm, không dùng làm định danh trên URL.
 
 - Kiểm: migrate từ DB trắng chạy được; một file seed dữ liệu mẫu (1 khoa, 1 ngành, ~20 học phần, 1 kỳ, vài lớp, 3 tài khoản: SV, GV kiêm cố vấn, admin).

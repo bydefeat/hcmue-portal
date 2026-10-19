@@ -5,6 +5,7 @@ import { Input, message, Modal, Select, Table, Button, type TableColumnsType } f
 import { Magnifier, UsersCheck } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { StatusTag } from "@/shared/components/ui/status-tag";
+import { paginationItemRender } from "@/shared/constants/antd.constant";
 
 export type EligibilityRow = {
   key: string;
@@ -132,7 +133,7 @@ export function AdminExamEligibility({ rows: initialRows, limitPercent }: { rows
         columns={columns}
         dataSource={visible}
         scroll={{ x: "max-content" }}
-        pagination={{ pageSize: 25, hideOnSinglePage: true, showTotal: (total) => `${total} trường hợp` }}
+        pagination={{ itemRender: paginationItemRender, pageSize: 25, hideOnSinglePage: true, showTotal: (total) => `${total} trường hợp` }}
         locale={{ emptyText: <EmptyState icon={UsersCheck} title="Không có sinh viên bị cấm thi" description={`Không sinh viên nào vắng từ ${limitPercent}% số buổi trở lên.`} /> }}
       />
       <Modal

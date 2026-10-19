@@ -7,6 +7,7 @@ import { EmptyState } from "@/shared/components/ui/empty-state";
 import { MeterBar } from "@/shared/components/ui/meter-bar";
 import { StatusTag } from "@/shared/components/ui/status-tag";
 import type { SectionSurveyResult, SurveyQuestion } from "../surveys.type";
+import { paginationItemRender } from "@/shared/constants/antd.constant";
 
 export const LOW_SCORE = 3.5;
 
@@ -142,7 +143,7 @@ export function AdminSurveyResults({ results, questions }: { results: SectionSur
           columns={sectionColumns}
           dataSource={filtered}
           scroll={{ x: "max-content" }}
-          pagination={{ pageSize: 25, hideOnSinglePage: true }}
+          pagination={{ itemRender: paginationItemRender, pageSize: 25, hideOnSinglePage: true }}
           locale={{ emptyText: <EmptyState icon={StarList} title="Chưa có kết quả khảo sát" /> }}
         />
       ) : (

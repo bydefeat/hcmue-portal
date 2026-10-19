@@ -9,6 +9,7 @@ import { StatusTag } from "@/shared/components/ui/status-tag";
 import { formatDate } from "@/shared/libs/date.lib";
 import { formatPoint, WARNING_LEVEL, WARNING_STATUS } from "../grades.constant";
 import type { AcademicWarning, WarningStatus } from "../grades.type";
+import { paginationItemRender } from "@/shared/constants/antd.constant";
 
 type AcademicWarningTableProps = {
   warnings: AcademicWarning[];
@@ -193,7 +194,7 @@ export function AcademicWarningTable({ warnings, studentHrefBase, showFaculty = 
         columns={columns}
         dataSource={filtered}
         scroll={{ x: showFaculty ? 1380 : 1180 }}
-        pagination={{ pageSize: 20, hideOnSinglePage: true, showTotal: (total) => `${total} sinh viên` }}
+        pagination={{ itemRender: paginationItemRender, pageSize: 20, hideOnSinglePage: true, showTotal: (total) => `${total} sinh viên` }}
         locale={{ emptyText }}
         className="hidden md:block"
       />

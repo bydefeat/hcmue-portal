@@ -7,6 +7,7 @@ import { EmptyState } from "@/shared/components/ui/empty-state";
 import { StatusTag } from "@/shared/components/ui/status-tag";
 import { COHORT_OPTIONS, FACULTY_OPTIONS } from "../users.constant";
 import type { AdvisorAssignment, Lecturer } from "../users.type";
+import { paginationItemRender } from "@/shared/constants/antd.constant";
 
 const UNASSIGNED = { label: "Chưa có cố vấn", tone: "warning" } as const;
 
@@ -134,7 +135,7 @@ export function AdvisorAssignmentTable({ assignments, lecturers }: AdvisorAssign
         columns={columns}
         dataSource={filtered}
         scroll={{ x: "max-content" }}
-        pagination={{ pageSize: 20, hideOnSinglePage: true, showTotal: (total) => `${total} lớp` }}
+        pagination={{ itemRender: paginationItemRender, pageSize: 20, hideOnSinglePage: true, showTotal: (total) => `${total} lớp` }}
         locale={{
           emptyText: (
             <EmptyState

@@ -8,6 +8,7 @@ import { PageHeader } from "@/shared/components/ui/page-header";
 import { COURSE_TYPE_LABEL, COURSE_TYPE_OPTIONS, KNOWLEDGE_BLOCK_LABEL, KNOWLEDGE_BLOCK_OPTIONS } from "../curriculum.constant";
 import type { Course, CourseFormValues, CourseType, KnowledgeBlock } from "../curriculum.type";
 import { CourseFormDrawer } from "./course-form-drawer";
+import { paginationItemRender } from "@/shared/constants/antd.constant";
 
 function normalize(value: string) {
   return value.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/đ/gi, "d").toLowerCase();
@@ -204,7 +205,7 @@ export function CourseTable({
           columns={columns}
           dataSource={filtered}
           scroll={{ x: "max-content" }}
-          pagination={{ pageSize: 20, hideOnSinglePage: true, showTotal: (total) => `${total} học phần` }}
+          pagination={{ itemRender: paginationItemRender, pageSize: 20, hideOnSinglePage: true, showTotal: (total) => `${total} học phần` }}
           locale={{
             emptyText: (
               <EmptyState

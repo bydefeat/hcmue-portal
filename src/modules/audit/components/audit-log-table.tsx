@@ -10,6 +10,7 @@ import { dayjs, formatDateTime } from "@/shared/libs/date.lib";
 import { AUDIT_ACTION, AUDIT_ENTITY_LABEL } from "../audit.constant";
 import type { AuditAction, AuditEntityType, AuditEntry } from "../audit.type";
 import { AuditChanges } from "./audit-changes";
+import { paginationItemRender } from "@/shared/constants/antd.constant";
 
 function normalize(value: string) {
   return value.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/đ/gi, "d").toLowerCase();
@@ -108,7 +109,7 @@ export function AuditLogTable({ entries }: { entries: AuditEntry[] }) {
         columns={columns}
         dataSource={filtered}
         scroll={{ x: "max-content" }}
-        pagination={{ pageSize: 20, hideOnSinglePage: true, showTotal: (total) => `${total} bản ghi` }}
+        pagination={{ itemRender: paginationItemRender, pageSize: 20, hideOnSinglePage: true, showTotal: (total) => `${total} bản ghi` }}
         locale={{ emptyText: <EmptyState icon={History} title="Không có bản ghi khớp bộ lọc" description="Thử mở rộng khoảng thời gian hoặc bỏ bớt điều kiện." /> }}
       />
     </div>

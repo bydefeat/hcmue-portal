@@ -7,6 +7,7 @@ import { EmptyState } from "@/shared/components/ui/empty-state";
 import { StatusTag } from "@/shared/components/ui/status-tag";
 import { GRADUATION_STATUS } from "../graduation.constant";
 import type { GraduationCandidate, GraduationStatus } from "../graduation.type";
+import { paginationItemRender } from "@/shared/constants/antd.constant";
 
 function normalize(value: string) {
   return value.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/đ/gi, "d").toLowerCase();
@@ -130,7 +131,7 @@ export function GraduationReview({ candidates }: { candidates: GraduationCandida
           ),
         }}
         scroll={{ x: "max-content" }}
-        pagination={{ pageSize: 25, hideOnSinglePage: true, showTotal: (total) => `${total} sinh viên` }}
+        pagination={{ itemRender: paginationItemRender, pageSize: 25, hideOnSinglePage: true, showTotal: (total) => `${total} sinh viên` }}
         locale={{ emptyText: <EmptyState icon={AwardCertificate} title="Không có sinh viên ở trạng thái này" /> }}
       />
     </div>

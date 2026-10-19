@@ -12,6 +12,7 @@ import { COHORT_OPTIONS, FACULTY_OPTIONS, STUDENT_STATUS, STUDENT_STATUS_OPTIONS
 import type { Student, StudentFormValues, StudentStatus } from "../users.type";
 import { StudentFormDrawer } from "./student-form-drawer";
 import { StudentImportModal } from "./student-import-modal";
+import { paginationItemRender } from "@/shared/constants/antd.constant";
 
 export type StudentRow = Student & {
   cpa4: number | null;
@@ -218,7 +219,7 @@ export function StudentTable({ students, header }: { students: StudentRow[]; hea
           dataSource={filtered}
           rowSelection={{ selectedRowKeys: selectedIds, onChange: setSelectedIds }}
           scroll={{ x: "max-content" }}
-          pagination={{ pageSize: 20, showSizeChanger: false, showTotal: (total) => `${total} sinh viên` }}
+          pagination={{ itemRender: paginationItemRender, pageSize: 20, showSizeChanger: false, showTotal: (total) => `${total} sinh viên` }}
           locale={{
             emptyText: (
               <EmptyState

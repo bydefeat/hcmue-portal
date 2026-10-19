@@ -9,6 +9,7 @@ import { StatusTag } from "@/shared/components/ui/status-tag";
 import { FACULTY_OPTIONS, LECTURER_STATUS, USER_ROLES } from "../users.constant";
 import type { Lecturer, LecturerFormValues } from "../users.type";
 import { LecturerFormDrawer } from "./lecturer-form-drawer";
+import { paginationItemRender } from "@/shared/constants/antd.constant";
 
 const ROLE_LABEL = Object.fromEntries(USER_ROLES.map((role) => [role.value, role.label]));
 
@@ -155,7 +156,7 @@ export function LecturerTable({
           columns={columns}
           dataSource={filtered}
           scroll={{ x: "max-content" }}
-          pagination={{ pageSize: 20, hideOnSinglePage: true, showTotal: (total) => `${total} giảng viên` }}
+          pagination={{ itemRender: paginationItemRender, pageSize: 20, hideOnSinglePage: true, showTotal: (total) => `${total} giảng viên` }}
           locale={{ emptyText: <EmptyState icon={UserSearch} title="Không có giảng viên khớp bộ lọc" description="Thử tìm theo mã giảng viên hoặc bỏ bớt điều kiện lọc." /> }}
         />
         <LecturerFormDrawer open={isDrawerOpen} lecturer={editing} onClose={() => setIsDrawerOpen(false)} onSubmit={handleSubmit} />

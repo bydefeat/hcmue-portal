@@ -19,6 +19,7 @@ import {
 } from "../course-registration.constant";
 import type { ClassSectionFormValues, ClassSectionStatus, ClassSectionView, Term } from "../course-registration.type";
 import { ClassSectionFormDrawer, type SectionCourseOption, type SectionLecturerOption } from "./class-section-form-drawer";
+import { paginationItemRender } from "@/shared/constants/antd.constant";
 
 type ClassSectionTableProps = {
   sections: ClassSectionView[];
@@ -331,7 +332,7 @@ export function ClassSectionTable({ sections, terms, termId, initialQuery = "", 
           columns={columns}
           dataSource={filtered}
           scroll={{ x: "max-content" }}
-          pagination={{ pageSize: 20, hideOnSinglePage: true, showTotal: (total) => `${total} lớp` }}
+          pagination={{ itemRender: paginationItemRender, pageSize: 20, hideOnSinglePage: true, showTotal: (total) => `${total} lớp` }}
           locale={{
             emptyText: (
               <EmptyState

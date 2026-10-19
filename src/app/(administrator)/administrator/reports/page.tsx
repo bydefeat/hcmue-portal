@@ -14,6 +14,7 @@ import { StandingReport } from "@/modules/grades/components/standing-report";
 import { formatPoint } from "@/modules/grades/grades.constant";
 import { getStandingSummary } from "@/modules/grades/grades.query";
 import { requirePermission } from "@/modules/access/access.query";
+import { TABS_MORE } from "@/shared/constants/antd.constant";
 
 export const metadata: Metadata = { title: "Thống kê học vụ" };
 
@@ -61,6 +62,7 @@ export default async function Page() {
             {targetTerm.name}: {targetEnrolled.toLocaleString("vi-VN")}/{targetSeats.toLocaleString("vi-VN")} chỗ đã có người đăng ký.
           </p>
           <Tabs
+            more={TABS_MORE}
             defaultActiveKey={targetTerm.id}
             items={[
               { key: targetTerm.id, label: `${targetTerm.shortName}, đang đăng ký`, children: <RegistrationReport summaries={targetRegistration} /> },

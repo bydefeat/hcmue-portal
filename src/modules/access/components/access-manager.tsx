@@ -4,6 +4,7 @@ import { Tabs } from "antd";
 import type { Role, RoleAssignment } from "../access.type";
 import { RoleAssignmentTable } from "./role-assignment-table";
 import { RolePermissionMatrix, type RoleRow } from "./role-permission-matrix";
+import { TABS_MORE } from "@/shared/constants/antd.constant";
 
 type AccessManagerProps = {
   roles: RoleRow[];
@@ -18,6 +19,7 @@ export function AccessManager({ roles, assignments, faculties, currentUserId, vi
   const plainRoles: Role[] = roles;
   return (
     <Tabs
+      more={TABS_MORE}
       items={[
         { key: "roles", label: "Vai trò và quyền", children: <RolePermissionMatrix roles={roles} /> },
         {

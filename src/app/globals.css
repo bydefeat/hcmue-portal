@@ -39,6 +39,10 @@
 }
 
 @layer components {
+  .ant-message {
+    top: 72px !important;
+  }
+
   .ant-card:not(.ant-card-small) > .ant-card-head,
   .ant-card:not(.ant-card-small) > .ant-card-body {
     padding-inline: 16px;

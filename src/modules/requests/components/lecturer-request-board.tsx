@@ -7,6 +7,7 @@ import { requestView } from "../requests.constant";
 import type { RequestStatus, RequestView } from "../requests.type";
 import { RequestInbox } from "./request-inbox";
 import { NewLecturerRequestDrawer, type BusySlot, type RequestClassOption } from "./new-lecturer-request-drawer";
+import { TABS_MORE } from "@/shared/constants/antd.constant";
 
 type LecturerRequestBoardProps = {
   assigned: RequestView[];
@@ -29,6 +30,7 @@ export function LecturerRequestBoard({ assigned, own, classes, busySlots, rooms,
     <div className="flex flex-col gap-3">
       {contextHolder}
       <Tabs
+        more={TABS_MORE}
         activeKey={tab}
         onChange={(key) => setTab(key as "assigned" | "own")}
         tabBarExtraContent={

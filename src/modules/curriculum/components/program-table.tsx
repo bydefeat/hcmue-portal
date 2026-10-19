@@ -12,6 +12,7 @@ import { MOCK_MAJORS } from "@/shared/libs/mock.lib";
 import { PROGRAM_STATUS, PROGRAM_STATUS_OPTIONS } from "../curriculum.constant";
 import type { ProgramFormValues, ProgramStatus, ProgramSummary } from "../curriculum.type";
 import { ProgramFormDrawer } from "./program-form-drawer";
+import { paginationItemRender } from "@/shared/constants/antd.constant";
 
 function normalize(value: string) {
   return value.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/đ/gi, "d").toLowerCase();
@@ -165,7 +166,7 @@ export function ProgramTable({ programs, header }: { programs: ProgramSummary[];
           columns={columns}
           dataSource={filtered}
           scroll={{ x: "max-content" }}
-          pagination={{ pageSize: 20, hideOnSinglePage: true, showTotal: (total) => `${total} chương trình` }}
+          pagination={{ itemRender: paginationItemRender, pageSize: 20, hideOnSinglePage: true, showTotal: (total) => `${total} chương trình` }}
           locale={{
             emptyText: (
               <EmptyState

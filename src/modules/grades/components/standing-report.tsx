@@ -6,12 +6,12 @@ import { formatPoint, STANDING_SCALE } from "@/modules/grades/grades.constant";
 import type { AcademicStanding, FacultyStandingSummary } from "@/modules/grades/grades.type";
 
 const SEGMENT_CLASS: Record<AcademicStanding, string> = {
-  excellent: "bg-primary",
-  "very-good": "bg-primary/70",
-  good: "bg-primary/45",
-  average: "bg-primary/20",
-  weak: "bg-amber-500",
-  poor: "bg-rose-600",
+  excellent: "bg-green-700",
+  "very-good": "bg-green-500",
+  good: "bg-lime-400",
+  average: "bg-amber-300",
+  weak: "bg-orange-500",
+  poor: "bg-red-600",
 };
 
 function DistributionBar({ counts, total }: { counts: Record<AcademicStanding, number>; total: number }) {

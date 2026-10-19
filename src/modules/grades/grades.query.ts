@@ -1,201 +1,283 @@
-import { daysUntil, dayjs } from "@/shared/libs/date.lib";
-import { createRandom, mockDate, mockId, mockStudentIdentity, mockStudentIndex } from "@/shared/libs/mock.lib";
-import { mockDelay } from "@/shared/libs/mock-request.lib";
-import { DUE_SOON_DAYS, STANDING_SCALE, toStanding } from "@/modules/grades/grades.constant";
-import { abilityOf, DEFAULT_COMPONENTS, GRADE_SHEET_SEEDS, mockTranscriptTerms } from "@/modules/grades/grades.mock";
+import "server-only";
+import { cache } from "react";
+import { forbidden } from "next/navigation";
+import { and, asc, eq, inArray, ne } from "drizzle-orm";
+import { db } from "@/shared/libs/db.lib";
+import { dayjs } from "@/shared/libs/date.lib";
+import { isUuid } from "@/shared/libs/id.lib";
+import { formatStudentCode } from "@/shared/libs/student-code.lib";
+import { requireRole, requireSession } from "@/modules/authentication/authentication.query";
+import { classSections, enrollments, terms } from "@/modules/course-registration/course-registration.schema";
+import { courses, faculties, majors } from "@/modules/curriculum/curriculum.schema";
+import { DEFAULT_COMPONENTS, DEFAULT_DEADLINE_DAYS } from "@/modules/grades/grades.constant";
+import { buildTranscript, computeStanding, sheetState, sheetSummary, summarizeStandings, type TranscriptTermInput } from "@/modules/grades/grades.rule";
+import { academicWarnings, courseResults, gradeComponents, gradeScores, gradeSheets } from "@/modules/grades/grades.schema";
 import type {
-  AcademicStanding,
   AcademicWarning,
   FacultyStandingSummary,
   GradeSheet,
   GradeSheetState,
   GradeSheetSummary,
+  LetterGrade,
   StudentStanding,
   TranscriptCourse,
   TranscriptTerm,
 } from "@/modules/grades/grades.type";
+import { administrativeClasses, students } from "@/modules/users/users.schema";
 
-const STUDENT_TOTAL = 600;
+// Khóa đang xét tốt nghiệp không tính vào báo cáo xếp loại học lực.
+const GRADUATING_COHORT = 48;
 
-function indexOf(studentId: string) {
-  return mockStudentIndex(studentId);
+const ownStudentId = cache(async (userId: string) => {
+  const [row] = await db.select({ id: students.id }).from(students).where(eq(students.userId, userId));
+  return row?.id ?? null;
+});
+
+// Sinh viên chỉ đọc được kết quả của chính mình; giảng viên, cán bộ đọc theo trang của từng cổng.
+async function requireResultAccess(studentIds: string[]) {
+  const session = await requireSession();
+  if (session.roles.includes("admin") || session.roles.includes("lecturer")) return;
+  const own = await ownStudentId(session.user.id);
+  if (studentIds.some((id) => id !== own)) forbidden();
 }
 
-function average(courses: TranscriptCourse[], key: "point4" | "score10") {
-  const graded = courses.filter((course) => course[key] !== null);
-  const credits = graded.reduce((sum, course) => sum + course.credits, 0);
-  if (credits === 0) return null;
-  return Math.round((graded.reduce((sum, course) => sum + (course[key] as number) * course.credits, 0) / credits) * 100) / 100;
+async function requireStaff() {
+  const session = await requireSession();
+  if (!session.roles.includes("admin") && !session.roles.includes("lecturer")) forbidden();
+  return session;
 }
 
-function buildTranscript(index: number): TranscriptTerm[] {
-  const accumulated: TranscriptCourse[] = [];
-  return mockTranscriptTerms(index).map((term) => {
-    accumulated.push(...term.courses.filter((course) => course.point4 !== null));
-    const attemptedCredits = term.courses.reduce((sum, course) => sum + course.credits, 0);
-    const earnedCredits = term.courses.filter((course) => (course.point4 ?? 0) > 0).reduce((sum, course) => sum + course.credits, 0);
-    return {
-      ...term,
-      attemptedCredits,
-      earnedCredits: term.isInProgress ? 0 : earnedCredits,
-      gpa4: average(term.courses, "point4"),
-      gpa10: average(term.courses, "score10"),
-      cpa4: term.isInProgress ? null : average(accumulated, "point4"),
-    };
-  });
+const currentTermId = cache(async () => {
+  const [row] = await db.select({ id: terms.id }).from(terms).where(eq(terms.isCurrent, true));
+  return row?.id ?? null;
+});
+
+function transcriptCourse(row: { courseCode: string; courseName: string; credits: number; score10: number | null; letter: string | null; point4: number | null }): TranscriptCourse {
+  return { ...row, letter: row.letter as LetterGrade | null };
 }
 
-function standingOf(index: number): StudentStanding {
-  const transcript = buildTranscript(index);
-  const completed = transcript.filter((term) => !term.isInProgress);
-  const courses = completed.flatMap((term) => term.courses);
-  const cpa4 = average(courses, "point4") ?? 0;
-  const cpa10 = average(courses, "score10") ?? 0;
-  const failedCredits = courses.filter((course) => course.letter === "F").reduce((sum, course) => sum + course.credits, 0);
-  const lastTerm = completed.filter((term) => term.courses.length > 0).at(-1);
-  const lastTermGpa4 = lastTerm?.gpa4 ?? 0;
-  const warningLevel = courses.length === 0 ? 0 : cpa4 < 1 ? 3 : cpa4 < 1.5 || failedCredits >= 12 ? 2 : (lastTerm && lastTermGpa4 < 1) || failedCredits >= 6 ? 1 : 0;
-  return {
-    studentId: mockId(`student:${index}`),
-    cpa4,
-    cpa10,
-    earnedCredits: completed.reduce((sum, term) => sum + term.earnedCredits, 0),
-    failedCredits,
-    lastTermGpa4,
-    standing: toStanding(cpa4),
-    warningLevel,
+// Bảng điểm theo kỳ: các kỳ có kết quả học phần, cộng kỳ hiện tại (đang học) lấy từ đăng ký, kèm điểm đã công bố nếu có.
+async function loadTranscripts(studentIds: string[] | null): Promise<Map<string, TranscriptTerm[]>> {
+  const ids = studentIds?.filter(isUuid) ?? null;
+  const transcripts = new Map<string, TranscriptTerm[]>();
+  if (ids && ids.length === 0) return transcripts;
+  const current = await currentTermId();
+  const [results, ongoing] = await Promise.all([
+    db
+      .select({
+        studentId: courseResults.studentId,
+        termId: courseResults.termId,
+        termName: terms.name,
+        termStart: terms.startDate,
+        enrollmentId: courseResults.enrollmentId,
+        courseCode: courses.code,
+        courseName: courses.name,
+        credits: courses.credits,
+        score10: courseResults.score10,
+        letter: courseResults.letter,
+        point4: courseResults.point4,
+      })
+      .from(courseResults)
+      .innerJoin(courses, eq(courses.id, courseResults.courseId))
+      .innerJoin(terms, eq(terms.id, courseResults.termId))
+      .where(ids ? inArray(courseResults.studentId, ids) : undefined)
+      .orderBy(asc(terms.startDate), asc(courseResults.recordedAt), asc(courses.code)),
+    current
+      ? db
+          .select({
+            studentId: enrollments.studentId,
+            enrollmentId: enrollments.id,
+            termName: terms.name,
+            termStart: terms.startDate,
+            courseCode: courses.code,
+            courseName: courses.name,
+            credits: courses.credits,
+          })
+          .from(enrollments)
+          .innerJoin(courses, eq(courses.id, enrollments.courseId))
+          .innerJoin(terms, eq(terms.id, enrollments.termId))
+          .where(and(eq(enrollments.termId, current), eq(enrollments.status, "enrolled"), ids ? inArray(enrollments.studentId, ids) : undefined))
+          .orderBy(asc(enrollments.registeredAt))
+      : Promise.resolve([]),
+  ]);
+
+  const raw = new Map<string, Map<string, TranscriptTermInput & { start: string }>>();
+  const termOf = (studentId: string, termId: string, termName: string, start: string) => {
+    const byTerm = raw.get(studentId) ?? new Map<string, TranscriptTermInput & { start: string }>();
+    raw.set(studentId, byTerm);
+    const term = byTerm.get(termId) ?? { termId, termName, start, isInProgress: termId === current, courses: [] };
+    byTerm.set(termId, term);
+    return term;
   };
+  const resultByEnrollment = new Map(results.filter((row) => row.enrollmentId).map((row) => [row.enrollmentId!, row]));
+  for (const row of ongoing) {
+    const result = resultByEnrollment.get(row.enrollmentId);
+    termOf(row.studentId, current!, row.termName, row.termStart).courses.push(
+      transcriptCourse({ ...row, score10: result?.score10 ?? null, letter: result?.letter ?? null, point4: result?.point4 ?? null }),
+    );
+  }
+  for (const row of results) {
+    if (row.termId === current && row.enrollmentId) continue;
+    termOf(row.studentId, row.termId, row.termName, row.termStart).courses.push(transcriptCourse(row));
+  }
+  for (const [studentId, byTerm] of raw) {
+    const ordered = [...byTerm.values()].toSorted((a, b) => a.start.localeCompare(b.start)).map(({ start: _start, ...term }) => term);
+    transcripts.set(studentId, buildTranscript(ordered));
+  }
+  return transcripts;
 }
 
-const STANDING_CACHE = new Map<number, StudentStanding>();
-
-function cachedStanding(index: number) {
-  if (!STANDING_CACHE.has(index)) STANDING_CACHE.set(index, standingOf(index));
-  return STANDING_CACHE.get(index)!;
+export async function getTranscript(studentId: string): Promise<TranscriptTerm[]> {
+  await requireResultAccess([studentId]);
+  if (!isUuid(studentId)) return [];
+  return (await loadTranscripts([studentId])).get(studentId) ?? [];
 }
 
-export async function getTranscript(studentId: string) {
-  await mockDelay();
-  return buildTranscript(indexOf(studentId));
-}
-
-export async function getStudentStandings(studentIds: string[]) {
-  await mockDelay();
-  return studentIds.map((id) => cachedStanding(indexOf(id)));
-}
-
-function reasonsOf(standing: StudentStanding) {
-  const reasons: string[] = [];
-  if (standing.cpa4 < 1.5) reasons.push(`CPA ${standing.cpa4.toFixed(2).replace(".", ",")} dưới ngưỡng 1,5`);
-  if (standing.lastTermGpa4 < 1) reasons.push(`ĐTB học kỳ gần nhất ${standing.lastTermGpa4.toFixed(2).replace(".", ",")}`);
-  if (standing.failedCredits >= 6) reasons.push(`Nợ ${standing.failedCredits} tín chỉ`);
-  return reasons;
-}
-
-export async function getAcademicWarnings(studentIds?: string[]): Promise<AcademicWarning[]> {
-  await mockDelay();
-  const indices = studentIds ? studentIds.map(indexOf) : Array.from({ length: STUDENT_TOTAL }, (_, index) => index);
-  return indices
-    .map((index) => ({ index, standing: cachedStanding(index), student: mockStudentIdentity(index) }))
-    .filter(({ standing, student }) => standing.warningLevel > 0 && student.cohort !== 48)
-    .map(({ index, standing, student }) => {
-      const random = createRandom(index + 404);
-      const roll = random();
-      return {
-        id: `cb-${index}`,
-        studentId: student.id,
-        studentCode: student.code,
-        fullName: student.fullName,
-        className: student.className,
-        faculty: student.faculty,
-        cohort: student.cohort,
-        termName: "Học kỳ 2, năm học 2025-2026",
-        termGpa4: standing.lastTermGpa4,
-        cpa4: standing.cpa4,
-        failedCredits: standing.failedCredits,
-        level: standing.warningLevel as 1 | 2 | 3,
-        reasons: reasonsOf(standing),
-        status: roll < 0.4 ? "new" : roll < 0.75 ? "notified" : "resolved",
-        createdAt: mockDate(-Math.floor(random() * 20) - 2, "09:00"),
-      } satisfies AcademicWarning;
-    })
-    .toSorted((a, b) => b.level - a.level || a.cpa4 - b.cpa4);
+export async function getStudentStandings(studentIds: string[]): Promise<StudentStanding[]> {
+  await requireResultAccess(studentIds);
+  const transcripts = await loadTranscripts(studentIds.length > 200 ? null : studentIds);
+  return studentIds.map((id) => computeStanding(id, transcripts.get(id) ?? []));
 }
 
 export async function getStandingSummary(): Promise<FacultyStandingSummary[]> {
-  await mockDelay();
-  const summary = new Map<string, FacultyStandingSummary & { cpaTotal: number }>();
-  for (let index = 0; index < STUDENT_TOTAL; index += 1) {
-    const student = mockStudentIdentity(index);
-    if (student.cohort === 48) continue;
-    const standing = cachedStanding(index);
-    const entry =
-      summary.get(student.faculty) ??
-      ({
-        faculty: student.faculty,
-        total: 0,
-        averageCpa: 0,
-        cpaTotal: 0,
-        warnings: 0,
-        counts: Object.fromEntries(STANDING_SCALE.map((step) => [step.standing, 0])) as Record<AcademicStanding, number>,
-      } satisfies FacultyStandingSummary & { cpaTotal: number });
-    entry.total += 1;
-    entry.cpaTotal += standing.cpa4;
-    entry.counts[standing.standing] += 1;
-    if (standing.warningLevel > 0) entry.warnings += 1;
-    summary.set(student.faculty, entry);
-  }
-  return [...summary.values()].map(({ cpaTotal, ...entry }) => ({ ...entry, averageCpa: Math.round((cpaTotal / entry.total) * 100) / 100 }));
+  await requireRole("admin");
+  const [rows, transcripts] = await Promise.all([
+    db
+      .select({ id: students.id, faculty: faculties.name })
+      .from(students)
+      .innerJoin(administrativeClasses, eq(administrativeClasses.id, students.administrativeClassId))
+      .innerJoin(majors, eq(majors.id, administrativeClasses.majorId))
+      .innerJoin(faculties, eq(faculties.id, majors.facultyId))
+      .where(ne(administrativeClasses.cohort, GRADUATING_COHORT))
+      .orderBy(asc(students.code)),
+    loadTranscripts(null),
+  ]);
+  return summarizeStandings(rows.map((row) => ({ faculty: row.faculty, standing: computeStanding(row.id, transcripts.get(row.id) ?? []) })));
 }
 
-function sheetState(status: GradeSheet["status"], deadline: string): GradeSheetState {
-  if (status === "published" || status === "approved" || status === "locked" || status === "returned") return status;
-  if (dayjs().isAfter(deadline)) return "overdue";
-  if (daysUntil(deadline) <= DUE_SOON_DAYS) return "due-soon";
-  return "in-progress";
+// Cảnh báo học vụ của học kỳ xét gần nhất, mức nặng và CPA thấp lên đầu.
+export async function getAcademicWarnings(studentIds?: string[]): Promise<AcademicWarning[]> {
+  await requireStaff();
+  const ids = studentIds?.filter(isUuid);
+  if (ids && ids.length === 0) return [];
+  const rows = await db
+    .select({
+      id: academicWarnings.id,
+      studentId: students.id,
+      studentCode: students.code,
+      fullName: students.fullName,
+      className: administrativeClasses.code,
+      faculty: faculties.name,
+      cohort: administrativeClasses.cohort,
+      termId: terms.id,
+      termName: terms.name,
+      termStart: terms.startDate,
+      termGpa4: academicWarnings.termGpa4,
+      cpa4: academicWarnings.cpa4,
+      failedCredits: academicWarnings.failedCredits,
+      level: academicWarnings.level,
+      reasons: academicWarnings.reasons,
+      status: academicWarnings.status,
+      createdAt: academicWarnings.createdAt,
+    })
+    .from(academicWarnings)
+    .innerJoin(terms, eq(terms.id, academicWarnings.termId))
+    .innerJoin(students, eq(students.id, academicWarnings.studentId))
+    .innerJoin(administrativeClasses, eq(administrativeClasses.id, students.administrativeClassId))
+    .innerJoin(majors, eq(majors.id, administrativeClasses.majorId))
+    .innerJoin(faculties, eq(faculties.id, majors.facultyId))
+    .where(ids ? inArray(academicWarnings.studentId, ids) : undefined);
+  const latest = rows.reduce<string | null>((best, row) => (best === null || row.termStart > best ? row.termStart : best), null);
+  return rows
+    .filter((row) => row.termStart === latest)
+    .map(({ termId: _termId, termStart: _termStart, ...row }) => ({
+      ...row,
+      studentCode: formatStudentCode(row.studentCode),
+      level: row.level as 1 | 2 | 3,
+      createdAt: row.createdAt.toISOString(),
+    }))
+    .toSorted((a, b) => b.level - a.level || a.cpa4 - b.cpa4);
 }
 
-export async function getGradeSheet(classSectionId: string, studentIds: string[]): Promise<GradeSheet & { state: GradeSheetState }> {
-  await mockDelay();
-  const seed = GRADE_SHEET_SEEDS[classSectionId] ?? { components: DEFAULT_COMPONENTS, status: "draft" as const, deadline: mockDate(30, "23:59"), fill: {} };
-  const scores: GradeSheet["scores"] = {};
-  for (const studentId of studentIds) {
-    const index = indexOf(studentId);
-    const random = createRandom(index * 17 + classSectionId.length * 101);
-    const ability = abilityOf(index);
-    scores[studentId] = Object.fromEntries(
-      seed.components.map((component) => {
-        const filled = random() < (seed.fill[component.key] ?? 0);
-        const base = component.key === "attendance" ? ability + 2 : ability + (random() - 0.5) * 2.4;
-        return [component.key, filled ? Math.min(10, Math.max(0, Math.round(base * 4) / 4)) : null];
-      }),
-    );
-  }
-  return {
-    classSectionId,
-    components: seed.components,
-    status: seed.status,
-    deadline: seed.deadline,
-    lockedAt: seed.status === "draft" ? null : mockDate(-8, "16:20"),
-    savedAt: seed.status === "draft" ? mockDate(-1, "21:47") : null,
-    scores,
-    state: sheetState(seed.status, seed.deadline),
-  };
-}
+export type GradeSheetView = GradeSheet & { state: GradeSheetState };
 
-export async function getGradeSheetSummaries(classes: { classSectionId: string; studentIds: string[] }[]): Promise<GradeSheetSummary[]> {
-  return Promise.all(
-    classes.map(async ({ classSectionId, studentIds }) => {
-      const sheet = await getGradeSheet(classSectionId, studentIds);
-      const values = Object.values(sheet.scores).flatMap((row) => Object.values(row));
+// Bảng điểm của nhiều lớp trong 5 câu lệnh. Lớp chưa có bảng điểm thì trả bảng nháp mặc định, lưu lần đầu mới tạo dòng.
+async function sheetViews(sectionIds: string[]): Promise<GradeSheetView[]> {
+  const ids = [...new Set(sectionIds.filter(isUuid))];
+  if (ids.length === 0) return [];
+  const [sections, sheets, roster] = await Promise.all([
+    db
+      .select({ id: classSections.id, termEnd: terms.endDate })
+      .from(classSections)
+      .innerJoin(terms, eq(terms.id, classSections.termId))
+      .where(inArray(classSections.id, ids)),
+    db.select().from(gradeSheets).where(inArray(gradeSheets.classSectionId, ids)),
+    db
+      .select({ id: enrollments.id, studentId: enrollments.studentId, classSectionId: enrollments.classSectionId })
+      .from(enrollments)
+      .where(and(inArray(enrollments.classSectionId, ids), eq(enrollments.status, "enrolled"))),
+  ]);
+  const sheetIds = sheets.map((sheet) => sheet.id);
+  const [components, scores] =
+    sheetIds.length === 0
+      ? [[], []]
+      : await Promise.all([
+          db.select().from(gradeComponents).where(inArray(gradeComponents.gradeSheetId, sheetIds)).orderBy(asc(gradeComponents.position)),
+          db
+            .select({ componentId: gradeScores.gradeComponentId, enrollmentId: gradeScores.enrollmentId, score: gradeScores.score })
+            .from(gradeScores)
+            .innerJoin(gradeComponents, eq(gradeComponents.id, gradeScores.gradeComponentId))
+            .where(inArray(gradeComponents.gradeSheetId, sheetIds)),
+        ]);
+  const scoreOf = new Map(scores.map((row) => [`${row.componentId}:${row.enrollmentId}`, row.score]));
+  const sheetBySection = new Map(sheets.map((sheet) => [sheet.classSectionId, sheet]));
+  const sectionById = new Map(sections.map((section) => [section.id, section]));
+
+  return ids
+    .filter((id) => sectionById.has(id))
+    .map((id) => {
+      const sheet = sheetBySection.get(id);
+      const sheetComponents = sheet ? components.filter((component) => component.gradeSheetId === sheet.id) : [];
+      const columns = sheet ? sheetComponents.map(({ key, label, weight }) => ({ key, label, weight })) : DEFAULT_COMPONENTS;
+      const members = roster.filter((entry) => entry.classSectionId === id);
+      const rows: GradeSheet["scores"] = Object.fromEntries(
+        members.map((entry) => [
+          entry.studentId,
+          Object.fromEntries(
+            columns.map((column, position) => [column.key, sheet ? (scoreOf.get(`${sheetComponents[position].id}:${entry.id}`) ?? null) : null]),
+          ),
+        ]),
+      );
+      const deadline = sheet
+        ? sheet.deadline.toISOString()
+        : dayjs(sectionById.get(id)!.termEnd).add(DEFAULT_DEADLINE_DAYS, "day").hour(23).minute(59).toISOString();
+      const status = sheet?.status ?? "draft";
       return {
-        classSectionId,
-        status: sheet.status,
-        state: sheet.state,
-        deadline: sheet.deadline,
-        filledCells: values.filter((value) => value !== null).length,
-        totalCells: values.length,
+        classSectionId: id,
+        components: columns,
+        status,
+        deadline,
+        lockedAt: sheet?.lockedAt?.toISOString() ?? null,
+        savedAt: sheet?.savedAt?.toISOString() ?? null,
+        returnReason: sheet?.returnReason ?? null,
+        scores: rows,
+        state: sheetState(status, deadline),
       };
-    }),
-  );
+    });
+}
+
+export async function getGradeSheet(classSectionId: string): Promise<GradeSheetView | null> {
+  await requireStaff();
+  const [sheet] = await sheetViews([classSectionId]);
+  return sheet ?? null;
+}
+
+export async function getGradeSheets(classSectionIds: string[]): Promise<GradeSheetView[]> {
+  await requireStaff();
+  return sheetViews(classSectionIds);
+}
+
+export async function getGradeSheetSummaries(classSectionIds: string[]): Promise<GradeSheetSummary[]> {
+  await requireStaff();
+  return (await sheetViews(classSectionIds)).map(sheetSummary);
 }

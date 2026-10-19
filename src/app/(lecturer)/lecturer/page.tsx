@@ -6,7 +6,7 @@ import { EXAM_KIND_LABEL } from "@/modules/exams/exams.constant";
 import { getExamsForLecturer } from "@/modules/exams/exams.query";
 import { REQUEST_KINDS } from "@/modules/requests/requests.constant";
 import { getRequestsForAssignee } from "@/modules/requests/requests.query";
-import { getClassRoster, getCurrentTerm, getLecturerClassSections } from "@/modules/course-registration/course-registration.query";
+import { getCurrentTerm, getLecturerClassSections } from "@/modules/course-registration/course-registration.query";
 import type { ClassMeeting, ClassSectionView } from "@/modules/course-registration/course-registration.type";
 import { GRADE_SHEET_STATE } from "@/modules/grades/grades.constant";
 import { getAcademicWarnings, getGradeSheetSummaries } from "@/modules/grades/grades.query";
@@ -47,10 +47,7 @@ function deadlineText(deadline: string) {
 export default async function Page() {
   const [lecturer, term] = await Promise.all([getCurrentLecturer(), getCurrentTerm()]);
   const sections = await getLecturerClassSections(lecturer.id, term.id);
-  const rosters = await Promise.all(sections.map((section) => getClassRoster(section.id)));
-  const summaries = await getGradeSheetSummaries(
-    sections.map((section, index) => ({ classSectionId: section.id, studentIds: rosters[index].map((entry) => entry.studentId) })),
-  );
+  const summaries = await getGradeSheetSummaries(sections.map((section) => section.id));
   const advisees = lecturer.isAdvisor ? await getAdvisees(lecturer.id) : [];
   const adviseeIds = advisees.map((student) => student.id);
   const [plans, warnings] = lecturer.isAdvisor ? await Promise.all([getStudyPlans(adviseeIds), getAcademicWarnings(adviseeIds)]) : [[], []];

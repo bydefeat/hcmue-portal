@@ -1,12 +1,13 @@
 "use client";
 
-import { useState } from "react";
-import { Alert, Button, Drawer, Input, message, Modal, Select, Table, type TableColumnsType } from "antd";
+import { useState, useTransition } from "react";
+import { Alert, Button, Drawer, Form, Input, message, Modal, Select, Table, type TableColumnsType } from "antd";
 import { Magnifier } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { MeterBar } from "@/shared/components/ui/meter-bar";
 import { StatusTag } from "@/shared/components/ui/status-tag";
 import { formatDateTime } from "@/shared/libs/date.lib";
+import { approveGradeSheets, publishGradeSheets, returnGradeSheet } from "@/modules/grades/grades.action";
 import { formatPoint, GRADE_SHEET_STATE, LETTER_SCALE, LETTER_COLOR } from "@/modules/grades/grades.constant";
 import type { GradeSheetState } from "@/modules/grades/grades.type";
 import { paginationItemRender } from "@/shared/constants/antd.constant";
@@ -48,6 +49,8 @@ export function GradePublishingTable({ rows: initialRows, canApprove, canPublish
   const [previewId, setPreviewId] = useState<string | null>(null);
   const [returning, setReturning] = useState<PublishingRow | null>(null);
   const [reason, setReason] = useState("");
+  const [reasonError, setReasonError] = useState<string>();
+  const [isPending, startTransition] = useTransition();
   const faculties = [...new Set(rows.map((row) => row.faculty))];
   const preview = rows.find((row) => row.classSectionId === previewId) ?? null;
   const visible = rows
@@ -65,11 +68,17 @@ export function GradePublishingTable({ rows: initialRows, canApprove, canPublish
   const setStateOf = (ids: string[], next: GradeSheetState, returnReason: string | null = null) =>
     setRows((current) => current.map((row) => (ids.includes(row.classSectionId) ? { ...row, state: next, returnReason } : row)));
 
-  const approve = (targets: PublishingRow[]) => {
-    setStateOf(targets.map((row) => row.classSectionId), "approved");
-    setSelected([]);
-    messageApi.success(`Khoa đã duyệt ${targets.length} bảng điểm, chuyển Phòng Đào tạo công bố`);
-  };
+  const approve = (targets: PublishingRow[]) =>
+    startTransition(async () => {
+      const result = await approveGradeSheets(targets.map((row) => row.classSectionId));
+      if (!result.ok) {
+        messageApi.error(result.message);
+        return;
+      }
+      setStateOf(result.data.classSectionIds, "approved");
+      setSelected([]);
+      messageApi.success(`Khoa đã duyệt ${result.data.classSectionIds.length} bảng điểm, chuyển Phòng Đào tạo công bố`);
+    });
 
   const publish = (targets: PublishingRow[]) =>
     modal.confirm({
@@ -79,23 +88,38 @@ export function GradePublishingTable({ rows: initialRows, canApprove, canPublish
       okButtonProps: { danger: true },
       cancelText: "Hủy",
       mask: { closable: false },
-      onOk: () => {
-        setStateOf(targets.map((row) => row.classSectionId), "published");
+      onOk: async () => {
+        const result = await publishGradeSheets(targets.map((row) => row.classSectionId));
+        if (!result.ok) {
+          messageApi.error(result.message);
+          return;
+        }
+        setStateOf(result.data.classSectionIds, "published");
         setSelected([]);
-        messageApi.success(`Đã công bố điểm ${targets.length} lớp`);
+        messageApi.success(`Đã công bố điểm ${result.data.classSectionIds.length} lớp`);
       },
     });
 
-  const confirmReturn = () => {
-    if (!returning) return;
-    if (!reason.trim()) {
-      messageApi.warning("Ghi lý do trả lại để giảng viên biết cần sửa gì");
-      return;
-    }
-    setStateOf([returning.classSectionId], "returned", reason.trim());
-    messageApi.success(`Đã trả bảng điểm ${returning.code} về giảng viên`);
+  const closeReturn = () => {
     setReturning(null);
     setReason("");
+    setReasonError(undefined);
+  };
+
+  const confirmReturn = () => {
+    if (!returning) return;
+    const target = returning;
+    startTransition(async () => {
+      const result = await returnGradeSheet({ classSectionId: target.classSectionId, reason });
+      if (!result.ok) {
+        if (result.fieldErrors?.reason) setReasonError(result.fieldErrors.reason);
+        else messageApi.error(result.message);
+        return;
+      }
+      setStateOf([result.data.classSectionId], "returned", result.data.returnReason);
+      messageApi.success(`Đã trả bảng điểm ${target.code} về giảng viên`);
+      closeReturn();
+    });
   };
 
   const columns: TableColumnsType<PublishingRow> = [
@@ -156,7 +180,7 @@ export function GradePublishingTable({ rows: initialRows, canApprove, canPublish
               <Button size="small" type="text" onClick={() => setReturning(row)}>
                 Trả lại
               </Button>
-              <Button size="small" type="text" onClick={() => approve([row])}>
+              <Button size="small" type="text" disabled={isPending} onClick={() => approve([row])}>
                 Duyệt
               </Button>
             </>
@@ -183,7 +207,7 @@ export function GradePublishingTable({ rows: initialRows, canApprove, canPublish
         <Select allowClear value={faculty} onChange={setFaculty} placeholder="Mọi khoa" aria-label="Khoa" options={faculties.map((value) => ({ value, label: value }))} className="min-w-0 sm:w-56" />
         <div className="col-span-2 flex gap-2 sm:ml-auto">
           {canApprove && (
-            <Button disabled={approvable.length === 0} onClick={() => approve(approvable)}>
+            <Button disabled={approvable.length === 0} loading={isPending && !returning} onClick={() => approve(approvable)}>
               Duyệt {approvable.length > 0 ? `(${approvable.length})` : ""}
             </Button>
           )}
@@ -258,10 +282,10 @@ export function GradePublishingTable({ rows: initialRows, canApprove, canPublish
 
       <Modal
         open={returning !== null}
-        onCancel={() => setReturning(null)}
+        onCancel={closeReturn}
         title={returning ? `Trả lại bảng điểm ${returning.code}` : ""}
         okText="Trả lại"
-        okButtonProps={{ danger: true }}
+        okButtonProps={{ danger: true, loading: isPending }}
         cancelText="Hủy"
         onOk={confirmReturn}
         mask={{ closable: false }}
@@ -269,7 +293,20 @@ export function GradePublishingTable({ rows: initialRows, canApprove, canPublish
         width={480}
       >
         <p className="mb-3 text-sm text-pretty text-muted">Bảng điểm mở khóa để giảng viên sửa, giảng viên nhận thông báo kèm lý do.</p>
-        <Input.TextArea value={reason} onChange={(event) => setReason(event.target.value)} autoSize={{ minRows: 3, maxRows: 6 }} maxLength={300} showCount placeholder="Ví dụ: cột giữa kỳ của 3 sinh viên vượt 10 điểm" aria-label="Lý do trả lại" className="mb-6" />
+        <Form.Item validateStatus={reasonError ? "error" : undefined} help={reasonError} className="mb-6">
+          <Input.TextArea
+            value={reason}
+            onChange={(event) => {
+              setReason(event.target.value);
+              setReasonError(undefined);
+            }}
+            autoSize={{ minRows: 3, maxRows: 6 }}
+            maxLength={300}
+            showCount
+            placeholder="Ví dụ: cột giữa kỳ của 3 sinh viên vượt 10 điểm"
+            aria-label="Lý do trả lại"
+          />
+        </Form.Item>
       </Modal>
     </div>
   );

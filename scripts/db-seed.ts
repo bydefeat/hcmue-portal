@@ -4,6 +4,8 @@ import { db } from "@/shared/libs/db.lib";
 import { seedCatalog } from "./seed/catalog.seed";
 import type { SeedContext } from "./seed/context";
 import { seedExams } from "./seed/exams.seed";
+import { seedGrades } from "./seed/grades.seed";
+import { seedGraduation } from "./seed/graduation.seed";
 import { seedPeople } from "./seed/people.seed";
 import { seedRegistration } from "./seed/registration.seed";
 import { seedRequests } from "./seed/requests.seed";
@@ -29,6 +31,8 @@ async function main() {
     const catalog = await seedCatalog(tx, context);
     const people = await seedPeople(tx, context);
     const registration = await seedRegistration(tx, context);
+    await seedGrades(tx, context);
+    await seedGraduation(tx, context);
     await seedRequests(tx, context);
     await seedSchedule(tx, context);
     await seedExams(tx, context);

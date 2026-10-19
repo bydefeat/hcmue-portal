@@ -6,12 +6,15 @@ import { mockId, mockSectionId, mockTermId } from "@/shared/libs/mock.lib";
 import { user } from "@/modules/authentication/authentication.schema";
 import { classSections, enrollments, terms } from "@/modules/course-registration/course-registration.schema";
 import { CLASS_SECTIONS } from "@/modules/course-registration/course-registration.mock";
-import { CURRENT_LECTURER_ID, CURRENT_STUDENT_ID } from "@/modules/users/users.mock";
 import { EXAM_SESSIONS } from "@/modules/exams/exams.mock";
 import { examProctors, examSessions } from "@/modules/exams/exams.schema";
 import { attendanceRecords, classSessions } from "@/modules/schedule/schedule.schema";
 import { SURVEY, SURVEY_RESULTS } from "@/modules/surveys/surveys.mock";
 import { surveyAnswers, surveyQuestions, surveyResponses, surveys, surveySubmissions } from "@/modules/surveys/surveys.schema";
+import { GRADE_SHEET_SEEDS, mockTranscriptTerms, mockWarningMeta } from "@/modules/grades/grades.mock";
+import { academicWarnings, courseResults, gradeSheets } from "@/modules/grades/grades.schema";
+import { graduationRecords } from "@/modules/graduation/graduation.schema";
+import { CURRENT_LECTURER_ID, CURRENT_STUDENT_ID, STUDENTS } from "@/modules/users/users.mock";
 import { lecturers, students } from "@/modules/users/users.schema";
 import { REQUESTS } from "@/modules/requests/requests.mock";
 import { academicRequests, requestAttachments, requestCodeCounters, requestSteps } from "@/modules/requests/requests.schema";
@@ -65,9 +68,9 @@ describe("seed khớp dữ liệu mẫu", () => {
     const [requestCount] = await db.select({ total: count() }).from(academicRequests);
     assert.equal(requestCount.total, REQUESTS.length);
     const [stepCount] = await db.select({ total: count() }).from(requestSteps);
-    assert.equal(stepCount.total, REQUESTS.reduce((sum, request) => sum + request.steps.length, 0));
+    assert.equal(stepCount.total, REQUESTS.reduce((acc, request) => acc + request.steps.length, 0));
     const [fileCount] = await db.select({ total: count() }).from(requestAttachments);
-    assert.equal(fileCount.total, REQUESTS.reduce((sum, request) => sum + request.attachments.length, 0));
+    assert.equal(fileCount.total, REQUESTS.reduce((acc, request) => acc + request.attachments.length, 0));
     const [first] = await db.select().from(academicRequests).where(eq(academicRequests.id, mockId("request:1")));
     assert.equal(first?.code, REQUESTS[0].code);
     assert.equal(first?.requesterStudentId, CURRENT_STUDENT_ID);
@@ -101,7 +104,7 @@ describe("seed khớp dữ liệu mẫu: lịch học, lịch thi, khảo sát",
     assert.equal(exam?.classSectionId, first.classSectionId);
     assert.equal(exam?.kind, first.kind);
     const [{ proctors }] = await db.select({ proctors: count() }).from(examProctors);
-    assert.equal(proctors, EXAM_SESSIONS.reduce((sum, entry) => sum + entry.proctors.length, 0));
+    assert.equal(proctors, EXAM_SESSIONS.reduce((acc, entry) => acc + entry.proctors.length, 0));
   });
 
   test("khảo sát: đúng id phiếu và câu hỏi, số phiếu bằng số người nộp, điểm trung bình khớp mẫu", async () => {
@@ -183,5 +186,47 @@ describe("seed khớp dữ liệu mẫu: học phí, thông báo, nhật ký, c�
       .from(enrollments)
       .where(and(eq(enrollments.termId, termId), eq(enrollments.status, "enrolled")));
     assert.equal(invoices.total, enrolledStudents.total);
+  });
+});
+
+describe("seed grades, graduation khớp dữ liệu mẫu", () => {
+  test("mỗi học phần đã học trong bảng điểm mẫu là một dòng course_results, cùng điểm và học kỳ", async () => {
+    const past = STUDENTS.flatMap((student, index) => mockTranscriptTerms(index).filter((term) => !term.isInProgress).map((term) => ({ student, term })));
+    const [{ total }] = await db.select({ total: count() }).from(courseResults).where(eq(courseResults.source, "legacy"));
+    assert.equal(total, past.reduce((acc, { term }) => acc + term.courses.length, 0));
+    const index = STUDENTS.findIndex((student) => student.id === CURRENT_STUDENT_ID);
+    const [first] = mockTranscriptTerms(index);
+    const rows = await db
+      .select({ code: courses.code, score10: courseResults.score10, letter: courseResults.letter, termId: courseResults.termId })
+      .from(courseResults)
+      .innerJoin(courses, eq(courses.id, courseResults.courseId))
+      .where(and(eq(courseResults.studentId, CURRENT_STUDENT_ID), eq(courseResults.termId, first.termId)));
+    assert.deepEqual(
+      rows.map((row) => `${row.code}:${row.score10}:${row.letter}`).toSorted(),
+      first.courses.map((course) => `${course.courseCode}:${course.score10}:${course.letter}`).toSorted(),
+    );
+  });
+
+  test("bảng điểm lớp học phần kỳ hiện tại đúng trạng thái mẫu, lớp đã công bố có kết quả cho cả lớp", async () => {
+    const sheets = await db.select({ classSectionId: gradeSheets.classSectionId, status: gradeSheets.status }).from(gradeSheets);
+    const statusOf = new Map(sheets.map((sheet) => [sheet.classSectionId, sheet.status]));
+    for (const [sectionId, seed] of Object.entries(GRADE_SHEET_SEEDS)) assert.equal(statusOf.get(sectionId), seed.status);
+    const sectionId = mockSectionId("hk1-2026", "MATH1011.01");
+    const [{ enrolled }] = await db.select({ enrolled: classSections.enrolledCount }).from(classSections).where(eq(classSections.id, sectionId));
+    const [{ total }] = await db
+      .select({ total: count() })
+      .from(courseResults)
+      .innerJoin(enrollments, eq(enrollments.id, courseResults.enrollmentId))
+      .where(eq(enrollments.classSectionId, sectionId));
+    assert.equal(total, enrolled);
+  });
+
+  test("cảnh báo học vụ giữ id mẫu; hồ sơ tốt nghiệp đủ cho khóa 48", async () => {
+    const warnings = await db.select({ id: academicWarnings.id }).from(academicWarnings);
+    const ids = new Set(warnings.map((row) => row.id));
+    assert.ok(warnings.length > 0);
+    assert.ok(STUDENTS.some((_, index) => ids.has(mockWarningMeta(index).id)));
+    const [{ total }] = await db.select({ total: count() }).from(graduationRecords);
+    assert.equal(total, STUDENTS.filter((student) => student.cohort === 48).length);
   });
 });

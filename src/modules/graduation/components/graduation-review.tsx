@@ -5,6 +5,7 @@ import { Button, Input, message, Modal, Select, Table, type TableColumnsType } f
 import { CircleCheck, CircleXmark, Magnifier, TableDownload } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { StatusTag } from "@/shared/components/ui/status-tag";
+import { approveGraduation } from "@/modules/graduation/graduation.action";
 import { GRADUATION_STATUS } from "@/modules/graduation/graduation.constant";
 import type { GraduationCandidate, GraduationStatus } from "@/modules/graduation/graduation.type";
 import { paginationItemRender } from "@/shared/constants/antd.constant";
@@ -35,9 +36,14 @@ export function GraduationReview({ candidates }: { candidates: GraduationCandida
       okButtonProps: { danger: true },
       cancelText: "Hủy",
       mask: { closable: false },
-      onOk: () => {
-        const ids = chosen.map((row) => row.studentId);
-        setRows((current) => current.map((row) => (ids.includes(row.studentId) ? { ...row, status: "approved" } : row)));
+      onOk: async () => {
+        const result = await approveGraduation(chosen.map((row) => row.studentId));
+        if (!result.ok) {
+          messageApi.error(result.message);
+          return;
+        }
+        const ids = result.data.studentIds;
+        setRows((current) => current.map((row) => (ids.includes(row.studentId) ? { ...row, status: "approved", isApproved: true } : row)));
         setSelected([]);
         messageApi.success(`Hội đồng đã công nhận ${ids.length} sinh viên, đã lập ${ids.length} dự thảo quyết định`);
       },

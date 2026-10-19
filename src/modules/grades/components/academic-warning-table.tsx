@@ -1,12 +1,13 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { Button, Card, Input, message, Select, Table, type TableColumnsType } from "antd";
 import { Magnifier } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { StatusTag } from "@/shared/components/ui/status-tag";
 import { formatDate } from "@/shared/libs/date.lib";
+import { advanceAcademicWarning } from "@/modules/grades/grades.action";
 import { formatPoint, WARNING_LEVEL, WARNING_STATUS } from "@/modules/grades/grades.constant";
 import type { AcademicWarning, WarningStatus } from "@/modules/grades/grades.type";
 import { paginationItemRender } from "@/shared/constants/antd.constant";
@@ -30,6 +31,8 @@ export function AcademicWarningTable({ warnings, studentHrefBase, showFaculty = 
   const [level, setLevel] = useState<number>();
   const [status, setStatus] = useState<WarningStatus>();
   const [faculty, setFaculty] = useState<string>();
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [, startTransition] = useTransition();
 
   const rows = useMemo(
     () => warnings.map((warning) => ({ ...warning, status: statuses[warning.id] ?? warning.status })),
@@ -48,8 +51,17 @@ export function AcademicWarningTable({ warnings, studentHrefBase, showFaculty = 
   const advance = (row: AcademicWarning) => {
     const next = NEXT_STATUS[row.status];
     if (!next) return;
-    setStatuses((current) => ({ ...current, [row.id]: next.status }));
-    messageApi.success(`${next.done}: ${row.fullName}`);
+    setBusyId(row.id);
+    startTransition(async () => {
+      const result = await advanceAcademicWarning(row.id, row.status);
+      setBusyId(null);
+      if (!result.ok) {
+        messageApi.error(result.message);
+        return;
+      }
+      setStatuses((current) => ({ ...current, [row.id]: result.data.status }));
+      messageApi.success(`${next.done}: ${row.fullName}`);
+    });
   };
 
   const emptyText = (
@@ -126,7 +138,7 @@ export function AcademicWarningTable({ warnings, studentHrefBase, showFaculty = 
           <div className="flex flex-col items-start gap-1">
             <StatusTag status={WARNING_STATUS[row.status]} />
             {next && (
-              <Button size="small" onClick={() => advance(row)}>
+              <Button size="small" loading={busyId === row.id} disabled={busyId !== null && busyId !== row.id} onClick={() => advance(row)}>
                 {next.label}
               </Button>
             )}
@@ -226,7 +238,7 @@ export function AcademicWarningTable({ warnings, studentHrefBase, showFaculty = 
                   <span className="flex flex-wrap items-center gap-2">
                     <StatusTag status={WARNING_STATUS[row.status]} />
                     {next && (
-                      <Button size="small" onClick={() => advance(row)} className="ml-auto">
+                      <Button size="small" loading={busyId === row.id} disabled={busyId !== null && busyId !== row.id} onClick={() => advance(row)} className="ml-auto">
                         {next.label}
                       </Button>
                     )}

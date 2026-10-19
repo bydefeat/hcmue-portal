@@ -28,6 +28,7 @@ export type GraduationInput = GraduationExtras & {
   cpa4: number;
   failedCredits: number;
   alreadyGraduated: boolean;
+  isApproved: boolean;
 };
 
 export type GraduationCandidate = GraduationInput & {

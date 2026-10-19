@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { GRADUATION_CLASSIFICATION, GRADUATION_MIN_CPA } from "@/modules/graduation/graduation.constant";
 import type { GraduationCandidate, GraduationCheck, GraduationInput } from "@/modules/graduation/graduation.type";
 
@@ -24,7 +25,15 @@ export function evaluateGraduation(input: GraduationInput): GraduationCandidate 
   return {
     ...input,
     checks,
-    status: input.alreadyGraduated ? "graduated" : passed ? "eligible" : "missing",
+    status: input.alreadyGraduated ? "graduated" : input.isApproved ? "approved" : passed ? "eligible" : "missing",
     classification: GRADUATION_CLASSIFICATION.find((step) => input.cpa4 >= step.min)!.label,
   };
 }
+
+export const GRADUATION_APPROVE_SCHEMA = z.object({
+  studentIds: z
+    .array(z.uuid())
+    .min(1, "Chưa chọn sinh viên nào")
+    .max(1000, "Chọn tối đa 1000 sinh viên mỗi lần")
+    .transform((ids) => [...new Set(ids)]),
+});

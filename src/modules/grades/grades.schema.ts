@@ -7,7 +7,8 @@ import { courses } from "@/modules/curriculum/curriculum.schema";
 import { students } from "@/modules/users/users.schema";
 
 export const gradeSheetStatusEnum = pgEnum("grade_sheet_status", ["draft", "locked", "approved", "published", "returned"]);
-export const courseResultSourceEnum = pgEnum("course_result_source", ["class", "transfer", "exemption"]);
+// legacy: kết quả chuyển từ hệ thống cũ, không gắn với lớp học phần hay đăng ký trên cổng.
+export const courseResultSourceEnum = pgEnum("course_result_source", ["class", "transfer", "exemption", "legacy"]);
 export const warningStatusEnum = pgEnum("warning_status", ["new", "notified", "resolved"]);
 
 const LETTERS = sql.raw(`'A', 'B+', 'B', 'C+', 'C', 'D+', 'D', 'F'`);

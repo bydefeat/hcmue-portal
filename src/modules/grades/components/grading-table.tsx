@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { Alert, Button, Card, InputNumber, message, Modal, Table, type TableColumnsType } from "antd";
 import { Download, FilePen, LockKey, Upload } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { MeterBar } from "@/shared/components/ui/meter-bar";
 import { StatusTag } from "@/shared/components/ui/status-tag";
 import { dayjs, daysUntil, formatDateTime } from "@/shared/libs/date.lib";
+import { lockGradeSheet, saveGradeScores } from "@/modules/grades/grades.action";
 import { formatPoint, GRADE_SHEET_STATE, toLetter, weightedScore, letterTextClass } from "@/modules/grades/grades.constant";
 import {
   NewLecturerRequestDrawer,
@@ -41,6 +42,8 @@ const EDITABLE_STATUSES: GradeSheet["status"][] = ["draft", "returned"];
 
 const AUTOSAVE_DELAY = 1200;
 
+type ScoreChange = { studentId: string; key: string; score: number | null };
+
 function deadlineText(deadline: string) {
   const days = daysUntil(deadline);
   if (dayjs().isAfter(deadline)) return `quá hạn ${Math.max(1, -days)} ngày`;
@@ -57,13 +60,45 @@ export function GradingTable({ sheet, students, classCode, classId, returnReason
   const [savedAt, setSavedAt] = useState(sheet.savedAt);
   const [version, setVersion] = useState(0);
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isLocking, startLocking] = useTransition();
   const inputs = useRef(new Map<string, HTMLInputElement>());
+  // Ô đã sửa chưa lưu; các lần lưu nối tiếp nhau để chốt điểm luôn chạy sau lần lưu cuối.
+  const pending = useRef(new Map<string, ScoreChange>());
+  const saving = useRef<Promise<boolean>>(Promise.resolve(true));
+
+  const classSectionId = sheet.classSectionId;
+  const flush = useCallback(() => {
+    saving.current = saving.current.then(async () => {
+      if (pending.current.size === 0) return true;
+      const changes = [...pending.current.values()];
+      pending.current.clear();
+      setIsSaving(true);
+      const result = await saveGradeScores({ classSectionId, changes });
+      setIsSaving(false);
+      if (result.ok) {
+        setSavedAt(result.data.savedAt);
+        return true;
+      }
+      // Lưu không được thì giữ lại các ô chưa bị sửa tiếp để lần sau gửi lại.
+      for (const change of changes) {
+        const id = `${change.studentId}:${change.key}`;
+        if (!pending.current.has(id)) pending.current.set(id, change);
+      }
+      messageApi.error(result.message);
+      return false;
+    });
+    return saving.current;
+  }, [classSectionId, messageApi]);
 
   useEffect(() => {
     if (version === 0) return;
-    const timer = setTimeout(() => setSavedAt(new Date().toISOString()), AUTOSAVE_DELAY);
+    const timer = setTimeout(() => void flush(), AUTOSAVE_DELAY);
     return () => clearTimeout(timer);
-  }, [version]);
+  }, [version, flush]);
+
+  // Rời trang khi còn ô chưa lưu thì lưu nốt.
+  useEffect(() => () => void flush(), [flush]);
 
   const { filled, total } = useMemo(() => {
     const values = students.flatMap((student) => sheet.components.map((component) => scores[student.studentId]?.[component.key] ?? null));
@@ -76,17 +111,25 @@ export function GradingTable({ sheet, students, classCode, classId, returnReason
 
   const updateScore = (studentId: string, key: string, value: number | null) => {
     setScores((current) => ({ ...current, [studentId]: { ...current[studentId], [key]: value } }));
+    pending.current.set(`${studentId}:${key}`, { studentId, key, score: value });
     setVersion((current) => current + 1);
   };
 
   const focusCell = (rowIndex: number, columnIndex: number) => inputs.current.get(`${rowIndex}:${columnIndex}`)?.focus();
 
-  const lock = () => {
-    setIsLocked(true);
-    setLockedAt(new Date().toISOString());
-    setIsConfirmOpen(false);
-    messageApi.success(`Đã chốt điểm lớp ${classCode}. Bảng điểm đã gửi khoa duyệt.`);
-  };
+  const lock = () =>
+    startLocking(async () => {
+      if (!(await flush())) return;
+      const result = await lockGradeSheet(sheet.classSectionId);
+      if (!result.ok) {
+        messageApi.error(result.message);
+        return;
+      }
+      setIsLocked(true);
+      setLockedAt(result.data.lockedAt);
+      setIsConfirmOpen(false);
+      messageApi.success(`Đã chốt điểm lớp ${classCode}. Bảng điểm đã gửi khoa duyệt.`);
+    });
 
   const requestLock = () => {
     if (missing > 0) {
@@ -207,7 +250,8 @@ export function GradingTable({ sheet, students, classCode, classId, returnReason
               <span className="text-xs text-muted tabular-nums">
                 Đã nhập {filled}/{total} điểm
               </span>
-              {!isLocked && savedAt && <span className="text-xs text-muted tabular-nums">Đã lưu nháp lúc {dayjs(savedAt).format("HH:mm")}</span>}
+              {!isLocked && isSaving && <span className="text-xs text-muted">Đang lưu nháp…</span>}
+              {!isLocked && !isSaving && savedAt && <span className="text-xs text-muted tabular-nums">Đã lưu nháp lúc {dayjs(savedAt).format("HH:mm")}</span>}
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -335,7 +379,7 @@ export function GradingTable({ sheet, students, classCode, classId, returnReason
         title={`Chốt điểm lớp ${classCode}?`}
         okText="Chốt điểm"
         cancelText="Hủy"
-        okButtonProps={{ danger: true }}
+        okButtonProps={{ danger: true, loading: isLocking }}
         mask={{ closable: false }}
         onOk={lock}
         onCancel={() => setIsConfirmOpen(false)}

@@ -37,6 +37,16 @@ export function weightedScore(components: GradeComponent[], row: Record<string, 
   return Math.round((total / 100) * 10) / 10;
 }
 
+// Cột điểm mặc định khi lớp chưa có bảng điểm riêng.
+export const DEFAULT_COMPONENTS: GradeComponent[] = [
+  { key: "attendance", label: "Chuyên cần", weight: 10 },
+  { key: "midterm", label: "Giữa kỳ", weight: 30 },
+  { key: "final", label: "Cuối kỳ", weight: 60 },
+];
+
+// Hạn nhập điểm mặc định: 14 ngày sau ngày kết thúc học kỳ.
+export const DEFAULT_DEADLINE_DAYS = 14;
+
 export const STANDING_SCALE: { min: number; standing: AcademicStanding; label: string }[] = [
   { min: 3.6, standing: "excellent", label: "Xuất sắc" },
   { min: 3.2, standing: "very-good", label: "Giỏi" },
@@ -79,6 +89,8 @@ export const WARNING_STATUS: Record<WarningStatus, StatusMeta> = {
   resolved: { label: "Đã gặp sinh viên", tone: "success" },
 };
 
+export const WARNING_THRESHOLD = { termGpa: 1, cpaLevel2: 1.5, cpaLevel3: 1, failedLevel1: 6, failedLevel2: 12 } as const;
+
 export const WARNING_RULES = [
   "Mức 1: ĐTB học kỳ dưới 1,0 hoặc nợ từ 6 tín chỉ trở lên",
   "Mức 2: CPA dưới 1,5 hoặc nợ từ 12 tín chỉ trở lên",
@@ -99,4 +111,18 @@ export const GRADES_CONSTRAINT_MESSAGE: Partial<Record<string, string>> = {
   grade_sheets_return_reason: "Ghi lý do khi trả lại bảng điểm.",
   course_results_student_id_course_id_term_id_index: "Sinh viên đã có kết quả học phần này trong học kỳ.",
   academic_warnings_student_id_term_id_unique: "Sinh viên đã có cảnh báo học vụ trong học kỳ này.",
+  grade_sheets_status_flow: "Bảng điểm không còn ở bước cho phép thao tác này, tải lại trang để xem trạng thái mới.",
+  grade_sheets_incomplete: "Còn điểm chưa nhập nên chưa chốt được. Nhập đủ điểm rồi chốt lại.",
+  grade_sheets_locked_after_draft: "Bảng điểm đã chốt phải có thời điểm chốt.",
+  grade_sheets_published_fields: "Bảng điểm đã công bố phải có thời điểm công bố.",
+  grade_scores_sheet_locked: "Bảng điểm đã chốt, không sửa được điểm nữa.",
+  grade_components_sheet_locked: "Bảng điểm đã chốt, không đổi được cột điểm.",
+  grade_components_weights_total_100: "Tổng trọng số các cột điểm phải bằng 100%.",
+  course_results_score_range: "Điểm học phần phải từ 0 đến 10.",
+  course_results_point_range: "Điểm thang 4 phải từ 0 đến 4.",
+  course_results_letter: "Điểm chữ không thuộc thang điểm.",
+  course_results_graded_together: "Điểm thang 10, điểm chữ và điểm thang 4 phải cùng có hoặc cùng trống.",
+  course_results_class_has_enrollment: "Kết quả học phần học trên lớp phải gắn với đăng ký của sinh viên.",
+  academic_warnings_level_range: "Mức cảnh báo học vụ từ 1 đến 3.",
+  academic_warnings_has_reason: "Cảnh báo học vụ phải ghi lý do.",
 };

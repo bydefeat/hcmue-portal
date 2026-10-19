@@ -1,7 +1,9 @@
-import { createRandom, mockDate, mockSectionId, mockStudentIdentity, mockTermId } from "@/shared/libs/mock.lib";
+import { createRandom, mockDate, mockId, mockSectionId, mockStudentIdentity, mockStudentIndex, mockTermId } from "@/shared/libs/mock.lib";
 import { COURSES_IN_CURRENT_TERM, COURSES_PER_PAST_TERM, mockCourseSequence, TERMS_DONE_BY_COHORT } from "@/shared/libs/mock-course.lib";
-import { toLetter } from "@/modules/grades/grades.constant";
-import type { GradeComponent, GradeSheetStatus, TranscriptCourse } from "@/modules/grades/grades.type";
+import { DEFAULT_COMPONENTS, toLetter } from "@/modules/grades/grades.constant";
+import type { GradeComponent, GradeSheetStatus, ScoreRow, TranscriptCourse, WarningStatus } from "@/modules/grades/grades.type";
+
+// Dữ liệu mẫu chỉ còn seed dùng (scripts/seed/grades.seed.ts); query đọc từ Postgres.
 
 export const PAST_TERMS = [
   { id: mockTermId("hk1-2022"), name: "Học kỳ 1, năm học 2022-2023" },
@@ -15,7 +17,6 @@ export const PAST_TERMS = [
 ];
 
 export const CURRENT_TERM = { id: mockTermId("hk1-2026"), name: "Học kỳ 1, năm học 2026-2027" };
-
 
 function clamp(value: number) {
   return Math.min(10, Math.max(0, Math.round(value * 10) / 10));
@@ -71,12 +72,6 @@ export function mockTranscriptTerms(index: number) {
   return student.cohort === 48 ? terms : [...terms, current];
 }
 
-export const DEFAULT_COMPONENTS: GradeComponent[] = [
-  { key: "attendance", label: "Chuyên cần", weight: 10 },
-  { key: "midterm", label: "Giữa kỳ", weight: 30 },
-  { key: "final", label: "Cuối kỳ", weight: 60 },
-];
-
 export const PROJECT_COMPONENTS: GradeComponent[] = [
   { key: "attendance", label: "Chuyên cần", weight: 10 },
   { key: "project", label: "Đồ án", weight: 40 },
@@ -86,10 +81,9 @@ export const PROJECT_COMPONENTS: GradeComponent[] = [
 const FULL = { attendance: 1, midterm: 1, final: 1 };
 const FULL_PROJECT = { attendance: 1, project: 1, final: 1 };
 
-export const GRADE_SHEET_SEEDS: Record<
-  string,
-  { components: GradeComponent[]; status: GradeSheetStatus; deadline: string; fill: Record<string, number> }
-> = {
+export type GradeSheetSeed = { components: GradeComponent[]; status: GradeSheetStatus; deadline: string; fill: Record<string, number> };
+
+export const GRADE_SHEET_SEEDS: Record<string, GradeSheetSeed> = {
   [mockSectionId("hk1-2026", "COMP1020.01")]: { components: DEFAULT_COMPONENTS, status: "draft", deadline: mockDate(3, "23:59"), fill: { attendance: 1, midterm: 0.7, final: 0 } },
   [mockSectionId("hk1-2026", "COMP1020.02")]: { components: DEFAULT_COMPONENTS, status: "draft", deadline: mockDate(12, "23:59"), fill: { attendance: 1, midterm: 0.1, final: 0 } },
   [mockSectionId("hk1-2026", "COMP1070.01")]: { components: PROJECT_COMPONENTS, status: "locked", deadline: mockDate(-6, "23:59"), fill: { attendance: 1, project: 1, final: 1 } },
@@ -102,3 +96,38 @@ export const GRADE_SHEET_SEEDS: Record<
   [mockSectionId("hk1-2026", "PSYC1001.01")]: { components: DEFAULT_COMPONENTS, status: "returned", deadline: mockDate(2, "23:59"), fill: FULL },
   [mockSectionId("hk1-2026", "ENGL1002.01")]: { components: DEFAULT_COMPONENTS, status: "draft", deadline: mockDate(-3, "23:59"), fill: { attendance: 1, midterm: 0.5, final: 0 } },
 };
+
+// Lớp không có trong GRADE_SHEET_SEEDS: bảng điểm nháp, chưa nhập ô nào.
+export const DEFAULT_SHEET_SEED: GradeSheetSeed = { components: DEFAULT_COMPONENTS, status: "draft", deadline: mockDate(30, "23:59"), fill: {} };
+
+export const RETURN_REASON = "Tổng trọng số cột giữa kỳ sai, kiểm tra lại cấu hình cột điểm.";
+
+export const SHEET_LOCKED_AT = mockDate(-8, "16:20");
+export const SHEET_SAVED_AT = mockDate(-1, "21:47");
+
+// Điểm thành phần của một sinh viên trong bảng điểm mẫu: ô nào chưa nhập thì null.
+export function mockScoreRow(classSectionId: string, studentId: string, seed: GradeSheetSeed): ScoreRow {
+  const index = mockStudentIndex(studentId);
+  const random = createRandom(index * 17 + classSectionId.length * 101);
+  const ability = abilityOf(index);
+  return Object.fromEntries(
+    seed.components.map((component) => {
+      const filled = random() < (seed.fill[component.key] ?? 0);
+      const base = component.key === "attendance" ? ability + 2 : ability + (random() - 0.5) * 2.4;
+      return [component.key, filled ? Math.min(10, Math.max(0, Math.round(base * 4) / 4)) : null];
+    }),
+  );
+}
+
+// Cảnh báo học vụ sau học kỳ 2, năm học 2025-2026: trạng thái xử lý và ngày lập của từng sinh viên.
+export const WARNING_TERM_KEY = "hk2-2025";
+
+export function mockWarningMeta(index: number): { id: string; status: WarningStatus; createdAt: string } {
+  const random = createRandom(index + 404);
+  const roll = random();
+  return {
+    id: mockId(`warning:${WARNING_TERM_KEY}:${index}`),
+    status: roll < 0.4 ? "new" : roll < 0.75 ? "notified" : "resolved",
+    createdAt: mockDate(-Math.floor(random() * 20) - 2, "09:00"),
+  };
+}

@@ -31,6 +31,41 @@ export type ExamSession = {
   status: ExamSessionStatus;
   paperStatus: ExamPaperStatus;
   paperDeadline: string;
+  swapRequests: ExamSwapRequest[];
+};
+
+// Đề nghị đổi ca coi thi đang chờ Phòng Khảo thí xử lý.
+export type ExamSwapRequest = {
+  requesterId: string;
+  requesterName: string;
+  substituteId: string;
+  substituteName: string;
+  reason: string;
+  createdAt: string;
+};
+
+export type ExamEligibilityRow = {
+  key: string;
+  enrollmentId: string;
+  studentId: string;
+  studentCode: string;
+  fullName: string;
+  className: string;
+  sectionCode: string;
+  courseName: string;
+  faculty: string;
+  absences: number;
+  sessions: number;
+  ratio: number;
+  overrideReason: string | null;
+};
+
+// Số buổi vắng của sinh viên trong một lớp, tính trên các buổi giảng viên đã điểm danh.
+export type ExamAttendance = {
+  classSectionId: string;
+  absences: number;
+  sessionsHeld: number;
+  overrideReason: string | null;
 };
 
 export type ExamConflict = {

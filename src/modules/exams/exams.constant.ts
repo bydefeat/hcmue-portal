@@ -44,3 +44,17 @@ export function examConflicts(sessions: ExamSession[]): ExamConflict[] {
   }
   return conflicts;
 }
+
+export const EXAMS_CONSTRAINT_MESSAGE: Partial<Record<string, string>> = {
+  exam_sessions_duration_range: "Thời gian làm bài phải từ 15 đến 240 phút.",
+  exam_sessions_paper_fields: "Đề thi đã nộp phải có tệp và thời điểm nộp; đề chưa nộp thì không có tệp.",
+  exam_sessions_class_section_id_kind_unique: "Lớp này đã có ca thi cùng loại (giữa kỳ hoặc cuối kỳ).",
+  exam_sessions_room_id_rooms_id_fk: "Phòng thi không còn trong danh mục.",
+  exam_proctors_exam_session_id_lecturer_id_pk: "Một cán bộ chỉ được phân công một lần trong cùng ca thi.",
+  exam_proctors_lecturer_id_lecturers_id_fk: "Cán bộ coi thi không còn trong danh sách giảng viên.",
+  exam_eligibility_overrides_enrollment_id_unique: "Sinh viên đã được cho dự thi học phần này.",
+  exam_proctor_swap_requests_single_pending: "Bạn đã gửi đề nghị đổi ca này, đang chờ Phòng Khảo thí xử lý.",
+  exam_proctor_swap_requests_distinct_people: "Người coi thay phải là người khác.",
+  exam_proctor_swap_requests_reason_present: "Chưa nhập lý do đổi ca.",
+  exam_proctor_swap_requests_proctor_fk: "Bạn không còn được phân công coi ca thi này.",
+};

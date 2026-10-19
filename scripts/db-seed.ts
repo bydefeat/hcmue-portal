@@ -3,9 +3,12 @@ import { hashPassword } from "better-auth/crypto";
 import { db } from "@/shared/libs/db.lib";
 import { seedCatalog } from "./seed/catalog.seed";
 import type { SeedContext } from "./seed/context";
+import { seedExams } from "./seed/exams.seed";
 import { seedPeople } from "./seed/people.seed";
 import { seedRegistration } from "./seed/registration.seed";
+import { seedSchedule } from "./seed/schedule.seed";
 import { seedSettings } from "./seed/settings.seed";
+import { seedSurveys } from "./seed/surveys.seed";
 
 if (process.env.NODE_ENV === "production") throw new Error("Không chạy seed trên môi trường production");
 
@@ -21,6 +24,9 @@ async function main() {
     const catalog = await seedCatalog(tx, context);
     const people = await seedPeople(tx, context);
     const registration = await seedRegistration(tx, context);
+    await seedSchedule(tx, context);
+    await seedExams(tx, context);
+    await seedSurveys(tx, context);
     await seedSettings(tx, context);
     return { catalog, people, registration };
   });

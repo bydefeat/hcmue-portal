@@ -26,8 +26,9 @@ export default async function Page() {
           </>
         ),
       }}
+      termId={term.id}
       sessions={sessions.filter((session) => inScope(viewer, session.faculty))}
-      rooms={rooms.map((room) => ({ code: room.code, examCapacity: room.examCapacity, isAvailable: room.status === "active" }))}
+      rooms={rooms.map((room) => ({ id: room.id, code: room.code, examCapacity: room.examCapacity, isAvailable: room.status === "active" }))}
       proctors={lecturers.filter((lecturer) => lecturer.status === "active").map((lecturer) => ({ id: lecturer.id, name: lecturer.displayName, faculty: lecturer.faculty }))}
     />
   );

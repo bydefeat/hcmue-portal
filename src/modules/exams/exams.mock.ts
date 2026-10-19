@@ -1,5 +1,5 @@
 import { dayjs } from "@/shared/libs/date.lib";
-import { mockDate, mockLecturerIdentity, mockSectionId, mockTermId } from "@/shared/libs/mock.lib";
+import { mockDate, mockId, mockLecturerIdentity, mockSectionId, mockTermId } from "@/shared/libs/mock.lib";
 import type { ExamFormat, ExamPaperStatus, ExamSession } from "@/modules/exams/exams.type";
 
 type Seed = [sectionId: string, code: string, courseName: string, lecturerIndex: number | null, candidates: number, faculty: string, format: ExamFormat];
@@ -53,7 +53,7 @@ function build(seed: Seed, index: number, kind: "midterm" | "final"): ExamSessio
   const date = kind === "midterm" ? mockDate(-4 + index, "00:00") : dayjs("2027-01-04").add(index % 10, "day").toISOString();
   const isPast = dayjs(date).isBefore(dayjs().startOf("day"));
   return {
-    id: `thi-${kind}-${code.toLowerCase()}`,
+    id: mockId(`exam-session:thi-${kind}-${code.toLowerCase()}`),
     termId: mockTermId("hk1-2026"),
     kind,
     classSectionId: sectionId,
@@ -72,6 +72,7 @@ function build(seed: Seed, index: number, kind: "midterm" | "final"): ExamSessio
     status: kind === "final" ? (index % 4 === 0 ? "draft" : "published") : isPast ? "done" : "published",
     paperStatus: kind === "midterm" ? (isPast ? "approved" : PAPER_STATUSES[index % 2]) : PAPER_STATUSES[index % 3],
     paperDeadline: kind === "midterm" ? dayjs(date).subtract(5, "day").toISOString() : mockDate(5 + (index % 4), "17:00"),
+    swapRequests: [],
   };
 }
 

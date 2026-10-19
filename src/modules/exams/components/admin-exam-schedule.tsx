@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { Button, DatePicker, Drawer, Form, Input, message, Modal, Segmented, Select, Table, Tooltip, type TableColumnsType } from "antd";
 import type { Dayjs } from "dayjs";
 import { Magnifier, Pen } from "defeat-icons-react";
@@ -11,23 +11,26 @@ import { dayjs, formatDate } from "@/shared/libs/date.lib";
 import { EXAM_FORMAT_LABEL, EXAM_FORMAT_OPTIONS, EXAM_PAPER_STATUS, EXAM_STATUS, examConflicts, PROCTORS_PER_ROOM } from "@/modules/exams/exams.constant";
 import type { ExamFormat, ExamKind, ExamPaperStatus, ExamSession } from "@/modules/exams/exams.type";
 import { paginationItemRender } from "@/shared/constants/antd.constant";
+import { toFormFields } from "@/shared/libs/form.lib";
 import { normalizeSearch } from "@/shared/libs/search.lib";
+import { publishExamSessions, updateExamSession } from "@/modules/exams/exams.action";
 
-export type ExamRoomOption = { code: string; examCapacity: number; isAvailable: boolean };
+export type ExamRoomOption = { id: string; code: string; examCapacity: number; isAvailable: boolean };
 export type ProctorOption = { id: string; name: string; faculty: string };
 
 type AdminExamScheduleProps = {
+  termId: string;
   sessions: ExamSession[];
   rooms: ExamRoomOption[];
   proctors: ProctorOption[];
   header: { title: string; description?: React.ReactNode };
 };
 
-type EditValues = { date: Dayjs; startTime: string; room: string; format: ExamFormat; proctorIds: string[] };
+type EditValues = { date: Dayjs; startTime: string; roomId: string; format: ExamFormat; proctorIds: string[] };
 
 const START_TIMES = ["07:30", "09:30", "13:30", "15:30", "17:30"];
 
-export function AdminExamSchedule({ sessions, rooms, proctors, header }: AdminExamScheduleProps) {
+export function AdminExamSchedule({ termId, sessions, rooms, proctors, header }: AdminExamScheduleProps) {
   const [messageApi, contextHolder] = message.useMessage();
   const [modal, modalContextHolder] = Modal.useModal();
   const [rows, setRows] = useState(sessions);
@@ -37,12 +40,19 @@ export function AdminExamSchedule({ sessions, rooms, proctors, header }: AdminEx
   const [onlyConflicts, setOnlyConflicts] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form] = Form.useForm<EditValues>();
+  const [isSaving, startSaving] = useTransition();
   const editing = rows.find((row) => row.id === editingId) ?? null;
 
   useEffect(() => {
     if (!editing) return;
-    form.setFieldsValue({ date: dayjs(editing.date), startTime: editing.startTime, room: editing.room, format: editing.format, proctorIds: editing.proctors.map((proctor) => proctor.id) });
-  }, [editing, form]);
+    form.setFieldsValue({
+      date: dayjs(editing.date),
+      startTime: editing.startTime,
+      roomId: rooms.find((room) => room.code === editing.room)?.id,
+      format: editing.format,
+      proctorIds: editing.proctors.map((proctor) => proctor.id),
+    });
+  }, [editing, form, rooms]);
 
   const ofKind = rows.filter((row) => row.kind === kind);
   const conflicts = useMemo(() => examConflicts(ofKind), [ofKind]);
@@ -60,19 +70,31 @@ export function AdminExamSchedule({ sessions, rooms, proctors, header }: AdminEx
 
   const save = (values: EditValues) => {
     if (!editing) return;
-    const next: ExamSession = {
-      ...editing,
-      date: values.date.format("YYYY-MM-DD"),
-      startTime: values.startTime,
-      room: values.room,
-      format: values.format,
-      proctors: values.proctorIds.map((id) => ({ id, name: proctors.find((proctor) => proctor.id === id)?.name ?? id })),
-    };
-    const clash = examConflicts([...rows.filter((row) => row.kind === kind && row.id !== next.id), next]).filter((conflict) => conflict.examId === next.id);
-    setRows((current) => current.map((row) => (row.id === next.id ? next : row)));
-    setEditingId(null);
-    if (clash.length > 0) messageApi.warning(`Đã lưu ${next.classCode} nhưng còn xung đột: ${clash[0].message}`);
-    else messageApi.success(`Đã cập nhật lịch thi ${next.classCode}`);
+    startSaving(async () => {
+      const result = await updateExamSession({
+        id: editing.id,
+        date: values.date.format("YYYY-MM-DD"),
+        startTime: values.startTime,
+        roomId: values.roomId,
+        format: values.format,
+        proctorIds: values.proctorIds ?? [],
+      }).catch(() => null);
+      if (!result) {
+        messageApi.error("Chưa lưu được, kiểm tra kết nối rồi thử lại.");
+        return;
+      }
+      if (!result.ok) {
+        form.setFields(toFormFields(result.fieldErrors));
+        messageApi.error(result.message);
+        return;
+      }
+      const next = result.data;
+      const clash = examConflicts([...rows.filter((row) => row.kind === next.kind && row.id !== next.id), next]).filter((conflict) => conflict.examId === next.id);
+      setRows((current) => current.map((row) => (row.id === next.id ? next : row)));
+      setEditingId(null);
+      if (clash.length > 0) messageApi.warning(`Đã lưu ${next.classCode} nhưng còn xung đột: ${clash[0].message}`);
+      else messageApi.success(`Đã cập nhật lịch thi ${next.classCode}`);
+    });
   };
 
   const publish = () =>
@@ -83,9 +105,19 @@ export function AdminExamSchedule({ sessions, rooms, proctors, header }: AdminEx
       okButtonProps: { danger: true },
       cancelText: "Hủy",
       mask: { closable: false },
-      onOk: () => {
-        setRows((current) => current.map((row) => (row.kind === kind && row.status === "draft" ? { ...row, status: "published" } : row)));
-        messageApi.success(`Đã công bố ${drafts.length} ca thi`);
+      onOk: async () => {
+        const result = await publishExamSessions({ termId, kind }).catch(() => null);
+        if (!result) {
+          messageApi.error("Chưa công bố được, kiểm tra kết nối rồi thử lại.");
+          return;
+        }
+        if (!result.ok) {
+          messageApi.error(result.message);
+          return;
+        }
+        const published = new Set(result.data.ids);
+        setRows((current) => current.map((row) => (published.has(row.id) ? { ...row, status: "published" } : row)));
+        messageApi.success(`Đã công bố ${published.size} ca thi`);
       },
     });
 
@@ -145,21 +177,19 @@ export function AdminExamSchedule({ sessions, rooms, proctors, header }: AdminEx
       key: "proctors",
       width: 190,
       responsive: ["lg"],
-      render: (_, row) =>
-        row.proctors.length < PROCTORS_PER_ROOM ? (
-          <span className="flex flex-col text-xs">
-            {row.proctors.map((proctor) => (
-              <span key={proctor.id}>{proctor.name}</span>
-            ))}
-            <span className="text-amber-700">Thiếu {PROCTORS_PER_ROOM - row.proctors.length} cán bộ</span>
-          </span>
-        ) : (
-          <span className="flex flex-col text-xs">
-            {row.proctors.map((proctor) => (
-              <span key={proctor.id}>{proctor.name}</span>
-            ))}
-          </span>
-        ),
+      render: (_, row) => (
+        <span className="flex flex-col text-xs">
+          {row.proctors.map((proctor) => (
+            <span key={proctor.id}>{proctor.name}</span>
+          ))}
+          {row.proctors.length < PROCTORS_PER_ROOM && <span className="text-amber-700">Thiếu {PROCTORS_PER_ROOM - row.proctors.length} cán bộ</span>}
+          {row.swapRequests.length > 0 && (
+            <Tooltip title={row.swapRequests.map((swap) => `${swap.requesterName} đề nghị đổi cho ${swap.substituteName}: ${swap.reason}`).join("; ")}>
+              <span className="cursor-help text-amber-700">{row.swapRequests.length} đề nghị đổi ca</span>
+            </Tooltip>
+          )}
+        </span>
+      ),
     },
     { title: "Đề thi", dataIndex: "paperStatus", width: 130, responsive: ["md"], render: (value: ExamPaperStatus) => <StatusTag status={EXAM_PAPER_STATUS[value]} /> },
     {
@@ -253,7 +283,7 @@ export function AdminExamSchedule({ sessions, rooms, proctors, header }: AdminEx
           footer={
             <div className="flex justify-end gap-2">
               <Button onClick={() => setEditingId(null)}>Hủy</Button>
-              <Button type="primary" onClick={() => form.submit()}>
+              <Button type="primary" loading={isSaving} onClick={() => form.submit()}>
                 Lưu
               </Button>
             </div>
@@ -264,6 +294,11 @@ export function AdminExamSchedule({ sessions, rooms, proctors, header }: AdminEx
               <p className="mb-4 text-sm text-muted">
                 {editing.courseName}, <span className="tabular-nums">{editing.candidateCount}</span> thí sinh
               </p>
+              {editing.swapRequests.map((swap) => (
+                <p key={swap.requesterId} className="mb-4 text-sm text-pretty text-amber-700">
+                  {swap.requesterName} đề nghị đổi cho {swap.substituteName}: {swap.reason}. Đổi cán bộ coi thi bên dưới để xử lý.
+                </p>
+              ))}
               <div className="grid gap-x-3 sm:grid-cols-2">
                 <Form.Item name="date" label="Ngày thi" rules={[{ required: true, message: "Chưa chọn ngày" }]}>
                   <DatePicker format="DD/MM/YYYY" placeholder="Chọn ngày" className="w-full" disabledDate={(date) => date.day() === 0} />
@@ -275,10 +310,10 @@ export function AdminExamSchedule({ sessions, rooms, proctors, header }: AdminEx
               <Form.Item name="format" label="Hình thức">
                 <Select options={EXAM_FORMAT_OPTIONS} />
               </Form.Item>
-              <Form.Item name="room" label="Phòng thi" rules={[{ required: true, message: "Chưa chọn phòng" }]} extra="Số trong ngoặc là số chỗ ngồi thi">
+              <Form.Item name="roomId" label="Phòng thi" rules={[{ required: true, message: "Chưa chọn phòng" }]} extra="Số trong ngoặc là số chỗ ngồi thi">
                 <Select
                   showSearch={{ optionFilterProp: "label" }}
-                  options={rooms.map((room) => ({ value: room.code, disabled: !room.isAvailable, label: `${room.code} (${room.examCapacity} chỗ)${room.isAvailable ? "" : ", đang bảo trì"}` }))}
+                  options={rooms.map((room) => ({ value: room.id, disabled: !room.isAvailable, label: `${room.code} (${room.examCapacity} chỗ)${room.isAvailable ? "" : ", đang bảo trì"}` }))}
                 />
               </Form.Item>
               <Form.Item

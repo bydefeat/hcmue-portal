@@ -1,10 +1,13 @@
 import type { Metadata } from "next";
+import { EmptyState } from "@/shared/components/ui/empty-state";
 import { PageHeader } from "@/shared/components/ui/page-header";
+import { SectionCard } from "@/shared/components/ui/section-card";
 import { StatTile } from "@/shared/components/ui/stat-tile";
 import { formatDate } from "@/shared/libs/date.lib";
 import { inScope } from "@/modules/access/access.constant";
 import { requirePermission } from "@/modules/access/access.query";
-import { AdminSurveyResults, LOW_SCORE } from "@/modules/surveys/components/admin-survey-results";
+import { AdminSurveyResults } from "@/modules/surveys/components/admin-survey-results";
+import { LOW_SCORE } from "@/modules/surveys/surveys.constant";
 import { getSurvey, getSurveyResults } from "@/modules/surveys/surveys.query";
 
 export const metadata: Metadata = { title: "Khảo sát giảng dạy" };
@@ -17,6 +20,17 @@ export default async function Page() {
   const enrolled = results.reduce((sum, row) => sum + row.enrolled, 0);
   const overall = responses > 0 ? results.reduce((sum, row) => sum + row.overall * row.responses, 0) / responses : 0;
   const low = results.filter((row) => row.overall < LOW_SCORE).length;
+
+  if (!survey) {
+    return (
+      <>
+        <PageHeader title="Khảo sát giảng dạy" />
+        <SectionCard flush>
+          <EmptyState illustration="document" title="Chưa có đợt khảo sát" description="Học kỳ hiện tại chưa mở khảo sát giảng dạy." />
+        </SectionCard>
+      </>
+    );
+  }
 
   return (
     <>

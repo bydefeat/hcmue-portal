@@ -202,6 +202,7 @@ PostgreSQL 18.4, khoá chính `uuid` mặc định `uuidv7()`. Ràng buộc đ�
 
 ### Giai đoạn 8 — Sinh viên xem kết quả
 - Bảng điểm, GPA kỳ / CPA (*cần bảng quy đổi của trường*), TKB + xuất `.ics`, lịch thi và điều kiện dự thi, tiến độ chương trình.
+- Đã làm (lịch học, lịch thi, khảo sát đọc/ghi DB thật): buổi học sinh từ lịch tuần và nhóm thực hành (`class_sessions.lab_group_id`), giảng viên lưu điểm danh theo buổi; TKB sinh viên/giảng viên lấy từ lớp đã đăng ký/đang dạy; lịch thi, cán bộ coi thi, sửa và công bố ca thi, nộp đề, đề nghị đổi ca (`exam_proctor_swap_requests`), điều kiện dự thi tính từ điểm danh và quyết định cho dự thi; khảo sát ẩn danh (id phiếu chỉ mang ngày nộp), giảng viên chỉ xem lớp từ 5 phiếu. `tests/schedule.test.ts`, `tests/exams.test.ts`, `tests/surveys.test.ts`. Chưa có: dịch vụ lưu tệp đề thi (mới ghi khóa lưu trữ), Phòng Khảo thí duyệt đề, sinh lại buổi học khi đổi lịch lớp.
 - Kiểm: test hàm tính GPA với vài bộ điểm biết trước.
 
 ### Giai đoạn 9 — Cố vấn và đơn từ

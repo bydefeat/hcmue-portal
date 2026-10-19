@@ -8,7 +8,7 @@ import {
 } from "@/modules/course-registration/course-registration.query";
 import type { ClassSectionView, LecturerWorkload } from "@/modules/course-registration/course-registration.type";
 import { LecturerSurveyResults } from "@/modules/surveys/components/lecturer-survey-results";
-import { getSurvey, getSurveyResults } from "@/modules/surveys/surveys.query";
+import { getFacultySurveyAverage, getSurvey, getSurveyResultsForLecturer } from "@/modules/surveys/surveys.query";
 import { getCurrentLecturer } from "@/modules/users/users.query";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { MeterBar } from "@/shared/components/ui/meter-bar";
@@ -77,19 +77,17 @@ function TermLoad({ title, workload, sections }: { title: string; workload: Lect
 
 export default async function Page() {
   const [lecturer, currentTerm, targetTerm] = await Promise.all([getCurrentLecturer(), getCurrentTerm(), getRegistrationTargetTerm()]);
-  const [currentLoads, targetLoads, currentSections, targetSections, survey, surveyResults] = await Promise.all([
+  const [currentLoads, targetLoads, currentSections, targetSections, survey, mine, facultyAverage] = await Promise.all([
     getLecturerWorkloads(currentTerm.id),
     getLecturerWorkloads(targetTerm.id),
     getLecturerClassSections(lecturer.id, currentTerm.id),
     getLecturerClassSections(lecturer.id, targetTerm.id),
     getSurvey(),
-    getSurveyResults(),
+    getSurveyResultsForLecturer(),
+    getFacultySurveyAverage(),
   ]);
   const current = currentLoads.find((entry) => entry.lecturerId === lecturer.id);
   const target = targetLoads.find((entry) => entry.lecturerId === lecturer.id);
-  const mine = surveyResults.filter((result) => result.lecturerId === lecturer.id);
-  const facultyResults = surveyResults.filter((result) => result.faculty === lecturer.faculty);
-  const facultyAverage = facultyResults.length > 0 ? facultyResults.reduce((sum, result) => sum + result.overall, 0) / facultyResults.length : null;
   const yearHours = (current?.standardHours ?? 0) + (target?.standardHours ?? 0);
   const yearNorm = (current?.normHours ?? 0) + (target?.normHours ?? 0);
   const myAverage = mine.length > 0 ? mine.reduce((sum, result) => sum + result.overall, 0) / mine.length : null;
@@ -124,8 +122,8 @@ export default async function Page() {
               Lớp học phần
             </Link>
           </div>
-          <p className="max-w-prose text-sm text-pretty text-muted">{survey.title}. Kết quả chỉ giảng viên, khoa và Phòng Đào tạo xem được.</p>
-          <LecturerSurveyResults results={mine} questions={survey.questions} facultyAverage={facultyAverage} />
+          {survey && <p className="max-w-prose text-sm text-pretty text-muted">{survey.title}. Kết quả chỉ giảng viên, khoa và Phòng Đào tạo xem được.</p>}
+          <LecturerSurveyResults results={mine} questions={survey?.questions ?? []} facultyAverage={facultyAverage} />
         </section>
       </div>
     </>

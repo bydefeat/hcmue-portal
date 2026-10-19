@@ -1,12 +1,17 @@
 import assert from "node:assert/strict";
 import { after, describe, test } from "node:test";
-import { and, count, eq, isNotNull } from "drizzle-orm";
+import { and, count, countDistinct, eq, isNotNull, sql } from "drizzle-orm";
 import { db } from "@/shared/libs/db.lib";
 import { mockId, mockSectionId, mockTermId } from "@/shared/libs/mock.lib";
 import { user } from "@/modules/authentication/authentication.schema";
 import { classSections, enrollments, terms } from "@/modules/course-registration/course-registration.schema";
 import { CLASS_SECTIONS } from "@/modules/course-registration/course-registration.mock";
 import { CURRENT_LECTURER_ID, CURRENT_STUDENT_ID } from "@/modules/users/users.mock";
+import { EXAM_SESSIONS } from "@/modules/exams/exams.mock";
+import { examProctors, examSessions } from "@/modules/exams/exams.schema";
+import { attendanceRecords, classSessions } from "@/modules/schedule/schedule.schema";
+import { SURVEY, SURVEY_RESULTS } from "@/modules/surveys/surveys.mock";
+import { surveyAnswers, surveyQuestions, surveyResponses, surveys, surveySubmissions } from "@/modules/surveys/surveys.schema";
 import { lecturers, students } from "@/modules/users/users.schema";
 
 after(() => db.$client.end());
@@ -42,5 +47,56 @@ describe("seed khớp dữ liệu mẫu", () => {
     assert.equal(lecturerAccount.id, CURRENT_LECTURER_ID);
     const [{ total }] = await db.select({ total: count() }).from(user).where(and(eq(user.role, "student"), isNotNull(user.username)));
     assert.equal(total, 1);
+  });
+});
+
+describe("seed khớp dữ liệu mẫu: lịch học, lịch thi, khảo sát", () => {
+  test("mọi lớp đang mở có buổi học; buổi đã điểm danh có đủ bản ghi của sinh viên trong buổi", async () => {
+    const [{ sections }] = await db.select({ sections: countDistinct(classSessions.classSectionId) }).from(classSessions);
+    const [{ open }] = await db.select({ open: count() }).from(classSections).where(eq(classSections.status, "open"));
+    assert.equal(sections, open);
+    const mismatched = await db.execute(sql`
+      SELECT s.id FROM class_sessions s
+      WHERE s.taken_at IS NOT NULL AND (
+        SELECT count(*) FROM enrollments e
+        WHERE e.class_section_id = s.class_section_id AND e.status = 'enrolled' AND (s.lab_group_id IS NULL OR e.lab_group_id = s.lab_group_id)
+      ) <> (SELECT count(*) FROM attendance_records r WHERE r.class_session_id = s.id)`);
+    assert.equal(mismatched.length, 0);
+    const [{ records }] = await db.select({ records: count() }).from(attendanceRecords);
+    assert.ok(records > 0);
+  });
+
+  test("ca thi và cán bộ coi thi đúng id của dữ liệu mẫu", async () => {
+    const [{ total }] = await db.select({ total: count() }).from(examSessions);
+    assert.equal(total, EXAM_SESSIONS.length);
+    const [first] = EXAM_SESSIONS;
+    const [exam] = await db.select().from(examSessions).where(eq(examSessions.id, first.id));
+    assert.equal(exam?.classSectionId, first.classSectionId);
+    assert.equal(exam?.kind, first.kind);
+    const [{ proctors }] = await db.select({ proctors: count() }).from(examProctors);
+    assert.equal(proctors, EXAM_SESSIONS.reduce((sum, entry) => sum + entry.proctors.length, 0));
+  });
+
+  test("khảo sát: đúng id phiếu và câu hỏi, số phiếu bằng số người nộp, điểm trung bình khớp mẫu", async () => {
+    const [survey] = await db.select().from(surveys).where(eq(surveys.id, SURVEY.id));
+    assert.equal(survey?.title, SURVEY.title);
+    const questions = await db.select({ id: surveyQuestions.id }).from(surveyQuestions).where(eq(surveyQuestions.surveyId, SURVEY.id));
+    assert.deepEqual(questions.map((row) => row.id).toSorted(), SURVEY.questions.map((question) => question.id).toSorted());
+    const [{ submissions }] = await db.select({ submissions: count() }).from(surveySubmissions);
+    const [{ responses }] = await db.select({ responses: count() }).from(surveyResponses);
+    assert.equal(submissions, responses);
+    const [{ answers }] = await db.select({ answers: count() }).from(surveyAnswers);
+    assert.equal(answers, responses * SURVEY.questions.length);
+
+    const sample = SURVEY_RESULTS[0];
+    const [{ total }] = await db.select({ total: count() }).from(surveyResponses).where(eq(surveyResponses.classSectionId, sample.classSectionId));
+    const [section] = await db.select({ enrolled: classSections.enrolledCount }).from(classSections).where(eq(classSections.id, sample.classSectionId));
+    assert.equal(total, Math.min(sample.responses, section.enrolled));
+    const [{ average }] = await db
+      .select({ average: sql<number>`avg(${surveyAnswers.score})::float` })
+      .from(surveyAnswers)
+      .innerJoin(surveyResponses, eq(surveyResponses.id, surveyAnswers.responseId))
+      .where(and(eq(surveyResponses.classSectionId, sample.classSectionId), eq(surveyAnswers.questionId, SURVEY.questions[0].id)));
+    assert.ok(Math.abs(average - sample.averages[SURVEY.questions[0].id]) <= 0.5 / total + 1e-9);
   });
 });

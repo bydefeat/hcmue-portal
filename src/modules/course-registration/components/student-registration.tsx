@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useTransition } from "react";
+import { useRouter } from "@bprogress/next/app";
 import Link from "next/link";
-import { Alert, Button, Card, Checkbox, Form, Input, message, Modal, Select } from "antd";
+import { Alert, Button, Card, Checkbox, Input, message, Modal, Select } from "antd";
 import { CircleCheck, CircleXmark, Magnifier, Plus, Trash } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { MeterBar } from "@/shared/components/ui/meter-bar";
@@ -21,7 +22,7 @@ import {
 } from "@/modules/course-registration/course-registration.rule";
 import type { ClassSectionView, RegistrationHold, RegistrationPeriodState, RegistrationPeriodView } from "@/modules/course-registration/course-registration.type";
 import { LabGroupPicker } from "@/modules/course-registration/components/lab-group-picker";
-import { RegistrationQueueModal } from "@/modules/course-registration/components/registration-queue-modal";
+import { dropSection, joinWaitlist, leaveWaitlist, registerSections } from "@/modules/course-registration/course-registration.action";
 import { PeriodCountdown } from "@/modules/course-registration/components/student-period-countdown";
 import { normalizeSearch } from "@/shared/libs/search.lib";
 
@@ -38,24 +39,13 @@ type StudentRegistrationProps = {
   credits: { min: number; max: number; note?: string };
   planCodes: string[];
   inProgressCodes: string[];
-  initialPlannedIds: string[];
+  initialRegisteredIds: string[];
   initialLabChoices: Record<string, string>;
+  initialWaitlist: Record<string, number>;
   holds: RegistrationHold[];
 };
 
-type Simulation = "actual" | RegistrationPeriodState;
-
-const SIMULATION_OPTIONS: { value: Simulation; label: string }[] = [
-  { value: "actual", label: "Theo thời gian thực" },
-  { value: "upcoming", label: "Đợt sắp mở" },
-  { value: "open", label: "Đợt đang mở" },
-  { value: "closing", label: "Đợt sắp đóng" },
-  { value: "closed", label: "Đợt đã đóng" },
-];
-
-function waitlistPosition(code: string) {
-  return 1 + ([...code].reduce((sum, char) => sum + char.charCodeAt(0), 0) % 6);
-}
+const NETWORK_ERROR = "Chưa gửi được, kiểm tra kết nối rồi thử lại.";
 
 function PeriodBanner({ period, state, cohort }: { period: RegistrationPeriodView | null; state: RegistrationPeriodState | null; cohort: number }) {
   if (!period || !state) {
@@ -133,26 +123,27 @@ export function StudentRegistration({
   credits,
   planCodes,
   inProgressCodes,
-  initialPlannedIds,
+  initialRegisteredIds,
   initialLabChoices,
+  initialWaitlist,
   holds,
 }: StudentRegistrationProps) {
+  const router = useRouter();
+  const [isSubmitting, startSubmitting] = useTransition();
   const [messageApi, contextHolder] = message.useMessage();
   const [modal, modalContextHolder] = Modal.useModal();
-  const [plannedIds, setPlannedIds] = useState(initialPlannedIds);
-  const [registeredIds, setRegisteredIds] = useState<string[]>([]);
-  const [waitlistIds, setWaitlistIds] = useState<string[]>([]);
+  const [plannedIds, setPlannedIds] = useState<string[]>([]);
+  const [registeredIds, setRegisteredIds] = useState(initialRegisteredIds);
+  const [waitlist, setWaitlist] = useState(initialWaitlist);
   const [labChoices, setLabChoices] = useState<Record<string, string>>(initialLabChoices);
   const [pickerSection, setPickerSection] = useState<ClassSectionView | null>(null);
-  const [isQueueOpen, setIsQueueOpen] = useState(false);
   const activeHolds = blockingHolds(holds);
-  const [simulation, setSimulation] = useState<Simulation>("actual");
   const [query, setQuery] = useState("");
   const [faculty, setFaculty] = useState<string>();
   const [onlyEligible, setOnlyEligible] = useState(false);
   const [onlyPlan, setOnlyPlan] = useState(false);
 
-  const state: RegistrationPeriodState | null = simulation === "actual" ? (period?.state ?? null) : simulation;
+  const state: RegistrationPeriodState | null = period?.state ?? null;
   const isOpen = state === "open" || state === "closing";
   const byId = useMemo(() => new Map(sections.map((section) => [section.id, section])), [sections]);
   const planned = plannedIds.map((id) => byId.get(id)).filter((section) => section !== undefined);
@@ -232,7 +223,19 @@ export function StudentRegistration({
 
   const register = () => {
     if (blockReason) return;
-    setIsQueueOpen(true);
+    startSubmitting(async () => {
+      const result = await registerSections({ sectionIds: plannedIds, labChoices }).catch(() => null);
+      if (!result?.ok) {
+        messageApi.error(result?.message ?? NETWORK_ERROR);
+        router.refresh();
+        return;
+      }
+      setRegisteredIds(result.data.registeredIds);
+      setPlannedIds([]);
+      setWaitlist((current) => Object.fromEntries(Object.entries(current).filter(([id]) => !plannedIds.includes(id))));
+      messageApi.success(`Đã đăng ký ${planned.length} lớp, tổng ${basketCredits} tín chỉ.`);
+      router.refresh();
+    });
   };
 
   const creditSummary = (
@@ -242,13 +245,6 @@ export function StudentRegistration({
     </span>
   );
 
-  const commitRegistration = () => {
-    setIsQueueOpen(false);
-    setRegisteredIds((current) => [...current, ...plannedIds]);
-    setPlannedIds([]);
-    messageApi.success(`Đã đăng ký ${planned.length} lớp, tổng ${basketCredits} tín chỉ. Kết quả đã gửi về email sinh viên.`);
-  };
-
   const withdraw = (section: ClassSectionView) =>
     modal.confirm({
       title: `Hủy đăng ký ${section.code}?`,
@@ -257,9 +253,15 @@ export function StudentRegistration({
       okButtonProps: { danger: true },
       cancelText: "Giữ lớp",
       mask: { closable: false },
-      onOk: () => {
-        setRegisteredIds((current) => current.filter((id) => id !== section.id));
+      onOk: async () => {
+        const result = await dropSection(section.id).catch(() => null);
+        if (!result?.ok) {
+          messageApi.error(result?.message ?? NETWORK_ERROR);
+          return;
+        }
+        setRegisteredIds(result.data.registeredIds);
         messageApi.success(`Đã hủy đăng ký ${section.code}`);
+        router.refresh();
       },
     });
 
@@ -282,11 +284,6 @@ export function StudentRegistration({
             />
           ))}
         {credits.note && <Alert type="warning" showIcon title={credits.note} />}
-        <Form layout="inline" colon={false}>
-          <Form.Item label="Xem thử trạng thái đợt" className="mb-0">
-            <Select<Simulation> value={simulation} onChange={setSimulation} options={SIMULATION_OPTIONS} className="w-48" />
-          </Form.Item>
-        </Form>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_340px] lg:items-start">
@@ -331,7 +328,7 @@ export function StudentRegistration({
                 const isRegistered = registeredIds.includes(section.id);
                 const blocked = issues.some((issue) => issue.blocking);
                 const onlyFull = blocked && issues.filter((issue) => issue.blocking).every((issue) => issue.kind === "full");
-                const isWaiting = waitlistIds.includes(section.id);
+                const waitingAt = waitlist[section.id];
                 return (
                   <li key={section.id}>
                     <Card size="small" classNames={{ body: "flex flex-col gap-3 md:flex-row md:items-start" }}>
@@ -367,27 +364,41 @@ export function StudentRegistration({
                           <Button onClick={() => removePlanned(section)} icon={<Trash size={16} aria-hidden className="text-zinc-500" />}>
                             Bỏ chọn
                           </Button>
-                        ) : isWaiting ? (
+                        ) : waitingAt ? (
                           <span className="flex flex-col items-start gap-1 md:items-stretch">
-                            <span className="text-xs text-amber-700 tabular-nums">Đang chờ, vị trí {waitlistPosition(section.code)}</span>
+                            <span className="text-xs text-amber-700 tabular-nums">Đang chờ, vị trí {waitingAt}</span>
                             <Button
                               size="small"
-                              onClick={() => {
-                                setWaitlistIds((current) => current.filter((id) => id !== section.id));
-                                messageApi.info(`Đã rời danh sách chờ lớp ${section.code}`);
-                              }}
+                              disabled={isSubmitting}
+                              onClick={() =>
+                                startSubmitting(async () => {
+                                  const result = await leaveWaitlist(section.id).catch(() => null);
+                                  if (!result?.ok) {
+                                    messageApi.error(result?.message ?? NETWORK_ERROR);
+                                    return;
+                                  }
+                                  setWaitlist((current) => Object.fromEntries(Object.entries(current).filter(([id]) => id !== section.id)));
+                                  messageApi.info(`Đã rời danh sách chờ lớp ${section.code}`);
+                                })
+                              }
                             >
                               Rời danh sách chờ
                             </Button>
                           </span>
                         ) : onlyFull ? (
                           <Button
-                            onClick={() => {
-                              setWaitlistIds((current) => [...current, section.id]);
-                              messageApi.success(
-                                `Đã vào danh sách chờ lớp ${section.code}, vị trí ${waitlistPosition(section.code)}. Khi có chỗ trống hệ thống tự đăng ký nếu không trùng lịch và báo cho bạn.`,
-                              );
-                            }}
+                            disabled={!isOpen || activeHolds.length > 0 || isSubmitting}
+                            onClick={() =>
+                              startSubmitting(async () => {
+                                const result = await joinWaitlist(section.id).catch(() => null);
+                                if (!result?.ok) {
+                                  messageApi.error(result?.message ?? NETWORK_ERROR);
+                                  return;
+                                }
+                                setWaitlist((current) => ({ ...current, [section.id]: result.data.position }));
+                                messageApi.success(`Đã vào danh sách chờ lớp ${section.code}, vị trí ${result.data.position}. Phòng Đào tạo xếp lớp khi có chỗ trống.`);
+                              })
+                            }
                           >
                             Vào danh sách chờ
                           </Button>
@@ -469,7 +480,7 @@ export function StudentRegistration({
               {creditSummary}
               <MeterBar value={basketCredits} max={credits.max} tone={basketCredits < credits.min ? "warning" : "primary"} label="Số tín chỉ đã chọn" />
               {blockReason && isOpen && <span className={`text-xs text-pretty ${planned.length === 0 ? "text-muted" : "text-amber-700"}`}>{blockReason}</span>}
-              <Button type="primary" block disabled={Boolean(blockReason)} onClick={register}>
+              <Button type="primary" block loading={isSubmitting} disabled={Boolean(blockReason)} onClick={register}>
                 {registerLabel}
               </Button>
             </div>
@@ -484,7 +495,7 @@ export function StudentRegistration({
             {creditSummary}
             {blockReason && isOpen && <span className={`line-clamp-2 text-xs text-pretty ${planned.length === 0 ? "text-muted" : "text-amber-700"}`}>{blockReason}</span>}
           </div>
-          <Button type="primary" disabled={Boolean(blockReason)} onClick={register} className="shrink-0">
+          <Button type="primary" loading={isSubmitting} disabled={Boolean(blockReason)} onClick={register} className="shrink-0">
             {isOpen && activeHolds.length === 0 ? "Đăng ký" : registerLabel}
           </Button>
         </div>
@@ -498,7 +509,6 @@ export function StudentRegistration({
         onCancel={() => setPickerSection(null)}
         onConfirm={confirmLab}
       />
-      <RegistrationQueueModal open={isQueueOpen} onAdmitted={commitRegistration} onLeave={() => setIsQueueOpen(false)} />
     </div>
   );
 }

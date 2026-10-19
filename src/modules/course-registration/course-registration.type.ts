@@ -136,6 +136,7 @@ export type RegistrationPeriodFormValues = {
 export type StudentEnrollment = {
   section: ClassSectionView;
   registeredAt: string;
+  labGroupId: string | null;
 };
 
 export type LecturerWorkload = {

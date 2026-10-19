@@ -13,7 +13,7 @@ export const REGISTRATION_PERIODS: RegistrationPeriod[] = [
   { id: mockId("period:dot-hk1-2"), termId: mockTermId("hk1-2026"), name: "Đợt 2, khóa 50 và 51", cohorts: [50, 51], opensAt: "2026-08-12T01:00:00Z", closesAt: "2026-08-18T10:00:00Z", minCredits: 14, maxCredits: 25, eligibleStudents: 300, registeredStudents: 296 },
   { id: mockId("period:dot-hk1-3"), termId: mockTermId("hk1-2026"), name: "Đợt điều chỉnh", cohorts: [48, 49, 50, 51], opensAt: "2026-09-07T01:00:00Z", closesAt: "2026-09-13T10:00:00Z", minCredits: 14, maxCredits: 25, eligibleStudents: 568, registeredStudents: 74 },
   { id: mockId("period:dot-hk2-1"), termId: mockTermId("hk2-2026"), name: "Đợt 1, khóa 48 và 49", cohorts: [48, 49], opensAt: mockDate(-4, "08:00"), closesAt: mockDate(1, "17:00"), minCredits: 14, maxCredits: 25, eligibleStudents: 268, registeredStudents: 187 },
-  { id: mockId("period:dot-hk2-2"), termId: mockTermId("hk2-2026"), name: "Đợt 2, khóa 50 và 51", cohorts: [50, 51], opensAt: mockDate(5, "08:00"), closesAt: mockDate(11, "17:00"), minCredits: 14, maxCredits: 25, eligibleStudents: 300, registeredStudents: 0 },
+  { id: mockId("period:dot-hk2-2"), termId: mockTermId("hk2-2026"), name: "Đợt 2, khóa 50 và 51", cohorts: [50, 51], opensAt: mockDate(-1, "08:00"), closesAt: mockDate(6, "17:00"), minCredits: 14, maxCredits: 25, eligibleStudents: 300, registeredStudents: 0 },
   { id: mockId("period:dot-hk2-3"), termId: mockTermId("hk2-2026"), name: "Đợt điều chỉnh", cohorts: [48, 49, 50, 51], opensAt: mockDate(24, "08:00"), closesAt: mockDate(28, "17:00"), minCredits: 14, maxCredits: 25, eligibleStudents: 568, registeredStudents: 0 },
 ];
 

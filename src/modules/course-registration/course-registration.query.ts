@@ -18,6 +18,7 @@ import {
   reservedSeats,
   sectionMeetings,
   terms,
+  waitlistEntries,
 } from "@/modules/course-registration/course-registration.schema";
 import { courses, faculties, majors } from "@/modules/curriculum/curriculum.schema";
 import { rooms } from "@/modules/facilities/facilities.schema";
@@ -275,7 +276,7 @@ export async function getStudentEnrollments(studentId: string, termId: string): 
   if (!isUuid(studentId) || !isUuid(termId)) return [];
   const [rows, sections] = await Promise.all([
     db
-      .select({ sectionId: enrollments.classSectionId, registeredAt: enrollments.registeredAt })
+      .select({ sectionId: enrollments.classSectionId, registeredAt: enrollments.registeredAt, labGroupId: enrollments.labGroupId })
       .from(enrollments)
       .where(and(eq(enrollments.studentId, studentId), eq(enrollments.termId, termId), eq(enrollments.status, "enrolled")))
       .orderBy(asc(enrollments.registeredAt)),
@@ -283,8 +284,28 @@ export async function getStudentEnrollments(studentId: string, termId: string): 
   ]);
   const sectionById = new Map(sections.map((section) => [section.id, section]));
   return rows
-    .map((row) => ({ section: sectionById.get(row.sectionId)!, registeredAt: row.registeredAt.toISOString() }))
+    .map((row) => ({ section: sectionById.get(row.sectionId)!, registeredAt: row.registeredAt.toISOString(), labGroupId: row.labGroupId }))
     .filter((entry) => entry.section && entry.section.status !== "cancelled");
+}
+
+// Vị trí của sinh viên trong danh sách chờ từng lớp của học kỳ (1 là người kế tiếp được xếp).
+export async function getStudentWaitlist(studentId: string, termId: string): Promise<Record<string, number>> {
+  await requireSession();
+  if (!isUuid(studentId) || !isUuid(termId)) return {};
+  const rows = await db
+    .select({ sectionId: waitlistEntries.classSectionId, studentId: waitlistEntries.studentId })
+    .from(waitlistEntries)
+    .innerJoin(classSections, eq(classSections.id, waitlistEntries.classSectionId))
+    .where(and(eq(classSections.termId, termId), eq(waitlistEntries.status, "waiting")))
+    .orderBy(asc(waitlistEntries.createdAt), asc(waitlistEntries.id));
+  const positions: Record<string, number> = {};
+  const seen = new Map<string, number>();
+  for (const row of rows) {
+    const position = (seen.get(row.sectionId) ?? 0) + 1;
+    seen.set(row.sectionId, position);
+    if (row.studentId === studentId) positions[row.sectionId] = position;
+  }
+  return positions;
 }
 
 const TEACHING_WEEKS = 15;

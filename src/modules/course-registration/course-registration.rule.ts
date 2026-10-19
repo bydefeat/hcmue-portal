@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { periodLabel, weekdayLabel } from "@/shared/constants/period.constant";
 import { dayjs } from "@/shared/libs/date.lib";
 import { audienceText, overlaps } from "@/modules/course-registration/course-registration.constant";
@@ -374,3 +375,15 @@ export function buildRegistrationHistory(
   });
   return events.toSorted((a, b) => b.at.localeCompare(a.at));
 }
+
+// Dữ liệu sinh viên gửi lên khi bấm Đăng ký: các lớp trong giỏ và nhóm thực hành đã chọn.
+export const REGISTER_SCHEMA = z.object({
+  sectionIds: z
+    .array(z.uuid())
+    .min(1, "Chọn ít nhất 1 lớp để đăng ký")
+    .max(15, "Mỗi lần đăng ký tối đa 15 lớp")
+    .transform((ids) => [...new Set(ids)]),
+  labChoices: z.record(z.uuid(), z.uuid()).default({}),
+});
+
+export type RegisterInput = z.input<typeof REGISTER_SCHEMA>;

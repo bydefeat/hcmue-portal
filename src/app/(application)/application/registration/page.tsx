@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { StudentRegistration } from "@/modules/course-registration/components/student-registration";
-import { bestGrades, creditCapOf, evaluateSection, pickTimetable } from "@/modules/course-registration/course-registration.rule";
-import type { ClassSectionView, RegistrationHold } from "@/modules/course-registration/course-registration.type";
+import { bestGrades, creditCapOf, pickTimetable } from "@/modules/course-registration/course-registration.rule";
+import type { RegistrationHold } from "@/modules/course-registration/course-registration.type";
 import {
   getClassSections,
   getCurrentTerm,
@@ -10,6 +10,7 @@ import {
   getRegistrationPeriods,
   getRegistrationTargetTerm,
   getStudentEnrollments,
+  getStudentWaitlist,
 } from "@/modules/course-registration/course-registration.query";
 import { getCourses } from "@/modules/curriculum/curriculum.query";
 import { getStudentStandings, getTranscript } from "@/modules/grades/grades.query";
@@ -31,7 +32,7 @@ export default async function Page() {
     getCourses(),
     getRegulation(),
   ]);
-  const [sections, periods, transcript, plan, enrollments, holds, [standing]] = await Promise.all([
+  const [sections, periods, transcript, plan, enrollments, holds, [standing], targetEnrollments, waitlist] = await Promise.all([
     getClassSections(targetTerm.id),
     getRegistrationPeriods(targetTerm.id),
     getTranscript(student.id),
@@ -39,6 +40,8 @@ export default async function Page() {
     getStudentEnrollments(student.id, currentTerm.id),
     getRegistrationHolds(student.id),
     getStudentStandings([student.id]),
+    getStudentEnrollments(student.id, targetTerm.id),
+    getStudentWaitlist(student.id, targetTerm.id),
   ]);
 
   const passedGrades = bestGrades(transcript);
@@ -55,27 +58,9 @@ export default async function Page() {
   const timetable = pickTimetable(enrollments, passedGrades, { faculty: student.faculty, prerequisites });
   const inProgressCodes = timetable.map(({ section }) => section.courseCode);
 
-  const initialPlanned: ClassSectionView[] = [];
-  const initialLabChoices: Record<string, string> = {};
-  for (const section of openSections) {
-    if (initialPlanned.length >= 2) break;
-    const issues = evaluateSection(section, {
-      planned: initialPlanned,
-      passedGrades,
-      prerequisites,
-      corequisites,
-      equivalents,
-      courseNames,
-      maxCredits: cap.max,
-      inProgressCodes,
-      student: profile,
-    }).filter((issue) => issue.blocking);
-    if (issues.length > 0 || section.faculty !== student.faculty) continue;
-    const lab = section.labGroups.find((group) => group.enrolled < group.capacity);
-    if (section.labGroups.length > 0 && !lab) continue;
-    if (lab) initialLabChoices[section.id] = lab.id;
-    initialPlanned.push(section);
-  }
+  const initialLabChoices = Object.fromEntries(
+    targetEnrollments.filter((entry) => entry.labGroupId).map((entry) => [entry.section.id, entry.labGroupId as string]),
+  );
 
   const [currentInvoice] = await getInvoices({
     majorCode: student.majorCode,
@@ -135,8 +120,9 @@ export default async function Page() {
         credits={{ min: regulation.credits.minPerTerm, max: cap.max, note: cap.note }}
         planCodes={planCodes}
         inProgressCodes={inProgressCodes}
-        initialPlannedIds={initialPlanned.map((section) => section.id)}
+        initialRegisteredIds={targetEnrollments.map((entry) => entry.section.id)}
         initialLabChoices={initialLabChoices}
+        initialWaitlist={waitlist}
         holds={allHolds}
       />
     </>

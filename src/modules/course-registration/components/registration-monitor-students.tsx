@@ -5,6 +5,7 @@ import { Button, Input, message, Select, Table, type TableColumnsType } from "an
 import { Magnifier } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { paginationItemRender } from "@/shared/constants/antd.constant";
+import { normalizeSearch } from "@/shared/libs/search.lib";
 
 export type PendingStudent = {
   id: string;
@@ -15,10 +16,6 @@ export type PendingStudent = {
   faculty: string;
   email: string;
 };
-
-function normalize(value: string) {
-  return value.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/đ/gi, "d").toLowerCase();
-}
 
 export function RegistrationMonitorStudents({ students }: { students: PendingStudent[] }) {
   const [messageApi, contextHolder] = message.useMessage();
@@ -33,7 +30,7 @@ export function RegistrationMonitorStudents({ students }: { students: PendingStu
     (student) =>
       (!cohort || student.cohort === cohort) &&
       (!faculty || student.faculty === faculty) &&
-      (!query.trim() || normalize(`${student.fullName} ${student.code} ${student.className}`).includes(normalize(query.trim()))),
+      (!query.trim() || normalizeSearch(`${student.fullName} ${student.code} ${student.className}`).includes(normalizeSearch(query.trim()))),
   );
 
   const remind = (ids: string[]) => {

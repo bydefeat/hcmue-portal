@@ -21,17 +21,29 @@ export function landingOf(roles: AppRole[]) {
   return ROLE_HOME[role];
 }
 
-export const DEMO_ACCOUNTS: { username: string; roles: AppRole[]; label: string }[] = [
-  { username: "5001104009", roles: ["student"], label: "Sinh viên" },
-  { username: "GV104011", roles: ["lecturer", "advisor"], label: "Giảng viên, cố vấn" },
-  { username: "PDT0001", roles: ["admin"], label: "Phòng Đào tạo" },
+// Vai trò tài khoản lưu ở cột user.role, nhiều vai trò cách nhau bởi dấu phẩy ("lecturer,admin"). Cố vấn suy ra từ lớp sinh hoạt được phân công.
+export type AccountRole = Exclude<AppRole, "advisor">;
+
+const ACCOUNT_ROLES: AccountRole[] = ["student", "lecturer", "admin"];
+
+export function parseRoles(value: string | null | undefined): AccountRole[] {
+  return (value ?? "")
+    .split(",")
+    .map((role) => role.trim())
+    .filter((role): role is AccountRole => ACCOUNT_ROLES.includes(role as AccountRole));
+}
+
+const PORTAL_ROLE: [prefix: string, role: AccountRole][] = [
+  ["/application", "student"],
+  ["/lecturer", "lecturer"],
+  ["/administrator", "admin"],
 ];
 
-export function demoRolesOf(username: string): AppRole[] {
-  const normalized = username.trim().toUpperCase();
-  const account = DEMO_ACCOUNTS.find((entry) => entry.username.toUpperCase() === normalized);
-  if (account) return account.roles;
-  if (/^(PDT|CB|PKT|BGH|GVK)/.test(normalized) || normalized.startsWith("ADMIN")) return ["admin"];
-  if (normalized.startsWith("GV") || normalized.endsWith("@HCMUE.EDU.VN")) return ["lecturer"];
-  return ["student"];
+// Trang đích sau đăng nhập: quay lại trang đang mở dở nếu tài khoản vào được cổng đó, không thì về trang chủ của vai trò.
+export function landingAfterSignIn(roles: AccountRole[], next: string | null | undefined) {
+  if (next) {
+    const portal = PORTAL_ROLE.find(([prefix]) => next === prefix || next.startsWith(`${prefix}/`) || next.startsWith(`${prefix}?`));
+    if (!portal || roles.includes(portal[1])) return next;
+  }
+  return landingOf(roles);
 }

@@ -23,6 +23,7 @@ import type { ClassSectionView, RegistrationHold, RegistrationPeriodState, Regis
 import { LabGroupPicker } from "@/modules/course-registration/components/lab-group-picker";
 import { RegistrationQueueModal } from "@/modules/course-registration/components/registration-queue-modal";
 import { PeriodCountdown } from "@/modules/course-registration/components/student-period-countdown";
+import { normalizeSearch } from "@/shared/libs/search.lib";
 
 type StudentRegistrationProps = {
   sections: ClassSectionView[];
@@ -54,10 +55,6 @@ const SIMULATION_OPTIONS: { value: Simulation; label: string }[] = [
 
 function waitlistPosition(code: string) {
   return 1 + ([...code].reduce((sum, char) => sum + char.charCodeAt(0), 0) % 6);
-}
-
-function normalize(value: string) {
-  return value.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/đ/gi, "d").toLowerCase();
 }
 
 function PeriodBanner({ period, state, cohort }: { period: RegistrationPeriodView | null; state: RegistrationPeriodState | null; cohort: number }) {
@@ -180,8 +177,8 @@ export function StudentRegistration({
   const rows = sections
     .map((section) => ({ section, issues: evaluateSection(section, context) }))
     .filter(({ section, issues }) => {
-      const needle = normalize(query.trim());
-      if (needle && !normalize(`${section.code} ${section.courseName} ${section.lecturerName ?? ""}`).includes(needle)) return false;
+      const needle = normalizeSearch(query.trim());
+      if (needle && !normalizeSearch(`${section.code} ${section.courseName} ${section.lecturerName ?? ""}`).includes(needle)) return false;
       if (faculty && section.faculty !== faculty) return false;
       if (onlyPlan && !planCodes.includes(section.courseCode)) return false;
       if (onlyEligible && issues.some((issue) => issue.blocking) && !plannedIds.includes(section.id)) return false;

@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import { hashPassword } from "better-auth/crypto";
 import { db } from "@/shared/libs/db.lib";
+import { formatStudentCode, studentEmailOf } from "@/shared/libs/student-code.lib";
 import { roleAssignments, rolePermissions, roles } from "@/modules/access/access.schema";
 import { ROLES } from "@/modules/access/access.mock";
 import { announcements } from "@/modules/announcements/announcements.schema";
@@ -28,6 +29,7 @@ import { administrativeClasses, lecturerLoadNorms, lecturers, staffMembers, stud
 
 if (process.env.NODE_ENV === "production") throw new Error("Không chạy seed trên môi trường production");
 
+const STUDENT_CODE = "5001104001";
 const PASSWORD = process.env.DEFEAT_SEED_ACCOUNT_PASSWORD || "Hcmue@2026";
 const PROGRAM_ID = "ctdt-cntt-2023";
 
@@ -163,9 +165,9 @@ async function main() {
     const userRows = await tx
       .insert(user)
       .values([
-        { name: "Phạm Gia Đạt", email: "5001104001@student.hcmue.edu.vn", emailVerified: true, role: "student" },
+        { name: "Phạm Gia Đạt", email: studentEmailOf(STUDENT_CODE), username: STUDENT_CODE, displayUsername: formatStudentCode(STUDENT_CODE), emailVerified: true, role: "student" },
         { name: "ThS. Phạm Thùy Hạnh", email: "hanhpt@hcmue.edu.vn", emailVerified: true, role: "lecturer" },
-        { name: "Trần Minh Khoa", email: "khoatm@hcmue.edu.vn", emailVerified: true, role: "administrator" },
+        { name: "Trần Minh Khoa", email: "khoatm@hcmue.edu.vn", emailVerified: true, role: "admin" },
       ])
       .returning();
     const [studentUser, lecturerUser, adminUser] = userRows;
@@ -195,11 +197,11 @@ async function main() {
       .insert(students)
       .values({
         userId: studentUser.id,
-        code: "5001104001",
+        code: STUDENT_CODE,
         fullName: "Phạm Gia Đạt",
         gender: "male",
         dateOfBirth: "2006-03-14",
-        email: "5001104001@student.hcmue.edu.vn",
+        email: studentEmailOf(STUDENT_CODE),
         phone: "0912 448 120",
         hometown: "Đồng Nai",
         administrativeClassId: homeClass.id,

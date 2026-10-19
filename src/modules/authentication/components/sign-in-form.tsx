@@ -1,10 +1,13 @@
 "use client";
 
-import { useTransition } from "react";
+import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "@bprogress/next/app";
-import { Button, Divider, Form, Input } from "antd";
-import { DEMO_ACCOUNTS, demoRolesOf, landingOf } from "@/shared/constants/role.constant";
+import { Alert, Button, Divider, Form, Input } from "antd";
+import { landingAfterSignIn, parseRoles } from "@/shared/constants/role.constant";
+import { authClient } from "@/shared/libs/auth-client.lib";
+import { isStudentCode, isStudentEmail, studentEmailOf } from "@/shared/libs/student-code.lib";
+import { AUTH_ERROR, authErrorMessage } from "@/modules/authentication/authentication.constant";
 import { AuthHeading } from "@/modules/authentication/components/auth-heading";
 
 type SignInValues = {
@@ -12,32 +15,63 @@ type SignInValues = {
   password: string;
 };
 
-export function SignInForm({ defaultUsername }: { defaultUsername?: string }) {
+// Sinh viên đăng nhập bằng MSSV. Giảng viên, cán bộ tạm dùng email cho tới khi chốt cách đăng nhập.
+async function signIn({ username, password }: SignInValues) {
+  const value = username.trim();
+  return value.includes("@")
+    ? authClient.signIn.email({ email: value.toLowerCase(), password })
+    : authClient.signIn.username({ username: value, password });
+}
+
+export function SignInForm({ defaultUsername, next }: { defaultUsername?: string; next?: string | null }) {
   const router = useRouter();
   const [form] = Form.useForm<SignInValues>();
   const [isPending, startTransition] = useTransition();
-  const username = Form.useWatch("username", form);
-  const forgotHref = username?.includes("@")
-    ? `/authentication/forgot-password?email=${encodeURIComponent(username)}`
+  const [error, setError] = useState<string | null>(null);
+  const username = Form.useWatch("username", form)?.trim();
+  const recoveryEmail = username && isStudentCode(username) ? studentEmailOf(username) : username?.includes("@") ? username : undefined;
+  const forgotHref = recoveryEmail
+    ? `/authentication/forgot-password?email=${encodeURIComponent(recoveryEmail)}`
     : "/authentication/forgot-password";
 
   return (
     <>
       <AuthHeading title="Đăng nhập" />
+      {error && <Alert type="error" showIcon title={error} className="mb-6" />}
       <Form
         form={form}
         layout="vertical"
         size="large"
         requiredMark={false}
         initialValues={{ username: defaultUsername }}
-        onFinish={(values) => startTransition(() => router.push(landingOf(demoRolesOf(values.username))))}
+        onValuesChange={() => setError(null)}
+        onFinish={(values) =>
+          startTransition(async () => {
+            const result = await signIn(values);
+            if (result.error) {
+              setError(authErrorMessage(result.error));
+              form.setFieldValue("password", "");
+              return;
+            }
+            const roles = parseRoles((result.data.user as { role?: string | null }).role);
+            router.replace(landingAfterSignIn(roles, next));
+            router.refresh();
+          })
+        }
       >
         <Form.Item
           name="username"
           label="Tên đăng nhập"
-          rules={[{ required: true, whitespace: true, message: "Chưa nhập tên đăng nhập" }]}
+          extra="Sinh viên nhập mã số sinh viên, ví dụ 50.01.104.013"
+          rules={[
+            { required: true, whitespace: true, message: "Chưa nhập tên đăng nhập" },
+            {
+              validator: (_, value?: string) =>
+                value && isStudentEmail(value) ? Promise.reject(new Error(AUTH_ERROR.STUDENT_USE_CODE)) : Promise.resolve(),
+            },
+          ]}
         >
-          <Input autoFocus={!defaultUsername} autoComplete="username" placeholder="Nhập mã số hoặc email" />
+          <Input autoFocus={!defaultUsername} autoComplete="username" autoCapitalize="none" spellCheck={false} placeholder="Mã số sinh viên" />
         </Form.Item>
         <Form.Item name="password" label="Mật khẩu" rules={[{ required: true, message: "Chưa nhập mật khẩu" }]}>
           <Input.Password autoFocus={Boolean(defaultUsername)} autoComplete="current-password" placeholder="Nhập mật khẩu" />
@@ -50,16 +84,6 @@ export function SignInForm({ defaultUsername }: { defaultUsername?: string }) {
       <Link href={forgotHref} className="text-sm text-primary hover:underline">
         Quên mật khẩu?
       </Link>
-      <div className="mt-6 flex flex-col gap-2">
-        <span className="text-xs text-muted">Tài khoản dùng thử, mật khẩu bất kỳ</span>
-        <div className="flex flex-wrap gap-2">
-          {DEMO_ACCOUNTS.map((account) => (
-            <Button key={account.username} size="small" onClick={() => form.setFieldsValue({ username: account.username })}>
-              {account.label}
-            </Button>
-          ))}
-        </div>
-      </div>
     </>
   );
 }

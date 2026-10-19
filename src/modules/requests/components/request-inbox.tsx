@@ -10,6 +10,7 @@ import { decideStep, REQUEST_KINDS, REQUEST_STATUS, requestView } from "@/module
 import type { AcademicRequest, RequestKind, RequestStatus, RequestView, StepRole } from "@/modules/requests/requests.type";
 import { ApprovalSteps } from "@/modules/requests/components/approval-steps";
 import { paginationItemRender } from "@/shared/constants/antd.constant";
+import { normalizeSearch } from "@/shared/libs/search.lib";
 
 type RequestInboxProps = {
   requests: RequestView[];
@@ -22,10 +23,6 @@ type RequestInboxProps = {
 };
 
 type Scope = "mine" | "all";
-
-function normalize(value: string) {
-  return value.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/đ/gi, "d").toLowerCase();
-}
 
 function waitingText(request: RequestView) {
   if (!request.currentStep?.dueAt) return null;
@@ -67,8 +64,8 @@ export function RequestInbox({
 
   const filtered = rows.filter((row) => {
     if (scope === "mine" && !canAct(row)) return false;
-    const needle = normalize(query.trim());
-    if (needle && !normalize(`${row.code} ${row.requesterName} ${row.requesterCode} ${row.subject}`).includes(needle)) return false;
+    const needle = normalizeSearch(query.trim());
+    if (needle && !normalizeSearch(`${row.code} ${row.requesterName} ${row.requesterCode} ${row.subject}`).includes(needle)) return false;
     if (kind && row.kind !== kind) return false;
     if (status && row.status !== status) return false;
     return true;

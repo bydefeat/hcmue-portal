@@ -9,12 +9,9 @@ import { dayjs, formatDateTime } from "@/shared/libs/date.lib";
 import { PENDING_TOO_LONG_DAYS, STUDY_PLAN_CREDIT_LIMIT, STUDY_PLAN_STATUS } from "@/modules/study-plan/study-plan.constant";
 import type { StudyPlan, StudyPlanStatus } from "@/modules/study-plan/study-plan.type";
 import { paginationItemRender } from "@/shared/constants/antd.constant";
+import { normalizeSearch } from "@/shared/libs/search.lib";
 
 const STATUS_ORDER: Record<StudyPlanStatus, number> = { pending: 0, returned: 1, draft: 2, approved: 3 };
-
-function normalize(value: string) {
-  return value.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/đ/gi, "d").toLowerCase();
-}
 
 function waitingDays(plan: StudyPlan) {
   return plan.submittedAt ? dayjs().diff(plan.submittedAt, "day") : 0;
@@ -46,10 +43,10 @@ export function StudyPlanReview({ plans }: { plans: StudyPlan[] }) {
     [plans, updates],
   );
   const classNames = useMemo(() => [...new Set(plans.map((plan) => plan.className))].toSorted(), [plans]);
-  const needle = normalize(query.trim());
+  const needle = normalizeSearch(query.trim());
   const filtered = rows.filter(
     (row) =>
-      (!needle || normalize(`${row.fullName} ${row.studentCode}`).includes(needle)) &&
+      (!needle || normalizeSearch(`${row.fullName} ${row.studentCode}`).includes(needle)) &&
       (!status || row.status === status) &&
       (!className || row.className === className),
   );

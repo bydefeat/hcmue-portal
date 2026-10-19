@@ -12,6 +12,7 @@ import { DECISION_KIND_LABEL, DECISION_KIND_OPTIONS, DECISION_STATUS } from "@/m
 import type { DecisionKind, DecisionStatus, StudentDecision } from "@/modules/users/users.type";
 import { DecisionPreview } from "@/modules/users/components/decision-preview";
 import { paginationItemRender } from "@/shared/constants/antd.constant";
+import { normalizeSearch } from "@/shared/libs/search.lib";
 
 export type DecisionStudentOption = { id: string; code: string; fullName: string; className: string; faculty: string };
 
@@ -23,10 +24,6 @@ type DecisionTableProps = {
 };
 
 type CreateValues = { studentId: string; kind: DecisionKind; title: string; effectiveDate: Dayjs; basis: string };
-
-function normalize(value: string) {
-  return value.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/đ/gi, "d").toLowerCase();
-}
 
 export function DecisionTable({ decisions, students, signerName, header }: DecisionTableProps) {
   const [messageApi, contextHolder] = message.useMessage();
@@ -48,7 +45,7 @@ export function DecisionTable({ decisions, students, signerName, header }: Decis
     (row) =>
       (!kind || row.kind === kind) &&
       (!status || row.status === status) &&
-      (!query.trim() || normalize(`${row.studentName} ${row.studentCode} ${row.number ?? ""} ${row.title}`).includes(normalize(query.trim()))),
+      (!query.trim() || normalizeSearch(`${row.studentName} ${row.studentCode} ${row.number ?? ""} ${row.title}`).includes(normalizeSearch(query.trim()))),
   );
 
   const update = (id: string, patch: Partial<StudentDecision>) => setRows((current) => current.map((row) => (row.id === id ? { ...row, ...patch } : row)));

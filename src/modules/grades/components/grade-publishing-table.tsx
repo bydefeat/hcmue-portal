@@ -10,6 +10,7 @@ import { formatDateTime } from "@/shared/libs/date.lib";
 import { formatPoint, GRADE_SHEET_STATE, LETTER_SCALE, LETTER_COLOR } from "@/modules/grades/grades.constant";
 import type { GradeSheetState } from "@/modules/grades/grades.type";
 import { paginationItemRender } from "@/shared/constants/antd.constant";
+import { normalizeSearch } from "@/shared/libs/search.lib";
 
 export type PublishingRow = {
   classSectionId: string;
@@ -36,10 +37,6 @@ type GradePublishingTableProps = {
 
 const STATE_ORDER: GradeSheetState[] = ["locked", "approved", "returned", "overdue", "due-soon", "in-progress", "published"];
 
-function normalize(value: string) {
-  return value.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/đ/gi, "d").toLowerCase();
-}
-
 export function GradePublishingTable({ rows: initialRows, canApprove, canPublish }: GradePublishingTableProps) {
   const [messageApi, contextHolder] = message.useMessage();
   const [modal, modalContextHolder] = Modal.useModal();
@@ -58,7 +55,7 @@ export function GradePublishingTable({ rows: initialRows, canApprove, canPublish
       (row) =>
         (!state || row.state === state) &&
         (!faculty || row.faculty === faculty) &&
-        (!query.trim() || normalize(`${row.code} ${row.courseName} ${row.lecturerName ?? ""}`).includes(normalize(query.trim()))),
+        (!query.trim() || normalizeSearch(`${row.code} ${row.courseName} ${row.lecturerName ?? ""}`).includes(normalizeSearch(query.trim()))),
     )
     .toSorted((a, b) => STATE_ORDER.indexOf(a.state) - STATE_ORDER.indexOf(b.state));
   const chosen = rows.filter((row) => selected.includes(row.classSectionId));

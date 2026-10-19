@@ -6,6 +6,7 @@ import { dayjs } from "@/shared/libs/date.lib";
 import { MOCK_MAJORS } from "@/shared/libs/mock.lib";
 import { COHORT_OPTIONS, MAJOR_OPTIONS, STUDENT_STATUS_OPTIONS } from "@/modules/users/users.constant";
 import type { Student, StudentFormValues } from "@/modules/users/users.type";
+import { formatStudentCode, isStudentCode } from "@/shared/libs/student-code.lib";
 
 type StudentFormDrawerProps = {
   open: boolean;
@@ -55,7 +56,7 @@ export function StudentFormDrawer({ open, student, onClose, onSubmit }: StudentF
         form={form}
         layout="vertical"
         initialValues={{ status: "studying" }}
-        onFinish={(values) => onSubmit({ ...values, dateOfBirth: values.dateOfBirth?.format("YYYY-MM-DD") ?? "" })}
+        onFinish={(values) => onSubmit({ ...values, code: formatStudentCode(values.code), dateOfBirth: values.dateOfBirth?.format("YYYY-MM-DD") ?? "" })}
       >
         <div className="grid gap-x-3 sm:grid-cols-2">
           <Form.Item
@@ -63,10 +64,13 @@ export function StudentFormDrawer({ open, student, onClose, onSubmit }: StudentF
             label="Mã sinh viên"
             rules={[
               { required: true, message: "Chưa nhập mã sinh viên" },
-              { pattern: /^\d{10}$/, message: "Mã sinh viên gồm đúng 10 chữ số, ví dụ 4901104012" },
+              {
+                validator: (_, value?: string) =>
+                  !value || isStudentCode(value) ? Promise.resolve() : Promise.reject(new Error("Mã sinh viên gồm 10 chữ số, ví dụ 49.01.104.012")),
+              },
             ]}
           >
-            <Input inputMode="numeric" disabled={isEdit} />
+            <Input inputMode="decimal" placeholder="49.01.104.012" disabled={isEdit} />
           </Form.Item>
           <Form.Item name="fullName" label="Họ và tên" rules={[{ required: true, whitespace: true, message: "Chưa nhập họ và tên" }]}>
             <Input autoComplete="off" />

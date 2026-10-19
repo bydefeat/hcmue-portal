@@ -1,6 +1,7 @@
 import type { StatusMeta } from "@/shared/constants/status.constant";
 import { daysUntil } from "@/shared/libs/date.lib";
 import type { InvoiceStatus, TuitionInvoice, TuitionInvoiceView } from "@/modules/tuition/tuition.type";
+import { normalizeStudentCode } from "@/shared/libs/student-code.lib";
 
 export const PRICE_PER_CREDIT: Record<string, number> = {
   "104": 520_000,
@@ -36,5 +37,5 @@ export function invoiceView(invoice: TuitionInvoice): TuitionInvoiceView {
 }
 
 export function transferContent(studentCode: string, termId: string) {
-  return `HP ${studentCode} ${termId.toUpperCase()}`;
+  return `HP ${normalizeStudentCode(studentCode)} ${termId.toUpperCase()}`;
 }

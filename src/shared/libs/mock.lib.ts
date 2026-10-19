@@ -1,4 +1,5 @@
 import dayjs from "dayjs";
+import { formatStudentCode } from "@/shared/libs/student-code.lib";
 
 export function createRandom(seed: number) {
   let state = seed >>> 0;
@@ -73,7 +74,7 @@ export function mockStudentIdentity(index: number): MockStudentIdentity {
   return {
     id: `sv-${index}`,
     index,
-    code: `${cohort}01${major.code}${String(sequence * 7 + (index % 5)).padStart(3, "0")}`,
+    code: formatStudentCode(`${cohort}01${major.code}${String(sequence * 7 + (index % 5)).padStart(3, "0")}`),
     fullName,
     gender,
     cohort,

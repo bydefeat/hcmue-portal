@@ -36,6 +36,13 @@
       "when": 1792395060017,
       "tag": "0004_cross_table_guards",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1792414273201,
+      "tag": "0005_auth_username",
+      "breakpoints": true
     }
   ]
 }

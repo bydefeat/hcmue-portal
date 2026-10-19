@@ -11,10 +11,7 @@ import { AUDIT_ACTION, AUDIT_ENTITY_LABEL } from "@/modules/audit/audit.constant
 import type { AuditAction, AuditEntityType, AuditEntry } from "@/modules/audit/audit.type";
 import { AuditChanges } from "@/modules/audit/components/audit-changes";
 import { paginationItemRender } from "@/shared/constants/antd.constant";
-
-function normalize(value: string) {
-  return value.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/đ/gi, "d").toLowerCase();
-}
+import { normalizeSearch } from "@/shared/libs/search.lib";
 
 export function AuditLogTable({ entries }: { entries: AuditEntry[] }) {
   const [query, setQuery] = useState("");
@@ -27,8 +24,8 @@ export function AuditLogTable({ entries }: { entries: AuditEntry[] }) {
   const entities = useMemo(() => [...new Set(entries.map((entry) => entry.entityType))], [entries]);
 
   const filtered = entries.filter((entry) => {
-    const needle = normalize(query.trim());
-    if (needle && !normalize(`${entry.entityLabel} ${entry.summary} ${entry.actorName}`).includes(needle)) return false;
+    const needle = normalizeSearch(query.trim());
+    if (needle && !normalizeSearch(`${entry.entityLabel} ${entry.summary} ${entry.actorName}`).includes(needle)) return false;
     if (action && entry.action !== action) return false;
     if (entity && entry.entityType !== entity) return false;
     if (actor && entry.actorName !== actor) return false;

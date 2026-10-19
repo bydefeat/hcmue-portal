@@ -12,6 +12,7 @@ import { meetingText } from "@/modules/course-registration/course-registration.c
 import type { ClassSectionView } from "@/modules/course-registration/course-registration.type";
 import { computeWorkloads, lecturerClash, loadStateOf, type AssignableLecturer, type LoadState, type WorkloadRow } from "@/modules/course-registration/teaching-assignment.rule";
 import { paginationItemRender, TABS_MORE } from "@/shared/constants/antd.constant";
+import { normalizeSearch } from "@/shared/libs/search.lib";
 
 const LOAD_STATE: Record<LoadState, StatusMeta> = {
   over: { label: "Vượt định mức", tone: "danger" },
@@ -26,10 +27,6 @@ type TeachingAssignmentBoardProps = {
   terms: { id: string; name: string }[];
   termId: string;
 };
-
-function normalize(value: string) {
-  return value.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/đ/gi, "d").toLowerCase();
-}
 
 export function TeachingAssignmentBoard({ sections, lecturers, terms, termId }: TeachingAssignmentBoardProps) {
   const router = useRouter();
@@ -61,14 +58,14 @@ export function TeachingAssignmentBoard({ sections, lecturers, terms, termId }: 
     (row) =>
       (!faculty || row.faculty === faculty) &&
       (!load || loadStateOf(row) === load) &&
-      (!query.trim() || normalize(row.displayName).includes(normalize(query.trim()))),
+      (!query.trim() || normalizeSearch(row.displayName).includes(normalizeSearch(query.trim()))),
   );
   const visibleSections = rows.filter(
     (section) =>
       section.status !== "cancelled" &&
       (!faculty || section.faculty === faculty) &&
       (!onlyUnassigned || !section.lecturerId) &&
-      (!query.trim() || normalize(`${section.code} ${section.courseName} ${section.lecturerName ?? ""}`).includes(normalize(query.trim()))),
+      (!query.trim() || normalizeSearch(`${section.code} ${section.courseName} ${section.lecturerName ?? ""}`).includes(normalizeSearch(query.trim()))),
   );
 
   const workloadColumns: TableColumnsType<WorkloadRow> = [

@@ -8,10 +8,7 @@ import { StatusTag } from "@/shared/components/ui/status-tag";
 import { GRADUATION_STATUS } from "@/modules/graduation/graduation.constant";
 import type { GraduationCandidate, GraduationStatus } from "@/modules/graduation/graduation.type";
 import { paginationItemRender } from "@/shared/constants/antd.constant";
-
-function normalize(value: string) {
-  return value.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/đ/gi, "d").toLowerCase();
-}
+import { normalizeSearch } from "@/shared/libs/search.lib";
 
 export function GraduationReview({ candidates }: { candidates: GraduationCandidate[] }) {
   const [messageApi, contextHolder] = message.useMessage();
@@ -26,7 +23,7 @@ export function GraduationReview({ candidates }: { candidates: GraduationCandida
     (row) =>
       (!status || row.status === status) &&
       (!faculty || row.faculty === faculty) &&
-      (!query.trim() || normalize(`${row.fullName} ${row.code} ${row.className}`).includes(normalize(query.trim()))),
+      (!query.trim() || normalizeSearch(`${row.fullName} ${row.code} ${row.className}`).includes(normalizeSearch(query.trim()))),
   );
   const chosen = rows.filter((row) => selected.includes(row.studentId) && row.status === "eligible");
 

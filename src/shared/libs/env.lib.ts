@@ -7,6 +7,14 @@ const schema = z.object({
   DEFEAT_POSTGRES_POOL_MAX: blankAsUnset(z.coerce.number().int().min(1).max(100).default(10)),
   DEFEAT_POSTGRES_STATEMENT_TIMEOUT_MS: blankAsUnset(z.coerce.number().int().min(1000).default(15000)),
   DEFEAT_DATABASE_LOG_QUERIES: blankAsUnset(z.stringbool().default(false)),
+  DEFEAT_BETTER_AUTH_SESSION_SIGNING_SECRET_KEY: z.string().min(32),
+  DEFEAT_BETTER_AUTH_PUBLIC_APPLICATION_BASE_URL: z.url({ protocol: /^https?$/ }),
+  DEFEAT_BETTER_AUTH_TRUSTED_ORIGINS: blankAsUnset(
+    z
+      .string()
+      .transform((value) => value.split(",").map((origin) => origin.trim()).filter(Boolean))
+      .default([]),
+  ),
 });
 
 export const env = schema.parse(process.env);

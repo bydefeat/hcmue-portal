@@ -8,22 +8,19 @@ import { SectionCard } from "@/shared/components/ui/section-card";
 import { ANNOUNCEMENT_CATEGORY_LABEL } from "@/modules/announcements/announcements.constant";
 import type { Announcement, AnnouncementCategory } from "@/modules/announcements/announcements.type";
 import { PublicAnnouncementItem } from "@/modules/announcements/components/public-announcement-item";
+import { normalizeSearch } from "@/shared/libs/search.lib";
 
 type Filter = AnnouncementCategory | "all";
-
-function normalize(value: string) {
-  return value.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/đ/gi, "d").toLowerCase();
-}
 
 export function PublicAnnouncementBrowser({ announcements }: { announcements: Announcement[] }) {
   const [category, setCategory] = useState<Filter>("all");
   const [query, setQuery] = useState("");
   const categories = [...new Set(announcements.map((announcement) => announcement.category))];
-  const needle = normalize(query.trim());
+  const needle = normalizeSearch(query.trim());
   const visible = announcements.filter(
     (announcement) =>
       (category === "all" || announcement.category === category) &&
-      (!needle || normalize(`${announcement.title} ${announcement.summary}`).includes(needle)),
+      (!needle || normalizeSearch(`${announcement.title} ${announcement.summary}`).includes(needle)),
   );
 
   return (

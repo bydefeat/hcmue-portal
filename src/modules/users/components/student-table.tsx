@@ -13,15 +13,13 @@ import type { Student, StudentFormValues, StudentStatus } from "@/modules/users/
 import { StudentFormDrawer } from "@/modules/users/components/student-form-drawer";
 import { StudentImportModal } from "@/modules/users/components/student-import-modal";
 import { paginationItemRender } from "@/shared/constants/antd.constant";
+import { normalizeSearch } from "@/shared/libs/search.lib";
+import { normalizeStudentCode } from "@/shared/libs/student-code.lib";
 
 export type StudentRow = Student & {
   cpa4: number | null;
   standingLabel: string | null;
 };
-
-function normalize(value: string) {
-  return value.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/đ/gi, "d").toLowerCase();
-}
 
 function toStudent(values: StudentFormValues, base?: StudentRow): StudentRow {
   const major = MOCK_MAJORS.find((entry) => entry.code === values.majorCode)!;
@@ -49,9 +47,9 @@ export function StudentTable({ students, header }: { students: StudentRow[]; hea
   const [isImportOpen, setIsImportOpen] = useState(false);
 
   const filtered = useMemo(() => {
-    const needle = normalize(query.trim());
+    const needle = normalizeSearch(query.trim());
     return rows.filter((row) => {
-      if (needle && !normalize(`${row.fullName} ${row.code} ${row.className}`).includes(needle)) return false;
+      if (needle && !normalizeSearch(`${row.fullName} ${row.code} ${row.className}`).includes(needle)) return false;
       if (faculty && row.faculty !== faculty) return false;
       if (cohort && row.cohort !== cohort) return false;
       if (status && row.status !== status) return false;
@@ -74,7 +72,7 @@ export function StudentTable({ students, header }: { students: StudentRow[]; hea
       setRows((current) => current.map((row) => (row.id === editing.id ? toStudent(values, editing) : row)));
       messageApi.success(`Đã lưu hồ sơ ${values.fullName}`);
     } else {
-      if (rows.some((row) => row.code === values.code)) {
+      if (rows.some((row) => normalizeStudentCode(row.code) === normalizeStudentCode(values.code))) {
         messageApi.error(`Mã ${values.code} đã thuộc về sinh viên khác. Kiểm tra lại mã trên giấy báo nhập học.`);
         return;
       }

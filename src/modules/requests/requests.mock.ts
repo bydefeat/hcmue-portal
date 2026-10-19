@@ -348,7 +348,7 @@ const SEEDS: Seed[] = [
     lecturer: 0,
     subject: "COMP1070.01 Phát triển ứng dụng web",
     details: [
-      { label: "Sinh viên", value: "Ngô Thu Quỳnh, 5001104108" },
+      { label: "Sinh viên", value: "Ngô Thu Quỳnh, 50.01.104.108" },
       { label: "Cột điểm", value: "Đồ án" },
       { label: "Điểm cũ", value: "6,5" },
       { label: "Điểm mới", value: "8,5" },
@@ -388,7 +388,7 @@ const SEEDS: Seed[] = [
     lecturer: 7,
     subject: "MATH1013.01 Xác suất thống kê",
     details: [
-      { label: "Sinh viên", value: "Lê Văn Hiếu, 5101104010" },
+      { label: "Sinh viên", value: "Lê Văn Hiếu, 51.01.104.010" },
       { label: "Cột điểm", value: "Cuối kỳ" },
       { label: "Điểm cũ", value: "3,5" },
       { label: "Điểm mới", value: "4,25" },

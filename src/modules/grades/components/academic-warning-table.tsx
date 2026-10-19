@@ -10,6 +10,7 @@ import { formatDate } from "@/shared/libs/date.lib";
 import { formatPoint, WARNING_LEVEL, WARNING_STATUS } from "@/modules/grades/grades.constant";
 import type { AcademicWarning, WarningStatus } from "@/modules/grades/grades.type";
 import { paginationItemRender } from "@/shared/constants/antd.constant";
+import { normalizeSearch } from "@/shared/libs/search.lib";
 
 type AcademicWarningTableProps = {
   warnings: AcademicWarning[];
@@ -21,10 +22,6 @@ const NEXT_STATUS: Partial<Record<WarningStatus, { status: WarningStatus; label:
   new: { status: "notified", label: "Gửi thông báo", done: "Đã gửi thông báo cảnh báo tới email sinh viên" },
   notified: { status: "resolved", label: "Ghi nhận đã gặp", done: "Đã ghi nhận buổi gặp sinh viên" },
 };
-
-function normalize(value: string) {
-  return value.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/đ/gi, "d").toLowerCase();
-}
 
 export function AcademicWarningTable({ warnings, studentHrefBase, showFaculty = false }: AcademicWarningTableProps) {
   const [messageApi, contextHolder] = message.useMessage();
@@ -40,8 +37,8 @@ export function AcademicWarningTable({ warnings, studentHrefBase, showFaculty = 
   );
   const faculties = useMemo(() => [...new Set(warnings.map((warning) => warning.faculty))], [warnings]);
   const filtered = rows.filter((row) => {
-    const needle = normalize(query.trim());
-    if (needle && !normalize(`${row.fullName} ${row.studentCode} ${row.className}`).includes(needle)) return false;
+    const needle = normalizeSearch(query.trim());
+    if (needle && !normalizeSearch(`${row.fullName} ${row.studentCode} ${row.className}`).includes(needle)) return false;
     if (level && row.level !== level) return false;
     if (status && row.status !== status) return false;
     if (faculty && row.faculty !== faculty) return false;

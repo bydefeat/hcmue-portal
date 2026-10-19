@@ -1,3 +1,4 @@
+import { requireRole } from "@/modules/authentication/authentication.query";
 import { AdministratorLayout, type SearchEntry } from "@/shared/components/layouts/administrator";
 import { switchDemoViewer } from "@/modules/access/access.action";
 import { can, inScope } from "@/modules/access/access.constant";
@@ -63,6 +64,7 @@ async function searchEntries(viewer: Viewer): Promise<SearchEntry[]> {
 }
 
 export default async function Layout({ children }: { children: React.ReactNode }) {
+  await requireRole("admin");
   const viewer = await getViewer();
   const [entries, currentTerm, notifications, roles, assignments] = await Promise.all([
     searchEntries(viewer),

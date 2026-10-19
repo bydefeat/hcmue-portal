@@ -8,6 +8,7 @@ import { MeterBar } from "@/shared/components/ui/meter-bar";
 import { StatusTag } from "@/shared/components/ui/status-tag";
 import type { SectionSurveyResult, SurveyQuestion } from "@/modules/surveys/surveys.type";
 import { paginationItemRender } from "@/shared/constants/antd.constant";
+import { normalizeSearch } from "@/shared/libs/search.lib";
 
 export const LOW_SCORE = 3.5;
 
@@ -17,10 +18,6 @@ type GroupRow = { key: string; label: string; sublabel: string; sections: number
 
 function score(value: number) {
   return value.toFixed(2).replace(".", ",");
-}
-
-function normalize(value: string) {
-  return value.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/đ/gi, "d").toLowerCase();
 }
 
 function groupBy(results: SectionSurveyResult[], keyOf: (row: SectionSurveyResult) => string, labelOf: (row: SectionSurveyResult) => [string, string]): GroupRow[] {
@@ -57,7 +54,7 @@ export function AdminSurveyResults({ results, questions }: { results: SectionSur
   const [openId, setOpenId] = useState<string | null>(null);
   const faculties = [...new Set(results.map((row) => row.faculty))];
   const filtered = results.filter(
-    (row) => (!faculty || row.faculty === faculty) && (!query.trim() || normalize(`${row.classCode} ${row.courseName} ${row.lecturerName ?? ""}`).includes(normalize(query.trim()))),
+    (row) => (!faculty || row.faculty === faculty) && (!query.trim() || normalizeSearch(`${row.classCode} ${row.courseName} ${row.lecturerName ?? ""}`).includes(normalizeSearch(query.trim()))),
   );
   const opened = results.find((row) => row.classSectionId === openId) ?? null;
   const groups = useMemo(

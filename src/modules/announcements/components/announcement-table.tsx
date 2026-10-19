@@ -17,13 +17,10 @@ import {
 import type { Announcement, AnnouncementFormValues, AnnouncementStatus } from "@/modules/announcements/announcements.type";
 import { AnnouncementFormDrawer } from "@/modules/announcements/components/announcement-form-drawer";
 import { paginationItemRender } from "@/shared/constants/antd.constant";
-
-function normalize(value: string) {
-  return value.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/đ/gi, "d").toLowerCase();
-}
+import { normalizeSearch } from "@/shared/libs/search.lib";
 
 function slugify(value: string) {
-  return normalize(value).replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  return normalizeSearch(value).replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 }
 
 function DeadlineCell({ deadline }: { deadline: string | null }) {
@@ -62,9 +59,9 @@ export function AnnouncementTable({ announcements, header }: { announcements: An
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
   const filtered = useMemo(() => {
-    const needle = normalize(query.trim());
+    const needle = normalizeSearch(query.trim());
     return sortRows(rows).filter((row) => {
-      if (needle && !normalize(`${row.title} ${row.summary}`).includes(needle)) return false;
+      if (needle && !normalizeSearch(`${row.title} ${row.summary}`).includes(needle)) return false;
       if (category && row.category !== category) return false;
       if (status && row.status !== status) return false;
       return true;

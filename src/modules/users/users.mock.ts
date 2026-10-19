@@ -8,6 +8,7 @@ import {
   pickOne,
 } from "@/shared/libs/mock.lib";
 import type { AdvisorAssignment, DecisionKind, DecisionStatus, Lecturer, Student, StudentDecision, StudentStatus } from "@/modules/users/users.type";
+import { studentEmailOf } from "@/shared/libs/student-code.lib";
 
 const STUDENT_COUNT = 600;
 const LECTURER_COUNT = 24;
@@ -47,7 +48,7 @@ export const STUDENTS: Student[] = Array.from({ length: STUDENT_COUNT }, (_, ind
     fullName: identity.fullName,
     gender: identity.gender,
     dateOfBirth: `${birthYear}-${month}-${day}`,
-    email: `${identity.code}@student.hcmue.edu.vn`,
+    email: studentEmailOf(identity.code),
     phone: phone(random),
     faculty: identity.faculty,
     majorCode: identity.majorCode,

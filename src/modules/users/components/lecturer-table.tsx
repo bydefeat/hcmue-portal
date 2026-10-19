@@ -10,12 +10,9 @@ import { FACULTY_OPTIONS, LECTURER_STATUS, USER_ROLES } from "@/modules/users/us
 import type { Lecturer, LecturerFormValues } from "@/modules/users/users.type";
 import { LecturerFormDrawer } from "@/modules/users/components/lecturer-form-drawer";
 import { paginationItemRender } from "@/shared/constants/antd.constant";
+import { normalizeSearch } from "@/shared/libs/search.lib";
 
 const ROLE_LABEL = Object.fromEntries(USER_ROLES.map((role) => [role.value, role.label]));
-
-function normalize(value: string) {
-  return value.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/đ/gi, "d").toLowerCase();
-}
 
 export function LecturerTable({
   lecturers,
@@ -35,9 +32,9 @@ export function LecturerTable({
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
   const filtered = useMemo(() => {
-    const needle = normalize(query.trim());
+    const needle = normalizeSearch(query.trim());
     return rows.filter((row) => {
-      if (needle && !normalize(`${row.fullName} ${row.code} ${row.email}`).includes(needle)) return false;
+      if (needle && !normalizeSearch(`${row.fullName} ${row.code} ${row.email}`).includes(needle)) return false;
       if (faculty && row.faculty !== faculty) return false;
       if (role && !row.roles.includes(role)) return false;
       return true;

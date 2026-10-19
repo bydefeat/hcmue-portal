@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { useRouter } from "@bprogress/next/app";
 import { AutoComplete, Input } from "antd";
 import { Magnifier } from "defeat-icons-react";
+import { normalizeSearch } from "@/shared/libs/search.lib";
 
 export type SearchEntry = {
   group: string;
@@ -15,26 +16,16 @@ export type SearchEntry = {
 
 const MAX_PER_GROUP = 5;
 
-function normalize(value: string) {
-  return value
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .replace(/đ/g, "d")
-    .replace(/Đ/g, "D")
-    .toLowerCase()
-    .trim();
-}
-
 export function GlobalSearch({ entries }: { entries: SearchEntry[] }) {
   const router = useRouter();
   const [query, setQuery] = useState("");
   const indexed = useMemo(
-    () => entries.map((entry) => ({ entry, haystack: normalize(`${entry.label} ${entry.description} ${entry.keywords}`) })),
+    () => entries.map((entry) => ({ entry, haystack: normalizeSearch(`${entry.label} ${entry.description} ${entry.keywords}`) })),
     [entries],
   );
 
   const options = useMemo(() => {
-    const needle = normalize(query);
+    const needle = normalizeSearch(query.trim());
     if (needle.length < 2) return [];
     const groups = new Map<string, SearchEntry[]>();
     for (const { entry, haystack } of indexed) {
@@ -65,7 +56,7 @@ export function GlobalSearch({ entries }: { entries: SearchEntry[] }) {
         setQuery("");
         router.push(href);
       }}
-      notFoundContent={normalize(query).length >= 2 ? <span className="text-muted">Không có kết quả cho “{query}”</span> : null}
+      notFoundContent={normalizeSearch(query.trim()).length >= 2 ? <span className="text-muted">Không có kết quả cho “{query}”</span> : null}
       popupMatchSelectWidth={420}
       className="w-full max-w-md"
     >

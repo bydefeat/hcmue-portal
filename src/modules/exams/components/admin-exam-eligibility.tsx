@@ -6,6 +6,7 @@ import { Magnifier } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { StatusTag } from "@/shared/components/ui/status-tag";
 import { paginationItemRender } from "@/shared/constants/antd.constant";
+import { normalizeSearch } from "@/shared/libs/search.lib";
 
 export type EligibilityRow = {
   key: string;
@@ -21,10 +22,6 @@ export type EligibilityRow = {
   overrideReason: string | null;
 };
 
-function normalize(value: string) {
-  return value.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/đ/gi, "d").toLowerCase();
-}
-
 export function AdminExamEligibility({ rows: initialRows, limitPercent }: { rows: EligibilityRow[]; limitPercent: number }) {
   const [messageApi, contextHolder] = message.useMessage();
   const [rows, setRows] = useState(initialRows);
@@ -34,7 +31,7 @@ export function AdminExamEligibility({ rows: initialRows, limitPercent }: { rows
   const [reason, setReason] = useState("");
   const sections = [...new Set(rows.map((row) => row.sectionCode))].toSorted();
   const visible = rows.filter(
-    (row) => (!section || row.sectionCode === section) && (!query.trim() || normalize(`${row.fullName} ${row.studentCode} ${row.sectionCode}`).includes(normalize(query.trim()))),
+    (row) => (!section || row.sectionCode === section) && (!query.trim() || normalizeSearch(`${row.fullName} ${row.studentCode} ${row.sectionCode}`).includes(normalizeSearch(query.trim()))),
   );
 
   const allow = () => {

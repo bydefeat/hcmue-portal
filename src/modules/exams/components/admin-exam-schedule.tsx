@@ -11,6 +11,7 @@ import { dayjs, formatDate } from "@/shared/libs/date.lib";
 import { EXAM_FORMAT_LABEL, EXAM_FORMAT_OPTIONS, EXAM_PAPER_STATUS, EXAM_STATUS, examConflicts, PROCTORS_PER_ROOM } from "@/modules/exams/exams.constant";
 import type { ExamFormat, ExamKind, ExamPaperStatus, ExamSession } from "@/modules/exams/exams.type";
 import { paginationItemRender } from "@/shared/constants/antd.constant";
+import { normalizeSearch } from "@/shared/libs/search.lib";
 
 export type ExamRoomOption = { code: string; examCapacity: number; isAvailable: boolean };
 export type ProctorOption = { id: string; name: string; faculty: string };
@@ -25,10 +26,6 @@ type AdminExamScheduleProps = {
 type EditValues = { date: Dayjs; startTime: string; room: string; format: ExamFormat; proctorIds: string[] };
 
 const START_TIMES = ["07:30", "09:30", "13:30", "15:30", "17:30"];
-
-function normalize(value: string) {
-  return value.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/đ/gi, "d").toLowerCase();
-}
 
 export function AdminExamSchedule({ sessions, rooms, proctors, header }: AdminExamScheduleProps) {
   const [messageApi, contextHolder] = message.useMessage();
@@ -58,7 +55,7 @@ export function AdminExamSchedule({ sessions, rooms, proctors, header }: AdminEx
     (row) =>
       (!paper || row.paperStatus === paper) &&
       (!onlyConflicts || conflictsOf(row.id).length > 0 || row.candidateCount > capacityOf(row.room)) &&
-      (!query.trim() || normalize(`${row.classCode} ${row.courseName} ${row.room} ${row.proctors.map((proctor) => proctor.name).join(" ")}`).includes(normalize(query.trim()))),
+      (!query.trim() || normalizeSearch(`${row.classCode} ${row.courseName} ${row.room} ${row.proctors.map((proctor) => proctor.name).join(" ")}`).includes(normalizeSearch(query.trim()))),
   );
 
   const save = (values: EditValues) => {

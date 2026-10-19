@@ -9,10 +9,7 @@ import { COURSE_TYPE_LABEL, COURSE_TYPE_OPTIONS, KNOWLEDGE_BLOCK_LABEL, KNOWLEDG
 import type { Course, CourseFormValues, CourseType, KnowledgeBlock } from "@/modules/curriculum/curriculum.type";
 import { CourseFormDrawer } from "@/modules/curriculum/components/course-form-drawer";
 import { paginationItemRender } from "@/shared/constants/antd.constant";
-
-function normalize(value: string) {
-  return value.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/đ/gi, "d").toLowerCase();
-}
+import { normalizeSearch } from "@/shared/libs/search.lib";
 
 export function CourseTable({
   courses,
@@ -34,9 +31,9 @@ export function CourseTable({
 
   const faculties = [...new Set(rows.map((course) => course.faculty))].toSorted((a, b) => a.localeCompare(b, "vi"));
   const nameByCode = new Map(rows.map((course) => [course.code, course.name]));
-  const needle = normalize(query.trim());
+  const needle = normalizeSearch(query.trim());
   const filtered = rows.filter((row) => {
-    if (needle && !normalize(`${row.code} ${row.name}`).includes(needle)) return false;
+    if (needle && !normalizeSearch(`${row.code} ${row.name}`).includes(needle)) return false;
     if (faculty && row.faculty !== faculty) return false;
     if (type && row.type !== type) return false;
     if (block && row.block !== block) return false;

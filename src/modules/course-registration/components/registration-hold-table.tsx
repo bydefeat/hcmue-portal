@@ -12,6 +12,7 @@ import { dayjs, formatDate, formatDateTime } from "@/shared/libs/date.lib";
 import { HOLD_KIND_LABEL, HOLD_KIND_OPTIONS, keepCurrencyTogether } from "@/modules/course-registration/course-registration.constant";
 import type { HoldKind, RegistrationHold } from "@/modules/course-registration/course-registration.type";
 import { paginationItemRender } from "@/shared/constants/antd.constant";
+import { normalizeSearch } from "@/shared/libs/search.lib";
 
 export type HoldStudentOption = {
   id: string;
@@ -34,10 +35,6 @@ type HoldFormValues = {
 const BLOCKING: StatusMeta = { label: "Chặn đăng ký", tone: "danger" };
 const WARNING: StatusMeta = { label: "Chỉ nhắc nhở", tone: "warning" };
 
-function normalize(value: string) {
-  return value.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/đ/gi, "d").toLowerCase();
-}
-
 type RegistrationHoldTableProps = {
   holds: RegistrationHold[];
   students: HoldStudentOption[];
@@ -58,12 +55,12 @@ export function RegistrationHoldTable({ holds, students, actorName, studentHrefB
   const [form] = Form.useForm<HoldFormValues>();
 
   const active = rows.filter((row) => !row.releasedAt);
-  const needle = normalize(query.trim());
+  const needle = normalizeSearch(query.trim());
   const visible = rows.filter(
     (row) =>
       (view === "active" ? !row.releasedAt : Boolean(row.releasedAt)) &&
       (!kind || row.kind === kind) &&
-      (!needle || normalize(`${row.studentName} ${row.studentCode} ${row.className} ${row.reason}`).includes(needle)),
+      (!needle || normalizeSearch(`${row.studentName} ${row.studentCode} ${row.className} ${row.reason}`).includes(needle)),
   );
 
   const create = (values: HoldFormValues) => {

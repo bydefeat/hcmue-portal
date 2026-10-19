@@ -7,21 +7,19 @@ import { EmptyState } from "@/shared/components/ui/empty-state";
 import { formatDate } from "@/shared/libs/date.lib";
 import type { RosterEntry } from "@/modules/course-registration/course-registration.type";
 import { paginationItemRender } from "@/shared/constants/antd.constant";
-
-function normalize(value: string) {
-  return value.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/đ/gi, "d").toLowerCase();
-}
+import { normalizeSearch } from "@/shared/libs/search.lib";
+import { studentEmailOf } from "@/shared/libs/student-code.lib";
 
 function emailOf(studentCode: string) {
-  return `${studentCode}@student.hcmue.edu.vn`;
+  return studentEmailOf(studentCode);
 }
 
 export function ClassRosterTable({ roster, classCode }: { roster: RosterEntry[]; classCode: string }) {
   const [messageApi, contextHolder] = message.useMessage();
   const [query, setQuery] = useState("");
-  const needle = normalize(query.trim());
+  const needle = normalizeSearch(query.trim());
   const filtered = needle
-    ? roster.filter((entry) => normalize(`${entry.fullName} ${entry.studentCode} ${entry.className}`).includes(needle))
+    ? roster.filter((entry) => normalizeSearch(`${entry.fullName} ${entry.studentCode} ${entry.className}`).includes(needle))
     : roster;
 
   const columns: TableColumnsType<RosterEntry> = [

@@ -13,10 +13,7 @@ import { PROGRAM_STATUS, PROGRAM_STATUS_OPTIONS } from "@/modules/curriculum/cur
 import type { ProgramFormValues, ProgramStatus, ProgramSummary } from "@/modules/curriculum/curriculum.type";
 import { ProgramFormDrawer } from "@/modules/curriculum/components/program-form-drawer";
 import { paginationItemRender } from "@/shared/constants/antd.constant";
-
-function normalize(value: string) {
-  return value.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/đ/gi, "d").toLowerCase();
-}
+import { normalizeSearch } from "@/shared/libs/search.lib";
 
 function cohortText(cohorts: number[]) {
   if (cohorts.length === 0) return "";
@@ -34,9 +31,9 @@ export function ProgramTable({ programs, header }: { programs: ProgramSummary[];
   const [isOpen, setIsOpen] = useState(false);
 
   const faculties = [...new Set(programs.map((program) => program.faculty))];
-  const needle = normalize(query.trim());
+  const needle = normalizeSearch(query.trim());
   const filtered = rows.filter((row) => {
-    if (needle && !normalize(`${row.name} ${row.code}`).includes(needle)) return false;
+    if (needle && !normalizeSearch(`${row.name} ${row.code}`).includes(needle)) return false;
     if (faculty && row.faculty !== faculty) return false;
     if (status && row.status !== status) return false;
     return true;

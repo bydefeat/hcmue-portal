@@ -1,5 +1,6 @@
 import { MOCK_COHORTS, MOCK_MAJORS } from "@/shared/libs/mock.lib";
 import type { StudentFormValues } from "@/modules/users/users.type";
+import { formatStudentCode, isStudentCode, normalizeStudentCode, studentEmailOf } from "@/shared/libs/student-code.lib";
 
 export const IMPORT_COLUMNS = ["Mã sinh viên", "Họ và tên", "Giới tính", "Ngày sinh", "Email", "Điện thoại", "Mã ngành", "Khóa", "Lớp"] as const;
 
@@ -18,13 +19,16 @@ export type ImportResult = {
 const DATE_PATTERN = /^(\d{2})\/(\d{2})\/(\d{4})$/;
 
 export function validateImportRow(row: ImportRow, existingCodes: Set<string>, seenCodes: Set<string>): ImportResult {
-  const [code = "", fullName = "", gender = "", dateOfBirth = "", email = "", phone = "", majorCode = "", cohort = "", className = ""] = row.cells.map((cell) =>
+  const [rawCode = "", fullName = "", gender = "", dateOfBirth = "", email = "", phone = "", majorCode = "", cohort = "", className = ""] = row.cells.map((cell) =>
     cell.trim(),
   );
+  // Nhận cả "51.01.104.201" lẫn "5101104201"; existingCodes, seenCodes so theo 10 chữ số.
+  const digits = normalizeStudentCode(rawCode);
+  const code = formatStudentCode(digits);
   const errors: string[] = [];
-  if (!/^\d{10}$/.test(code)) errors.push("Mã sinh viên phải gồm đúng 10 chữ số");
-  else if (existingCodes.has(code)) errors.push(`Mã ${code} đã có trong hệ thống, dòng bị bỏ qua`);
-  else if (seenCodes.has(code)) errors.push(`Mã ${code} lặp lại với một dòng phía trên`);
+  if (!isStudentCode(digits)) errors.push("Mã sinh viên phải gồm đúng 10 chữ số");
+  else if (existingCodes.has(digits)) errors.push(`Mã ${code} đã có trong hệ thống, dòng bị bỏ qua`);
+  else if (seenCodes.has(digits)) errors.push(`Mã ${code} lặp lại với một dòng phía trên`);
   if (!fullName) errors.push("Thiếu họ và tên");
   if (!["Nam", "Nữ"].includes(gender)) errors.push("Giới tính ghi Nam hoặc Nữ");
   const date = DATE_PATTERN.exec(dateOfBirth);
@@ -36,7 +40,7 @@ export function validateImportRow(row: ImportRow, existingCodes: Set<string>, se
   const cohortNumber = Number(cohort);
   if (!MOCK_COHORTS.includes(cohortNumber as (typeof MOCK_COHORTS)[number])) errors.push(`Khóa ${cohort || "(trống)"} không đang tuyển sinh`);
   if (!className) errors.push("Thiếu lớp sinh hoạt");
-  if (/^\d{10}$/.test(code)) seenCodes.add(code);
+  if (isStudentCode(digits)) seenCodes.add(digits);
 
   if (errors.length > 0 || !date || !major) return { line: row.line, values: null, raw: row.cells, errors };
   return {
@@ -48,7 +52,7 @@ export function validateImportRow(row: ImportRow, existingCodes: Set<string>, se
       fullName,
       gender: gender === "Nữ" ? "female" : "male",
       dateOfBirth: `${date[3]}-${date[2]}-${date[1]}`,
-      email: email || `${code}@student.hcmue.edu.vn`,
+      email: email || studentEmailOf(digits),
       phone,
       majorCode,
       cohort: cohortNumber,

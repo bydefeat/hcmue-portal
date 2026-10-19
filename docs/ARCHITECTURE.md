@@ -125,9 +125,9 @@ src/
     │   ├── env.lib.ts               # parse các biến DEFEAT_* bằng zod
     │   ├── db.lib.ts                # drizzle client (postgres-js, casing snake_case)
     │   ├── db-column.lib.ts         # cột dùng chung: primaryId() mặc định uuidv7(), timestamps()
-    │   ├── auth.lib.ts              # betterAuth() (server)
-    │   ├── auth-client.lib.ts       # createAuthClient() (client)
-    │   └── session.lib.ts           # getSession(), requireRole()
+    │   ├── auth-client.lib.ts       # createAuthClient() (client), plugin username + emailOTP
+    │   ├── student-code.lib.ts      # MSSV: chuẩn hoá về 10 chữ số, hiển thị "50.01.104.013", email @student.hcmue.edu.vn
+    │   └── search.lib.ts            # normalizeSearch(): lọc tại chỗ không dấu, bỏ dấu chấm
     └── stores/                      # zustand store CHỈ cho state UI
         └── sidebar.store.ts         # export useSidebarStore
 ```
@@ -220,9 +220,11 @@ Mỗi folder chỉ export `index.tsx`; các file con là chi tiết nội bộ c
 | Root layout | Chỉ 1 file `app/layout.tsx` | Nếu mỗi group có root layout riêng, chuyển giữa các portal sẽ phải tải lại toàn trang |
 | Theme | 1 `ConfigProvider` ở root đọc `shared/constants/theme.constant.ts`; layout nào cần chỉnh (ví dụ sidebar đậm của admin) thì lồng `ConfigProvider` con, vẫn lấy màu từ cùng file | Màu chỉ khai báo một chỗ |
 | Slug URL | Tiếng Anh (`/application/registration`) | Đồng bộ với tên code, không phải xử lý dấu |
-| Phân quyền | 2 lớp: `src/proxies/authentication.proxy.ts` chỉ xem có cookie session hay không; `layout.tsx` của mỗi portal gọi `requireRole()` để kiểm tra session thật trên server | Proxy chỉ nên làm việc nhẹ như redirect |
+| Phân quyền | 2 lớp: `src/proxies/authentication.proxy.ts` chỉ xem có cookie session hay không (thiếu thì về `/authentication/sign-in?next=…`); `layout.tsx` của mỗi portal gọi `requireRole()` để kiểm tra session thật trên server, sai vai trò thì `forbidden()`. Layout và page render song song nên **mỗi query/action đọc dữ liệu thật phải tự kiểm session**, không dựa vào layout | Proxy chỉ nên làm việc nhẹ như redirect |
 | `proxy.ts` | Bắt buộc nằm ở `src/proxy.ts` (Next yêu cầu); file này chỉ ghép các proxy trong `src/proxies/` | Giữ được cách chia folder theo mục đích |
-| Vai trò | Plugin `admin` của better-auth; một user có thể có nhiều role (`student`, `lecturer`, `advisor`, `admin`) | Cố vấn luôn là giảng viên, nên nằm trong `(lecturer)` dưới dạng mục `advising/` có kiểm tra role riêng |
+| Vai trò | Cột `user.role`, nhiều vai trò cách nhau bởi dấu phẩy (`student`, `lecturer`, `admin`), đọc bằng `parseRoles()`. Cố vấn không phải vai trò tài khoản mà suy ra từ lớp sinh hoạt được phân công | Cố vấn luôn là giảng viên, nên nằm trong `(lecturer)` dưới dạng mục `advising/` có kiểm tra riêng |
+| Xác thực | `modules/authentication/authentication.lib.ts` (`betterAuth`, chỉ server), `authentication.query.ts` (`getSession()`, `requireRole()`). Nằm trong module chứ không ở `shared/libs` vì cần schema của module `authentication` | Sinh viên đăng nhập bằng MSSV qua plugin `username` (nhận cả `50.01.104.013` và `5001104013`); email sinh viên bị chặn ở `/sign-in/email`. Giảng viên, cán bộ tạm đăng nhập bằng email cho tới khi chốt. Không có đăng ký, không đăng nhập bằng OTP. Quên mật khẩu: plugin `emailOTP` (gửi mã → kiểm mã → đặt mật khẩu mới, thu hồi mọi phiên); chưa có dịch vụ email nên mã in ra log server. Rate limit lưu ở bảng `rate_limit`, đăng nhập 5 lần/phút/IP, theo IP từ `x-forwarded-for` nên khi triển khai phải đứng sau reverse proxy ghi đè header này |
+| MSSV | Lưu 10 chữ số liền; dữ liệu đưa ra giao diện đã định dạng `NN.NN.NNN.NNN` như thẻ sinh viên (`formatStudentCode`); ô nhập nhận cả hai dạng. Email và nội dung chuyển khoản học phí dùng 10 chữ số | Tìm kiếm qua `normalizeSearch()` bỏ dấu chấm nên gõ dạng nào cũng ra |
 | Sau đăng nhập | Chuyển hướng theo role (khai báo trong `shared/constants/role.constant.ts`): admin → `/administrator`, lecturer → `/lecturer`, student → `/application/dashboard` | |
 | State | Dữ liệu từ server: server component + server action. `zustand` chỉ giữ state UI | Không phải đồng bộ dữ liệu server ở hai nơi |
 | Logic nghiệp vụ | Đặt trong `src/modules/*`, page chỉ ghép UI | Ví dụ "bảng điểm" được dùng ở cả trang SV, GV và cố vấn, viết một lần |

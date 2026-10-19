@@ -6,6 +6,7 @@ import { CircleCheck, CircleWarning, Download, FileArrowIn } from "defeat-icons-
 import { IMPORT_COLUMNS, templateCsv, validateImportRow, type ImportResult, type ImportRow } from "@/modules/users/users.rule";
 import type { StudentFormValues } from "@/modules/users/users.type";
 import { paginationItemRender } from "@/shared/constants/antd.constant";
+import { normalizeStudentCode } from "@/shared/libs/student-code.lib";
 
 type StudentImportModalProps = {
   open: boolean;
@@ -85,7 +86,7 @@ export function StudentImportModal({ open, existingCodes, onClose, onImport }: S
   };
 
   const check = (rows: ImportRow[]) => {
-    const existing = new Set(existingCodes);
+    const existing = new Set(existingCodes.map(normalizeStudentCode));
     const seen = new Set<string>();
     setResults(rows.map((row) => validateImportRow(row, existing, seen)));
   };

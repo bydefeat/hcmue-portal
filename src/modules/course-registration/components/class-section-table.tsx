@@ -20,6 +20,7 @@ import {
 import type { ClassSectionFormValues, ClassSectionStatus, ClassSectionView, Term } from "@/modules/course-registration/course-registration.type";
 import { ClassSectionFormDrawer, type SectionCourseOption, type SectionLecturerOption } from "@/modules/course-registration/components/class-section-form-drawer";
 import { paginationItemRender } from "@/shared/constants/antd.constant";
+import { normalizeSearch } from "@/shared/libs/search.lib";
 
 type ClassSectionTableProps = {
   sections: ClassSectionView[];
@@ -30,10 +31,6 @@ type ClassSectionTableProps = {
   lecturers: SectionLecturerOption[];
   header: { title: string; description?: React.ReactNode };
 };
-
-function normalize(value: string) {
-  return value.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/đ/gi, "d").toLowerCase();
-}
 
 function withConflicts(sections: ClassSectionView[]) {
   return sections.map((section) => ({
@@ -65,9 +62,9 @@ export function ClassSectionTable({ sections, terms, termId, initialQuery = "", 
 
   const term = terms.find((entry) => entry.id === termId);
   const faculties = [...new Set(rows.map((row) => row.faculty))].toSorted((a, b) => a.localeCompare(b, "vi"));
-  const needle = normalize(query.trim());
+  const needle = normalizeSearch(query.trim());
   const filtered = rows.filter((row) => {
-    if (needle && !normalize(`${row.code} ${row.courseName} ${row.lecturerName ?? ""}`).includes(needle)) return false;
+    if (needle && !normalizeSearch(`${row.code} ${row.courseName} ${row.lecturerName ?? ""}`).includes(needle)) return false;
     if (faculty && row.faculty !== faculty) return false;
     if (status && row.status !== status) return false;
     if (onlyConflicts && row.conflicts.length === 0) return false;

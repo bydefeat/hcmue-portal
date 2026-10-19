@@ -1,9 +1,11 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "@bprogress/next/app";
 import { Avatar, Button, Dropdown, type MenuProps } from "antd";
 import { ArrowDoorOut, Check, ChevronExpandY, UserChange } from "defeat-icons-react";
 import type { NavItem } from "@/shared/constants/navigation.constant";
+import { authClient } from "@/shared/libs/auth-client.lib";
 
 export type MenuUser = {
   name: string;
@@ -58,6 +60,7 @@ function switcherItems(switcher: RoleSwitcher): MenuProps["items"] {
 }
 
 export function UserMenu({ user, links = [], switcher, compact = false }: UserMenuProps) {
+  const router = useRouter();
   const linkItems: MenuProps["items"] = links.map((link) => {
     const Icon = link.icon;
     return {
@@ -83,7 +86,17 @@ export function UserMenu({ user, links = [], switcher, compact = false }: UserMe
     ...linkItems,
     ...(linkItems.length > 0 ? [{ type: "divider" as const }] : []),
     ...(switcher ? switcherItems(switcher) ?? [] : []),
-    { key: "sign-out", danger: true, icon: <ArrowDoorOut size={16} aria-hidden />, label: <Link href="/authentication/sign-in">Đăng xuất</Link> },
+    {
+      key: "sign-out",
+      danger: true,
+      icon: <ArrowDoorOut size={16} aria-hidden />,
+      label: "Đăng xuất",
+      onClick: async () => {
+        await authClient.signOut();
+        router.replace("/authentication/sign-in");
+        router.refresh();
+      },
+    },
   ];
 
   const avatar = (

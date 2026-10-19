@@ -5,6 +5,9 @@ export const user = pgTable("user", {
   id: primaryId(),
   name: text().notNull(),
   email: text().notNull().unique("user_email_unique"),
+  // Plugin username của better-auth: sinh viên đăng nhập bằng MSSV 10 chữ số, displayUsername giữ dạng có dấu chấm
+  username: text().unique("user_username_unique"),
+  displayUsername: text(),
   emailVerified: boolean().notNull().default(false),
   image: text(),
   role: text(),

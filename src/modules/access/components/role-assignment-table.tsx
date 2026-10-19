@@ -7,6 +7,7 @@ import { EmptyState } from "@/shared/components/ui/empty-state";
 import { dayjs, formatDate } from "@/shared/libs/date.lib";
 import type { Role, RoleAssignment } from "@/modules/access/access.type";
 import { paginationItemRender } from "@/shared/constants/antd.constant";
+import { normalizeSearch } from "@/shared/libs/search.lib";
 
 type RoleAssignmentTableProps = {
   assignments: RoleAssignment[];
@@ -18,10 +19,6 @@ type RoleAssignmentTableProps = {
 };
 
 type GrantValues = { userName: string; userCode: string; unit: string; roleId: string; faculty?: string };
-
-function normalize(value: string) {
-  return value.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/đ/gi, "d").toLowerCase();
-}
 
 export function RoleAssignmentTable({ assignments, roles, faculties, currentUserId, viewerName, switchAction }: RoleAssignmentTableProps) {
   const [messageApi, contextHolder] = message.useMessage();
@@ -41,8 +38,8 @@ export function RoleAssignmentTable({ assignments, roles, faculties, currentUser
   const roleName = (id: string) => roles.find((role) => role.id === id)?.name ?? id;
 
   const filtered = rows.filter((row) => {
-    const needle = normalize(query.trim());
-    if (needle && !normalize(`${row.userName} ${row.userCode} ${row.unit}`).includes(needle)) return false;
+    const needle = normalizeSearch(query.trim());
+    if (needle && !normalizeSearch(`${row.userName} ${row.userCode} ${row.unit}`).includes(needle)) return false;
     return !roleId || row.roleId === roleId;
   });
 

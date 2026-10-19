@@ -9,6 +9,7 @@ import { StatusTag } from "@/shared/components/ui/status-tag";
 import type { StatusMeta } from "@/shared/constants/status.constant";
 import type { Student } from "@/modules/users/users.type";
 import { paginationItemRender } from "@/shared/constants/antd.constant";
+import { normalizeSearch } from "@/shared/libs/search.lib";
 
 export type AdviseeRow = {
   student: Student;
@@ -25,19 +26,15 @@ type AdviseeTableProps = {
   studentHrefBase: string;
 };
 
-function normalize(value: string) {
-  return value.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/đ/gi, "d").toLowerCase();
-}
-
 export function AdviseeTable({ rows, studentHrefBase }: AdviseeTableProps) {
   const [query, setQuery] = useState("");
   const [className, setClassName] = useState<string>();
   const [onlyAttention, setOnlyAttention] = useState(false);
   const classNames = [...new Set(rows.map((row) => row.student.className))].toSorted();
-  const needle = normalize(query.trim());
+  const needle = normalizeSearch(query.trim());
   const filtered = rows.filter(
     (row) =>
-      (!needle || normalize(`${row.student.fullName} ${row.student.code}`).includes(needle)) &&
+      (!needle || normalizeSearch(`${row.student.fullName} ${row.student.code}`).includes(needle)) &&
       (!className || row.student.className === className) &&
       (!onlyAttention || row.needsAttention),
   );

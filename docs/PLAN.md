@@ -157,7 +157,7 @@ PostgreSQL 18.4, khoá chính `uuid` mặc định `uuidv7()`. Ràng buộc đ�
 
 - Kiểm: migrate từ DB trắng chạy được; một file seed dữ liệu mẫu (1 khoa, 1 ngành, ~20 học phần, 1 kỳ, vài lớp, 3 tài khoản: SV, GV kiêm cố vấn, admin).
 
-### Giai đoạn 3 — Xác thực và phân quyền
+### Giai đoạn 3 — Xác thực và phân quyền ✅
 **Tên đăng nhập** (người dùng nói):
 
 | Đối tượng | Đăng nhập | Khôi phục mật khẩu |
@@ -173,6 +173,7 @@ PostgreSQL 18.4, khoá chính `uuid` mặc định `uuidv7()`. Ràng buộc đ�
 - Áp skill `better-auth-security-best-practices`: rate limit đăng nhập, trusted origins, cookie `secure`.
 - Bỏ nút tài khoản dùng thử và `DEMO_ACCOUNTS` khi đăng nhập thật chạy được.
 - Kiểm: SV đăng nhập được bằng cả `50.01.104.013` và `5001104013`, không đăng nhập được bằng email; khôi phục mật khẩu bằng email trường; SV mở `/administrator` bị chặn.
+- Đã làm: các mục trên, `tests/auth.test.ts` (11 test), kiểm tay trên trình duyệt. MSSV hiển thị dạng `50.01.104.013` toàn bộ giao diện. Còn lại cho các giai đoạn sau: nội dung các trang vẫn là dữ liệu mẫu (header lấy tên từ phiên đăng nhập); trang `/authentication/verify` và "Đổi mật khẩu" trong hồ sơ chưa nối; bộ chuyển vai trò xem thử của admin vẫn là mock.
 
 ### Giai đoạn 4 — Khung đọc/ghi dữ liệu (thử trên 1 module)
 - Mỗi module: `*.query.ts` (đọc, `server-only`), `*.action.ts` (server action, `schema.safeParse()`, trả `ActionResult` chung), lỗi Postgres đổi sang câu tiếng Việt qua `pgErrorMessage`.

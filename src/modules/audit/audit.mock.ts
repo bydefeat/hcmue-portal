@@ -18,7 +18,7 @@ const SEEDS: Seed[] = [
   [0, "09:31", ...OFFICER, "approve", "request", "don-7", "DT-2026-01258", "Đồng ý đơn xin mở lớp COMP1031"],
   [1, "10:12", ...SECRETARY, "approve", "grade-sheet", "hk1-2026-comp1010-01", "COMP1010.01 Lập trình cơ bản", "Duyệt bảng điểm cấp khoa"],
   [1, "14:02", ...LECTURER, "lock", "grade-sheet", "hk1-2026-litr1010-01", "LITR1010.01 Văn học Việt Nam hiện đại", "Chốt bảng điểm 47 sinh viên"],
-  [1, "16:45", ...OFFICER2, "update", "student", "sv-60", "Hồ sơ 5001104009", "Cập nhật số điện thoại", [{ field: "Điện thoại", before: "0903112233", after: "0977554410" }]],
+  [1, "16:45", ...OFFICER2, "update", "student", "sv-60", "Hồ sơ 50.01.104.009", "Cập nhật số điện thoại", [{ field: "Điện thoại", before: "0903112233", after: "0977554410" }]],
   [2, "09:40", ...HEAD, "publish", "grade-sheet", "hk1-2026-math1011-01", "MATH1011.01 Giải tích 1", "Công bố điểm cho 58 sinh viên"],
   [2, "11:20", ...SECRETARY, "reject", "grade-sheet", "hk1-2026-psyc1001-01", "PSYC1001.01 Tâm lý học giáo dục", "Trả lại bảng điểm: tổng trọng số cột giữa kỳ sai", [{ field: "Trạng thái", before: "Đã chốt", after: "Trả lại" }]],
   [3, "10:20", ...HEAD, "permission", "role", "pq-10", "Lý Thùy Dương", "Cấp vai trò Giáo vụ khoa, Khoa Tiếng Anh", [{ field: "Vai trò", before: "Không có", after: "Giáo vụ khoa" }]],

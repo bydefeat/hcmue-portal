@@ -17,13 +17,11 @@ import {
   SHEET_SAVED_AT,
   WARNING_TERM_KEY,
 } from "@/modules/grades/grades.mock";
-import { buildTranscript, computeStanding, courseGrade, warningReasons } from "@/modules/grades/grades.rule";
+import { academicWarningOf, buildTranscript, computeStanding, courseGrade } from "@/modules/grades/grades.rule";
 import { academicWarnings, courseResults, gradeComponents, gradeScores, gradeSheets } from "@/modules/grades/grades.schema";
 import type { GradeSheetStatus } from "@/modules/grades/grades.type";
 import { STUDENTS } from "@/modules/users/users.mock";
 import type { SeedContext } from "./context";
-
-const GRADUATING_COHORT = 48;
 
 async function insertChunks<T>(rows: T[], insert: (chunk: T[]) => Promise<unknown>, size = 1000) {
   for (let start = 0; start < rows.length; start += size) await insert(rows.slice(start, start + size));
@@ -64,21 +62,13 @@ export async function seedGrades(tx: Transaction, context: SeedContext) {
         });
       });
     }
-    const standing = computeStanding(student.id, buildTranscript(catalogTerms));
-    if (standing.warningLevel > 0 && student.cohort !== GRADUATING_COHORT) {
+    // Cùng cách tính với syncAcademicWarnings (grades.lib): sinh viên có kết quả trong học kỳ xét và chưa tốt nghiệp,
+    // nên bấm "Sinh cảnh báo" cho học kỳ này trên dữ liệu mẫu không tạo thêm hay đổi cảnh báo nào.
+    const warningTermId = context.termByKey.get(WARNING_TERM_KEY)!.id;
+    const warning = academicWarningOf(computeStanding(student.id, buildTranscript(catalogTerms)));
+    if (warning && student.status !== "graduated" && terms.some((term) => term.termId === warningTermId)) {
       const meta = mockWarningMeta(index);
-      warnings.push({
-        id: meta.id,
-        studentId: student.id,
-        termId: context.termByKey.get(WARNING_TERM_KEY)!.id,
-        level: standing.warningLevel,
-        termGpa4: standing.lastTermGpa4,
-        cpa4: standing.cpa4,
-        failedCredits: standing.failedCredits,
-        reasons: warningReasons(standing),
-        status: meta.status,
-        createdAt: new Date(meta.createdAt),
-      });
+      warnings.push({ ...warning, id: meta.id, studentId: student.id, termId: warningTermId, status: meta.status, createdAt: new Date(meta.createdAt) });
     }
   }
   await insertChunks(results, (chunk) => tx.insert(courseResults).values(chunk));

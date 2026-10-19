@@ -13,7 +13,8 @@ export type AuditEntityType =
   | "regulation"
   | "exam"
   | "calendar-event"
-  | "report";
+  | "report"
+  | "program";
 
 export type AuditChange = {
   field: string;

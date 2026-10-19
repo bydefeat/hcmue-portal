@@ -7,10 +7,19 @@ import { actionError, actionFailure, actionOk, parseInput, type ActionResult } f
 import { isUuid } from "@/shared/libs/id.lib";
 import { requirePermission } from "@/modules/access/access.query";
 import { CURRICULUM_CONSTRAINT_MESSAGE } from "@/modules/curriculum/curriculum.constant";
-import { getCourseById, getPrograms } from "@/modules/curriculum/curriculum.query";
-import { COURSE_SCHEMA, PROGRAM_SCHEMA, type CourseInput, type ProgramInput } from "@/modules/curriculum/curriculum.rule";
+import { auditActorOf } from "@/modules/audit/audit.lib";
+import { applyProgramCourseChange, FrameworkError } from "@/modules/curriculum/curriculum.lib";
+import { getCourseById, getProgram, getPrograms } from "@/modules/curriculum/curriculum.query";
+import {
+  COURSE_SCHEMA,
+  PROGRAM_COURSE_CHANGE_SCHEMA,
+  PROGRAM_SCHEMA,
+  type CourseInput,
+  type ProgramCourseChangeInput,
+  type ProgramInput,
+} from "@/modules/curriculum/curriculum.rule";
 import { courseRelations, courses, faculties, majors, programCohorts, programs } from "@/modules/curriculum/curriculum.schema";
-import type { Course, ProgramSummary } from "@/modules/curriculum/curriculum.type";
+import type { Course, ProgramDetail, ProgramSummary } from "@/modules/curriculum/curriculum.type";
 
 class InputError extends Error {
   constructor(
@@ -47,6 +56,7 @@ async function replaceRelations(tx: Transaction, courseId: string, values: Pick<
 
 function failure(error: unknown) {
   if (error instanceof InputError) return actionError(error.message, { [error.field]: error.message });
+  if (error instanceof FrameworkError) return actionError(error.message);
   return actionFailure(error, CURRICULUM_CONSTRAINT_MESSAGE);
 }
 
@@ -105,5 +115,22 @@ export async function saveProgram(id: string | null, input: ProgramInput): Promi
   }
   revalidateCurriculum();
   const [program] = await getPrograms(programId);
+  return program ? actionOk(program) : actionError("Đã lưu nhưng chưa đọc lại được, tải lại trang.");
+}
+
+// Thêm, bỏ, chuyển học kỳ một học phần trong khung; trả khung mới đọc lại từ DB.
+export async function changeProgramCourses(programId: string, input: ProgramCourseChangeInput): Promise<ActionResult<ProgramDetail>> {
+  const viewer = await requirePermission("curriculum.manage");
+  if (!isUuid(programId)) return actionError("Chương trình không còn trong danh mục, tải lại trang.");
+  const parsed = parseInput(PROGRAM_COURSE_CHANGE_SCHEMA, input);
+  if (!parsed.ok) return parsed;
+  try {
+    await db.transaction((tx) => applyProgramCourseChange(tx, { programId, change: parsed.data, actor: auditActorOf(viewer), faculty: viewer.faculty }));
+  } catch (error) {
+    return failure(error);
+  }
+  revalidateCurriculum();
+  revalidatePath("/application/curriculum");
+  const program = await getProgram(programId);
   return program ? actionOk(program) : actionError("Đã lưu nhưng chưa đọc lại được, tải lại trang.");
 }

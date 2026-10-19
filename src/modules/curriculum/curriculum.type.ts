@@ -88,3 +88,16 @@ export type ProgramFormValues = {
   cohorts: number[];
   status: ProgramStatus;
 };
+
+export type ProgramCourseChange =
+  | { kind: "add"; semester: number; courseCodes: string[] }
+  | { kind: "remove"; courseCode: string }
+  | { kind: "move"; courseCode: string; semester: number };
+
+export type FrameworkIssueKind = "prerequisite-order" | "prerequisite-missing" | "inactive-course" | "credits-short" | "credits-over";
+
+export type FrameworkIssue = {
+  kind: FrameworkIssueKind;
+  courseCode: string | null;
+  message: string;
+};

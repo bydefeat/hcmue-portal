@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getClassRoster, getClassSection } from "@/modules/course-registration/course-registration.query";
 import { GradingTable } from "@/modules/grades/components/grading-table";
-import { getGradeSheet } from "@/modules/grades/grades.query";
+import { getGradeSheet, getSyllabusComponents } from "@/modules/grades/grades.query";
 import { requireTaughtClass } from "@/modules/teaching/teaching.query";
 import { getCurrentLecturer } from "@/modules/users/users.query";
 import { lecturerRequestOptions } from "@/app/(lecturer)/lecturer/_data/request-options";
@@ -14,7 +14,7 @@ export default async function Page({ params }: { params: Promise<{ classId: stri
   await requireTaughtClass(classId);
   const [section, roster, lecturer] = await Promise.all([getClassSection(classId), getClassRoster(classId), getCurrentLecturer()]);
   if (!section || section.lecturerId !== lecturer.id) notFound();
-  const [sheet, requestOptions] = await Promise.all([getGradeSheet(section.id), lecturerRequestOptions(lecturer)]);
+  const [sheet, requestOptions, suggestedComponents] = await Promise.all([getGradeSheet(section.id), lecturerRequestOptions(lecturer), getSyllabusComponents(section.id)]);
   if (!sheet) notFound();
 
   return (
@@ -25,6 +25,7 @@ export default async function Page({ params }: { params: Promise<{ classId: stri
       classId={section.id}
       returnReason={sheet.returnReason}
       requestOptions={requestOptions}
+      suggestedComponents={suggestedComponents}
     />
   );
 }

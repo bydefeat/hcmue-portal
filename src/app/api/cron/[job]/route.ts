@@ -1,5 +1,6 @@
 import { timingSafeEqual } from "node:crypto";
 import { env } from "@/shared/libs/env.lib";
+import { runAcademicWarningsJob } from "@/modules/grades/grades.lib";
 import { publishDueClassAnnouncements } from "@/modules/teaching/teaching.lib";
 import { sweepOrphanExamFiles } from "@/modules/exams/exams.lib";
 import { sweepOrphanRequestFiles } from "@/modules/requests/requests.lib";
@@ -12,6 +13,8 @@ const JOBS: Record<string, () => Promise<Record<string, number>>> = {
   "class-announcements": () => publishDueClassAnnouncements(),
   // Tệp trong kho không còn dòng DB nào trỏ tới (giao dịch hỏng giữa chừng, bản đề thi cũ chưa xóa được).
   "orphan-files": async () => ({ ...(await sweepOrphanRequestFiles()), ...(await sweepOrphanExamFiles()) }),
+  // Cảnh báo học vụ của học kỳ chính vừa kết thúc; chạy lặp lại không sinh trùng. Nên chạy mỗi ngày.
+  "academic-warnings": runAcademicWarningsJob,
 };
 
 function authorized(request: Request) {

@@ -37,3 +37,11 @@ export const GRADUATION_APPROVE_SCHEMA = z.object({
     .max(1000, "Chọn tối đa 1000 sinh viên mỗi lần")
     .transform((ids) => [...new Set(ids)]),
 });
+
+export const GRADUATION_EXPORT_SCHEMA = z.object({
+  studentIds: z
+    .array(z.uuid())
+    .min(1, "Danh sách đang trống")
+    .max(5000, "Xuất tối đa 5000 sinh viên mỗi lần")
+    .transform((ids) => [...new Set(ids)]),
+});

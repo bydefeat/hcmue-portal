@@ -1,169 +1,110 @@
 import "server-only";
-import { and, asc, count, desc, eq, lte, type SQL } from "drizzle-orm";
+import { cache } from "react";
+import { eq } from "drizzle-orm";
+import { notFound } from "next/navigation";
 import { db } from "@/shared/libs/db.lib";
 import { isUuid } from "@/shared/libs/id.lib";
 import { requireSession } from "@/modules/authentication/authentication.query";
-import { classSections, enrollments } from "@/modules/course-registration/course-registration.schema";
-import { courses } from "@/modules/curriculum/curriculum.schema";
-import { SYLLABUS_WEEKS } from "@/modules/teaching/teaching.constant";
-import { effectiveAnnouncementStatus } from "@/modules/teaching/teaching.rule";
-import { classAnnouncementReads, classAnnouncements, syllabi, syllabusAssessments, syllabusOutcomes, syllabusWeeks } from "@/modules/teaching/teaching.schema";
-import type { ClassAnnouncement, StudentClassAnnouncement, Syllabus, SyllabusWeek } from "@/modules/teaching/teaching.type";
+import {
+  announcementRows,
+  fillWeeks,
+  lecturerAnnouncements,
+  lecturerClass,
+  lecturerSyllabus,
+  readSyllabus,
+  studentAnnouncements,
+  studentClass,
+  studentClasses,
+  studentSyllabus,
+} from "@/modules/teaching/teaching.lib";
+import { classAnnouncements } from "@/modules/teaching/teaching.schema";
+import type { ClassAnnouncement, StudentClassAnnouncement, StudentClassDetail, Syllabus } from "@/modules/teaching/teaching.type";
 import { getCurrentStudent } from "@/modules/users/users.query";
-import { lecturers } from "@/modules/users/users.schema";
+import { lecturers, students } from "@/modules/users/users.schema";
 
-const blankWeek = (week: number): SyllabusWeek => ({ week, topic: "", activities: "", readings: "" });
-
-// Kế hoạch luôn đủ 15 tuần để form soạn có sẵn từng dòng; tuần chưa lưu là dòng trống.
-function fillWeeks(weeks: SyllabusWeek[]) {
-  const total = Math.max(SYLLABUS_WEEKS, ...weeks.map((week) => week.week));
-  const byWeek = new Map(weeks.map((week) => [week.week, week]));
-  return Array.from({ length: total }, (_, index) => byWeek.get(index + 1) ?? blankWeek(index + 1));
-}
-
-async function readSyllabus(classSectionId: string): Promise<Syllabus | null> {
-  const [row] = await db
-    .select({
-      id: syllabi.id,
-      classSectionId: syllabi.classSectionId,
-      courseCode: courses.code,
-      courseName: courses.name,
-      status: syllabi.status,
-      publishedAt: syllabi.publishedAt,
-      updatedAt: syllabi.updatedAt,
-      description: syllabi.description,
-      references: syllabi.references,
-    })
-    .from(syllabi)
-    .innerJoin(classSections, eq(classSections.id, syllabi.classSectionId))
-    .innerJoin(courses, eq(courses.id, classSections.courseId))
-    .where(eq(syllabi.classSectionId, classSectionId));
-  if (!row) return null;
-  const [outcomes, weeks, assessments] = await Promise.all([
-    db
-      .select({ code: syllabusOutcomes.code, text: syllabusOutcomes.text })
-      .from(syllabusOutcomes)
-      .where(eq(syllabusOutcomes.syllabusId, row.id))
-      .orderBy(asc(syllabusOutcomes.position)),
-    db
-      .select({ week: syllabusWeeks.week, topic: syllabusWeeks.topic, activities: syllabusWeeks.activities, readings: syllabusWeeks.readings })
-      .from(syllabusWeeks)
-      .where(eq(syllabusWeeks.syllabusId, row.id))
-      .orderBy(asc(syllabusWeeks.week)),
-    db
-      .select({
-        key: syllabusAssessments.key,
-        label: syllabusAssessments.label,
-        weight: syllabusAssessments.weight,
-        method: syllabusAssessments.method,
-        outcomes: syllabusAssessments.outcomeCodes,
-      })
-      .from(syllabusAssessments)
-      .where(eq(syllabusAssessments.syllabusId, row.id))
-      .orderBy(asc(syllabusAssessments.position)),
+// Quyền đọc dữ liệu lớp kiểm ở đây chứ không ở layout: layout không chạy lại khi điều hướng mềm hay gọi RSC thẳng tới page con.
+// Người gọi là giảng viên dạy lớp (thấy cả bài hẹn giờ, đề cương nháp) hoặc sinh viên đang học lớp (chỉ bài đã đăng,
+// đề cương đã công bố); còn lại (giảng viên khác, sinh viên ngoài lớp, cán bộ) nhận null.
+const viewerIds = cache(async () => {
+  const { user, roles } = await requireSession();
+  const [lecturer, student] = await Promise.all([
+    roles.includes("lecturer") ? db.select({ id: lecturers.id }).from(lecturers).where(eq(lecturers.userId, user.id)) : [],
+    roles.includes("student") ? db.select({ id: students.id }).from(students).where(eq(students.userId, user.id)) : [],
   ]);
-  const { id: _id, publishedAt, updatedAt, ...rest } = row;
-  return {
-    ...rest,
-    publishedAt: publishedAt?.toISOString() ?? null,
-    updatedAt: updatedAt.toISOString(),
-    outcomes,
-    weeks: fillWeeks(weeks),
-    assessments,
-  };
+  return { lecturerId: lecturer[0]?.id ?? null, studentId: student[0]?.id ?? null };
+});
+
+// Đầu mỗi page trong /lecturer/classes/[classId]: không phải giảng viên dạy lớp thì 404, trước khi đọc dữ liệu khác của lớp.
+export async function requireTaughtClass(classSectionId: string) {
+  const { lecturerId } = await viewerIds();
+  const section = lecturerId ? await lecturerClass(lecturerId, classSectionId) : null;
+  if (!section) notFound();
+  return section;
 }
 
-export async function getSyllabus(classSectionId: string, fallback: { courseCode: string; courseName: string }): Promise<Syllabus> {
-  await requireSession();
-  const syllabus = isUuid(classSectionId) ? await readSyllabus(classSectionId) : null;
-  return (
-    syllabus ?? {
-      classSectionId,
-      courseCode: fallback.courseCode,
-      courseName: fallback.courseName,
-      status: "draft",
-      publishedAt: null,
-      updatedAt: new Date().toISOString(),
-      description: "",
-      outcomes: [],
-      weeks: fillWeeks([]),
-      assessments: [],
-      references: [],
-    }
-  );
+export async function getSyllabus(classSectionId: string, fallback: { courseCode: string; courseName: string }): Promise<Syllabus | null> {
+  const { lecturerId, studentId } = await viewerIds();
+  if (!isUuid(classSectionId)) return null;
+  const own = lecturerId ? await lecturerSyllabus(lecturerId, classSectionId) : null;
+  if (own) {
+    return (
+      own.syllabus ?? {
+        classSectionId,
+        courseCode: fallback.courseCode,
+        courseName: fallback.courseName,
+        status: "draft",
+        publishedAt: null,
+        updatedAt: new Date().toISOString(),
+        description: "",
+        outcomes: [],
+        weeks: fillWeeks([]),
+        assessments: [],
+        references: [],
+      }
+    );
+  }
+  return studentId ? studentSyllabus(studentId, classSectionId) : null;
 }
 
-const readCount = db
-  .select({ announcementId: classAnnouncementReads.classAnnouncementId, total: count().as("total") })
-  .from(classAnnouncementReads)
-  .groupBy(classAnnouncementReads.classAnnouncementId)
-  .as("read_count");
-
-export const CLASS_ANNOUNCEMENT_COLUMNS = {
-  id: classAnnouncements.id,
-  classSectionId: classAnnouncements.classSectionId,
-  title: classAnnouncements.title,
-  body: classAnnouncements.body,
-  isPinned: classAnnouncements.isPinned,
-  sendEmail: classAnnouncements.sendEmail,
-  status: classAnnouncements.status,
-  publishAt: classAnnouncements.publishAt,
-  authorTitle: lecturers.title,
-  authorName: lecturers.fullName,
-  readCount: readCount.total,
-};
-
-async function announcementRows(where: SQL): Promise<ClassAnnouncement[]> {
-  const rows = await db
-    .select(CLASS_ANNOUNCEMENT_COLUMNS)
-    .from(classAnnouncements)
-    .innerJoin(lecturers, eq(lecturers.id, classAnnouncements.authorId))
-    .leftJoin(readCount, eq(readCount.announcementId, classAnnouncements.id))
-    .where(where)
-    .orderBy(desc(classAnnouncements.isPinned), desc(classAnnouncements.publishAt));
-  const now = new Date();
-  return rows.map(({ authorTitle, authorName, publishAt, status, readCount: reads, ...row }) => ({
-    ...row,
-    status: effectiveAnnouncementStatus(status, publishAt, now),
-    publishAt: publishAt.toISOString(),
-    author: `${authorTitle} ${authorName}`,
-    readCount: reads ?? 0,
-  }));
+export async function getClassAnnouncements(classSectionId: string): Promise<ClassAnnouncement[] | null> {
+  const { lecturerId, studentId } = await viewerIds();
+  if (!isUuid(classSectionId)) return null;
+  const own = lecturerId ? await lecturerAnnouncements(lecturerId, classSectionId) : null;
+  if (own) return own;
+  if (studentId && (await studentClass(studentId, classSectionId))) return studentAnnouncements(studentId, classSectionId);
+  return null;
 }
 
-export async function getClassAnnouncements(classSectionId: string) {
-  await requireSession();
-  if (!isUuid(classSectionId)) return [];
-  return announcementRows(eq(classAnnouncements.classSectionId, classSectionId));
-}
-
-export async function getClassAnnouncement(id: string) {
-  await requireSession();
+export async function getClassAnnouncement(id: string): Promise<ClassAnnouncement | null> {
+  const { lecturerId, studentId } = await viewerIds();
   if (!isUuid(id)) return null;
   const [announcement] = await announcementRows(eq(classAnnouncements.id, id));
-  return announcement ?? null;
+  if (!announcement) return null;
+  if (lecturerId && (await lecturerClass(lecturerId, announcement.classSectionId))) return announcement;
+  if (studentId) {
+    const visible = await studentAnnouncements(studentId, announcement.classSectionId);
+    return visible.find((entry) => entry.id === id) ?? null;
+  }
+  return null;
 }
 
 // Thông báo đã tới giờ đăng của các lớp sinh viên đang học, kèm đã đọc hay chưa.
 export async function getMyClassAnnouncements(): Promise<StudentClassAnnouncement[]> {
   const student = await getCurrentStudent();
-  const rows = await db
-    .select({ ...CLASS_ANNOUNCEMENT_COLUMNS, classCode: classSections.code, courseName: courses.name, readAt: classAnnouncementReads.readAt })
-    .from(classAnnouncements)
-    .innerJoin(enrollments, and(eq(enrollments.classSectionId, classAnnouncements.classSectionId), eq(enrollments.studentId, student.id), eq(enrollments.status, "enrolled")))
-    .innerJoin(classSections, eq(classSections.id, classAnnouncements.classSectionId))
-    .innerJoin(courses, eq(courses.id, classSections.courseId))
-    .innerJoin(lecturers, eq(lecturers.id, classAnnouncements.authorId))
-    .leftJoin(readCount, eq(readCount.announcementId, classAnnouncements.id))
-    .leftJoin(classAnnouncementReads, and(eq(classAnnouncementReads.classAnnouncementId, classAnnouncements.id), eq(classAnnouncementReads.studentId, student.id)))
-    .where(lte(classAnnouncements.publishAt, new Date()))
-    .orderBy(desc(classAnnouncements.isPinned), desc(classAnnouncements.publishAt));
-  return rows.map(({ authorTitle, authorName, publishAt, readAt, readCount: reads, ...row }) => ({
-    ...row,
-    status: "published",
-    publishAt: publishAt.toISOString(),
-    author: `${authorTitle} ${authorName}`,
-    readCount: reads ?? 0,
-    isRead: readAt !== null,
-  }));
+  return studentAnnouncements(student.id);
+}
+
+// Lớp học phần học kỳ hiện tại của sinh viên đang đăng nhập, kèm số thông báo chưa đọc.
+export async function getMyClasses() {
+  const student = await getCurrentStudent();
+  return studentClasses(student.id);
+}
+
+// Trang lớp của sinh viên: chỉ sinh viên đang học lớp mới xem được; đề cương chỉ hiện khi giảng viên đã công bố.
+export async function getMyClass(classSectionId: string): Promise<StudentClassDetail | null> {
+  const student = await getCurrentStudent();
+  const section = await studentClass(student.id, classSectionId);
+  if (!section) return null;
+  const [announcements, syllabus] = await Promise.all([studentAnnouncements(student.id, section.id), readSyllabus(section.id)]);
+  return { ...section, announcements, syllabus: syllabus?.status === "published" ? syllabus : null };
 }

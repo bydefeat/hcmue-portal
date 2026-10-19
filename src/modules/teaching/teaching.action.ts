@@ -2,20 +2,23 @@
 
 import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { db, type Transaction } from "@/shared/libs/db.lib";
+import { after } from "next/server";
+import { db } from "@/shared/libs/db.lib";
 import { actionError, actionFailure, actionOk, parseInput, type ActionResult } from "@/shared/libs/action.lib";
 import { isUuid } from "@/shared/libs/id.lib";
-import { classSections, enrollments } from "@/modules/course-registration/course-registration.schema";
+import { classSections } from "@/modules/course-registration/course-registration.schema";
 import { courses } from "@/modules/curriculum/curriculum.schema";
-import { notifyStudents } from "@/modules/notifications/notifications.lib";
 import { TEACHING_CONSTRAINT_MESSAGE } from "@/modules/teaching/teaching.constant";
+import { announceToClass, classPageHref, recordAnnouncementRead, sendClassMails, type ClassMail } from "@/modules/teaching/teaching.lib";
 import { getClassAnnouncement, getSyllabus } from "@/modules/teaching/teaching.query";
 import { assessmentTotal, CLASS_ANNOUNCEMENT_SCHEMA, SYLLABUS_SCHEMA, type ClassAnnouncementInput, type SyllabusInput } from "@/modules/teaching/teaching.rule";
-import { classAnnouncementReads, classAnnouncements, syllabi, syllabusAssessments, syllabusOutcomes, syllabusWeeks } from "@/modules/teaching/teaching.schema";
+import { classAnnouncements, syllabi, syllabusAssessments, syllabusOutcomes, syllabusWeeks } from "@/modules/teaching/teaching.schema";
 import type { ClassAnnouncement, Syllabus } from "@/modules/teaching/teaching.type";
 import { getCurrentLecturer, getCurrentStudent } from "@/modules/users/users.query";
 
 const NOT_YOUR_CLASS = "Bạn không phải giảng viên dạy lớp này nên không sửa được.";
+
+class AlreadyAnnouncedError extends Error {}
 
 // Chỉ giảng viên được phân công dạy lớp mới soạn đề cương và đăng thông báo cho lớp đó.
 async function sectionOfLecturer(classSectionId: string) {
@@ -29,27 +32,9 @@ async function sectionOfLecturer(classSectionId: string) {
   return section ? { ...section, lecturerId: lecturer.id } : null;
 }
 
-// Báo sinh viên đang học lớp lúc thông báo được đăng. Cổng sinh viên chưa có trang thông báo lớp nên nội dung nằm luôn trong thông báo.
-// Thông báo hẹn giờ không báo: chưa có job chạy nền để gửi đúng giờ đăng. Cột sendEmail chỉ được lưu, chưa có dịch vụ email.
-async function notifyClass(tx: Transaction, section: { id: string; code: string }, announcement: { title: string; body: string }) {
-  const enrolled = await tx
-    .select({ studentId: enrollments.studentId })
-    .from(enrollments)
-    .where(and(eq(enrollments.classSectionId, section.id), eq(enrollments.status, "enrolled")));
-  await notifyStudents(
-    tx,
-    enrolled.map((row) => row.studentId),
-    {
-      kind: "announcement",
-      title: `${section.code}: ${announcement.title}`,
-      body: announcement.body,
-      href: "/application/notifications",
-    },
-  );
-}
-
 function revalidateClass(classSectionId: string) {
   revalidatePath(`/lecturer/classes/${classSectionId}`, "layout");
+  revalidatePath(classPageHref(classSectionId));
 }
 
 export async function saveSyllabus(input: SyllabusInput): Promise<ActionResult<Syllabus>> {
@@ -81,7 +66,8 @@ export async function saveSyllabus(input: SyllabusInput): Promise<ActionResult<S
     return actionFailure(error, TEACHING_CONSTRAINT_MESSAGE);
   }
   revalidateClass(section.id);
-  return actionOk(await getSyllabus(section.id, section));
+  const syllabus = await getSyllabus(section.id, section);
+  return syllabus ? actionOk(syllabus) : actionError("Đã lưu nhưng chưa đọc lại được, tải lại trang.");
 }
 
 export async function publishSyllabus(classSectionId: string): Promise<ActionResult<Syllabus>> {
@@ -102,7 +88,8 @@ export async function publishSyllabus(classSectionId: string): Promise<ActionRes
     return actionFailure(error, TEACHING_CONSTRAINT_MESSAGE);
   }
   revalidateClass(section.id);
-  return actionOk(await getSyllabus(section.id, section));
+  const syllabus = await getSyllabus(section.id, section);
+  return syllabus ? actionOk(syllabus) : actionError("Đã lưu nhưng chưa đọc lại được, tải lại trang.");
 }
 
 export async function saveClassAnnouncement(id: string | null, input: ClassAnnouncementInput): Promise<ActionResult<ClassAnnouncement>> {
@@ -112,9 +99,9 @@ export async function saveClassAnnouncement(id: string | null, input: ClassAnnou
   const parsed = parseInput(CLASS_ANNOUNCEMENT_SCHEMA, input);
   if (!parsed.ok) return parsed;
   const { schedule, publishAt, classSectionId: _classSectionId, ...values } = parsed.data;
-  let savedId: string | null;
+  let saved: { id: string; mail: ClassMail | null } | null;
   try {
-    savedId = await db.transaction(async (tx) => {
+    saved = await db.transaction(async (tx) => {
       if (id === null) {
         const [row] = await tx
           .insert(classAnnouncements)
@@ -126,35 +113,42 @@ export async function saveClassAnnouncement(id: string | null, input: ClassAnnou
             publishAt: schedule && publishAt ? new Date(publishAt) : new Date(),
           })
           .returning({ id: classAnnouncements.id });
-        if (!schedule) await notifyClass(tx, section, values);
-        return row.id;
+        // Bài hẹn giờ chờ tác vụ class-announcements báo khi tới giờ.
+        const announced = schedule ? null : await announceToClass(tx, { id: row.id, classSectionId: section.id, ...values });
+        return { id: row.id, mail: announced?.mail ?? null };
       }
+      // Khóa dòng để không chạy song song với tác vụ báo bài hẹn giờ (tác vụ bỏ qua dòng đang bị khóa).
       const [current] = await tx
-        .select({ status: classAnnouncements.status, publishAt: classAnnouncements.publishAt })
+        .select({ publishAt: classAnnouncements.publishAt, notifiedAt: classAnnouncements.notifiedAt })
         .from(classAnnouncements)
         .where(and(eq(classAnnouncements.id, id), eq(classAnnouncements.classSectionId, section.id)))
         .for("update");
       if (!current) return null;
-      // Sửa thông báo đã đăng thì giữ thời điểm đăng cũ; bỏ hẹn giờ thì đăng ngay.
-      const alreadyPublished = current.status === "published" || current.publishAt.getTime() <= Date.now();
+      if (schedule && current.notifiedAt) throw new AlreadyAnnouncedError();
+      // Sửa bài đã đăng thì giữ thời điểm đăng cũ; bỏ hẹn giờ thì đăng ngay.
+      const isDue = current.publishAt.getTime() <= Date.now();
       await tx
         .update(classAnnouncements)
         .set({
           ...values,
           status: schedule ? "scheduled" : "published",
-          publishAt: schedule && publishAt ? new Date(publishAt) : alreadyPublished ? current.publishAt : new Date(),
+          publishAt: schedule && publishAt ? new Date(publishAt) : isDue ? current.publishAt : new Date(),
         })
         .where(eq(classAnnouncements.id, id));
-      // Bỏ hẹn giờ để đăng ngay thì báo như đăng mới; sửa thông báo đã đăng thì không báo lại.
-      if (!schedule && !alreadyPublished) await notifyClass(tx, section, values);
-      return id;
+      // Bài đã báo thì sửa không báo lại; bài chưa báo mà giờ đăng ngay (bỏ hẹn giờ, hoặc đã quá giờ hẹn) thì báo như đăng mới.
+      const announced = !schedule && !current.notifiedAt ? await announceToClass(tx, { id, classSectionId: section.id, ...values }) : null;
+      return { id, mail: announced?.mail ?? null };
     });
   } catch (error) {
+    if (error instanceof AlreadyAnnouncedError) return actionError("Thông báo đã đăng và đã báo tới sinh viên nên không hẹn giờ lại được. Tắt Hẹn giờ đăng để lưu nội dung sửa.", { schedule: "Bài đã đăng không hẹn giờ lại được" });
     return actionFailure(error, TEACHING_CONSTRAINT_MESSAGE);
   }
-  if (!savedId) return actionError("Thông báo không còn tồn tại, tải lại trang.");
+  if (!saved) return actionError("Thông báo không còn tồn tại, tải lại trang.");
+  // Gửi email sau khi đã trả kết quả cho giảng viên: không bắt giảng viên chờ gửi cho cả lớp, lỗi gửi chỉ ghi log.
+  const mail = saved.mail;
+  if (mail) after(() => sendClassMails([mail]).catch((error: unknown) => console.error("[teaching] Không gửi được email thông báo lớp:", error)));
   revalidateClass(section.id);
-  const announcement = await getClassAnnouncement(savedId);
+  const announcement = await getClassAnnouncement(saved.id);
   return announcement ? actionOk(announcement) : actionError("Đã lưu nhưng chưa đọc lại được, tải lại trang.");
 }
 
@@ -182,13 +176,7 @@ export async function markClassAnnouncementRead(id: string): Promise<ActionResul
   const student = await getCurrentStudent();
   if (!isUuid(id)) return actionError("Thông báo không còn tồn tại.");
   try {
-    const [announcement] = await db
-      .select({ id: classAnnouncements.id, publishAt: classAnnouncements.publishAt })
-      .from(classAnnouncements)
-      .innerJoin(enrollments, and(eq(enrollments.classSectionId, classAnnouncements.classSectionId), eq(enrollments.studentId, student.id), eq(enrollments.status, "enrolled")))
-      .where(eq(classAnnouncements.id, id));
-    if (!announcement || announcement.publishAt.getTime() > Date.now()) return actionError("Thông báo không thuộc lớp bạn đang học.");
-    await db.insert(classAnnouncementReads).values({ classAnnouncementId: id, studentId: student.id }).onConflictDoNothing();
+    if (!(await recordAnnouncementRead(student.id, id))) return actionError("Thông báo không thuộc lớp bạn đang học.");
     return actionOk();
   } catch (error) {
     return actionFailure(error, TEACHING_CONSTRAINT_MESSAGE);

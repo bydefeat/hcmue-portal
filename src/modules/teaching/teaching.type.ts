@@ -45,6 +45,8 @@ export type ClassAnnouncement = {
   sendEmail: boolean;
   status: ClassAnnouncementStatus;
   publishAt: string;
+  // Lúc đã báo sinh viên; trống là bài hẹn giờ chưa tới giờ hoặc chưa được tác vụ nền báo.
+  notifiedAt: string | null;
   author: string;
   readCount: number;
 };
@@ -62,4 +64,28 @@ export type StudentClassAnnouncement = ClassAnnouncement & {
   classCode: string;
   courseName: string;
   isRead: boolean;
+};
+
+export type ClassLecturer = {
+  displayName: string;
+  email: string;
+  office: string;
+  officeHours: string;
+};
+
+export type StudentClass = {
+  id: string;
+  code: string;
+  courseCode: string;
+  courseName: string;
+  credits: number;
+  termName: string;
+  lecturer: ClassLecturer | null;
+  unreadCount: number;
+  announcementCount: number;
+};
+
+export type StudentClassDetail = StudentClass & {
+  announcements: StudentClassAnnouncement[];
+  syllabus: Syllabus | null;
 };

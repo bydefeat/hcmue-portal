@@ -80,6 +80,7 @@ export async function getStudentTimetable(termId: string): Promise<Timetable> {
   return weeklyEvents(
     rows.map(({ labGroupId: _labGroupId, ...section }) => section),
     rows.flatMap((row) => (row.labGroupId ? [row.labGroupId] : [])),
+    (sectionId) => `/application/classes/${sectionId}`,
   );
 }
 

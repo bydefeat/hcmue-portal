@@ -8,6 +8,14 @@ export const APPOINTMENT_STATUS: Record<AppointmentStatus, StatusMeta> = {
   cancelled: { label: "Đã hủy", tone: "neutral" },
 };
 
+// Nhãn trạng thái nhìn từ phía sinh viên được mời.
+export const STUDENT_APPOINTMENT_STATUS: Record<AppointmentStatus, StatusMeta> = {
+  scheduled: { label: "Đã hẹn", tone: "neutral" },
+  done: { label: "Đã gặp", tone: "success" },
+  missed: { label: "Bạn vắng", tone: "warning" },
+  cancelled: { label: "Cố vấn đã hủy", tone: "neutral" },
+};
+
 export const APPOINTMENT_MODE_LABEL: Record<AppointmentMode, string> = {
   "in-person": "Gặp trực tiếp",
   online: "Trực tuyến",

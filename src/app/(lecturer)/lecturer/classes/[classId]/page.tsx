@@ -6,7 +6,7 @@ import { ClassRosterTable } from "@/modules/course-registration/components/class
 import { getClassRoster, getClassSection } from "@/modules/course-registration/course-registration.query";
 import { EXAM_KIND_LABEL } from "@/modules/exams/exams.constant";
 import { getExamsForClassSections } from "@/modules/exams/exams.query";
-import { getClassAnnouncements } from "@/modules/teaching/teaching.query";
+import { getClassAnnouncements, requireTaughtClass } from "@/modules/teaching/teaching.query";
 import { weekdayLabel } from "@/shared/constants/period.constant";
 import { formatDate, weekdayOf } from "@/shared/libs/date.lib";
 
@@ -14,13 +14,14 @@ export const metadata: Metadata = { title: "Danh sách lớp" };
 
 export default async function Page({ params }: { params: Promise<{ classId: string }> }) {
   const { classId } = await params;
+  await requireTaughtClass(classId);
   const [section, roster, exams, announcements] = await Promise.all([
     getClassSection(classId),
     getClassRoster(classId),
     getExamsForClassSections([classId]),
     getClassAnnouncements(classId),
   ]);
-  const latest = announcements.find((announcement) => announcement.status === "published");
+  const latest = announcements?.find((announcement) => announcement.status === "published");
 
   return (
     <div className="flex flex-col gap-4">

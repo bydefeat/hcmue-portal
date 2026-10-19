@@ -1,10 +1,14 @@
 import { timingSafeEqual } from "node:crypto";
 import { env } from "@/shared/libs/env.lib";
+import { publishDueClassAnnouncements } from "@/modules/teaching/teaching.lib";
 
 // Tác vụ định kỳ, gọi từ bộ hẹn giờ ngoài (cron của máy chủ, Vercel Cron, ...): POST /api/cron/<tác vụ>
 // với header Authorization: Bearer <DEFEAT_CRON_SECRET>. Mỗi tác vụ phải chạy lặp lại được (gọi hai lần không sinh trùng).
 // Thêm tác vụ: viết hàm trong module (trả số việc đã làm) rồi đăng ký vào JOBS.
-const JOBS: Record<string, () => Promise<Record<string, number>>> = {};
+const JOBS: Record<string, () => Promise<Record<string, number>>> = {
+  // Báo sinh viên (cổng + email nếu bật) các thông báo lớp hẹn giờ đã tới giờ đăng. Nên chạy mỗi 5 phút.
+  "class-announcements": () => publishDueClassAnnouncements(),
+};
 
 function authorized(request: Request) {
   if (!env.DEFEAT_CRON_SECRET) return false;

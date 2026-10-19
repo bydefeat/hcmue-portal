@@ -28,14 +28,15 @@ async function adviseesAmong(tx: Transaction, lecturerId: string, studentIds: st
   return new Set(rows.map((row) => row.id));
 }
 
-// Sinh viên chưa có trang lịch hẹn riêng: nội dung thông báo ghi đủ giờ, nơi gặp; đường dẫn mở trang Thông báo.
-const STUDENT_APPOINTMENT_HREF = "/application/notifications";
+// Thông báo vẫn ghi đủ giờ, nơi gặp để đọc ngay trong chuông; đường dẫn mở trang lịch hẹn của sinh viên.
+const STUDENT_APPOINTMENT_HREF = "/application/advising";
 
 const whenOf = (date: string, startTime: string) => `${startTime.slice(0, 5)} ngày ${formatDate(date)}`;
 
 function revalidateAdvising() {
   revalidatePath("/lecturer/advising", "layout");
   revalidatePath("/lecturer");
+  revalidatePath(STUDENT_APPOINTMENT_HREF);
 }
 
 export async function createAppointment(input: AppointmentInput): Promise<ActionResult<Appointment>> {

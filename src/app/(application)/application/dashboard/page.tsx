@@ -125,7 +125,9 @@ export default async function Page() {
                         <span className="text-xs text-muted">{periodLabel(meeting.startPeriod, meeting.endPeriod)}</span>
                       </span>
                       <span className="flex min-w-0 flex-1 flex-col">
-                        <span className="truncate font-medium">{section.courseName}</span>
+                        <Link href={`/application/classes/${section.id}`} className="truncate font-medium">
+                          {section.courseName}
+                        </Link>
                         <span className="text-xs text-muted">
                           {section.code} · Phòng {meeting.room} · {section.lecturerName ?? "Chưa phân công"}
                         </span>

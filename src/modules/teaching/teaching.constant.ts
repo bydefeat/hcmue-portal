@@ -13,6 +13,17 @@ export const CLASS_ANNOUNCEMENT_STATUS: Record<ClassAnnouncementStatus, StatusMe
 
 export const SYLLABUS_WEEKS = 15;
 
+export const TEACHING_CONSTRAINT_MESSAGE: Partial<Record<string, string>> = {
+  syllabi_class_section_id_unique: "Lớp này đã có đề cương, tải lại trang để sửa bản đang có.",
+  syllabi_published_fields: "Đề cương đã công bố phải có thời điểm công bố.",
+  syllabus_outcomes_syllabus_id_code_unique: "Hai chuẩn đầu ra trùng mã.",
+  syllabus_weeks_syllabus_id_week_pk: "Hai dòng kế hoạch trùng số tuần.",
+  syllabus_weeks_week_range: "Tuần học phải từ 1 đến 20.",
+  syllabus_assessments_syllabus_id_key_unique: "Hai hình thức đánh giá trùng nhau.",
+  syllabus_assessments_weight_range: "Trọng số mỗi hình thức đánh giá từ 1% đến 100%.",
+  class_announcement_reads_announcement_fk: "Thông báo đã bị giảng viên xóa.",
+};
+
 export function assessmentMismatches(assessments: SyllabusAssessment[], components: { key: string; label: string; weight: number }[]) {
   const messages: string[] = [];
   const total = assessments.reduce((sum, item) => sum + item.weight, 0);

@@ -6,6 +6,7 @@ import type { SeedContext } from "./seed/context";
 import { seedExams } from "./seed/exams.seed";
 import { seedGrades } from "./seed/grades.seed";
 import { seedGraduation } from "./seed/graduation.seed";
+import { seedAdvising } from "./seed/advising.seed";
 import { seedPeople } from "./seed/people.seed";
 import { seedRegistration } from "./seed/registration.seed";
 import { seedRequests } from "./seed/requests.seed";
@@ -16,6 +17,8 @@ import { seedTuition } from "./seed/tuition.seed";
 import { seedAnnouncements } from "./seed/announcements.seed";
 import { seedNotifications } from "./seed/notifications.seed";
 import { seedAudit } from "./seed/audit.seed";
+import { seedStudyPlan } from "./seed/study-plan.seed";
+import { seedTeaching } from "./seed/teaching.seed";
 
 if (process.env.NODE_ENV === "production") throw new Error("Không chạy seed trên môi trường production");
 
@@ -33,6 +36,9 @@ async function main() {
     const registration = await seedRegistration(tx, context);
     await seedGrades(tx, context);
     await seedGraduation(tx, context);
+    await seedTeaching(tx, context);
+    await seedStudyPlan(tx, context);
+    await seedAdvising(tx, context);
     await seedRequests(tx, context);
     await seedSchedule(tx, context);
     await seedExams(tx, context);

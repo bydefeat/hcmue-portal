@@ -28,6 +28,13 @@ import { notifications } from "@/modules/notifications/notifications.schema";
 import { CALENDAR_EVENTS, REGULATION, REGULATION_VERSIONS } from "@/modules/settings/settings.mock";
 import { calendarEvents, regulations } from "@/modules/settings/settings.schema";
 import { invoiceLines, tuitionInvoices } from "@/modules/tuition/tuition.schema";
+import { APPOINTMENTS, MEETING_NOTES } from "@/modules/advising/advising.mock";
+import { advisingAppointments, advisingNotes, appointmentStudents } from "@/modules/advising/advising.schema";
+import { STUDY_PLANS } from "@/modules/study-plan/study-plan.mock";
+import { studyPlanItems, studyPlans } from "@/modules/study-plan/study-plan.schema";
+import { CLASS_ANNOUNCEMENTS, SYLLABI } from "@/modules/teaching/teaching.mock";
+import { classAnnouncementReads, classAnnouncements, syllabi, syllabusAssessments, syllabusWeeks } from "@/modules/teaching/teaching.schema";
+import type { PgTable } from "drizzle-orm/pg-core";
 
 after(() => db.$client.end());
 
@@ -228,5 +235,46 @@ describe("seed grades, graduation khớp dữ liệu mẫu", () => {
     assert.ok(STUDENTS.some((_, index) => ids.has(mockWarningMeta(index).id)));
     const [{ total }] = await db.select({ total: count() }).from(graduationRecords);
     assert.equal(total, STUDENTS.filter((student) => student.cohort === 48).length);
+  });
+});
+
+const total = async (table: PgTable) => (await db.select({ total: count() }).from(table))[0].total;
+
+describe("seed khớp dữ liệu mẫu: giảng dạy, kế hoạch học tập, cố vấn", () => {
+  test("đề cương, thông báo lớp và lượt đã đọc", async () => {
+    assert.equal(await total(syllabi), SYLLABI.length);
+    assert.equal(await total(syllabusWeeks), SYLLABI.reduce((acc, syllabus) => acc + syllabus.weeks.length, 0));
+    assert.equal(await total(syllabusAssessments), SYLLABI.reduce((acc, syllabus) => acc + syllabus.assessments.length, 0));
+    const [draft] = await db.select({ status: syllabi.status }).from(syllabi).where(eq(syllabi.classSectionId, mockSectionId("hk1-2026", "COMP1080.01")));
+    assert.equal(draft?.status, "draft");
+    assert.equal(await total(classAnnouncements), CLASS_ANNOUNCEMENTS.length);
+    const [first] = await db.select({ title: classAnnouncements.title }).from(classAnnouncements).where(eq(classAnnouncements.id, mockId("class-announcement:tbl-01")));
+    assert.equal(first?.title, CLASS_ANNOUNCEMENTS[0].title);
+    assert.equal(await total(classAnnouncementReads), CLASS_ANNOUNCEMENTS.reduce((acc, announcement) => acc + announcement.readCount, 0));
+  });
+
+  test("kế hoạch học tập theo khung chương trình", async () => {
+    assert.equal(await total(studyPlans), STUDY_PLANS.length);
+    const [current] = await db.select({ status: studyPlans.status }).from(studyPlans).where(eq(studyPlans.id, mockId("study-plan:12")));
+    assert.equal(current?.status, STUDY_PLANS.find((plan) => plan.studentId === CURRENT_STUDENT_ID)?.status);
+    // Sinh viên khóa 50 đang học học kỳ 5 của chương trình CNTT 2023: kế hoạch lấy học kỳ 6, 7, 8 (bỏ học phần đã ngừng mở).
+    const items = await db
+      .select({ code: courses.code, academicYear: studyPlanItems.academicYear, semester: studyPlanItems.semester })
+      .from(studyPlanItems)
+      .innerJoin(courses, eq(courses.id, studyPlanItems.courseId))
+      .where(eq(studyPlanItems.studyPlanId, mockId("study-plan:12")))
+      .orderBy(courses.code);
+    assert.deepEqual(
+      items.map((item) => `${item.code}@${item.academicYear}.${item.semester}`),
+      ["COMP1130@2026.2", "COMP4900@2027.1", "COMP4990@2027.2", "EDUC1002@2026.2"],
+    );
+  });
+
+  test("lịch hẹn, sinh viên được mời, ghi chú cố vấn", async () => {
+    assert.equal(await total(advisingAppointments), APPOINTMENTS.length);
+    assert.equal(await total(appointmentStudents), APPOINTMENTS.reduce((acc, appointment) => acc + appointment.students.length, 0));
+    assert.equal(await total(advisingNotes), MEETING_NOTES.length);
+    const [appointment] = await db.select({ advisorId: advisingAppointments.advisorId }).from(advisingAppointments).where(eq(advisingAppointments.id, mockId("appointment:lh-03")));
+    assert.equal(appointment?.advisorId, CURRENT_LECTURER_ID);
   });
 });

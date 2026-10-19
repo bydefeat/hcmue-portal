@@ -1,10 +1,16 @@
-import { createRandom, mockDate, mockStudentIdentity } from "@/shared/libs/mock.lib";
-import { mockCourseSequence, mockCoursesTaken } from "@/shared/libs/mock-course.lib";
-import type { StudyPlan, StudyPlanCourse, StudyPlanStatus } from "@/modules/study-plan/study-plan.type";
+import { createRandom, mockDate, mockId, mockStudentIdentity } from "@/shared/libs/mock.lib";
+import { TERMS_DONE_BY_COHORT } from "@/shared/libs/mock-course.lib";
+import type { StudyPlanStatus } from "@/modules/study-plan/study-plan.type";
 
 const PLAN_CLASSES = ["49.01.CNTT.A", "50.01.CNTT.A", "49.01.CNTT.B", "50.01.CNTT.B"];
 const STUDENT_TOTAL = 600;
-const COURSES_PER_PLANNED_TERM = 6;
+
+// Kế hoạch xếp cho các học kỳ sau học kỳ hiện tại (HK1 2026-2027).
+export const STUDY_PLAN_TERMS = [
+  { academicYear: 2026, semester: 2 },
+  { academicYear: 2027, semester: 1 },
+  { academicYear: 2027, semester: 2 },
+];
 
 const NOTES = [
   "Em muốn học Học máy sớm để kịp làm khóa luận theo hướng trí tuệ nhân tạo.",
@@ -21,32 +27,38 @@ function statusFor(roll: number): StudyPlanStatus {
   return "draft";
 }
 
-export const STUDY_PLANS: StudyPlan[] = Array.from({ length: STUDENT_TOTAL }, (_, index) => mockStudentIdentity(index))
+export type StudyPlanSeed = {
+  id: string;
+  studentId: string;
+  majorCode: string;
+  cohort: number;
+  className: string;
+  // Học kỳ của chương trình đào tạo ứng với học kỳ đầu tiên trong kế hoạch; học phần học kỳ sau xếp vào cột sau.
+  firstProgramSemester: number;
+  status: StudyPlanStatus;
+  submittedAt: string | null;
+  reviewedAt: string | null;
+  studentNote: string;
+  advisorComment: string | null;
+};
+
+// Học phần trong kế hoạch lấy từ khung chương trình đào tạo của sinh viên khi seed (module curriculum).
+export const STUDY_PLANS: StudyPlanSeed[] = Array.from({ length: STUDENT_TOTAL }, (_, index) => mockStudentIdentity(index))
   .filter((student) => PLAN_CLASSES.includes(student.className))
   .map((student) => {
     const random = createRandom(student.index * 61 + 5);
     const status = statusFor(random());
-    const remaining = mockCourseSequence(student.majorCode)
-      .slice(mockCoursesTaken(student.cohort))
-      .map(([code, name, credits]): StudyPlanCourse => ({ code, name, credits }));
-    const nextCourses = remaining.slice(0, COURSES_PER_PLANNED_TERM).filter(() => random() > 0.18);
-    const terms = [
-      { termName: "Học kỳ 2, năm học 2026-2027", courses: nextCourses },
-      { termName: "Học kỳ 1, năm học 2027-2028", courses: remaining.slice(COURSES_PER_PLANNED_TERM, COURSES_PER_PLANNED_TERM * 2) },
-    ].filter((term) => term.courses.length > 0);
     const submittedDaysAgo = 1 + Math.floor(random() * 10);
     return {
-      id: `khht-${student.index}`,
+      id: mockId(`study-plan:${student.index}`),
       studentId: student.id,
-      studentCode: student.code,
-      fullName: student.fullName,
+      majorCode: student.majorCode,
+      cohort: student.cohort,
       className: student.className,
-      targetTermName: terms[0].termName,
+      firstProgramSemester: (TERMS_DONE_BY_COHORT[student.cohort] ?? 0) + 2,
       status,
       submittedAt: status === "draft" ? null : mockDate(-submittedDaysAgo, `${8 + (student.index % 12)}:15`),
       reviewedAt: status === "approved" || status === "returned" ? mockDate(-Math.max(0, submittedDaysAgo - 2), "15:40") : null,
-      totalCredits: nextCourses.reduce((sum, course) => sum + course.credits, 0),
-      terms,
       studentNote: NOTES[student.index % NOTES.length],
       advisorComment:
         status === "returned"

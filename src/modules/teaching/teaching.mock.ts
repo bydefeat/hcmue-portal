@@ -1,4 +1,4 @@
-import { mockDate, mockLecturerIdentity, mockSectionId } from "@/shared/libs/mock.lib";
+import { mockDate, mockId, mockLecturerIdentity, mockSectionId } from "@/shared/libs/mock.lib";
 import type { ClassAnnouncement, Syllabus, SyllabusAssessment, SyllabusWeek } from "@/modules/teaching/teaching.type";
 
 const TOPICS: Record<string, string[]> = {
@@ -146,7 +146,7 @@ export const SYLLABI: Syllabus[] = [
     weeks: weeksOf("COMP1080"),
     assessments: [
       { key: "attendance", label: "Chuyên cần", weight: 10, method: "Điểm danh", outcomes: ["CLO1"] },
-      { key: "midterm", label: "Giữa kỳ", weight: 20, method: "Tự luận 60 phút", outcomes: ["CLO1", "CLO2"] },
+      { key: "midterm", label: "Giữa kỳ", weight: 30, method: "Tự luận 60 phút", outcomes: ["CLO1", "CLO2"] },
       { key: "final", label: "Cuối kỳ", weight: 60, method: "Tự luận 90 phút", outcomes: ["CLO1", "CLO2", "CLO3"] },
     ],
     references: ["Russell và Norvig, Artificial Intelligence: A Modern Approach, 4th edition"],
@@ -156,9 +156,9 @@ export const SYLLABI: Syllabus[] = [
 const ME = mockLecturerIdentity(0).displayName;
 
 export const CLASS_ANNOUNCEMENTS: ClassAnnouncement[] = [
-  { id: "tbl-01", classSectionId: mockSectionId("hk1-2026", "COMP1020.01"), title: "Đề cương và lịch kiểm tra giữa kỳ", body: "Kiểm tra giữa kỳ vào tuần 8, nội dung từ chương 1 đến chương 6. Được mang một tờ A4 ghi chú viết tay.", isPinned: true, sendEmail: true, status: "published", publishAt: mockDate(-30, "09:00"), author: ME, readCount: 39 },
-  { id: "tbl-02", classSectionId: mockSectionId("hk1-2026", "COMP1020.01"), title: "Bài tập tuần 6: sắp xếp trộn", body: "Nộp bài trên hệ thống trước 23:59 chủ nhật. Bài nộp trễ trừ 20% điểm.", isPinned: false, sendEmail: false, status: "published", publishAt: mockDate(-6, "19:30"), author: ME, readCount: 31 },
-  { id: "tbl-03", classSectionId: mockSectionId("hk1-2026", "COMP1020.01"), title: "Nghỉ buổi thứ 2 tuần sau, dạy bù thứ 7", body: "Giảng viên đi hội thảo. Buổi dạy bù thứ 7, tiết 1-3, phòng B.405.", isPinned: false, sendEmail: true, status: "scheduled", publishAt: mockDate(1, "07:00"), author: ME, readCount: 0 },
-  { id: "tbl-04", classSectionId: mockSectionId("hk1-2026", "COMP1070.01"), title: "Chia nhóm đồ án", body: "Mỗi nhóm 4 bạn, đăng ký tên nhóm và đề tài trong biểu mẫu trước thứ 6.", isPinned: true, sendEmail: true, status: "published", publishAt: mockDate(-35, "10:00"), author: ME, readCount: 40 },
-  { id: "tbl-05", classSectionId: mockSectionId("hk1-2026", "COMP1080.01"), title: "Tài liệu chương 4 đã cập nhật", body: "Slide tìm kiếm A* có thêm ví dụ bản đồ TP.HCM.", isPinned: false, sendEmail: false, status: "published", publishAt: mockDate(-2, "21:00"), author: ME, readCount: 22 },
+  { id: mockId("class-announcement:tbl-01"), classSectionId: mockSectionId("hk1-2026", "COMP1020.01"), title: "Đề cương và lịch kiểm tra giữa kỳ", body: "Kiểm tra giữa kỳ vào tuần 8, nội dung từ chương 1 đến chương 6. Được mang một tờ A4 ghi chú viết tay.", isPinned: true, sendEmail: true, status: "published", publishAt: mockDate(-30, "09:00"), author: ME, readCount: 39 },
+  { id: mockId("class-announcement:tbl-02"), classSectionId: mockSectionId("hk1-2026", "COMP1020.01"), title: "Bài tập tuần 6: sắp xếp trộn", body: "Nộp bài trên hệ thống trước 23:59 chủ nhật. Bài nộp trễ trừ 20% điểm.", isPinned: false, sendEmail: false, status: "published", publishAt: mockDate(-6, "19:30"), author: ME, readCount: 31 },
+  { id: mockId("class-announcement:tbl-03"), classSectionId: mockSectionId("hk1-2026", "COMP1020.01"), title: "Nghỉ buổi thứ 2 tuần sau, dạy bù thứ 7", body: "Giảng viên đi hội thảo. Buổi dạy bù thứ 7, tiết 1-3, phòng B.405.", isPinned: false, sendEmail: true, status: "scheduled", publishAt: mockDate(1, "07:00"), author: ME, readCount: 0 },
+  { id: mockId("class-announcement:tbl-04"), classSectionId: mockSectionId("hk1-2026", "COMP1070.01"), title: "Chia nhóm đồ án", body: "Mỗi nhóm 4 bạn, đăng ký tên nhóm và đề tài trong biểu mẫu trước thứ 6.", isPinned: true, sendEmail: true, status: "published", publishAt: mockDate(-35, "10:00"), author: ME, readCount: 40 },
+  { id: mockId("class-announcement:tbl-05"), classSectionId: mockSectionId("hk1-2026", "COMP1080.01"), title: "Tài liệu chương 4 đã cập nhật", body: "Slide tìm kiếm A* có thêm ví dụ bản đồ TP.HCM.", isPinned: false, sendEmail: false, status: "published", publishAt: mockDate(-2, "21:00"), author: ME, readCount: 22 },
 ];

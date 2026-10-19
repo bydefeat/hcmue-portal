@@ -1,11 +1,13 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { Alert, Button, Card, Drawer, Form, Input, message, Modal, Select, Table, type TableColumnsType } from "antd";
 import { Magnifier } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { StatusTag } from "@/shared/components/ui/status-tag";
 import { dayjs, formatDateTime } from "@/shared/libs/date.lib";
+import { toFormFields } from "@/shared/libs/form.lib";
+import { reviewStudyPlan } from "@/modules/study-plan/study-plan.action";
 import { PENDING_TOO_LONG_DAYS, STUDY_PLAN_CREDIT_LIMIT, STUDY_PLAN_STATUS } from "@/modules/study-plan/study-plan.constant";
 import type { StudyPlan, StudyPlanStatus } from "@/modules/study-plan/study-plan.type";
 import { paginationItemRender } from "@/shared/constants/antd.constant";
@@ -26,6 +28,7 @@ export function StudyPlanReview({ plans }: { plans: StudyPlan[] }) {
   const [updates, setUpdates] = useState<Record<string, Partial<StudyPlan>>>({});
   const [openId, setOpenId] = useState<string | null>(null);
   const [isReturning, setIsReturning] = useState(false);
+  const [isReviewing, startReviewing] = useTransition();
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState<StudyPlanStatus>();
   const [className, setClassName] = useState<string>();
@@ -52,10 +55,25 @@ export function StudyPlanReview({ plans }: { plans: StudyPlan[] }) {
   );
   const openPlan = rows.find((row) => row.id === openId) ?? null;
 
-  const review = (plan: StudyPlan, next: StudyPlanStatus, comment: string | null) => {
-    setUpdates((current) => ({ ...current, [plan.id]: { status: next, advisorComment: comment, reviewedAt: new Date().toISOString() } }));
-    messageApi.success(next === "approved" ? `Đã duyệt kế hoạch của ${plan.fullName}` : `Đã trả lại kế hoạch cho ${plan.fullName}, sinh viên nhận email kèm nhận xét`);
-  };
+  const review = (plan: StudyPlan, decision: "approved" | "returned", comment: string) =>
+    startReviewing(async () => {
+      const result = await reviewStudyPlan({ id: plan.id, decision, comment }).catch(() => null);
+      if (!result) {
+        messageApi.error("Chưa lưu được, kiểm tra kết nối rồi thử lại.");
+        return;
+      }
+      if (!result.ok) {
+        if (decision === "returned") form.setFields(toFormFields(result.fieldErrors));
+        messageApi.error(result.message);
+        return;
+      }
+      const reviewed = result.data;
+      setUpdates((current) => ({ ...current, [plan.id]: reviewed }));
+      if (decision === "returned") form.resetFields();
+      setIsReturning(false);
+      setOpenId(null);
+      messageApi.success(decision === "approved" ? `Đã duyệt kế hoạch của ${plan.fullName}` : `Đã trả lại kế hoạch cho ${plan.fullName}, sinh viên nhận email kèm nhận xét`);
+    });
 
   const creditText = (value: number) =>
     isCreditOutOfRange(value) ? (
@@ -215,14 +233,10 @@ export function StudyPlanReview({ plans }: { plans: StudyPlan[] }) {
         footer={
           openPlan?.status === "pending" ? (
             <div className="flex justify-end gap-2">
-              <Button onClick={() => setIsReturning(true)}>Trả lại</Button>
-              <Button
-                type="primary"
-                onClick={() => {
-                  review(openPlan, "approved", "Kế hoạch hợp lý.");
-                  setOpenId(null);
-                }}
-              >
+              <Button onClick={() => setIsReturning(true)} disabled={isReviewing}>
+                Trả lại
+              </Button>
+              <Button type="primary" loading={isReviewing && !isReturning} onClick={() => review(openPlan, "approved", "Kế hoạch hợp lý.")}>
                 Duyệt
               </Button>
             </div>
@@ -288,6 +302,7 @@ export function StudyPlanReview({ plans }: { plans: StudyPlan[] }) {
         destroyOnHidden
         onCancel={() => setIsReturning(false)}
         onOk={() => form.submit()}
+        confirmLoading={isReviewing}
       >
         <Form
           form={form}
@@ -295,9 +310,6 @@ export function StudyPlanReview({ plans }: { plans: StudyPlan[] }) {
           requiredMark
           onFinish={({ comment }) => {
             if (openPlan) review(openPlan, "returned", comment.trim());
-            setIsReturning(false);
-            setOpenId(null);
-            form.resetFields();
           }}
         >
           <Form.Item

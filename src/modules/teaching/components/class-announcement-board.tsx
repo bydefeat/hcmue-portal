@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { Button, Card, Checkbox, DatePicker, Drawer, Form, Input, message, Modal, Switch } from "antd";
 import { Envelope, Pin, Plus } from "defeat-icons-react";
 import type { Dayjs } from "dayjs";
@@ -8,6 +8,8 @@ import { EmptyState } from "@/shared/components/ui/empty-state";
 import { SectionCard } from "@/shared/components/ui/section-card";
 import { StatusTag } from "@/shared/components/ui/status-tag";
 import { dayjs, formatDateTime, formatRelative } from "@/shared/libs/date.lib";
+import { toFormFields } from "@/shared/libs/form.lib";
+import { deleteClassAnnouncement, saveClassAnnouncement } from "@/modules/teaching/teaching.action";
 import { CLASS_ANNOUNCEMENT_STATUS } from "@/modules/teaching/teaching.constant";
 import type { ClassAnnouncement } from "@/modules/teaching/teaching.type";
 
@@ -16,7 +18,6 @@ type ClassAnnouncementBoardProps = {
   classSectionId: string;
   classCode: string;
   studentCount: number;
-  author: string;
 };
 
 type FormValues = {
@@ -28,12 +29,13 @@ type FormValues = {
   publishAt?: Dayjs;
 };
 
-export function ClassAnnouncementBoard({ announcements, classSectionId, classCode, studentCount, author }: ClassAnnouncementBoardProps) {
+export function ClassAnnouncementBoard({ announcements, classSectionId, classCode, studentCount }: ClassAnnouncementBoardProps) {
   const [messageApi, contextHolder] = message.useMessage();
   const [modal, modalContextHolder] = Modal.useModal();
   const [rows, setRows] = useState(announcements);
   const [editing, setEditing] = useState<ClassAnnouncement | null>(null);
   const [isOpen, setIsOpen] = useState(false);
+  const [isSaving, startSaving] = useTransition();
   const [form] = Form.useForm<FormValues>();
   const schedule = Form.useWatch("schedule", form);
   const sendEmail = Form.useWatch("sendEmail", form);
@@ -61,23 +63,31 @@ export function ClassAnnouncementBoard({ announcements, classSectionId, classCod
   };
 
   const submit = (values: FormValues) => {
-    const publishAt = values.schedule && values.publishAt ? values.publishAt.toISOString() : dayjs().toISOString();
-    const next: ClassAnnouncement = {
-      id: editing?.id ?? `tbl-moi-${Date.now()}`,
-      classSectionId,
-      title: values.title.trim(),
-      body: values.body.trim(),
-      isPinned: values.isPinned,
-      sendEmail: values.sendEmail,
-      status: values.schedule ? "scheduled" : "published",
-      publishAt,
-      author,
-      readCount: editing?.readCount ?? 0,
-    };
-    setRows((current) => (editing ? current.map((row) => (row.id === editing.id ? next : row)) : [next, ...current]));
-    setIsOpen(false);
-    const emailText = values.sendEmail && !editing ? `, email đã gửi tới ${studentCount} sinh viên` : "";
-    messageApi.success(values.schedule ? `Đã hẹn đăng lúc ${formatDateTime(publishAt)}` : `Đã đăng thông báo cho lớp ${classCode}${emailText}`);
+    startSaving(async () => {
+      const result = await saveClassAnnouncement(editing?.id ?? null, {
+        classSectionId,
+        title: values.title,
+        body: values.body,
+        isPinned: values.isPinned ?? false,
+        sendEmail: values.sendEmail ?? false,
+        schedule: values.schedule ?? false,
+        publishAt: values.schedule && values.publishAt ? values.publishAt.toISOString() : null,
+      }).catch(() => null);
+      if (!result) {
+        messageApi.error("Chưa lưu được, kiểm tra kết nối rồi thử lại.");
+        return;
+      }
+      if (!result.ok) {
+        form.setFields(toFormFields(result.fieldErrors));
+        messageApi.error(result.message);
+        return;
+      }
+      const saved = result.data;
+      setRows((current) => (editing ? current.map((row) => (row.id === saved.id ? saved : row)) : [saved, ...current]));
+      setIsOpen(false);
+      const emailText = saved.sendEmail && !editing ? `, email đã gửi tới ${studentCount} sinh viên` : "";
+      messageApi.success(saved.status === "scheduled" ? `Đã hẹn đăng lúc ${formatDateTime(saved.publishAt)}` : `Đã đăng thông báo cho lớp ${classCode}${emailText}`);
+    });
   };
 
   const remove = (announcement: ClassAnnouncement) =>
@@ -88,8 +98,17 @@ export function ClassAnnouncementBoard({ announcements, classSectionId, classCod
       okButtonProps: { danger: true },
       cancelText: "Giữ lại",
       mask: { closable: false },
-      onOk: () => {
-        setRows((current) => current.filter((row) => row.id !== announcement.id));
+      onOk: async () => {
+        const result = await deleteClassAnnouncement(announcement.id).catch(() => null);
+        if (!result) {
+          messageApi.error("Chưa xóa được, kiểm tra kết nối rồi thử lại.");
+          return;
+        }
+        if (!result.ok) {
+          messageApi.error(result.message);
+          return;
+        }
+        setRows((current) => current.filter((row) => row.id !== result.data.id));
         messageApi.success("Đã xóa thông báo");
       },
     });
@@ -178,8 +197,10 @@ export function ClassAnnouncementBoard({ announcements, classSectionId, classCod
         title={editing ? "Sửa thông báo" : `Thông báo cho lớp ${classCode}`}
         footer={
           <div className="flex justify-end gap-2">
-            <Button onClick={() => setIsOpen(false)}>Hủy</Button>
-            <Button type="primary" onClick={() => form.submit()}>
+            <Button onClick={() => setIsOpen(false)} disabled={isSaving}>
+              Hủy
+            </Button>
+            <Button type="primary" onClick={() => form.submit()} loading={isSaving}>
               {schedule ? "Hẹn giờ đăng" : editing ? "Lưu" : "Đăng ngay"}
             </Button>
           </div>

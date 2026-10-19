@@ -1,12 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import { Alert, Button, Card, Form, Input, InputNumber, message, Modal, Select, Table, type TableColumnsType } from "antd";
 import { ArrowsTransaction, Pen, Plus, Trash } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { SectionCard } from "@/shared/components/ui/section-card";
 import { StatusTag } from "@/shared/components/ui/status-tag";
-import { dayjs, formatDateTime } from "@/shared/libs/date.lib";
+import { formatDateTime } from "@/shared/libs/date.lib";
+import { publishSyllabus, saveSyllabus } from "@/modules/teaching/teaching.action";
 import { assessmentMismatches, SYLLABUS_STATUS } from "@/modules/teaching/teaching.constant";
 import type { LearningOutcome, Syllabus, SyllabusAssessment, SyllabusWeek } from "@/modules/teaching/teaching.type";
 
@@ -33,11 +34,20 @@ const WEEK_COLUMNS: TableColumnsType<SyllabusWeek> = [
   { title: "Tài liệu đọc", dataIndex: "readings", width: 200, render: (value: string) => <span className="text-muted">{value}</span> },
 ];
 
+// Lỗi trong Form.List ("assessments.0.weight") phải gắn đúng ô con, nên giữ cả chỉ số dòng thay vì chỉ ô cấp đầu.
+function listFields(fieldErrors: Record<string, string> | undefined) {
+  return Object.entries(fieldErrors ?? {}).map(([path, error]) => ({
+    name: path.split(".").map((part) => (/^\d+$/.test(part) ? Number(part) : part)) as never,
+    errors: [error],
+  }));
+}
+
 export function SyllabusEditor({ syllabus: initial, gradeComponents, classCode }: SyllabusEditorProps) {
   const [messageApi, contextHolder] = message.useMessage();
   const [modal, modalContextHolder] = Modal.useModal();
   const [syllabus, setSyllabus] = useState(initial);
   const [isEditing, setIsEditing] = useState(false);
+  const [isSaving, startSaving] = useTransition();
   const [form] = Form.useForm<FormValues>();
   const mismatches = assessmentMismatches(syllabus.assessments, gradeComponents);
   const totalWeight = syllabus.assessments.reduce((sum, item) => sum + item.weight, 0);
@@ -55,17 +65,33 @@ export function SyllabusEditor({ syllabus: initial, gradeComponents, classCode }
   };
 
   const save = (values: FormValues) => {
-    setSyllabus((current) => ({
-      ...current,
-      description: values.description ?? "",
-      outcomes: (values.outcomes ?? []).map((outcome, index) => ({ code: `CLO${index + 1}`, text: outcome.text })),
-      weeks: values.weeks ?? current.weeks,
-      assessments: (values.assessments ?? []).map((item) => ({ ...item, outcomes: item.outcomes ?? [] })),
-      references: (values.references ?? []).map((entry) => entry.text).filter(Boolean),
-      updatedAt: dayjs().toISOString(),
-    }));
-    setIsEditing(false);
-    messageApi.success(syllabus.status === "published" ? "Đã lưu. Sinh viên thấy bản mới ngay." : "Đã lưu bản nháp đề cương.");
+    startSaving(async () => {
+      const result = await saveSyllabus({
+        classSectionId: syllabus.classSectionId,
+        description: values.description ?? "",
+        outcomes: (values.outcomes ?? []).map((outcome) => ({ text: outcome.text ?? "" })),
+        weeks: (values.weeks ?? syllabus.weeks).map((week, index) => ({
+          week: index + 1,
+          topic: week.topic ?? "",
+          activities: week.activities ?? "",
+          readings: week.readings ?? "",
+        })),
+        assessments: (values.assessments ?? []).map((item) => ({ ...item, method: item.method ?? "", outcomes: item.outcomes ?? [] })),
+        references: (values.references ?? []).map((entry) => entry.text ?? ""),
+      }).catch(() => null);
+      if (!result) {
+        messageApi.error("Chưa lưu được, kiểm tra kết nối rồi thử lại.");
+        return;
+      }
+      if (!result.ok) {
+        form.setFields(listFields(result.fieldErrors));
+        messageApi.error(Object.values(result.fieldErrors ?? {})[0] ?? result.message);
+        return;
+      }
+      setSyllabus(result.data);
+      setIsEditing(false);
+      messageApi.success(result.data.status === "published" ? "Đã lưu. Sinh viên thấy bản mới ngay." : "Đã lưu bản nháp đề cương.");
+    });
   };
 
   const publish = () => {
@@ -82,8 +108,17 @@ export function SyllabusEditor({ syllabus: initial, gradeComponents, classCode }
       okText: "Công bố",
       cancelText: "Để sau",
       mask: { closable: false },
-      onOk: () => {
-        setSyllabus((current) => ({ ...current, status: "published", publishedAt: dayjs().toISOString() }));
+      onOk: async () => {
+        const result = await publishSyllabus(syllabus.classSectionId).catch(() => null);
+        if (!result) {
+          messageApi.error("Chưa công bố được, kiểm tra kết nối rồi thử lại.");
+          return;
+        }
+        if (!result.ok) {
+          messageApi.error(result.message);
+          return;
+        }
+        setSyllabus(result.data);
         messageApi.success("Đã công bố đề cương cho sinh viên.");
       },
     });
@@ -258,8 +293,10 @@ export function SyllabusEditor({ syllabus: initial, gradeComponents, classCode }
           </SectionCard>
           <Card size="small" className="sticky bottom-[calc(74px+env(safe-area-inset-bottom))] z-10 md:bottom-4" classNames={{ body: "flex flex-wrap items-center justify-end gap-2" }}>
             <span className="mr-auto text-sm text-muted">Đang sửa đề cương</span>
-            <Button onClick={() => setIsEditing(false)}>Hủy</Button>
-            <Button type="primary" htmlType="submit">
+            <Button onClick={() => setIsEditing(false)} disabled={isSaving}>
+              Hủy
+            </Button>
+            <Button type="primary" htmlType="submit" loading={isSaving}>
               Lưu
             </Button>
           </Card>

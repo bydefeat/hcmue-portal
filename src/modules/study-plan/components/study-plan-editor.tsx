@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useTransition } from "react";
 import {
   DndContext,
   DragOverlay,
@@ -18,7 +18,8 @@ import { DotsVertical, GripDotsVertical } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { MeterBar } from "@/shared/components/ui/meter-bar";
 import { StatusTag } from "@/shared/components/ui/status-tag";
-import { dayjs, formatDateTime } from "@/shared/libs/date.lib";
+import { formatDateTime } from "@/shared/libs/date.lib";
+import { saveStudyPlan, submitStudyPlan } from "@/modules/study-plan/study-plan.action";
 import { STUDY_PLAN_STATUS } from "@/modules/study-plan/study-plan.constant";
 import type { StudyPlan, StudyPlanCourse, StudyPlanStatus } from "@/modules/study-plan/study-plan.type";
 import { SectionCard } from "@/shared/components/ui/section-card";
@@ -72,15 +73,17 @@ function CourseCard({
   column,
   columns,
   warning,
+  disabled = false,
   onMove,
 }: {
   course: StudyPlanCourse;
   column: string;
   columns: string[];
   warning?: string;
+  disabled?: boolean;
   onMove: (code: string, target: string) => void;
 }) {
-  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: course.code, data: { column } });
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: course.code, data: { column }, disabled });
   const items: MenuProps["items"] = [...columns.filter((name) => name !== column), ...(column === POOL ? [] : [POOL])].map((name) => ({
     key: name,
     label: name === POOL ? "Bỏ khỏi kế hoạch" : `Chuyển sang ${name}`,
@@ -98,6 +101,7 @@ function CourseCard({
             type="text"
             size="small"
             aria-label={`Kéo ${course.name}`}
+            disabled={disabled}
             className="shrink-0 cursor-grab touch-none text-muted"
             icon={<GripDotsVertical size={16} aria-hidden className="text-zinc-500" />}
             {...listeners}
@@ -105,9 +109,11 @@ function CourseCard({
           />
         }
         menu={
-          <Dropdown menu={{ items }} trigger={["click"]}>
-            <Button type="text" size="small" aria-label={`Chuyển ${course.name}`} icon={<DotsVertical size={16} aria-hidden className="text-zinc-500" />} />
-          </Dropdown>
+          disabled ? undefined : (
+            <Dropdown menu={{ items }} trigger={["click"]}>
+              <Button type="text" size="small" aria-label={`Chuyển ${course.name}`} icon={<DotsVertical size={16} aria-hidden className="text-zinc-500" />} />
+            </Dropdown>
+          )
         }
       />
     </div>
@@ -146,6 +152,8 @@ function Column({
 
 export function StudyPlanEditor({ plan, termNames, pool, passedGrades, prerequisites, limits, advisorName }: StudyPlanEditorProps) {
   const [messageApi, contextHolder] = message.useMessage();
+  const [isSaving, startSaving] = useTransition();
+  const [saved, setSaved] = useState(plan);
   const [columns, setColumns] = useState<Record<string, string[]>>(() => initialColumns(plan, termNames));
   const [status, setStatus] = useState<StudyPlanStatus>(plan?.status ?? "draft");
   const [submittedAt, setSubmittedAt] = useState(plan?.submittedAt ?? null);
@@ -165,7 +173,10 @@ export function StudyPlanEditor({ plan, termNames, pool, passedGrades, prerequis
   const plannedCodes = new Set(Object.values(columns).flat());
   const poolCodes = [...catalog.keys()].filter((code) => !plannedCodes.has(code));
 
+  const isLocked = status === "pending";
+
   const move = (code: string, target: string) => {
+    if (isLocked) return;
     setColumns((current) => {
       const next = Object.fromEntries(Object.entries(current).map(([name, codes]) => [name, codes.filter((entry) => entry !== code)]));
       if (target !== POOL) next[target] = [...(next[target] ?? []), code];
@@ -197,10 +208,28 @@ export function StudyPlanEditor({ plan, termNames, pool, passedGrades, prerequis
     .map((name) => ({ name, credits: creditsOf(name) }))
     .filter((entry) => entry.credits < limits.min || entry.credits > limits.max);
 
-  const save = () => {
-    setIsDirty(false);
-    messageApi.success("Đã lưu nháp kế hoạch học tập");
-  };
+  const payload = () => ({ terms: termNames.map((name) => ({ termName: name, courseCodes: columns[name] ?? [] })), studentNote: note });
+
+  const persist = (submitting: boolean) =>
+    startSaving(async () => {
+      const result = await (submitting ? submitStudyPlan : saveStudyPlan)(payload()).catch(() => null);
+      if (!result) {
+        messageApi.error("Chưa lưu được, kiểm tra kết nối rồi thử lại.");
+        return;
+      }
+      if (!result.ok) {
+        messageApi.error(Object.values(result.fieldErrors ?? {})[0] ?? result.message);
+        return;
+      }
+      setSaved(result.data);
+      setStatus(result.data.status);
+      setSubmittedAt(result.data.submittedAt);
+      setIsDirty(false);
+      if (!submitting) messageApi.success("Đã lưu nháp kế hoạch học tập");
+      else messageApi.success(advisorName ? `Đã gửi kế hoạch cho ${advisorName} duyệt` : "Đã gửi kế hoạch cho cố vấn học tập duyệt");
+    });
+
+  const save = () => persist(false);
 
   const submit = () => {
     if (termProblems.length > 0) {
@@ -208,10 +237,7 @@ export function StudyPlanEditor({ plan, termNames, pool, passedGrades, prerequis
       messageApi.error(`${first.name} có ${first.credits} tín chỉ, cần từ ${limits.min} đến ${limits.max}. Điều chỉnh rồi gửi lại.`);
       return;
     }
-    setStatus("pending");
-    setSubmittedAt(dayjs().toISOString());
-    setIsDirty(false);
-    messageApi.success(advisorName ? `Đã gửi kế hoạch cho ${advisorName} duyệt` : "Đã gửi kế hoạch cho cố vấn học tập duyệt");
+    persist(true);
   };
 
   const activeCourse = activeCode ? catalog.get(activeCode) : null;
@@ -231,29 +257,31 @@ export function StudyPlanEditor({ plan, termNames, pool, passedGrades, prerequis
           </span>
         </div>
         <div className="flex shrink-0 flex-wrap gap-2">
-          <Button onClick={save} disabled={!isDirty}>
+          <Button onClick={save} disabled={!isDirty || isSaving}>
             Lưu nháp
           </Button>
-          <Button type="primary" onClick={submit} disabled={status === "pending" || status === "approved"}>
+          <Button type="primary" onClick={submit} loading={isSaving} disabled={status === "pending" || status === "approved"}>
             {status === "pending" ? "Đang chờ cố vấn duyệt" : status === "approved" ? "Đã được duyệt" : "Gửi cố vấn duyệt"}
           </Button>
         </div>
       </Card>
 
-      {plan?.advisorComment && status !== "draft" && (
+      {saved?.advisorComment && status !== "draft" && (
         <Alert
-          type={plan.status === "returned" ? "warning" : "success"}
+          type={saved.status === "returned" ? "warning" : "success"}
           showIcon
-          title={plan.status === "returned" ? "Cố vấn trả lại kế hoạch" : "Nhận xét của cố vấn"}
-          description={plan.advisorComment}
+          title={saved.status === "returned" ? "Cố vấn trả lại kế hoạch" : "Nhận xét của cố vấn"}
+          description={saved.advisorComment}
         />
       )}
-      {status === "draft" && plan && plan.status === "approved" && (
+      {status === "draft" && saved && saved.status === "approved" && (
         <Alert type="info" showIcon title="Kế hoạch đã duyệt đang được chỉnh sửa" description="Sau khi sửa, gửi lại để cố vấn duyệt phiên bản mới." />
       )}
 
       <p className="text-xs text-pretty text-muted">
-        Kéo học phần giữa các cột, hoặc bấm nút ba chấm trên thẻ để chuyển. Mỗi học kỳ từ {limits.min} đến {limits.max} tín chỉ.
+        {isLocked
+          ? "Kế hoạch đang chờ cố vấn duyệt nên chưa sửa được. Khi cố vấn duyệt hoặc trả lại, bạn sửa tiếp."
+          : `Kéo học phần giữa các cột, hoặc bấm nút ba chấm trên thẻ để chuyển. Mỗi học kỳ từ ${limits.min} đến ${limits.max} tín chỉ.`}
       </p>
 
       <DndContext id="study-plan-editor" sensors={sensors} onDragStart={(event) => setActiveCode(String(event.active.id))} onDragEnd={onDragEnd} onDragCancel={() => setActiveCode(null)}>
@@ -281,7 +309,7 @@ export function StudyPlanEditor({ plan, termNames, pool, passedGrades, prerequis
                   (columns[name] ?? []).map((code) => {
                     const course = catalog.get(code);
                     return course ? (
-                      <CourseCard key={code} course={course} column={name} columns={termNames} warning={warningFor(code, termIndex)} onMove={move} />
+                      <CourseCard key={code} course={course} column={name} columns={termNames} warning={warningFor(code, termIndex)} disabled={isLocked} onMove={move} />
                     ) : null;
                   })
                 )}
@@ -304,7 +332,7 @@ export function StudyPlanEditor({ plan, termNames, pool, passedGrades, prerequis
             ) : (
               poolCodes.map((code) => {
                 const course = catalog.get(code)!;
-                return <CourseCard key={code} course={course} column={POOL} columns={termNames} onMove={move} />;
+                return <CourseCard key={code} course={course} column={POOL} columns={termNames} disabled={isLocked} onMove={move} />;
               })
             )}
           </Column>
@@ -319,6 +347,7 @@ export function StudyPlanEditor({ plan, termNames, pool, passedGrades, prerequis
           <Form.Item label="Nội dung ghi chú" className="mb-0">
             <Input.TextArea
               value={note}
+              disabled={isLocked}
               onChange={(event) => {
                 setNote(event.target.value);
                 setIsDirty(true);

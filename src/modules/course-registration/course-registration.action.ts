@@ -6,6 +6,7 @@ import { and, asc, desc, eq, gt, inArray, isNull, lte, notInArray, sql } from "d
 import { alias } from "drizzle-orm/pg-core";
 import { db, type Transaction } from "@/shared/libs/db.lib";
 import { actionError, actionFailure, actionOk, parseInput, type ActionResult } from "@/shared/libs/action.lib";
+import { daysUntil } from "@/shared/libs/date.lib";
 import { isUuid } from "@/shared/libs/id.lib";
 import {
   ADMIN_REGISTER_SCHEMA,
@@ -54,6 +55,7 @@ import { requirePermission } from "@/modules/access/access.query";
 import { courseRelations, courses, faculties, majors } from "@/modules/curriculum/curriculum.schema";
 import { academicWarnings, courseResults } from "@/modules/grades/grades.schema";
 import { regulations } from "@/modules/settings/settings.schema";
+import { invoiceLines, payments, tuitionInvoices } from "@/modules/tuition/tuition.schema";
 import { getCurrentStudent, getStudent } from "@/modules/users/users.query";
 import type { ClassSectionView, RegistrationHold, RegistrationPeriodView } from "@/modules/course-registration/course-registration.type";
 import type { Student } from "@/modules/users/users.type";
@@ -115,9 +117,9 @@ async function eligibilityOf({ student, termId, registered }: Registration, plan
 }
 
 async function loadRegistration(): Promise<Registration | string> {
-  const [student, term] = await Promise.all([getCurrentStudent(), getRegistrationTargetTerm()]);
+  const [student, term, currentTerm] = await Promise.all([getCurrentStudent(), getRegistrationTargetTerm(), getCurrentTerm()]);
   const now = new Date();
-  const [[period], [hold], sections, rows] = await Promise.all([
+  const [[period], [hold], [invoice], sections, rows] = await Promise.all([
     db
       .select({ id: registrationPeriods.id })
       .from(registrationPeriods)
@@ -135,6 +137,15 @@ async function loadRegistration(): Promise<Registration | string> {
       .from(registrationHolds)
       .where(and(eq(registrationHolds.studentId, student.id), eq(registrationHolds.blocking, true), isNull(registrationHolds.releasedAt)))
       .limit(1),
+    // Học phí học kỳ đang học còn nợ: tổng các khoản trừ miễn giảm (không âm), trừ số đã nộp.
+    db
+      .select({
+        dueDate: tuitionInvoices.dueDate,
+        balance: sql<number>`greatest(0, (SELECT coalesce(sum(${invoiceLines.amount}), 0) FROM ${invoiceLines} WHERE ${invoiceLines.invoiceId} = ${tuitionInvoices.id}) - ${tuitionInvoices.discount})
+          - (SELECT coalesce(sum(${payments.amount}), 0) FROM ${payments} WHERE ${payments.invoiceId} = ${tuitionInvoices.id})`.mapWith(Number),
+      })
+      .from(tuitionInvoices)
+      .where(and(eq(tuitionInvoices.studentId, student.id), eq(tuitionInvoices.termId, currentTerm.id))),
     getClassSections(term.id),
     db
       .select({ sectionId: enrollments.classSectionId })
@@ -143,6 +154,10 @@ async function loadRegistration(): Promise<Registration | string> {
   ]);
   if (!period) return `Ngoài thời gian đăng ký của khóa ${student.cohort}.`;
   if (hold) return `Tài khoản đang bị khóa đăng ký: ${hold.reason}`;
+  // Cùng điều kiện với khóa "học phí quá hạn" trang đăng ký hiển thị: còn nợ và đã qua ngày hạn nộp.
+  if (invoice && invoice.balance > 0 && daysUntil(invoice.dueDate) < 0) {
+    return `Học phí ${currentTerm.shortName} quá hạn, còn nợ ${invoice.balance.toLocaleString("vi-VN")} đ. Nộp đủ học phí để mở khóa đăng ký.`;
+  }
   const registeredIds = new Set(rows.map((row) => row.sectionId));
   return { student, termId: term.id, sections, registered: sections.filter((section) => registeredIds.has(section.id)) };
 }

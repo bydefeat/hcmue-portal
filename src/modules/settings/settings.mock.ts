@@ -63,7 +63,7 @@ export const CALENDAR_EVENTS: CalendarEvent[] = [
   range(mockTermId("hk1-2026"), "grading", "Nhập điểm và chốt điểm", "2027-01-04", "2027-01-26", "Giảng viên"),
   range(mockTermId("hk1-2026"), "grading", "Công bố điểm học kỳ 1", "2027-01-30", "2027-01-30"),
   range(mockTermId("hk2-2026"), "registration", "Đăng ký học phần đợt 1, khóa 48 và 49", DAY(-4), DAY(1), "Khóa 48, 49"),
-  range(mockTermId("hk2-2026"), "registration", "Đăng ký học phần đợt 2, khóa 50 và 51", DAY(5), DAY(11), "Khóa 50, 51"),
+  range(mockTermId("hk2-2026"), "registration", "Đăng ký học phần đợt 2, khóa 50 và 51", DAY(-1), DAY(6), "Khóa 50, 51"),
   range(mockTermId("hk2-2026"), "holiday", "Nghỉ Tết Nguyên đán", "2027-02-01", "2027-02-14"),
   range(mockTermId("hk2-2026"), "teaching", "Tuần học 1 đến 15", "2027-02-22", "2027-06-06"),
   range(mockTermId("hk2-2026"), "holiday", "Nghỉ lễ 30/4 và 1/5", "2027-04-30", "2027-05-03"),

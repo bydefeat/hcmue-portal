@@ -27,7 +27,7 @@ export function ErrorState({
   return (
     <Card role="alert">
       <Result
-        icon={<Illustration name="error" className="mx-auto w-44" />}
+        icon={<Illustration name="error" className="mx-auto w-48 sm:w-60" />}
         title={<h1 className="text-xl font-semibold">{title}</h1>}
         subTitle={
           <span className="flex flex-col items-center gap-1">

@@ -17,7 +17,7 @@ export function NotFoundState({
   return (
     <Card>
       <Result
-        icon={<Illustration name="not-found" className="mx-auto w-44" />}
+        icon={<Illustration name="not-found" className="mx-auto w-48 sm:w-60" />}
         title={<h1 className="text-xl font-semibold">{title}</h1>}
         subTitle={description}
         extra={

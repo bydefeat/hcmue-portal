@@ -11,7 +11,7 @@ type EmptyStateProps = {
 export function EmptyState({ title, description, illustration = "inbox", action }: EmptyStateProps) {
   return (
     <Empty
-      image={<Illustration name={illustration} className="mx-auto w-32" />}
+      image={<Illustration name={illustration} className="mx-auto w-36 sm:w-40" />}
       classNames={{ root: "px-4 py-8", image: "h-auto mb-3" }}
       description={
         <span className="flex flex-col items-center gap-1">

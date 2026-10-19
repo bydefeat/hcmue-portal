@@ -79,7 +79,7 @@ export default async function Page() {
           <SectionCard title={`Đợt đăng ký ${targetTerm.shortName}`} flush>
             <ul className="flex flex-col divide-y divide-border-strong">
               {periods.map((period) => (
-                <li key={period.id} className="flex flex-col gap-1 px-4 py-3">
+                <li key={period.id} className="flex flex-col gap-1 px-4 sm:px-5 py-3">
                   <span className="flex items-start justify-between gap-2">
                     <span className="font-medium text-pretty">{period.name}</span>
                     <StatusTag status={REGISTRATION_PERIOD_STATE[period.state]} className="shrink-0" />
@@ -98,7 +98,7 @@ export default async function Page() {
           <SectionCard title="Lịch đào tạo sắp tới" flush>
             <ul className="flex flex-col divide-y divide-border-strong">
               {upcoming.map((event) => (
-                <li key={event.id} className="flex flex-col gap-1 px-4 py-3">
+                <li key={event.id} className="flex flex-col gap-1 px-4 sm:px-5 py-3">
                   <span className="text-pretty">{event.title}</span>
                   <span className="text-xs text-muted tabular-nums">
                     {CALENDAR_EVENT_LABEL[event.kind]} ·{" "}

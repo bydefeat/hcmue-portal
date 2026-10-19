@@ -31,7 +31,10 @@ export default async function Page() {
   ]);
   const passedGrades = bestGrades(transcript);
   const prerequisites = Object.fromEntries(courses.map((course) => [course.code, course.prerequisiteCodes]));
-  const inProgress = new Set(pickTimetable(enrollments, passedGrades, { faculty: student.faculty, prerequisites }).map(({ section }) => section.courseCode));
+  const inProgress = new Set([
+    ...pickTimetable(enrollments, passedGrades, { faculty: student.faculty, prerequisites }).map(({ section }) => section.courseCode),
+    ...transcript.filter((entry) => entry.isInProgress).flatMap((entry) => entry.courses.map((course) => course.courseCode)),
+  ]);
   const isOpenCourse = (code: string) => (!passedGrades[code] || passedGrades[code] === "F") && !inProgress.has(code);
   const plannedCodes = new Set(plan?.terms.flatMap((entry) => entry.courses.map((course) => course.code)) ?? []);
   const pool = (program?.semesters.flatMap((semester) => semester.courses) ?? [])

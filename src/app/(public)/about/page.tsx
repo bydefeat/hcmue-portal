@@ -60,7 +60,7 @@ export default async function Page() {
           <SectionCard title="Quy chế đang áp dụng" flush>
             <ul className="flex flex-col divide-y divide-border-strong">
               {versions.map((version, index) => (
-                <li key={version.version} className="flex flex-col gap-1 px-4 py-3">
+                <li key={version.version} className="flex flex-col gap-1 px-4 sm:px-5 py-3">
                   <span className="flex flex-wrap items-center gap-2">
                     <span className="font-medium">Phiên bản {version.version}</span>
                     {index === 0 && <span className="text-xs text-primary">Hiện hành</span>}

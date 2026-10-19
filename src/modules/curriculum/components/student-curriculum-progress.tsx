@@ -77,7 +77,7 @@ export function StudentCurriculumProgress({ program, progress, earnedCredits }: 
                     const view = STATUS_VIEW[entry.status];
                     const Icon = view.icon;
                     return (
-                      <li key={course.code} className="flex items-start gap-3 px-4 py-2.5">
+                      <li key={course.code} className="flex items-start gap-3 px-4 sm:px-5 py-2.5">
                         <Icon size={16} aria-hidden className={`mt-0.5 shrink-0 ${view.className}`} />
                         <span className="flex min-w-0 flex-1 flex-col">
                           <span className="text-pretty">{course.name}</span>

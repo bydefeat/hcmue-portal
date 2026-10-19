@@ -244,7 +244,7 @@ export function LecturerExamBoard({ lecturerId, teaching, proctoring, teachingSl
           ) : (
             <ul className="flex flex-col divide-y divide-border-strong">
               {teaching.map((exam) => (
-                <li key={exam.id} className="flex flex-col gap-2 px-4 py-3">
+                <li key={exam.id} className="flex flex-col gap-2 px-4 sm:px-5 py-3">
                   <ClassCell exam={exam} />
                   <WhenCell exam={exam} />
                   <span className="text-xs text-muted tabular-nums">
@@ -278,7 +278,7 @@ export function LecturerExamBoard({ lecturerId, teaching, proctoring, teachingSl
           ) : (
             <ul className="flex flex-col divide-y divide-border-strong">
               {proctoring.map((exam) => (
-                <li key={exam.id} className="flex flex-col gap-2 px-4 py-3">
+                <li key={exam.id} className="flex flex-col gap-2 px-4 sm:px-5 py-3">
                   <WhenCell exam={exam} />
                   <ClassCell exam={exam} />
                   <span className="text-xs text-muted">Cùng coi thi: {partnersText(exam)}</span>

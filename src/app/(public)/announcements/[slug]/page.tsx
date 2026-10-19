@@ -57,7 +57,7 @@ export default async function Page({ params }: PageProps) {
         </SectionCard>
         <SectionCard title="Cùng nhóm" flush>
           {related.length === 0 ? (
-            <p className="px-4 py-3 text-sm text-muted">Chưa có thông báo khác cùng nhóm.</p>
+            <p className="px-4 sm:px-5 py-3 text-sm text-muted">Chưa có thông báo khác cùng nhóm.</p>
           ) : (
             <ul className="flex flex-col divide-y divide-border-strong">
               {related.map((entry) => (

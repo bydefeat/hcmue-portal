@@ -415,7 +415,7 @@ export function StudentRegistration({
             ) : (
               <ul className="flex flex-col divide-y divide-border-strong">
                 {registered.map((section) => (
-                  <li key={section.id} className="flex items-start gap-3 px-4 py-3">
+                  <li key={section.id} className="flex items-start gap-3 px-4 sm:px-5 py-3">
                     <span className="flex min-w-0 flex-1 flex-col">
                       <span className="truncate font-medium">{section.courseName}</span>
                       <span className="text-xs text-muted">
@@ -435,7 +435,7 @@ export function StudentRegistration({
                   </li>
                 ))}
                 {planned.map((section) => (
-                  <li key={section.id} className="flex items-start gap-3 px-4 py-3">
+                  <li key={section.id} className="flex items-start gap-3 px-4 sm:px-5 py-3">
                     <span className="flex min-w-0 flex-1 flex-col">
                       <span className="truncate font-medium">{section.courseName}</span>
                       <span className="text-xs text-muted">
@@ -468,7 +468,7 @@ export function StudentRegistration({
                 ))}
               </ul>
             )}
-            <div className="hidden flex-col gap-2 border-t border-border-strong px-4 py-3 lg:flex">
+            <div className="hidden flex-col gap-2 border-t border-border-strong px-4 sm:px-5 py-3 lg:flex">
               {creditSummary}
               <MeterBar value={basketCredits} max={credits.max} tone={basketCredits < credits.min ? "warning" : "primary"} label="Số tín chỉ đã chọn" />
               {blockReason && isOpen && <span className={`text-xs text-pretty ${planned.length === 0 ? "text-muted" : "text-amber-700"}`}>{blockReason}</span>}

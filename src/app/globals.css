@@ -37,3 +37,35 @@
   * { scrollbar-width: thin; scrollbar-color: transparent transparent; }
   *:hover { scrollbar-color: color-mix(in srgb, var(--foreground) 18%, transparent) transparent; }
 }
+
+@layer components {
+  .ant-card:not(.ant-card-small) > .ant-card-head,
+  .ant-card:not(.ant-card-small) > .ant-card-body {
+    padding-inline: 16px;
+  }
+
+  .ant-card:not(.ant-card-small) > .ant-card-body {
+    padding-block: 16px;
+  }
+
+  .ant-card-body > .ant-collapse-borderless > .ant-collapse-item > .ant-collapse-header,
+  .ant-card-body > .ant-collapse-borderless > .ant-collapse-item > .ant-collapse-panel > .ant-collapse-body {
+    padding-inline: 16px;
+  }
+
+  @media (width >= 40rem) {
+    .ant-card:not(.ant-card-small) > .ant-card-head,
+    .ant-card:not(.ant-card-small) > .ant-card-body {
+      padding-inline: 20px;
+    }
+
+    .ant-card:not(.ant-card-small) > .ant-card-body {
+      padding-block: 20px;
+    }
+
+    .ant-card-body > .ant-collapse-borderless > .ant-collapse-item > .ant-collapse-header,
+    .ant-card-body > .ant-collapse-borderless > .ant-collapse-item > .ant-collapse-panel > .ant-collapse-body {
+      padding-inline: 20px;
+    }
+  }
+}

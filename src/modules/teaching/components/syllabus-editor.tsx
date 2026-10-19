@@ -381,7 +381,7 @@ export function SyllabusEditor({ syllabus: initial, gradeComponents, classCode }
                 const component = gradeComponents.find((entry) => entry.key === row.key);
                 const isMismatch = !component || component.weight !== row.weight;
                 return (
-                  <li key={row.key} className="flex flex-col gap-1 px-4 py-3">
+                  <li key={row.key} className="flex flex-col gap-1 px-4 sm:px-5 py-3">
                     <span className="flex items-baseline justify-between gap-2">
                       <span className="font-medium">{row.label}</span>
                       <span className="tabular-nums">{row.weight}%</span>
@@ -403,7 +403,7 @@ export function SyllabusEditor({ syllabus: initial, gradeComponents, classCode }
         <Table rowKey="week" size="small" columns={WEEK_COLUMNS} dataSource={syllabus.weeks} pagination={false} scroll={{ x: 800 }} className="hidden md:block" />
         <ul className="flex flex-col divide-y divide-border-strong md:hidden">
           {syllabus.weeks.map((week) => (
-            <li key={week.week} className="flex flex-col gap-1 px-4 py-3">
+            <li key={week.week} className="flex flex-col gap-1 px-4 sm:px-5 py-3">
               <span className="text-xs text-muted tabular-nums">Tuần {week.week}</span>
               <span className="text-sm text-pretty">{week.topic || <span className="text-muted">Chưa nhập</span>}</span>
               {week.activities && <span className="text-xs text-pretty text-muted">{week.activities}</span>}

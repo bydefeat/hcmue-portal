@@ -1,0 +1,1 @@
+ALTER TABLE "advising_appointments" ADD CONSTRAINT "advising_appointments_done_note" CHECK ("advising_appointments"."status" <> 'done' OR "advising_appointments"."note" IS NOT NULL);

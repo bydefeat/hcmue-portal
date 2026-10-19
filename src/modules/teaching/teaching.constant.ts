@@ -21,6 +21,7 @@ export const TEACHING_CONSTRAINT_MESSAGE: Partial<Record<string, string>> = {
   syllabus_weeks_week_range: "Tuần học phải từ 1 đến 20.",
   syllabus_assessments_syllabus_id_key_unique: "Hai hình thức đánh giá trùng nhau.",
   syllabus_assessments_weight_range: "Trọng số mỗi hình thức đánh giá từ 1% đến 100%.",
+  syllabus_assessments_weights_total_100: "Tổng trọng số các hình thức đánh giá phải bằng 100%.",
   class_announcement_reads_announcement_fk: "Thông báo đã bị giảng viên xóa.",
 };
 

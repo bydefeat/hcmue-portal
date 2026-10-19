@@ -12,6 +12,11 @@
 
 # testing
 /coverage
+# kết quả và phiên đăng nhập lưu tạm của Playwright (e2e)
+/e2e/.output/
+/e2e/.auth/
+/test-results/
+/playwright-report/
 
 # next.js
 /.next/

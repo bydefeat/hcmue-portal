@@ -257,7 +257,7 @@ describe("seed khớp dữ liệu mẫu: giảng dạy, kế hoạch học tập
     assert.equal(await total(studyPlans), STUDY_PLANS.length);
     const [current] = await db.select({ status: studyPlans.status }).from(studyPlans).where(eq(studyPlans.id, mockId("study-plan:12")));
     assert.equal(current?.status, STUDY_PLANS.find((plan) => plan.studentId === CURRENT_STUDENT_ID)?.status);
-    // Sinh viên khóa 50 đang học học kỳ 5 của chương trình CNTT 2023: kế hoạch lấy học kỳ 6, 7, 8 (bỏ học phần đã ngừng mở).
+    // Sinh viên khóa 50 đang học học kỳ 5 của chương trình CNTT 2023: kế hoạch lấy học kỳ 6, 7, 8, mỗi kỳ đủ 14 tín chỉ.
     const items = await db
       .select({ code: courses.code, academicYear: studyPlanItems.academicYear, semester: studyPlanItems.semester })
       .from(studyPlanItems)
@@ -266,7 +266,11 @@ describe("seed khớp dữ liệu mẫu: giảng dạy, kế hoạch học tập
       .orderBy(courses.code);
     assert.deepEqual(
       items.map((item) => `${item.code}@${item.academicYear}.${item.semester}`),
-      ["COMP1130@2026.2", "COMP4900@2027.1", "COMP4990@2027.2", "EDUC1002@2026.2"],
+      [
+        ...["COMP1140", "COMP1150", "COMP1160", "COMP1170", "COMP1180"].map((code) => `${code}@2026.2`),
+        ...["COMP1190", "COMP1200", "COMP1210", "COMP1220", "COMP1230", "COMP1240"].map((code) => `${code}@2027.1`),
+        ...["COMP1250", "COMP1260", "COMP1270", "COMP1280", "COMP4990"].map((code) => `${code}@2027.2`),
+      ],
     );
   });
 

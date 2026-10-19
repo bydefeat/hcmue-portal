@@ -1,3 +1,5 @@
+import { MOCK_MAJORS } from "@/shared/libs/mock.lib";
+import { mockCourseSequence } from "@/shared/libs/mock-course.lib";
 import type { Course, CourseType, KnowledgeBlock, Program, ProgramCourse } from "@/modules/curriculum/curriculum.type";
 
 type CourseSeed = [code: string, name: string, credits: number, faculty: string, type: CourseType, block: KnowledgeBlock, prerequisites?: string[]];
@@ -59,6 +61,31 @@ const COURSE_SEEDS: CourseSeed[] = [
   ["COMP0999", "Tin học văn phòng nâng cao", 2, IT, "elective", "general"],
 ];
 
+const FACULTY_BY_PREFIX: Record<string, string> = {
+  POLI: POLITICS,
+  EDUC: EDUCATION,
+  COMP: IT,
+  MATH,
+  LITR: LITERATURE,
+  ENGL: ENGLISH,
+  PHYS: PHYSICS,
+  PSYC: PSYCHOLOGY,
+};
+
+// Học phần có trong bảng điểm mẫu (mock-course.lib) nhưng chưa khai báo ở trên. Thêm vào danh mục để khung chương trình
+// của mỗi ngành đủ học phần cho cả khóa; mã đã khai báo ở trên giữ tên và số tín chỉ ở trên.
+const DECLARED = new Set(COURSE_SEEDS.map(([code]) => code));
+const TRANSCRIPT_SEEDS: CourseSeed[] = [
+  ...new Map(
+    MOCK_MAJORS.flatMap((major) => mockCourseSequence(major.code))
+      .filter(([code]) => !DECLARED.has(code))
+      .map(([code, name, credits]): [string, CourseSeed] => {
+        const internship = code[4] === "4";
+        return [code, [code, name, credits, FACULTY_BY_PREFIX[code.slice(0, 4)], internship || credits >= 3 ? "required" : "elective", internship ? "internship" : "major"]];
+      }),
+  ).values(),
+];
+
 const COREQUISITES: Record<string, string[]> = {
   COMP1121: ["COMP1120"],
   MATH2020: ["EDUC1002"],
@@ -76,7 +103,7 @@ const DESCRIPTIONS: Record<string, string> = {
   COMP1080: "Tìm kiếm trong không gian trạng thái, biểu diễn tri thức, suy diễn và nhập môn học máy.",
 };
 
-export const COURSES: Course[] = COURSE_SEEDS.map(([code, name, credits, faculty, type, block, prerequisites = []]) => {
+export const COURSES: Course[] = [...COURSE_SEEDS, ...TRANSCRIPT_SEEDS].map(([code, name, credits, faculty, type, block, prerequisites = []]) => {
   const practiceCredits = code.startsWith("COMP") && credits >= 3 ? 1 : 0;
   return {
     id: code.toLowerCase(),
@@ -107,25 +134,11 @@ export const PROGRAMS: Program[] = [
   { id: "ctdt-cntt-2019", code: "7480201", name: "Công nghệ thông tin (2019)", majorCode: "104", faculty: IT, degree: "Cử nhân", totalCredits: 135, durationYears: 4, cohorts: [45, 46, 47], status: "archived", updatedAt: "2023-07-10" },
 ];
 
-function semesters(plan: [semester: number, codes: string[]][]): ProgramCourse[] {
-  return plan.flatMap(([semester, codes]) => codes.map((courseCode) => ({ courseCode, semester })));
-}
-
-export const PROGRAM_COURSES: Record<string, ProgramCourse[]> = {
-  "ctdt-cntt-2023": semesters([
-    [1, ["POLI1001", "ENGL1001", "MATH1011", "MATH1012", "COMP1010", "COMP1013"]],
-    [2, ["POLI1002", "ENGL1002", "MATH1020", "MATH1013", "COMP1020", "COMP1031"]],
-    [3, ["POLI1003", "PSYC1001", "COMP1040", "COMP1050", "COMP1060"]],
-    [4, ["POLI1004", "EDUC1001", "COMP1070", "COMP1080", "COMP1090"]],
-    [5, ["POLI1005", "COMP1100", "COMP1110", "COMP1120"]],
-    [6, ["EDUC1002", "COMP1130", "COMP0999"]],
-    [7, ["COMP4900"]],
-    [8, ["COMP4990"]],
+// Khung chương trình của các chương trình đang áp dụng: học phần theo đúng thứ tự sinh viên mẫu đã học
+// (mockCourseSequence), chia đều cho các học kỳ của khóa, để bảng điểm, kế hoạch học tập và xét tốt nghiệp khớp nhau.
+export const PROGRAM_COURSES: Record<string, ProgramCourse[]> = Object.fromEntries(
+  PROGRAMS.filter((program) => program.status === "active").map((program) => [
+    program.id,
+    mockCourseSequence(program.majorCode).map(([courseCode], position, all) => ({ courseCode, semester: Math.floor((position * program.durationYears * 2) / all.length) + 1 })),
   ]),
-  "ctdt-sptoan-2023": semesters([
-    [1, ["POLI1001", "ENGL1001", "MATH1011", "MATH1012", "PSYC1001"]],
-    [2, ["POLI1002", "ENGL1002", "MATH2001", "MATH1020", "EDUC1001"]],
-    [3, ["POLI1003", "MATH1013", "MATH2010", "COMP1010"]],
-    [4, ["POLI1004", "POLI1005", "MATH2020", "EDUC1002"]],
-  ]),
-};
+);

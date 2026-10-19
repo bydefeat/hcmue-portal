@@ -4,7 +4,6 @@ import { dayjs } from "@/shared/libs/date.lib";
 import { mockDate, mockId } from "@/shared/libs/mock.lib";
 import { CLASS_SECTIONS } from "@/modules/course-registration/course-registration.mock";
 import { enrollments } from "@/modules/course-registration/course-registration.schema";
-import { courses } from "@/modules/curriculum/curriculum.schema";
 import { weightedScore } from "@/modules/grades/grades.constant";
 import {
   CURRENT_TERM,
@@ -20,23 +19,11 @@ import {
 } from "@/modules/grades/grades.mock";
 import { buildTranscript, computeStanding, courseGrade, warningReasons } from "@/modules/grades/grades.rule";
 import { academicWarnings, courseResults, gradeComponents, gradeScores, gradeSheets } from "@/modules/grades/grades.schema";
-import type { GradeSheetStatus, TranscriptCourse } from "@/modules/grades/grades.type";
+import type { GradeSheetStatus } from "@/modules/grades/grades.type";
 import { STUDENTS } from "@/modules/users/users.mock";
 import type { SeedContext } from "./context";
 
 const GRADUATING_COHORT = 48;
-
-// Học phần trong bảng điểm mẫu mà danh mục chưa có (học phần chuyên ngành các khóa trước) thuộc khoa theo tiền tố mã.
-const FACULTY_BY_PREFIX: Record<string, string> = {
-  POLI: "Khoa Lý luận chính trị",
-  EDUC: "Khoa Khoa học Giáo dục",
-  COMP: "Khoa Công nghệ Thông tin",
-  MATH: "Khoa Toán - Tin học",
-  LITR: "Khoa Ngữ văn",
-  ENGL: "Khoa Tiếng Anh",
-  PHYS: "Khoa Vật lý",
-  PSYC: "Khoa Tâm lý học",
-};
 
 async function insertChunks<T>(rows: T[], insert: (chunk: T[]) => Promise<unknown>, size = 1000) {
   for (let start = 0; start < rows.length; start += size) await insert(rows.slice(start, start + size));
@@ -47,32 +34,6 @@ async function insertChunks<T>(rows: T[], insert: (chunk: T[]) => Promise<unknow
 export async function seedGrades(tx: Transaction, context: SeedContext) {
   // STUDENTS[index] là sinh viên mockId(`student:${index}`).
   const transcripts = STUDENTS.map((student, index) => ({ student, index, terms: mockTranscriptTerms(index).filter((term) => !term.isInProgress) }));
-
-  const missing = new Map<string, TranscriptCourse>();
-  for (const { terms } of transcripts) {
-    for (const course of terms.flatMap((term) => term.courses)) {
-      if (!context.courseByCode.has(course.courseCode)) missing.set(course.courseCode, course);
-    }
-  }
-  if (missing.size > 0) {
-    await tx
-      .insert(courses)
-      .values(
-        [...missing.values()].map((course) => ({
-          code: course.courseCode,
-          name: course.courseName,
-          credits: course.credits,
-          theoryCredits: course.credits,
-          practiceCredits: 0,
-          facultyId: context.facultyByName.get(FACULTY_BY_PREFIX[course.courseCode.slice(0, 4)])!.id,
-          type: "elective" as const,
-          block: "major" as const,
-        })),
-      )
-      .onConflictDoNothing({ target: courses.code });
-    const added = await tx.select().from(courses).where(inArray(courses.code, [...missing.keys()]));
-    for (const row of added) context.courseByCode.set(row.code, row);
-  }
 
   const termById = new Map([...context.termByKey.values()].map((term) => [term.id, term]));
 
@@ -195,5 +156,5 @@ export async function seedGrades(tx: Transaction, context: SeedContext) {
   }
   await insertChunks(published, (chunk) => tx.insert(courseResults).values(chunk));
 
-  return { results: results.length + published.length, addedCourses: missing.size, sheets: sheets.length, scores: scores.length, warnings: warnings.length };
+  return { results: results.length + published.length, sheets: sheets.length, scores: scores.length, warnings: warnings.length };
 }

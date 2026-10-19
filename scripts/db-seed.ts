@@ -6,6 +6,10 @@ import type { SeedContext } from "./seed/context";
 import { seedPeople } from "./seed/people.seed";
 import { seedRegistration } from "./seed/registration.seed";
 import { seedSettings } from "./seed/settings.seed";
+import { seedTuition } from "./seed/tuition.seed";
+import { seedAnnouncements } from "./seed/announcements.seed";
+import { seedNotifications } from "./seed/notifications.seed";
+import { seedAudit } from "./seed/audit.seed";
 
 if (process.env.NODE_ENV === "production") throw new Error("Không chạy seed trên môi trường production");
 
@@ -22,6 +26,10 @@ async function main() {
     const people = await seedPeople(tx, context);
     const registration = await seedRegistration(tx, context);
     await seedSettings(tx, context);
+    await seedTuition(tx, context);
+    await seedAnnouncements(tx, context);
+    await seedNotifications(tx, context);
+    await seedAudit(tx, context);
     return { catalog, people, registration };
   });
   const { catalog, people, registration } = summary;

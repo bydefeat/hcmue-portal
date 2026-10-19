@@ -209,6 +209,7 @@ PostgreSQL 18.4, khoá chính `uuid` mặc định `uuidv7()`. Ràng buộc đ�
 
 ### Giai đoạn 10 — Phần còn lại
 - Học phí (hoá đơn, thanh toán), khảo sát ẩn danh, xét tốt nghiệp, thông báo, audit log, cảnh báo học vụ tự động (*cần ngưỡng của trường*), báo cáo và nhập / xuất Excel.
+- Đã nối DB: học phí (hóa đơn theo tín chỉ đăng ký, thanh toán), thông báo cá nhân (đánh dấu đã đọc), thông báo công khai (đăng, hẹn giờ, sửa, ghim, gỡ), nhật ký thao tác (`recordAudit` trong `audit.lib.ts`), quy chế theo phiên bản, lịch năm học, lịch sử xuất báo cáo. Còn lại: tải tệp báo cáo (chưa có nơi lưu tệp), ghi nhận thanh toán từ ngân hàng.
 
 ### Giai đoạn 11 — Hoàn thiện
 - Xoá toàn bộ mock (`mock*.lib.ts`, `*.mock.ts`), test end-to-end các luồng chính, cấu hình triển khai.

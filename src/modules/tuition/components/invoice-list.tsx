@@ -79,7 +79,7 @@ export function InvoiceList({ invoices, studentCode }: { invoices: TuitionInvoic
       {outstanding.length === 0 && <Alert type="success" showIcon title="Bạn đã nộp đủ học phí các học kỳ" />}
       {outstanding.map((invoice) => {
         const due = dueText(invoice);
-        const content = transferContent(studentCode, invoice.termId);
+        const content = transferContent(studentCode, invoice.termKey);
         return (
           <SectionCard key={invoice.id}>
             <div className="flex flex-col gap-4">

@@ -1,11 +1,11 @@
-import { mockDate } from "@/shared/libs/mock.lib";
+import { mockDate, mockId } from "@/shared/libs/mock.lib";
 import type { Announcement } from "@/modules/announcements/announcements.type";
 
 const AUTHOR = "Phòng Đào tạo";
 
 export const ANNOUNCEMENTS: Announcement[] = [
   {
-    id: "tb-01",
+    id: mockId("announcement:tb-01"),
     slug: "dang-ky-hoc-phan-hk2-2026-2027-dot-1",
     title: "Đăng ký học phần học kỳ 2, năm học 2026-2027, đợt 1 cho khóa 48 và 49",
     category: "registration",
@@ -21,7 +21,7 @@ export const ANNOUNCEMENTS: Announcement[] = [
     views: 2184,
   },
   {
-    id: "tb-02",
+    id: mockId("announcement:tb-02"),
     slug: "lich-thi-giua-ky-hk1-2026-2027",
     title: "Lịch thi giữa kỳ học kỳ 1, năm học 2026-2027",
     category: "exam",
@@ -36,7 +36,7 @@ export const ANNOUNCEMENTS: Announcement[] = [
     views: 1520,
   },
   {
-    id: "tb-03",
+    id: mockId("announcement:tb-03"),
     slug: "hoc-phi-hk1-2026-2027",
     title: "Thông báo thu học phí học kỳ 1, năm học 2026-2027",
     category: "tuition",
@@ -51,7 +51,7 @@ export const ANNOUNCEMENTS: Announcement[] = [
     views: 3310,
   },
   {
-    id: "tb-04",
+    id: mockId("announcement:tb-04"),
     slug: "canh-bao-hoc-vu-hk2-2025-2026",
     title: "Danh sách sinh viên bị cảnh báo học vụ học kỳ 2, năm học 2025-2026",
     category: "academic",
@@ -66,7 +66,7 @@ export const ANNOUNCEMENTS: Announcement[] = [
     views: 864,
   },
   {
-    id: "tb-05",
+    id: mockId("announcement:tb-05"),
     slug: "dang-ky-hoc-phan-hk2-2026-2027-dot-2",
     title: "Đăng ký học phần học kỳ 2, năm học 2026-2027, đợt 2 cho khóa 50 và 51",
     category: "registration",
@@ -81,7 +81,7 @@ export const ANNOUNCEMENTS: Announcement[] = [
     views: 0,
   },
   {
-    id: "tb-06",
+    id: mockId("announcement:tb-06"),
     slug: "hoi-thao-nghien-cuu-khoa-hoc-sinh-vien-2026",
     title: "Hội thảo nghiên cứu khoa học sinh viên năm 2026",
     category: "event",
@@ -96,7 +96,7 @@ export const ANNOUNCEMENTS: Announcement[] = [
     views: 0,
   },
   {
-    id: "tb-07",
+    id: mockId("announcement:tb-07"),
     slug: "ke-hoach-hoc-tap-hk2-2026-2027",
     title: "Sinh viên nộp kế hoạch học tập học kỳ 2 cho cố vấn trước khi đăng ký học phần",
     category: "academic",
@@ -111,7 +111,7 @@ export const ANNOUNCEMENTS: Announcement[] = [
     views: 1290,
   },
   {
-    id: "tb-08",
+    id: mockId("announcement:tb-08"),
     slug: "dieu-chinh-dang-ky-hk1-2026-2027",
     title: "Điều chỉnh đăng ký học phần học kỳ 1, năm học 2026-2027",
     category: "registration",

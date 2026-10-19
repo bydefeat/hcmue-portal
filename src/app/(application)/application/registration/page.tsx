@@ -77,17 +77,7 @@ export default async function Page() {
     initialPlanned.push(section);
   }
 
-  const [currentInvoice] = await getInvoices({
-    majorCode: student.majorCode,
-    terms: [
-      {
-        termId: currentTerm.id,
-        termName: currentTerm.name,
-        isCurrent: true,
-        courses: timetable.map(({ section }) => ({ code: section.courseCode, name: section.courseName, credits: section.credits })),
-      },
-    ],
-  });
+  const currentInvoice = (await getInvoices(student.id)).find((invoice) => invoice.termId === currentTerm.id);
   const tuitionHold: RegistrationHold | null =
     currentInvoice && currentInvoice.balance > 0
       ? {

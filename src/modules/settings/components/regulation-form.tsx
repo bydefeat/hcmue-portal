@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import { Button, Card, DatePicker, Form, Input, InputNumber, message, Modal, Table } from "antd";
 import type { Dayjs } from "dayjs";
 import { StatusTag } from "@/shared/components/ui/status-tag";
 import { dayjs, formatDate, formatDateTime } from "@/shared/libs/date.lib";
+import { saveRegulation } from "@/modules/settings/settings.action";
 import type { RegulationSettings, RegulationVersion } from "@/modules/settings/settings.type";
 import { SectionCard } from "@/shared/components/ui/section-card";
 
@@ -13,7 +14,20 @@ type RegulationFormProps = {
   versions: RegulationVersion[];
 };
 
-type SaveValues = { reason: string; effectiveFrom: Dayjs };
+type SaveValues = { decision: string; reason: string; effectiveFrom: Dayjs };
+
+const SAVE_FIELDS = new Set(["decision", "reason", "effectiveFrom"]);
+
+// Lỗi theo ô từ server: "rules.credits.maxPerTerm" → ô ["credits", "maxPerTerm"] của form quy chế, còn lại thuộc hộp xác nhận.
+function splitFieldErrors(fieldErrors: Record<string, string> | undefined) {
+  const rules: { name: (string | number)[]; errors: string[] }[] = [];
+  const save: { name: keyof SaveValues; errors: string[] }[] = [];
+  for (const [path, error] of Object.entries(fieldErrors ?? {})) {
+    if (SAVE_FIELDS.has(path)) save.push({ name: path as keyof SaveValues, errors: [error] });
+    else if (path.startsWith("rules.")) rules.push({ name: path.slice(6).split(".").map((part) => (/^\d+$/.test(part) ? Number(part) : part)), errors: [error] });
+  }
+  return { rules, save };
+}
 
 function SectionDescription({ children }: { children: React.ReactNode }) {
   return <p className="mb-4 max-w-prose text-sm text-pretty text-muted">{children}</p>;
@@ -34,6 +48,8 @@ export function RegulationForm({ regulation, versions }: RegulationFormProps) {
   const [isDirty, setIsDirty] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [current, setCurrent] = useState(regulation);
+  const [history, setHistory] = useState(versions);
+  const [isSaving, startSaving] = useTransition();
 
   const submit = async () => {
     try {
@@ -51,18 +67,36 @@ export function RegulationForm({ regulation, versions }: RegulationFormProps) {
     }
   };
 
-  const save = (values: SaveValues) => {
-    const next = {
-      ...current,
-      ...form.getFieldsValue(true),
-      updatedAt: dayjs().toISOString(),
-      effectiveFrom: values.effectiveFrom.format("YYYY-MM-DD"),
-    };
-    setCurrent(next);
-    setIsDirty(false);
-    setConfirmOpen(false);
-    messageApi.success(`Đã lưu quy chế, áp dụng từ ${values.effectiveFrom.format("DD/MM/YYYY")}. Thay đổi được ghi vào nhật ký thao tác.`);
-  };
+  const save = (values: SaveValues) =>
+    startSaving(async () => {
+      const { grading, credits, warning, attendance, workflow } = form.getFieldsValue(true) as RegulationSettings;
+      const result = await saveRegulation({
+        rules: { grading, credits, warning, attendance, workflow },
+        decision: values.decision,
+        reason: values.reason,
+        effectiveFrom: values.effectiveFrom.format("YYYY-MM-DD"),
+      }).catch(() => null);
+      if (!result) {
+        messageApi.error("Chưa lưu được, kiểm tra kết nối rồi thử lại.");
+        return;
+      }
+      if (!result.ok) {
+        const { rules, save: saveErrors } = splitFieldErrors(result.fieldErrors);
+        if (rules.length > 0) {
+          form.setFields(rules as never);
+          setConfirmOpen(false);
+        }
+        saveForm.setFields(saveErrors);
+        messageApi.error(result.message);
+        return;
+      }
+      setCurrent(result.data.regulation);
+      setHistory(result.data.versions);
+      form.setFieldsValue(result.data.regulation);
+      setIsDirty(false);
+      setConfirmOpen(false);
+      messageApi.success(`Đã lưu quy chế ${result.data.regulation.version}, áp dụng từ ${values.effectiveFrom.format("DD/MM/YYYY")}. Thay đổi được ghi vào nhật ký thao tác.`);
+    });
 
   return (
     <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px] xl:items-start sm:gap-6">
@@ -158,7 +192,7 @@ export function RegulationForm({ regulation, versions }: RegulationFormProps) {
             <Button
               disabled={!isDirty}
               onClick={() => {
-                form.resetFields();
+                form.setFieldsValue(current);
                 setIsDirty(false);
               }}
             >
@@ -172,10 +206,10 @@ export function RegulationForm({ regulation, versions }: RegulationFormProps) {
       </Form>
 
       <aside className="flex flex-col gap-4">
-        <SectionCard title="Phiên bản đang áp dụng">
+        <SectionCard title="Phiên bản mới nhất">
           <div className="flex flex-col gap-2">
             <p className="text-sm">
-              {current.version}, từ <span className="tabular-nums">{formatDate(current.effectiveFrom)}</span>
+              {current.version}, áp dụng từ <span className="tabular-nums">{formatDate(current.effectiveFrom)}</span>
             </p>
             <p className="text-xs text-muted tabular-nums">
               Sửa lần cuối {formatDateTime(current.updatedAt)} bởi {current.updatedBy}
@@ -185,7 +219,7 @@ export function RegulationForm({ regulation, versions }: RegulationFormProps) {
         <SectionCard title="Lịch sử quy chế">
           <div className="flex flex-col gap-3">
             <ol className="flex flex-col gap-3">
-              {versions.map((version) => (
+              {history.map((version) => (
                 <li key={version.version} className="flex flex-col gap-0.5">
                   <span className="text-sm font-medium">
                     {version.version} · Quyết định {version.decision}
@@ -205,6 +239,7 @@ export function RegulationForm({ regulation, versions }: RegulationFormProps) {
         title="Lưu thay đổi quy chế"
         okText="Lưu quy chế"
         cancelText="Hủy"
+        okButtonProps={{ loading: isSaving }}
         onOk={() => saveForm.submit()}
         mask={{ closable: false }}
         destroyOnHidden
@@ -214,6 +249,9 @@ export function RegulationForm({ regulation, versions }: RegulationFormProps) {
           Quy chế mới ảnh hưởng đến xét cảnh báo, đăng ký học phần và quy đổi điểm của toàn trường. Ghi rõ căn cứ để lưu vào nhật ký.
         </p>
         <Form form={saveForm} layout="vertical" onFinish={save}>
+          <Form.Item name="decision" label="Số quyết định ban hành" rules={[{ required: true, whitespace: true, message: "Chưa nhập số quyết định" }]}>
+            <Input maxLength={60} placeholder="Ví dụ: 2412/QĐ-ĐHSP" />
+          </Form.Item>
           <Form.Item name="reason" label="Căn cứ, lý do thay đổi" rules={[{ required: true, whitespace: true, message: "Chưa nhập căn cứ thay đổi" }]}>
             <Input.TextArea autoSize={{ minRows: 2, maxRows: 4 }} maxLength={300} showCount className="mb-2" />
           </Form.Item>

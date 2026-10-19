@@ -1,49 +1,48 @@
 import { dayjs } from "@/shared/libs/date.lib";
-import { mockDate } from "@/shared/libs/mock.lib";
-import { PRICE_PER_CREDIT, TEACHER_TRAINING_PRICE } from "@/modules/tuition/tuition.constant";
-import type { CourseCharge, TuitionInvoice } from "@/modules/tuition/tuition.type";
+import { createRandom, mockDate, mockId } from "@/shared/libs/mock.lib";
+import { invoiceTotal } from "@/modules/tuition/tuition.rule";
+import type { InvoiceLine } from "@/modules/tuition/tuition.type";
 
-const HEALTH_INSURANCE = 1_263_600;
+export const HEALTH_INSURANCE = { code: "bhyt", label: "Bảo hiểm y tế 12 tháng", amount: 1_263_600 };
 
-export function buildInvoice(params: {
-  termId: string;
-  termName: string;
-  majorCode: string;
-  courses: CourseCharge[];
+// Năm học có đơn giá và khoản thu trong dữ liệu mẫu (bảng điểm từ 2022 đến học kỳ hiện tại).
+export const TUITION_YEARS = [2022, 2023, 2024, 2025, 2026];
+
+// Hóa đơn mẫu của một sinh viên trong một học kỳ. Học kỳ cũ đã nộp đủ; học kỳ hiện tại phát hành 25 ngày trước, hạn sau 9 ngày,
+// sinh viên đang đăng nhập chưa nộp (để thấy hướng dẫn chuyển khoản), các bạn khác nộp đủ, nộp thiếu hoặc chưa nộp.
+export function mockInvoice(params: {
+  studentId: string;
+  studentIndex: number;
+  isCurrentStudent: boolean;
+  term: { id: string; academicYear: number; semester: number; startDate: string };
   isCurrent: boolean;
-  termIndex: number;
-  includeInsurance: boolean;
-}): TuitionInvoice {
-  const unitPrice = PRICE_PER_CREDIT[params.majorCode] ?? TEACHER_TRAINING_PRICE;
-  const credits = params.courses.reduce((sum, course) => sum + course.credits, 0);
-  const lines = [
-    { label: unitPrice === 0 ? "Học phí (sinh viên sư phạm được miễn theo Nghị định 116)" : `Học phí ${credits} tín chỉ`, quantity: credits, unitPrice, amount: credits * unitPrice },
-    ...(params.includeInsurance ? [{ label: "Bảo hiểm y tế 12 tháng", quantity: 1, unitPrice: HEALTH_INSURANCE, amount: HEALTH_INSURANCE }] : []),
-  ];
-  const total = lines.reduce((sum, line) => sum + line.amount, 0);
-  const issuedAt = params.isCurrent ? mockDate(-25, "08:00") : dayjs("2024-09-20").add(params.termIndex * 5, "month").toISOString();
-  const dueDate = params.isCurrent ? mockDate(9, "17:00") : dayjs(issuedAt).add(30, "day").toISOString();
-  const paid = params.isCurrent ? 0 : total;
+  lines: InvoiceLine[];
+}) {
+  const { studentId, studentIndex, term, isCurrent, lines } = params;
+  const id = mockId(`invoice:${studentId}:${term.id}`);
+  const issuedAt = isCurrent ? mockDate(-25, "08:00") : dayjs(term.startDate).add(14, "day").hour(8).toISOString();
+  const dueDate = isCurrent ? dayjs(mockDate(9)).format("YYYY-MM-DD") : dayjs(issuedAt).add(30, "day").format("YYYY-MM-DD");
+  const total = invoiceTotal(lines, 0);
+  const random = createRandom(studentIndex * 53 + term.academicYear * 3 + term.semester);
+  const roll = random();
+  let paid = total;
+  if (isCurrent) paid = params.isCurrentStudent || roll >= 0.65 ? 0 : roll < 0.55 ? total : Math.round(total / 2 / 1000) * 1000;
+  const paidAt = isCurrent ? dayjs(issuedAt).add(3 + Math.floor(random() * 18), "day").hour(10) : dayjs(issuedAt).add(9 + (studentIndex % 7), "day").hour(14);
   return {
-    id: `hp-${params.termId}`,
-    termId: params.termId,
-    termName: params.termName,
-    issuedAt,
-    dueDate,
-    lines,
-    discount: 0,
-    total,
-    paid,
-    payments: paid
-      ? [
-          {
-            id: `gd-${params.termId}`,
-            paidAt: dayjs(issuedAt).add(9 + params.termIndex, "day").toISOString(),
-            amount: paid,
-            method: params.termIndex % 2 === 0 ? "Chuyển khoản BIDV" : "Thanh toán qua ứng dụng ngân hàng",
-            reference: `FT${String(24_000_000 + params.termIndex * 137_911).slice(0, 8)}`,
-          },
-        ]
-      : [],
+    invoice: { id, studentId, termId: term.id, issuedAt: new Date(issuedAt), dueDate, discount: 0 },
+    lines: lines.map((line, position) => ({ invoiceId: id, position: position + 1, label: line.label, quantity: line.quantity, unitPrice: line.unitPrice })),
+    payments:
+      paid > 0
+        ? [
+            {
+              id: mockId(`payment:${id}:1`),
+              invoiceId: id,
+              paidAt: paidAt.toDate(),
+              amount: paid,
+              method: (studentIndex + term.semester) % 2 === 0 ? "Chuyển khoản BIDV" : "Thanh toán qua ứng dụng ngân hàng",
+              reference: `FT${term.academicYear % 100}${term.semester}${String(studentIndex).padStart(4, "0")}${String(Math.floor(random() * 1000)).padStart(3, "0")}`,
+            },
+          ]
+        : [],
   };
 }

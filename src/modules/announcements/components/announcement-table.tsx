@@ -18,10 +18,7 @@ import type { Announcement, AnnouncementFormValues, AnnouncementStatus } from "@
 import { AnnouncementFormDrawer } from "@/modules/announcements/components/announcement-form-drawer";
 import { paginationItemRender } from "@/shared/constants/antd.constant";
 import { normalizeSearch } from "@/shared/libs/search.lib";
-
-function slugify(value: string) {
-  return normalizeSearch(value).replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
-}
+import { archiveAnnouncement, deleteAnnouncementDraft, saveAnnouncement } from "@/modules/announcements/announcements.action";
 
 function DeadlineCell({ deadline }: { deadline: string | null }) {
   if (!deadline) return <span className="text-muted">Không có</span>;
@@ -68,44 +65,48 @@ export function AnnouncementTable({ announcements, header }: { announcements: An
     });
   }, [rows, query, category, status]);
 
-  const handleSubmit = (values: AnnouncementFormValues) => {
-    const nextStatus: AnnouncementStatus = values.publishMode === "draft" ? "draft" : values.publishMode === "schedule" ? "scheduled" : "published";
-    const publishedAt = values.publishMode === "now" ? (editing?.status === "published" ? editing.publishedAt : dayjs().toISOString()) : (values.publishedAt ?? null);
-    const next: Announcement = {
-      id: editing?.id ?? `tb-${Date.now()}`,
-      slug: editing?.slug ?? slugify(values.title),
-      author: editing?.author ?? "Phòng Đào tạo",
-      views: editing?.views ?? 0,
-      title: values.title,
-      category: values.category,
-      audiences: values.audiences,
-      summary: values.summary ?? "",
-      content: values.content,
-      isPinned: values.isPinned,
-      deadline: values.deadline ?? null,
-      status: nextStatus,
-      publishedAt: values.publishMode === "draft" ? null : publishedAt,
-    };
-    setRows((current) => (editing ? current.map((row) => (row.id === editing.id ? next : row)) : [next, ...current]));
+  const handleSubmit = async (values: AnnouncementFormValues) => {
+    const result = await saveAnnouncement(editing?.id ?? null, { ...values, summary: values.summary ?? "", deadline: values.deadline ?? null, publishedAt: values.publishedAt ?? null }).catch(() => null);
+    if (!result) {
+      messageApi.error("Chưa lưu được, kiểm tra kết nối rồi thử lại.");
+      return undefined;
+    }
+    if (!result.ok) {
+      messageApi.error(result.message);
+      return result.fieldErrors;
+    }
+    const saved = result.data;
+    setRows((current) => (editing ? current.map((row) => (row.id === saved.id ? saved : row)) : [saved, ...current]));
     const feedback = {
       draft: "Đã lưu nháp, thông báo chưa hiện với sinh viên",
-      scheduled: `Thông báo sẽ tự đăng lúc ${next.publishedAt ? formatDateTime(next.publishedAt) : ""}`,
+      scheduled: `Thông báo sẽ tự đăng lúc ${saved.publishedAt ? formatDateTime(saved.publishedAt) : ""}`,
       published: "Đã đăng thông báo lên trang chủ",
-      archived: "",
-    }[nextStatus];
+      archived: "Đã lưu thông báo",
+    }[saved.status];
     messageApi.success(feedback);
     setIsDrawerOpen(false);
+    return undefined;
   };
 
   const confirmArchive = (row: Announcement) => {
+    const isDraft = row.status === "draft";
     modal.confirm({
-      title: "Gỡ thông báo này?",
-      content: `"${row.title}" sẽ không còn hiện trên trang chủ. Bạn vẫn xem lại được trong mục Đã gỡ.`,
-      okText: "Gỡ thông báo",
+      title: isDraft ? "Xóa bản nháp này?" : "Gỡ thông báo này?",
+      content: isDraft ? `"${row.title}" chưa đăng và sẽ bị xóa hẳn.` : `"${row.title}" sẽ không còn hiện trên trang chủ. Bạn vẫn xem lại được trong mục Đã gỡ.`,
+      okText: isDraft ? "Xóa bản nháp" : "Gỡ thông báo",
       okButtonProps: { danger: true },
       cancelText: "Hủy",
-      onOk: () => {
-        setRows((current) => current.map((entry) => (entry.id === row.id ? { ...entry, status: "archived", isPinned: false } : entry)));
+      onOk: async () => {
+        if (isDraft) {
+          const result = await deleteAnnouncementDraft(row.id).catch(() => null);
+          if (!result?.ok) return void messageApi.error(result?.message ?? "Chưa xóa được, kiểm tra kết nối rồi thử lại.");
+          setRows((current) => current.filter((entry) => entry.id !== row.id));
+          messageApi.success("Đã xóa bản nháp");
+          return;
+        }
+        const result = await archiveAnnouncement(row.id).catch(() => null);
+        if (!result?.ok) return void messageApi.error(result?.message ?? "Chưa gỡ được, kiểm tra kết nối rồi thử lại.");
+        setRows((current) => current.map((entry) => (entry.id === row.id ? result.data : entry)));
         messageApi.success("Đã gỡ thông báo");
       },
     });
@@ -177,8 +178,8 @@ export function AnnouncementTable({ announcements, header }: { announcements: An
             Sửa
           </Button>
           {row.status !== "archived" && (
-            <Button size="small" type="text" danger aria-label={`Gỡ ${row.title}`} icon={<Trash size={14} aria-hidden />} onClick={() => confirmArchive(row)}>
-              Gỡ
+            <Button size="small" type="text" danger aria-label={`${row.status === "draft" ? "Xóa" : "Gỡ"} ${row.title}`} icon={<Trash size={14} aria-hidden />} onClick={() => confirmArchive(row)}>
+              {row.status === "draft" ? "Xóa" : "Gỡ"}
             </Button>
           )}
         </span>

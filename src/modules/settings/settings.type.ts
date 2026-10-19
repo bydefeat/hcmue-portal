@@ -58,3 +58,21 @@ export type RegulationVersion = {
   decision: string;
   summary: string;
 };
+
+export type ReportFormat = "xlsx" | "pdf" | "csv";
+
+export type ReportDefinition = { id: string; name: string; description: string; audience: string };
+
+export type ReportExportStatus = "running" | "ready" | "failed";
+
+export type ReportExportJob = {
+  id: string;
+  reportId: string;
+  reportName: string;
+  params: string;
+  format: string;
+  createdAt: string;
+  createdBy: string;
+  status: ReportExportStatus;
+  rows: number | null;
+};

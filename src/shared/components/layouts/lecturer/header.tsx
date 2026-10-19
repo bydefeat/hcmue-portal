@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Layout, Menu, type MenuProps } from "antd";
 import { Logo } from "@/shared/components/ui/logo";
-import { NotificationBell, type BellItem } from "@/shared/components/ui/notification-bell";
+import { NotificationBell, type BellItem, type MarkNotificationsRead } from "@/shared/components/ui/notification-bell";
 import { UserMenu, type MenuUser } from "@/shared/components/ui/user-menu";
 import {
   isActiveItem,
@@ -35,9 +35,10 @@ type LecturerHeaderProps = {
   user: MenuUser;
   isAdvisor: boolean;
   notifications: BellItem[];
+  onMarkNotificationsRead?: MarkNotificationsRead;
 };
 
-export function LecturerHeader({ user, isAdvisor, notifications }: LecturerHeaderProps) {
+export function LecturerHeader({ user, isAdvisor, notifications, onMarkNotificationsRead }: LecturerHeaderProps) {
   const pathname = usePathname();
   const AdvisingIcon = LECTURER_ADVISING_GROUP.icon;
   const isAdvisingActive = LECTURER_ADVISING_GROUP.items.some((item) => isActiveItem(pathname, item));
@@ -71,7 +72,7 @@ export function LecturerHeader({ user, isAdvisor, notifications }: LecturerHeade
           className="hidden min-w-0 flex-1 border-0 md:flex"
         />
         <div className="ml-auto flex shrink-0 items-center gap-1 leading-normal">
-          <NotificationBell items={notifications} viewAllHref={LECTURER_NOTIFICATIONS_HREF} />
+          <NotificationBell items={notifications} viewAllHref={LECTURER_NOTIFICATIONS_HREF} onMarkRead={onMarkNotificationsRead} />
           <UserMenu user={user} links={LECTURER_ACCOUNT_LINKS} compact />
         </div>
       </div>

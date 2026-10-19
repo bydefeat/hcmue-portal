@@ -27,8 +27,14 @@ export const AUDIT_ENTITY_LABEL: Record<AuditEntityType, string> = {
   role: "Phân quyền",
   regulation: "Quy chế",
   exam: "Lịch thi",
+  "calendar-event": "Lịch năm học",
+  report: "Báo cáo",
 };
 
-export const AUDIT_ACTION_OPTIONS = Object.entries(AUDIT_ACTION).map(([value, meta]) => ({ value, label: meta.label }));
+export const AUDIT_CONSTRAINT_MESSAGE: Partial<Record<string, string>> = {
+  audit_logs_changes_array: "Danh sách thay đổi trong nhật ký phải là một mảng.",
+};
+
+export const AUDIT_ACTION_OPTIONS =Object.entries(AUDIT_ACTION).map(([value, meta]) => ({ value, label: meta.label }));
 
 export const AUDIT_ENTITY_OPTIONS = Object.entries(AUDIT_ENTITY_LABEL).map(([value, label]) => ({ value, label }));

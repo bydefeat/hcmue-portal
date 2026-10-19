@@ -6,6 +6,7 @@ import type { Viewer } from "@/modules/access/access.type";
 import { getClassSections, getCurrentTerm, getRegistrationTargetTerm } from "@/modules/course-registration/course-registration.query";
 import { getCourses } from "@/modules/curriculum/curriculum.query";
 import { NOTIFICATION_KIND_LABEL } from "@/modules/notifications/notifications.constant";
+import { markNotificationsRead } from "@/modules/notifications/notifications.action";
 import { getNotifications } from "@/modules/notifications/notifications.query";
 import { getLecturers, getStudents } from "@/modules/users/users.query";
 
@@ -91,6 +92,7 @@ export default async function Layout({ children }: { children: React.ReactNode }
       permissions={viewer.permissions}
       searchEntries={entries}
       notifications={notifications.map((notification) => ({ ...notification, kindLabel: NOTIFICATION_KIND_LABEL[notification.kind] }))}
+      onMarkNotificationsRead={markNotificationsRead}
       switcher={switcher}
     >
       {children}

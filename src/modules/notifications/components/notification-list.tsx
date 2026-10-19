@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import Link from "next/link";
-import { Button, Segmented, Select } from "antd";
+import { Button, message, Segmented, Select } from "antd";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { formatDateTime, formatRelative } from "@/shared/libs/date.lib";
+import { markNotificationsRead } from "@/modules/notifications/notifications.action";
 import { NOTIFICATION_KIND_LABEL } from "@/modules/notifications/notifications.constant";
 import type { AppNotification, NotificationKind } from "@/modules/notifications/notifications.type";
 import { SectionCard } from "@/shared/components/ui/section-card";
@@ -12,6 +13,8 @@ import { SectionCard } from "@/shared/components/ui/section-card";
 type View = "all" | "unread";
 
 export function NotificationList({ notifications }: { notifications: AppNotification[] }) {
+  const [messageApi, contextHolder] = message.useMessage();
+  const [isPending, startTransition] = useTransition();
   const [readIds, setReadIds] = useState<string[]>([]);
   const [view, setView] = useState<View>("all");
   const [kind, setKind] = useState<NotificationKind>();
@@ -20,8 +23,25 @@ export function NotificationList({ notifications }: { notifications: AppNotifica
   const kinds = [...new Set(notifications.map((item) => item.kind))];
   const visible = notifications.filter((item) => (view === "all" || !isRead(item)) && (!kind || item.kind === kind));
 
+  // Hiện đã đọc ngay, lưu xong thì lấy danh sách id DB trả về; lỗi thì trả lại trạng thái cũ.
+  const markRead = (ids: string[], notify: boolean) => {
+    const unreadIds = ids.filter((id) => !readIds.includes(id) && !notifications.find((item) => item.id === id)?.isRead);
+    if (unreadIds.length === 0) return;
+    setReadIds((current) => [...current, ...unreadIds]);
+    startTransition(async () => {
+      const result = await markNotificationsRead({ ids: unreadIds }).catch(() => null);
+      if (!result?.ok) {
+        setReadIds((current) => current.filter((id) => !unreadIds.includes(id)));
+        if (notify) messageApi.error(result?.message ?? "Chưa lưu được, kiểm tra kết nối rồi thử lại.");
+        return;
+      }
+      setReadIds((current) => [...new Set([...current, ...result.data])]);
+    });
+  };
+
   return (
     <div className="flex flex-col gap-3">
+      {contextHolder}
       <div className="flex flex-wrap items-center gap-2">
         <Segmented<View>
           value={view}
@@ -41,7 +61,7 @@ export function NotificationList({ notifications }: { notifications: AppNotifica
           className="w-40"
         />
         {unread > 0 && (
-          <Button className="ml-auto" onClick={() => setReadIds(notifications.map((item) => item.id))}>
+          <Button className="ml-auto" loading={isPending} onClick={() => markRead(notifications.map((item) => item.id), true)}>
             Đánh dấu đã đọc hết
           </Button>
         )}
@@ -58,7 +78,7 @@ export function NotificationList({ notifications }: { notifications: AppNotifica
               <li key={item.id}>
                 <Link
                   href={item.href}
-                  onClick={() => setReadIds((current) => [...current, item.id])}
+                  onClick={() => markRead([item.id], false)}
                   className="flex gap-3 px-4 py-3 text-foreground transition-colors hover:bg-surface-hover sm:px-5"
                 >
                   <span aria-hidden className={`mt-2 size-2 shrink-0 rounded-full ${isRead(item) ? "bg-transparent" : "bg-primary"}`} />

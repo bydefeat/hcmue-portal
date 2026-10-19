@@ -12,9 +12,9 @@ export const metadata: Metadata = { title: "Hồ sơ cá nhân" };
 
 export default async function Page() {
   const viewer = await getViewer();
-  const [assignments, log] = await Promise.all([getViewerAssignments(viewer.id), getAuditLog()]);
+  const [assignments, log] = await Promise.all([getViewerAssignments(viewer.id), getAuditLog({ actorUserId: viewer.id })]);
   const assignment = assignments.find((entry) => entry.id === viewer.assignmentId);
-  const own = log.filter((entry) => entry.actorName === viewer.name).slice(0, 10);
+  const own = log.slice(0, 10);
 
   return (
     <>

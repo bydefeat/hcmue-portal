@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { PageHeader } from "@/shared/components/ui/page-header";
 import { PERMISSION_GROUPS } from "@/modules/access/access.constant";
-import { getRoleAssignments, getViewer } from "@/modules/access/access.query";
+import { getViewer, getViewerAssignments } from "@/modules/access/access.query";
 import { AuditTimeline } from "@/modules/audit/components/audit-timeline";
 import { getAuditLog } from "@/modules/audit/audit.query";
 import { formatDate } from "@/shared/libs/date.lib";
@@ -12,8 +12,8 @@ export const metadata: Metadata = { title: "Hồ sơ cá nhân" };
 
 export default async function Page() {
   const viewer = await getViewer();
-  const [assignments, log] = await Promise.all([getRoleAssignments(), getAuditLog()]);
-  const assignment = assignments.find((entry) => entry.userId === viewer.id);
+  const [assignments, log] = await Promise.all([getViewerAssignments(viewer.id), getAuditLog()]);
+  const assignment = assignments.find((entry) => entry.id === viewer.assignmentId);
   const own = log.filter((entry) => entry.actorName === viewer.name).slice(0, 10);
 
   return (
@@ -29,13 +29,13 @@ export default async function Page() {
               </div>
               <dl className="grid grid-cols-[max-content_minmax(0,1fr)] gap-x-4 gap-y-2 text-sm">
                 <dt className="text-muted">Đơn vị</dt>
-                <dd>{assignment?.unit ?? "Chưa rõ"}</dd>
+                <dd>{viewer.unit ?? "Chưa rõ"}</dd>
                 <dt className="text-muted">Vai trò</dt>
                 <dd className="text-pretty">{viewer.roleName}</dd>
                 <dt className="text-muted">Phạm vi dữ liệu</dt>
                 <dd>{viewer.faculty ?? "Toàn trường"}</dd>
                 <dt className="text-muted">Cấp quyền</dt>
-                <dd className="tabular-nums">{assignment ? `${formatDate(assignment.grantedAt)}, bởi ${assignment.grantedBy}` : "Chưa rõ"}</dd>
+                <dd className="tabular-nums">{assignment ? `${formatDate(assignment.grantedAt)}${assignment.grantedBy ? `, bởi ${assignment.grantedBy}` : ""}` : "Chưa rõ"}</dd>
               </dl>
             </div>
           </SectionCard>

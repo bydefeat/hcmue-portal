@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { Button, Checkbox, Drawer, Form, Input, InputNumber, message, Select, Table, type TableColumnsType } from "antd";
 import { Magnifier } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { MeterBar } from "@/shared/components/ui/meter-bar";
 import { StatusTag } from "@/shared/components/ui/status-tag";
 import { EQUIPMENT_OPTIONS, ROOM_STATUS, ROOM_TYPE_LABEL, ROOM_TYPE_OPTIONS } from "@/modules/facilities/facilities.constant";
+import { updateRoom } from "@/modules/facilities/facilities.action";
 import type { Campus, Room, RoomStatus, RoomType } from "@/modules/facilities/facilities.type";
 import { RoomWeekGrid, type RoomBooking } from "@/modules/facilities/components/room-week-grid";
 
@@ -34,6 +35,7 @@ export function RoomTable({ rooms, campuses, bookings, termName }: RoomTableProp
   const [status, setStatus] = useState<RoomStatus>();
   const [openId, setOpenId] = useState<string | null>(null);
   const [form] = Form.useForm<RoomFormValues>();
+  const [isSaving, startSaving] = useTransition();
   const opened = rows.find((room) => room.id === openId) ?? null;
 
   useEffect(() => {
@@ -51,14 +53,26 @@ export function RoomTable({ rooms, campuses, bookings, termName }: RoomTableProp
 
   const save = (values: RoomFormValues) => {
     if (!opened) return;
-    const booked = bookings[opened.code] ?? [];
-    setRows((current) => current.map((room) => (room.id === opened.id ? { ...room, ...values } : room)));
-    if (values.status === "maintenance" && booked.length > 0) {
-      messageApi.warning(`Đã chuyển ${opened.code} sang bảo trì. Phòng đang có ${booked.length} buổi học mỗi tuần, cần đổi phòng cho các lớp này.`);
-    } else {
-      messageApi.success(`Đã lưu thông tin phòng ${opened.code}`);
-    }
-    setOpenId(null);
+    startSaving(async () => {
+      const result = await updateRoom({ ...values, id: opened.id, equipment: values.equipment ?? [], note: values.note ?? "" }).catch(() => null);
+      if (!result) {
+        messageApi.error("Chưa lưu được, kiểm tra kết nối rồi thử lại.");
+        return;
+      }
+      if (!result.ok) {
+        form.setFields(Object.entries(result.fieldErrors ?? {}).map(([name, error]) => ({ name: name as keyof RoomFormValues, errors: [error] })));
+        messageApi.error(result.message);
+        return;
+      }
+      const booked = bookings[result.data.code] ?? [];
+      setRows((current) => current.map((room) => (room.id === result.data.id ? result.data : room)));
+      if (result.data.status === "maintenance" && booked.length > 0) {
+        messageApi.warning(`Đã chuyển ${result.data.code} sang bảo trì. Phòng đang có ${booked.length} buổi học mỗi tuần, cần đổi phòng cho các lớp này.`);
+      } else {
+        messageApi.success(`Đã lưu thông tin phòng ${result.data.code}`);
+      }
+      setOpenId(null);
+    });
   };
 
   const columns: TableColumnsType<Room> = [
@@ -168,7 +182,7 @@ export function RoomTable({ rooms, campuses, bookings, termName }: RoomTableProp
         footer={
           <div className="flex justify-end gap-2">
             <Button onClick={() => setOpenId(null)}>Hủy</Button>
-            <Button type="primary" onClick={() => form.submit()}>
+            <Button type="primary" loading={isSaving} onClick={() => form.submit()}>
               Lưu thay đổi
             </Button>
           </div>

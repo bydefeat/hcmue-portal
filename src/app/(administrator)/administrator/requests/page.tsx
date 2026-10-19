@@ -11,9 +11,9 @@ import type { RequestStatus, StepRole } from "@/modules/requests/requests.type";
 export const metadata: Metadata = { title: "Đơn từ" };
 
 function actorRolesOf(viewer: Viewer): StepRole[] {
-  if (viewer.roleId === "faculty-secretary") return ["faculty"];
-  if (viewer.roleId === "exam-office") return ["exam-office"];
-  if (viewer.roleId === "academic-officer") return ["academic-office"];
+  if (viewer.roleKey === "faculty-secretary") return ["faculty"];
+  if (viewer.roleKey === "exam-office") return ["exam-office"];
+  if (viewer.roleKey === "academic-officer") return ["academic-office"];
   return ["academic-office", "faculty", "exam-office"];
 }
 

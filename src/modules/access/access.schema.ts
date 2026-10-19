@@ -8,6 +8,8 @@ export const roleScopeEnum = pgEnum("role_scope", ["university", "faculty"]);
 
 export const roles = pgTable("roles", {
   id: primaryId(),
+  // Khoá cố định của vai trò hệ thống ("faculty-secretary"...) để code nhận ra vai trò; vai trò tự tạo để trống.
+  key: text().unique("roles_key_unique"),
   name: text().notNull().unique("roles_name_unique"),
   description: text().notNull().default(""),
   scope: roleScopeEnum().notNull(),

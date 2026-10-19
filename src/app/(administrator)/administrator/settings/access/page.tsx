@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { PageHeader } from "@/shared/components/ui/page-header";
 import { MOCK_MAJORS } from "@/shared/libs/mock.lib";
-import { switchDemoViewer } from "@/modules/access/access.action";
 import { AccessManager } from "@/modules/access/components/access-manager";
 import { getRoleAssignments, getRoles, requirePermission } from "@/modules/access/access.query";
 
@@ -16,7 +15,7 @@ export default async function Page() {
     <>
       <PageHeader
         title="Phân quyền"
-        description="Mỗi vai trò là một tập quyền. Vai trò theo khoa chỉ thấy dữ liệu của khoa được chỉ định. Dùng Xem thử để kiểm tra giao diện đúng như cán bộ đó thấy."
+        description="Mỗi vai trò là một tập quyền. Vai trò theo khoa chỉ thấy dữ liệu của khoa được chỉ định."
       />
       <AccessManager
         roles={roles}
@@ -24,7 +23,6 @@ export default async function Page() {
         faculties={faculties}
         currentUserId={viewer.id}
         viewerName={viewer.name}
-        switchAction={switchDemoViewer}
       />
     </>
   );

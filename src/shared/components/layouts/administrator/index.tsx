@@ -28,7 +28,7 @@ type AdministratorLayoutProps = {
   permissions: string[];
   searchEntries: SearchEntry[];
   notifications: BellItem[];
-  switcher: RoleSwitcher;
+  switcher?: RoleSwitcher;
   children: React.ReactNode;
 };
 

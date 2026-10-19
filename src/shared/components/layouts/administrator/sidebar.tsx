@@ -9,7 +9,7 @@ import { ADMINISTRATOR_ACCOUNT_LINKS, ADMINISTRATOR_HOME_HREF, type NavGroup } f
 type AdministratorSidebarProps = {
   user: MenuUser;
   groups: NavGroup[];
-  switcher: RoleSwitcher;
+  switcher?: RoleSwitcher;
 };
 
 export function AdministratorSidebar({ user, groups, switcher }: AdministratorSidebarProps) {

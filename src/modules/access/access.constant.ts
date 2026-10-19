@@ -1,6 +1,6 @@
 import type { Permission, Viewer } from "@/modules/access/access.type";
 
-export const DEMO_ROLE_COOKIE = "hcmue-demo-admin-role";
+export const ACTIVE_ASSIGNMENT_COOKIE = "hcmue-active-role";
 
 export const PERMISSION_GROUPS: { label: string; permissions: { key: Permission; label: string }[] }[] = [
   {

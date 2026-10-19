@@ -175,10 +175,11 @@ PostgreSQL 18.4, khoá chính `uuid` mặc định `uuidv7()`. Ràng buộc đ�
 - Kiểm: SV đăng nhập được bằng cả `50.01.104.013` và `5001104013`, không đăng nhập được bằng email; khôi phục mật khẩu bằng email trường; SV mở `/administrator` bị chặn.
 - Đã làm: các mục trên, `tests/auth.test.ts` (11 test), kiểm tay trên trình duyệt. MSSV hiển thị dạng `50.01.104.013` toàn bộ giao diện. Còn lại cho các giai đoạn sau: nội dung các trang vẫn là dữ liệu mẫu (header lấy tên từ phiên đăng nhập); trang `/authentication/verify` và "Đổi mật khẩu" trong hồ sơ chưa nối; bộ chuyển vai trò xem thử của admin vẫn là mock.
 
-### Giai đoạn 4 — Khung đọc/ghi dữ liệu (thử trên 1 module)
+### Giai đoạn 4 — Khung đọc/ghi dữ liệu (thử trên 1 module) ✅
 - Mỗi module: `*.query.ts` (đọc, `server-only`), `*.action.ts` (server action, `schema.safeParse()`, trả `ActionResult` chung), lỗi Postgres đổi sang câu tiếng Việt qua `pgErrorMessage`.
 - Đổi định danh URL sang uuid / mã SV, mã GV như bảng ở Giai đoạn 2; `proxy.ts` trả 404 khi sai định dạng.
 - Làm thử trọn vẹn trên `facilities` (phòng học) để chốt khuôn mẫu trước khi nhân ra module khác.
+- Đã làm: `action.lib.ts` (`ActionResult`, `parseInput`, `actionFailure`), `requireSession()`, phân quyền admin đọc từ `role_assignments` (thêm `roles.key`, bỏ nút "Xem thử" vai trò người khác), module `facilities` đọc/ghi DB thật (12 phòng, 3 cơ sở trong seed), `tests/facilities.test.ts`. Quy ước ghi ở ARCHITECTURE.md mục 10. Đổi định danh URL sang uuid làm dần theo từng module khi nối dữ liệu (phòng học không có trang chi tiết). Trang quản lý phân quyền (`/administrator/settings/access`) vẫn đọc danh sách vai trò mẫu, nối ở Giai đoạn 5.
 
 ### Giai đoạn 5 — Danh mục (admin)
 - Khoa, ngành, học phần + tiên quyết, chương trình đào tạo, học kỳ, đợt đăng ký, lớp học phần (buổi học, nhóm thực hành, giữ chỗ), người dùng, phân công cố vấn và giảng dạy.

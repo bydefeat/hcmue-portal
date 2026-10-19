@@ -15,12 +15,11 @@ type RoleAssignmentTableProps = {
   faculties: string[];
   currentUserId: string;
   viewerName: string;
-  switchAction: (formData: FormData) => void | Promise<void>;
 };
 
 type GrantValues = { userName: string; userCode: string; unit: string; roleId: string; faculty?: string };
 
-export function RoleAssignmentTable({ assignments, roles, faculties, currentUserId, viewerName, switchAction }: RoleAssignmentTableProps) {
+export function RoleAssignmentTable({ assignments, roles, faculties, currentUserId, viewerName }: RoleAssignmentTableProps) {
   const [messageApi, contextHolder] = message.useMessage();
   const [modal, modalContextHolder] = Modal.useModal();
   const [rows, setRows] = useState(assignments);
@@ -116,20 +115,10 @@ export function RoleAssignmentTable({ assignments, roles, faculties, currentUser
     {
       title: "",
       key: "actions",
-      width: 220,
+      width: 120,
       align: "right",
       render: (_, row) => (
         <div className="flex justify-end gap-2">
-          {row.userId === currentUserId ? (
-            <span className="text-xs text-muted">Bạn đang xem với vai trò này</span>
-          ) : (
-            <form action={switchAction}>
-              <input type="hidden" name="assignmentId" value={row.id} />
-              <Button size="small" htmlType="submit" disabled={!assignments.some((entry) => entry.id === row.id)}>
-                Xem thử
-              </Button>
-            </form>
-          )}
           <Button size="small" danger disabled={row.userId === currentUserId} onClick={() => revoke(row)}>
             Thu hồi
           </Button>

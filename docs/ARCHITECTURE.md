@@ -144,6 +144,7 @@ Tên file dạng `<tên>.<loại>.ts`, phần `<tên>` viết kebab-case. Trong 
 | Constant | `*.constant.ts` | `theme.constant.ts` | `THEME`, `BRAND_COLORS` |
 | Store | `*.store.ts` | `sidebar.store.ts` | `useSidebarStore` |
 | Kiểu dữ liệu | `*.type.ts` | `grades.type.ts` | `GradeSheet`, `TranscriptTerm` |
+| Kiểm dữ liệu vào | `*.rule.ts` | `facilities.rule.ts` | schema zod `ROOM_UPDATE_SCHEMA` dùng chung cho form và action, hàm thuần |
 | Dữ liệu mẫu | `*.mock.ts` | `grades.mock.ts` | hằng số mock, chỉ `*.query.ts` cùng module được import |
 | Drizzle schema | `*.schema.ts` | `grades.schema.ts` | các bảng `grades`, `gradeItems`... |
 | Query (đọc) | `*.query.ts` | `grades.query.ts` | `getTranscript()` |
@@ -154,7 +155,9 @@ Ngoại lệ: file mà Next.js quy định tên (`proxy.ts`, `layout.tsx`, `page
 
 **Đường dẫn import:** luôn dùng alias `@/` (`@/modules/...`, `@/shared/...`), kể cả trong cùng folder; không dùng `./` hay `../`.
 
-**Hướng import (một chiều):** `app` → `modules` → `shared`. `shared` không import `modules` hay `app`; module không import module khác (cần dữ liệu chéo thì `app` ghép lại).
+**Hướng import (một chiều):** `app` → `modules` → `shared`. `shared` không import `modules` hay `app`; module không import query, action, component của module khác (cần dữ liệu chéo thì `app` ghép lại).
+
+**Ngoại lệ khi đọc DB thật:** query và action của một module được import `*.schema.ts` của module khác để join, và được gọi hai hàm kiểm quyền dùng chung: `requireSession()` / `requireRole()` (`@/modules/authentication/authentication.query`) và `requirePermission()` (`@/modules/access/access.query`).
 
 **Ngoại lệ duy nhất: `*.schema.ts`.** Khóa ngoại nối bảng giữa các module (đăng ký học phần trỏ tới sinh viên, lớp học phần trỏ tới học phần), nên file schema được import file schema của module khác, và chỉ file schema. Import qua alias `@/modules/users/users.schema` như mọi file khác (drizzle-kit đọc được `paths` của tsconfig). Thứ tự phụ thuộc: `authentication` → `curriculum` → `users`, `facilities` → `course-registration` → các module còn lại; không có vòng.
 
@@ -332,6 +335,18 @@ npm run test:db                   # 25 test: ràng buộc (tranh chỗ cuối, t
 npm run db:check                  # migration nhất quán
 npm run db:studio                 # xem dữ liệu
 ```
+
+### Đọc / ghi dữ liệu thật (mẫu: module `facilities`)
+
+| Bước | Cách làm |
+|---|---|
+| Query (`*.query.ts`) | `import "server-only"`, dòng đầu gọi `requireSession()` (hoặc `requirePermission()` nếu dữ liệu chỉ cán bộ được xem), chọn đúng cột cần qua một object cột (`ROOM_COLUMNS`) để kiểu trả về khớp kiểu frontend, không trả cả dòng DB |
+| Action (`*.action.ts`) | `"use server"`, thứ tự: kiểm quyền (`requirePermission`) → `parseInput(schema, input)` → `try { lệnh DB } catch { return actionFailure(error, MODULE_CONSTRAINT_MESSAGE) }` → `revalidatePath`. Trả `ActionResult<T>` (`shared/libs/action.lib.ts`), không throw lỗi nghiệp vụ ra client. Chỉ bọc lệnh DB trong `try`, kiểm quyền đặt trước để `forbidden()`/`redirect()` của Next đi tiếp |
+| Lỗi ràng buộc | Mỗi module có `*_CONSTRAINT_MESSAGE` (tên ràng buộc → câu tiếng Việt) trong `*.constant.ts`. Form chặn trước, DB chặn lần cuối, cả hai cùng một câu |
+| Component | Gọi action trong `useTransition`; `result.ok` thì cập nhật state từ `result.data` (dữ liệu DB trả về, không phải giá trị form), không thì `form.setFields` theo `fieldErrors` và hiện `result.message` |
+| Test | Schema zod và câu báo lỗi ràng buộc test bằng `node:test` trên DB thật (`tests/facilities.test.ts`); action cần phiên đăng nhập nên kiểm tay trên trình duyệt |
+
+Phân quyền cổng quản trị đọc từ DB: `getViewer()` lấy các vai trò trong `role_assignments` của tài khoản đang đăng nhập; có nhiều vai trò thì đổi qua menu tài khoản (`switchActiveRole`, chỉ trong số vai trò của chính mình). Vai trò có sẵn mang `roles.key` cố định (`faculty-secretary`…) để code nhận ra, không so theo `id`.
 
 ## 11. Lint (oxlint)
 

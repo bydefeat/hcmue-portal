@@ -50,7 +50,10 @@ export type Viewer = {
   name: string;
   code: string;
   roleId: string;
+  roleKey: string | null;
   roleName: string;
+  unit: string | null;
   faculty: string | null;
   permissions: Permission[];
+  assignmentId: string | null;
 };

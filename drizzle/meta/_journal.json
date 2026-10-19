@@ -43,6 +43,13 @@
       "when": 1792414273201,
       "tag": "0005_auth_username",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1792422318294,
+      "tag": "0006_role_key",
+      "breakpoints": true
     }
   ]
 }

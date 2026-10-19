@@ -18,6 +18,7 @@ import {
 } from "@/modules/course-registration/course-registration.schema";
 import { COURSES, PROGRAM_COURSES, PROGRAMS } from "@/modules/curriculum/curriculum.mock";
 import { courseRelations, courses, faculties, majors, programCohorts, programCourses, programs } from "@/modules/curriculum/curriculum.schema";
+import { CAMPUSES, ROOMS } from "@/modules/facilities/facilities.mock";
 import { campuses, rooms } from "@/modules/facilities/facilities.schema";
 import { courseResults, gradeComponents, gradeSheets } from "@/modules/grades/grades.schema";
 import { notifications } from "@/modules/notifications/notifications.schema";
@@ -131,14 +132,14 @@ async function main() {
       .insert(programCourses)
       .values(PROGRAM_COURSES[PROGRAM_ID].map((entry) => ({ programId: program.id, courseId: courseByCode.get(entry.courseCode)!.id, semester: entry.semester })));
 
-    const [campus] = await tx.insert(campuses).values({ name: "Cơ sở An Dương Vương", address: "280 An Dương Vương, Phường Chợ Quán, TP. Hồ Chí Minh" }).returning();
+    const campusRows = await tx
+      .insert(campuses)
+      .values(CAMPUSES.map(({ name, address }) => ({ name, address })))
+      .returning();
+    const campusIdOf = new Map(CAMPUSES.map((campus, index) => [campus.id, campusRows[index].id]));
     const roomRows = await tx
       .insert(rooms)
-      .values([
-        { campusId: campus.id, code: "B.405", building: "B", floor: 4, capacity: 60, examCapacity: 30, type: "lecture", equipment: ["Máy chiếu", "Micro"] },
-        { campusId: campus.id, code: "C.301", building: "C", floor: 3, capacity: 45, examCapacity: 40, type: "lab", equipment: ["45 máy tính", "Máy chiếu"] },
-        { campusId: campus.id, code: "A.201", building: "A", floor: 2, capacity: 80, examCapacity: 40, type: "lecture", equipment: ["Máy chiếu"] },
-      ])
+      .values(ROOMS.map(({ id: _id, campusId, ...room }) => ({ ...room, campusId: campusIdOf.get(campusId)! })))
       .returning();
     const roomByCode = by(roomRows, (row) => row.code);
 
@@ -213,11 +214,12 @@ async function main() {
 
     const roleRows = await tx
       .insert(roles)
-      .values(ROLES.map(({ name, description, scope, isSystem }) => ({ name, description, scope, isSystem })))
+      .values(ROLES.map(({ id, name, description, scope, isSystem }) => ({ key: id, name, description, scope, isSystem })))
       .returning();
+    const roleByKey = by(roleRows, (row) => row.key);
     const roleByName = by(roleRows, (row) => row.name);
     await tx.insert(rolePermissions).values(ROLES.flatMap((role) => role.permissions.map((permission) => ({ roleId: roleByName.get(role.name)!.id, permission }))));
-    await tx.insert(roleAssignments).values({ userId: adminUser.id, roleId: roleByName.get(ROLES[0].name)!.id, grantedByUserId: adminUser.id });
+    await tx.insert(roleAssignments).values({ userId: adminUser.id, roleId: roleByKey.get("academic-head")!.id, grantedByUserId: adminUser.id });
 
     const { grading, credits, warning, attendance, workflow } = REGULATION;
     await tx.insert(regulations).values({
@@ -268,15 +270,15 @@ async function main() {
         meeting("COMP1040.01@now", 2, 1, 3, "B.405"),
         meeting("COMP1050.01@now", 4, 7, 9, "B.405"),
         meeting("COMP1060.01@now", 5, 1, 3, "A.201"),
-        meeting("COMP1070.01@next", 3, 1, 3, "C.301"),
+        meeting("COMP1070.01@next", 3, 1, 3, "C.301 (Phòng máy)"),
         meeting("COMP1080.01@next", 5, 7, 9, "B.405"),
         meeting("COMP1120.01@next", 6, 1, 3, "B.405"),
       ]);
 
     const labSection = sectionByCode.get("COMP1121.01@next")!;
     await tx.insert(labGroups).values([
-      { classSectionId: labSection.id, code: "COMP1121.01.TH1", dayOfWeek: 6, startPeriod: 4, endPeriod: 6, roomId: roomByCode.get("C.301")!.id, capacity: 20 },
-      { classSectionId: labSection.id, code: "COMP1121.01.TH2", dayOfWeek: 7, startPeriod: 1, endPeriod: 3, roomId: roomByCode.get("C.301")!.id, capacity: 20 },
+      { classSectionId: labSection.id, code: "COMP1121.01.TH1", dayOfWeek: 6, startPeriod: 4, endPeriod: 6, roomId: roomByCode.get("C.301 (Phòng máy)")!.id, capacity: 20 },
+      { classSectionId: labSection.id, code: "COMP1121.01.TH2", dayOfWeek: 7, startPeriod: 1, endPeriod: 3, roomId: roomByCode.get("C.301 (Phòng máy)")!.id, capacity: 20 },
     ]);
     const [reserved] = await tx
       .insert(reservedSeats)

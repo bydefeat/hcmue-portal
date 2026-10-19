@@ -77,4 +77,3 @@ export const ROLE_ASSIGNMENTS: RoleAssignment[] = [
   { id: "pq-10", userId: "cb-104", userName: "Lý Thùy Dương", userCode: "GVK0104", unit: "Khoa Tiếng Anh", roleId: "faculty-secretary", faculty: "Khoa Tiếng Anh", grantedAt: mockDate(-3, "10:20"), grantedBy: "Trần Minh Khoa" },
 ];
 
-export const DEFAULT_DEMO_ASSIGNMENT_ID = "pq-02";

@@ -36,7 +36,7 @@ function switcherItems(switcher: RoleSwitcher): MenuProps["items"] {
     {
       key: "switch-role",
       icon: <UserChange size={16} aria-hidden />,
-      label: "Xem thử với vai trò",
+      label: "Đổi vai trò",
       children: switcher.options.map((option) => ({
         key: `role-${option.value}`,
         label: (

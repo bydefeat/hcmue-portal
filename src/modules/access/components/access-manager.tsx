@@ -12,10 +12,9 @@ type AccessManagerProps = {
   faculties: string[];
   currentUserId: string;
   viewerName: string;
-  switchAction: (formData: FormData) => void | Promise<void>;
 };
 
-export function AccessManager({ roles, assignments, faculties, currentUserId, viewerName, switchAction }: AccessManagerProps) {
+export function AccessManager({ roles, assignments, faculties, currentUserId, viewerName }: AccessManagerProps) {
   const plainRoles: Role[] = roles;
   return (
     <Tabs
@@ -32,7 +31,6 @@ export function AccessManager({ roles, assignments, faculties, currentUserId, vi
               faculties={faculties}
               currentUserId={currentUserId}
               viewerName={viewerName}
-              switchAction={switchAction}
             />
           ),
         },

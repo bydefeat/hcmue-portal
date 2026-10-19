@@ -1,8 +1,7 @@
-import { requireRole } from "@/modules/authentication/authentication.query";
 import { AdministratorLayout, type SearchEntry } from "@/shared/components/layouts/administrator";
-import { switchDemoViewer } from "@/modules/access/access.action";
+import { switchActiveRole } from "@/modules/access/access.action";
 import { can, inScope } from "@/modules/access/access.constant";
-import { getRoleAssignments, getRoles, getViewer } from "@/modules/access/access.query";
+import { getViewer, getViewerAssignments } from "@/modules/access/access.query";
 import type { Viewer } from "@/modules/access/access.type";
 import { getClassSections, getCurrentTerm, getRegistrationTargetTerm } from "@/modules/course-registration/course-registration.query";
 import { getCourses } from "@/modules/curriculum/curriculum.query";
@@ -64,25 +63,26 @@ async function searchEntries(viewer: Viewer): Promise<SearchEntry[]> {
 }
 
 export default async function Layout({ children }: { children: React.ReactNode }) {
-  await requireRole("admin");
+  // getViewer() gọi requireRole("admin"): chưa đăng nhập về trang đăng nhập, không phải cán bộ quản trị thì 403.
   const viewer = await getViewer();
-  const [entries, currentTerm, notifications, roles, assignments] = await Promise.all([
+  const [entries, currentTerm, notifications, assignments] = await Promise.all([
     searchEntries(viewer),
     getCurrentTerm(),
     getNotifications("administrator"),
-    getRoles(),
-    getRoleAssignments(),
+    getViewerAssignments(viewer.id),
   ]);
-  const currentAssignment = assignments.find((assignment) => assignment.userId === viewer.id);
-  const switcher = {
-    current: currentAssignment?.id ?? "",
-    action: switchDemoViewer,
-    options: assignments.map((assignment) => ({
-      value: assignment.id,
-      label: assignment.userName,
-      description: `${roles.find((role) => role.id === assignment.roleId)?.name ?? ""}${assignment.faculty ? `, ${assignment.faculty}` : ""}`,
-    })),
-  };
+  const switcher =
+    assignments.length > 1
+      ? {
+          current: viewer.assignmentId ?? "",
+          action: switchActiveRole,
+          options: assignments.map((assignment) => ({
+            value: assignment.id,
+            label: assignment.roleName,
+            description: assignment.scope === "faculty" && assignment.faculty ? assignment.faculty : "Toàn trường",
+          })),
+        }
+      : undefined;
 
   return (
     <AdministratorLayout

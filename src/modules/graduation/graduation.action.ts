@@ -8,7 +8,8 @@ import { actionError, actionFailure, actionOk, parseInput, type ActionResult } f
 import { requirePermission } from "@/modules/access/access.query";
 import { GRADUATION_CONSTRAINT_MESSAGE } from "@/modules/graduation/graduation.constant";
 import { loadGraduationCandidates } from "@/modules/graduation/graduation.query";
-import { GRADUATION_APPROVE_SCHEMA } from "@/modules/graduation/graduation.rule";
+import { graduationWorkbook, XLSX_MIME } from "@/modules/graduation/graduation.excel";
+import { GRADUATION_APPROVE_SCHEMA, GRADUATION_EXPORT_SCHEMA } from "@/modules/graduation/graduation.rule";
 import { graduationRecords } from "@/modules/graduation/graduation.schema";
 import { studentDecisions } from "@/modules/users/users.schema";
 
@@ -54,4 +55,16 @@ export async function approveGraduation(studentIds: string[]): Promise<ActionRes
     if (error instanceof GraduationActionError) return actionError(error.message);
     return actionFailure(error, GRADUATION_CONSTRAINT_MESSAGE);
   }
+}
+
+// Xuất .xlsx đúng danh sách đang lọc trên trang (theo thứ tự đang hiện); điều kiện đánh giá lại trên server trong phạm vi người xem.
+export async function exportGraduationCandidates(studentIds: string[]): Promise<ActionResult<{ fileName: string; base64: string; mimeType: string }>> {
+  const viewer = await requirePermission("graduation.manage");
+  const parsed = parseInput(GRADUATION_EXPORT_SCHEMA, { studentIds });
+  if (!parsed.ok) return parsed;
+  const candidates = new Map((await loadGraduationCandidates(viewer)).map((candidate) => [candidate.studentId, candidate]));
+  const rows = parsed.data.studentIds.flatMap((id) => candidates.get(id) ?? []);
+  if (rows.length === 0) return actionError("Không có sinh viên nào trong danh sách để xuất, tải lại trang.");
+  const buffer = await graduationWorkbook(rows);
+  return actionOk({ fileName: `xet-tot-nghiep-${dayjs().format("YYYYMMDD")}.xlsx`, base64: buffer.toString("base64"), mimeType: XLSX_MIME });
 }

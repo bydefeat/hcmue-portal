@@ -6,31 +6,38 @@ import { forbidden } from "next/navigation";
 import { db, type Transaction } from "@/shared/libs/db.lib";
 import { dayjs } from "@/shared/libs/date.lib";
 import { actionError, actionFailure, actionOk, parseInput, type ActionResult } from "@/shared/libs/action.lib";
-import { inScope } from "@/modules/access/access.constant";
+import { can, inScope } from "@/modules/access/access.constant";
 import { requirePermission } from "@/modules/access/access.query";
+import { auditActorOf, recordAudit } from "@/modules/audit/audit.lib";
 import { requireSession } from "@/modules/authentication/authentication.query";
 import { classSections, enrollments, terms } from "@/modules/course-registration/course-registration.schema";
 import { courses, faculties, majors } from "@/modules/curriculum/curriculum.schema";
 import { notifyLecturers, notifyStudents } from "@/modules/notifications/notifications.lib";
 import { DEFAULT_COMPONENTS, DEFAULT_DEADLINE_DAYS, GRADES_CONSTRAINT_MESSAGE, weightedScore } from "@/modules/grades/grades.constant";
+import { gradeSheetWorkbook, readWorkbookMatrix, XLSX_MIME } from "@/modules/grades/grades.excel";
+import { GradeActionError, replaceGradeComponents, sectionRoster, syncAcademicWarnings, type WarningSyncResult } from "@/modules/grades/grades.lib";
+import { getGradeSheet } from "@/modules/grades/grades.query";
 import {
+  ACADEMIC_WARNING_GENERATE_SCHEMA,
   courseGrade,
+  GRADE_COMPONENTS_SAVE_SCHEMA,
+  GRADE_IMPORT_MAX_BYTES,
   GRADE_SCORES_SAVE_SCHEMA,
   GRADE_SHEET_RETURN_SCHEMA,
   GRADE_SHEET_SCHEMA,
   GRADE_SHEETS_SCHEMA,
   NEXT_WARNING_STATUS,
+  parseScoreMatrix,
   WARNING_ADVANCE_SCHEMA,
+  type GradeComponentsSaveInput,
   type GradeScoresSaveInput,
+  type ScoreChange,
   type GradeSheetReturnInput,
 } from "@/modules/grades/grades.rule";
 import { academicWarnings, courseResults, gradeComponents, gradeScores, gradeSheets } from "@/modules/grades/grades.schema";
-import type { GradeSheetStatus, WarningStatus } from "@/modules/grades/grades.type";
+import type { GradeComponent, GradeSheetStatus, WarningStatus } from "@/modules/grades/grades.type";
 import { getCurrentLecturer } from "@/modules/users/users.query";
 import { administrativeClasses, lecturers, students } from "@/modules/users/users.schema";
-
-// Lỗi nghiệp vụ phát hiện trong giao dịch: hủy giao dịch và trả câu báo cho người dùng.
-class GradeActionError extends Error {}
 
 function failure(error: unknown) {
   if (error instanceof GradeActionError) return actionError(error.message);
@@ -47,9 +54,10 @@ function revalidateGrades() {
 // Giảng viên chỉ thao tác trên bảng điểm lớp mình dạy.
 async function requireOwnSection(lecturerId: string, classSectionId: string) {
   const [section] = await db
-    .select({ id: classSections.id, lecturerId: classSections.lecturerId, termEnd: terms.endDate })
+    .select({ id: classSections.id, code: classSections.code, courseName: courses.name, lecturerId: classSections.lecturerId, termEnd: terms.endDate })
     .from(classSections)
     .innerJoin(terms, eq(terms.id, classSections.termId))
+    .innerJoin(courses, eq(courses.id, classSections.courseId))
     .where(eq(classSections.id, classSectionId));
   if (!section || section.lecturerId !== lecturerId) forbidden();
   return section;
@@ -352,6 +360,108 @@ export async function advanceAcademicWarning(id: string, from: WarningStatus): P
     revalidatePath("/administrator/reports/academic-warnings");
     revalidatePath("/administrator");
     return actionOk(row);
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+// Giảng viên sửa cột điểm khi bảng điểm còn nháp hoặc bị trả lại. Lớp chưa có bảng điểm thì tạo bảng (cột mặc định) rồi thay cột.
+export async function saveGradeComponents(input: GradeComponentsSaveInput): Promise<ActionResult<{ components: GradeComponent[] }>> {
+  const lecturer = await getCurrentLecturer();
+  const session = await requireSession();
+  const parsed = parseInput(GRADE_COMPONENTS_SAVE_SCHEMA, input);
+  if (!parsed.ok) return parsed;
+  const section = await requireOwnSection(lecturer.id, parsed.data.classSectionId);
+  try {
+    const components = await db.transaction(async (tx) => {
+      const sheet = await lockSheet(tx, section);
+      if (!EDITABLE.includes(sheet.status)) throw new GradeActionError("Bảng điểm đã chốt, không đổi được cột điểm. Tải lại trang để xem trạng thái mới.");
+      const change = await replaceGradeComponents(tx, { gradeSheetId: sheet.id, components: parsed.data.components, confirmDropScores: parsed.data.confirmDropScores });
+      await recordAudit(tx, {
+        actor: { userId: session.user.id, name: lecturer.displayName, role: "Giảng viên" },
+        action: "update",
+        entityType: "grade-sheet",
+        entityId: sheet.id,
+        entityLabel: `${section.code} ${section.courseName}`,
+        summary: `Sửa cột điểm lớp ${section.code}`,
+        changes: [{ field: "Cột điểm", before: change.before, after: change.after }],
+      });
+      return tx
+        .select({ key: gradeComponents.key, label: gradeComponents.label, weight: gradeComponents.weight })
+        .from(gradeComponents)
+        .where(eq(gradeComponents.gradeSheetId, sheet.id))
+        .orderBy(gradeComponents.position);
+    });
+    revalidatePath("/lecturer", "layout");
+    return actionOk({ components });
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+// Xuất bảng điểm đã lưu ra .xlsx (nội dung base64). Nơi gọi lưu nháp trước để tệp có điểm mới nhất.
+export async function exportGradeSheetExcel(classSectionId: string): Promise<ActionResult<{ fileName: string; base64: string; mimeType: string }>> {
+  const lecturer = await getCurrentLecturer();
+  const parsed = parseInput(GRADE_SHEET_SCHEMA, { classSectionId });
+  if (!parsed.ok) return parsed;
+  const section = await requireOwnSection(lecturer.id, parsed.data.classSectionId);
+  const [sheet, roster] = await Promise.all([getGradeSheet(section.id), sectionRoster(db, section.id)]);
+  if (!sheet) return actionError("Lớp học phần không còn, tải lại trang.");
+  const buffer = await gradeSheetWorkbook({
+    classCode: section.code,
+    courseName: section.courseName,
+    components: sheet.components,
+    students: roster,
+    scores: sheet.scores,
+    locked: !EDITABLE.includes(sheet.status),
+  });
+  return actionOk({ fileName: `bang-diem-${section.code}.xlsx`, base64: buffer.toString("base64"), mimeType: XLSX_MIME });
+}
+
+// Đọc tệp .xlsx theo mẫu đã xuất, trả các ô điểm để bảng nhập điểm điền và lưu nháp như khi gõ tay.
+export async function readGradeSheetExcel(formData: FormData): Promise<ActionResult<{ changes: ScoreChange[]; errors: string[] }>> {
+  const lecturer = await getCurrentLecturer();
+  const parsed = parseInput(GRADE_SHEET_SCHEMA, { classSectionId: formData.get("classSectionId") });
+  if (!parsed.ok) return parsed;
+  const section = await requireOwnSection(lecturer.id, parsed.data.classSectionId);
+  const file = formData.get("file");
+  if (!(file instanceof File) || file.size === 0) return actionError("Chưa chọn tệp.");
+  if (file.size > GRADE_IMPORT_MAX_BYTES) return actionError("Tệp lớn hơn 900 KB, kiểm tra lại đúng tệp bảng điểm chưa.");
+  if (!file.name.toLowerCase().endsWith(".xlsx")) return actionError("Chỉ nhận tệp .xlsx hoặc .csv theo mẫu đã xuất.");
+  const [sheet, roster] = await Promise.all([getGradeSheet(section.id), sectionRoster(db, section.id)]);
+  if (!sheet) return actionError("Lớp học phần không còn, tải lại trang.");
+  let matrix: string[][];
+  try {
+    matrix = await readWorkbookMatrix(await file.arrayBuffer());
+  } catch {
+    return actionError("Không đọc được tệp Excel. Mở tệp bằng Excel, lưu lại dạng .xlsx rồi thử lại.");
+  }
+  return actionOk(parseScoreMatrix(matrix, sheet.components, roster));
+}
+
+// Phòng Đào tạo (phạm vi toàn trường) sinh cảnh báo học vụ cho một học kỳ đã kết thúc; chạy lại không sinh trùng.
+export async function generateAcademicWarnings(termId: string): Promise<ActionResult<WarningSyncResult>> {
+  const viewer = await requirePermission("reports.view");
+  if (!can(viewer, "grades.publish") || viewer.faculty !== null) forbidden();
+  const parsed = parseInput(ACADEMIC_WARNING_GENERATE_SCHEMA, { termId });
+  if (!parsed.ok) return parsed;
+  try {
+    const result = await db.transaction(async (tx) => {
+      const synced = await syncAcademicWarnings(tx, parsed.data.termId);
+      await recordAudit(tx, {
+        actor: auditActorOf(viewer),
+        action: "create",
+        entityType: "report",
+        entityId: synced.termId,
+        entityLabel: `Cảnh báo học vụ ${synced.termName}`,
+        summary: `Sinh cảnh báo học vụ: ${synced.created} mới, ${synced.updated} cập nhật, ${synced.removed} bỏ`,
+      });
+      return synced;
+    });
+    revalidatePath("/administrator/reports/academic-warnings");
+    revalidatePath("/administrator");
+    revalidatePath("/lecturer", "layout");
+    return actionOk(result);
   } catch (error) {
     return failure(error);
   }

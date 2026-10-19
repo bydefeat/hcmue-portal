@@ -1,12 +1,23 @@
 import assert from "node:assert/strict";
 import { after, describe, test } from "node:test";
-import { eq } from "drizzle-orm";
-import { db } from "@/shared/libs/db.lib";
+import { and, eq, sql } from "drizzle-orm";
+import { db, type Transaction } from "@/shared/libs/db.lib";
 import { parseInput } from "@/shared/libs/action.lib";
 import { pgErrorMessage } from "@/shared/libs/pg-error.lib";
+import { auditLogs } from "@/modules/audit/audit.schema";
 import { CURRICULUM_CONSTRAINT_MESSAGE } from "@/modules/curriculum/curriculum.constant";
-import { COURSE_SCHEMA, PROGRAM_SCHEMA } from "@/modules/curriculum/curriculum.rule";
-import { courseRelations, courses } from "@/modules/curriculum/curriculum.schema";
+import { applyProgramCourseChange, FrameworkError } from "@/modules/curriculum/curriculum.lib";
+import {
+  applyFrameworkChange,
+  COURSE_SCHEMA,
+  frameworkChangeError,
+  frameworkIssues,
+  PROGRAM_COURSE_CHANGE_SCHEMA,
+  PROGRAM_SCHEMA,
+  programSemesterLimit,
+} from "@/modules/curriculum/curriculum.rule";
+import { courseRelations, courses, programCourses, programs } from "@/modules/curriculum/curriculum.schema";
+import type { Course, ProgramCourseChange, ProgramDetail } from "@/modules/curriculum/curriculum.type";
 import { GRANT_ROLE_SCHEMA, ROLE_PERMISSIONS_SCHEMA } from "@/modules/access/access.rule";
 
 after(() => db.$client.end());
@@ -87,5 +98,187 @@ describe("access: kiểm dữ liệu", () => {
     const missing = parseInput(GRANT_ROLE_SCHEMA, { userId: "", roleId: "" });
     assert.ok(!missing.ok);
     assert.equal(missing.fieldErrors?.userId, "Chưa chọn cán bộ");
+  });
+});
+
+const program = (semesters: ProgramDetail["semesters"]) => ({
+  semesters,
+  totalCredits: 6,
+  plannedCredits: semesters.reduce((sum, semester) => sum + semester.credits, 0),
+});
+
+function catalogCourse(code: string, credits: number, prerequisiteCodes: string[] = [], isActive = true): Course {
+  return {
+    id: code,
+    code,
+    name: code,
+    credits,
+    theoryCredits: credits,
+    practiceCredits: 0,
+    faculty: "Khoa Công nghệ Thông tin",
+    type: "required",
+    block: "major",
+    prerequisiteCodes,
+    corequisiteCodes: [],
+    equivalentCodes: [],
+    isActive,
+    description: "",
+  };
+}
+
+describe("curriculum: kiểm khung chương trình", () => {
+  const catalog = new Map(
+    [catalogCourse("COMP1010", 3), catalogCourse("COMP1020", 3, ["COMP1010"]), catalogCourse("COMP0999", 2, [], false)].map((entry) => [entry.code, entry]),
+  );
+  const plan = [{ courseCode: "COMP1010", semester: 2 }];
+
+  test("học kỳ 1 đến số năm × 2, tối đa 12", () => {
+    assert.equal(programSemesterLimit(4), 8);
+    assert.equal(programSemesterLimit(8), 12);
+  });
+
+  test("không trùng học phần, không thêm học phần ngừng mở, học kỳ trong khung", () => {
+    assert.equal(frameworkChangeError(plan, { kind: "add", semester: 3, courseCodes: ["COMP1020"] }, catalog, 8), null);
+    assert.equal(frameworkChangeError(plan, { kind: "add", semester: 3, courseCodes: ["COMP1010"] }, catalog, 8), "Học phần COMP1010 đã có trong khung ở học kỳ 2.");
+    assert.equal(frameworkChangeError(plan, { kind: "add", semester: 3, courseCodes: ["COMP0999"] }, catalog, 8), "Học phần COMP0999 đã ngừng mở, không thêm vào khung được.");
+    assert.equal(frameworkChangeError(plan, { kind: "add", semester: 9, courseCodes: ["COMP1020"] }, catalog, 8), "Khung chương trình này chỉ có học kỳ 1 đến 8.");
+    assert.equal(frameworkChangeError(plan, { kind: "move", courseCode: "COMP1010", semester: 2 }, catalog, 8), "Học phần COMP1010 đã ở học kỳ 2.");
+    assert.equal(frameworkChangeError(plan, { kind: "remove", courseCode: "COMP1020" }, catalog, 8), "Học phần COMP1020 không còn trong khung, tải lại trang.");
+    assert.deepEqual(applyFrameworkChange(plan, { kind: "move", courseCode: "COMP1010", semester: 5 }), [{ courseCode: "COMP1010", semester: 5 }]);
+    const parsed = parseInput(PROGRAM_COURSE_CHANGE_SCHEMA, { kind: "add", semester: 0, courseCodes: [] });
+    assert.ok(!parsed.ok && parsed.fieldErrors?.semester && parsed.fieldErrors?.courseCodes);
+  });
+
+  test("tiên quyết xếp sau, thiếu tiên quyết, lệch tổng tín chỉ chỉ là cảnh báo", () => {
+    const first = catalog.get("COMP1010")!;
+    const second = catalog.get("COMP1020")!;
+    assert.deepEqual(
+      frameworkIssues(
+        program([
+          { semester: 1, credits: 3, courses: [first] },
+          { semester: 2, credits: 3, courses: [second] },
+        ]),
+      ),
+      [],
+    );
+    const sameTerm = frameworkIssues(program([{ semester: 1, credits: 6, courses: [second, first] }]));
+    assert.deepEqual(
+      sameTerm.map((issue) => issue.kind),
+      ["prerequisite-order"],
+    );
+    const missing = frameworkIssues(program([{ semester: 2, credits: 3, courses: [second] }]));
+    assert.deepEqual(
+      missing.map((issue) => issue.kind),
+      ["prerequisite-missing", "credits-short"],
+    );
+    assert.equal(missing[1].message, "Khung còn thiếu 3 tín chỉ so với tổng 6 của chương trình.");
+  });
+});
+
+class Rollback extends Error {}
+
+// Chạy trong một giao dịch rồi hủy, không để lại dữ liệu; mỗi thao tác lỗi chạy trong savepoint riêng.
+async function inRollback(run: (tx: Transaction) => Promise<void>) {
+  await db
+    .transaction(async (tx) => {
+      await run(tx);
+      throw new Rollback();
+    })
+    .catch((error: unknown) => {
+      if (!(error instanceof Rollback)) throw error;
+    });
+}
+
+async function failureOf(tx: Transaction, run: (inner: Transaction) => Promise<unknown>) {
+  const error = await tx
+    .transaction(async (inner) => {
+      await run(inner);
+    })
+    .then(() => null)
+    .catch((caught: unknown) => caught);
+  assert.ok(error, "thao tác phải bị chặn");
+  return error instanceof FrameworkError ? error.message : pgErrorMessage(error, CURRICULUM_CONSTRAINT_MESSAGE);
+}
+
+const actor = { userId: null, name: "Kiểm thử", role: "Kiểm thử" };
+
+describe("curriculum: sửa khung chương trình trên DB", () => {
+  test("thêm, chuyển, bỏ học phần trong chương trình nháp, ghi nhật ký; DB chặn học kỳ vượt thời gian đào tạo", async () => {
+    await inRollback(async (tx) => {
+      const [draft] = await tx.select().from(programs).where(eq(programs.name, "Công nghệ thông tin (cập nhật 2027)"));
+      const run = (inner: Transaction, change: ProgramCourseChange, faculty: string | null = null) =>
+        applyProgramCourseChange(inner, { programId: draft.id, change, actor, faculty });
+      await run(tx, { kind: "add", semester: 1, courseCodes: ["COMP1010", "COMP1013"] });
+      await run(tx, { kind: "move", courseCode: "COMP1013", semester: 2 });
+      await run(tx, { kind: "remove", courseCode: "COMP1010" });
+      const rows = await tx
+        .select({ code: courses.code, semester: programCourses.semester })
+        .from(programCourses)
+        .innerJoin(courses, eq(courses.id, programCourses.courseId))
+        .where(eq(programCourses.programId, draft.id));
+      assert.deepEqual(rows, [{ code: "COMP1013", semester: 2 }]);
+      const logs = await tx
+        .select({ summary: auditLogs.summary })
+        .from(auditLogs)
+        .where(and(eq(auditLogs.entityType, "program"), eq(auditLogs.entityId, draft.id)))
+        .orderBy(auditLogs.at, auditLogs.id);
+      assert.deepEqual(
+        logs.map((log) => log.summary),
+        ["Thêm COMP1010, COMP1013 vào học kỳ 1", "Chuyển COMP1013 từ học kỳ 1 sang học kỳ 2", "Bỏ COMP1010 khỏi khung (học kỳ 1)"],
+      );
+      assert.equal(await failureOf(tx, (inner) => run(inner, { kind: "add", semester: 3, courseCodes: ["COMP1013"] })), "Học phần COMP1013 đã có trong khung ở học kỳ 2.");
+      assert.equal(await failureOf(tx, (inner) => run(inner, { kind: "add", semester: 3, courseCodes: ["COMP0999"] })), "Học phần COMP0999 đã ngừng mở, không thêm vào khung được.");
+      assert.equal(await failureOf(tx, (inner) => run(inner, { kind: "move", courseCode: "COMP1013", semester: 9 })), "Khung chương trình này chỉ có học kỳ 1 đến 8.");
+      assert.equal(
+        await failureOf(tx, (inner) => run(inner, { kind: "add", semester: 3, courseCodes: ["COMP1020"] }, "Khoa Toán - Tin học")),
+        "Chương trình thuộc khoa khác, bạn chỉ sửa được khung của khoa mình.",
+      );
+      const [extra] = await tx.select().from(courses).where(eq(courses.code, "COMP1020"));
+      assert.equal(
+        await failureOf(tx, (inner) => inner.insert(programCourses).values({ programId: draft.id, courseId: extra.id, semester: 9 })),
+        CURRICULUM_CONSTRAINT_MESSAGE.program_courses_semester_within_duration,
+      );
+      await run(tx, { kind: "move", courseCode: "COMP1013", semester: 5 });
+      assert.equal(
+        await failureOf(tx, (inner) => inner.update(programs).set({ durationYears: 2 }).where(eq(programs.id, draft.id))),
+        CURRICULUM_CONSTRAINT_MESSAGE.program_courses_semester_within_duration,
+      );
+    });
+  });
+
+  test("chương trình ngừng áp dụng chỉ xem được, kể cả ghi thẳng vào DB", async () => {
+    await inRollback(async (tx) => {
+      const [archived] = await tx.select().from(programs).where(eq(programs.status, "archived")).limit(1);
+      const [first] = await tx.select().from(courses).where(eq(courses.code, "COMP1010"));
+      assert.equal(
+        await failureOf(tx, (inner) =>
+          applyProgramCourseChange(inner, { programId: archived.id, change: { kind: "add", semester: 1, courseCodes: ["COMP1010"] }, actor, faculty: null }),
+        ),
+        "Chương trình đã ngừng áp dụng nên khung chỉ xem được.",
+      );
+      assert.equal(
+        await failureOf(tx, (inner) => inner.insert(programCourses).values({ programId: archived.id, courseId: first.id, semester: 1 })),
+        CURRICULUM_CONSTRAINT_MESSAGE.program_courses_program_archived,
+      );
+      await tx.update(programs).set({ status: "draft" }).where(eq(programs.id, archived.id));
+      await tx.insert(programCourses).values({ programId: archived.id, courseId: first.id, semester: 1 });
+      await tx.update(programs).set({ status: "archived" }).where(eq(programs.id, archived.id));
+      assert.equal(
+        await failureOf(tx, (inner) => inner.delete(programCourses).where(eq(programCourses.programId, archived.id))),
+        CURRICULUM_CONSTRAINT_MESSAGE.program_courses_program_archived,
+      );
+    });
+  });
+
+  test("khung mẫu của mỗi chương trình đang áp dụng đủ tổng tín chỉ của chương trình", async () => {
+    const rows = await db
+      .select({ name: programs.name, totalCredits: programs.totalCredits, planned: sql<number>`coalesce(sum(${courses.credits}), 0)::int` })
+      .from(programs)
+      .leftJoin(programCourses, eq(programCourses.programId, programs.id))
+      .leftJoin(courses, eq(courses.id, programCourses.courseId))
+      .where(eq(programs.status, "active"))
+      .groupBy(programs.id);
+    assert.equal(rows.length, 6);
+    for (const row of rows) assert.equal(row.planned, row.totalCredits, row.name);
   });
 });

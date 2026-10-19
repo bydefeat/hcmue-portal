@@ -28,24 +28,45 @@ const MAJOR_COURSES: Record<string, CourseSeed[]> = {
     ["COMP1250", "Học sâu", 3], ["COMP1260", "Internet vạn vật", 3], ["COMP1270", "Phát triển trò chơi", 3],
     ["COMP1280", "Khoa học dữ liệu", 3], ["COMP4990", "Khóa luận tốt nghiệp", 7],
   ],
+  // 38 học phần đầu (khóa 48 học đủ 8 kỳ × 6 học phần, gồm 10 học phần đại cương) đúng 106 tín chỉ để đủ 130 tín chỉ xét tốt nghiệp;
+  // khóa luận ở cuối đưa khung lên 135 tín chỉ của chương trình.
   "101": [
     ["MATH1011", "Giải tích 1", 3], ["MATH1012", "Đại số tuyến tính", 3], ["MATH2001", "Giải tích 2", 3], ["MATH1020", "Toán rời rạc", 3],
     ["MATH1013", "Xác suất thống kê", 3], ["MATH2010", "Hình học sơ cấp", 3], ["MATH2020", "Phương pháp dạy học môn Toán", 3], ["MATH2030", "Đại số đại cương", 3],
-    ["MATH2040", "Giải tích phức", 3], ["MATH2050", "Hình học vi phân", 3], ["MATH2060", "Phương trình vi phân", 3], ["MATH2070", "Lý thuyết số", 2],
-    ["MATH2080", "Tô pô đại cương", 3], ["MATH2090", "Phát triển chương trình môn Toán", 2], ["MATH2100", "Thực hành dạy học Toán", 2], ["MATH4900", "Thực tập sư phạm", 4],
-    ["MATH2110", "Quy hoạch tuyến tính", 3], ["MATH2120", "Thống kê ứng dụng", 3], ["MATH2130", "Lịch sử toán học", 2], ["MATH2140", "Đánh giá trong dạy học Toán", 2],
-    ["MATH2150", "Toán cao cấp cho giáo viên", 3], ["MATH2160", "Giải tích số", 3], ["MATH2170", "Chuyên đề hình học", 2], ["MATH2180", "Chuyên đề đại số", 2],
-    ["MATH2190", "Ứng dụng CNTT dạy Toán", 2], ["MATH2200", "Seminar Toán", 2], ["MATH2210", "Lý thuyết đồ thị", 3], ["MATH2220", "Mật mã học", 3],
-    ["MATH2230", "Toán tài chính", 2], ["MATH2240", "Giáo dục STEM", 2],
+    ["MATH2040", "Giải tích phức", 3], ["MATH2050", "Hình học vi phân", 3], ["MATH2060", "Phương trình vi phân", 3], ["MATH2070", "Lý thuyết số", 3],
+    ["MATH2080", "Tô pô đại cương", 3], ["MATH2090", "Phát triển chương trình môn Toán", 2], ["MATH2100", "Thực hành dạy học Toán", 2], ["MATH2110", "Quy hoạch tuyến tính", 3],
+    ["MATH2120", "Thống kê ứng dụng", 3], ["MATH2130", "Lịch sử toán học", 2], ["MATH2140", "Đánh giá trong dạy học Toán", 2], ["MATH2150", "Toán cao cấp cho giáo viên", 3],
+    ["MATH2160", "Giải tích số", 3], ["MATH2170", "Chuyên đề hình học", 2], ["MATH2180", "Chuyên đề đại số", 2], ["MATH2190", "Ứng dụng CNTT dạy Toán", 2],
+    ["MATH2200", "Seminar Toán", 2], ["MATH2210", "Lý thuyết đồ thị", 3], ["MATH2220", "Mật mã học", 3], ["MATH2230", "Toán tài chính", 3],
+    ["MATH2240", "Giáo dục STEM", 2], ["MATH2250", "Giải tích hàm", 3], ["MATH2260", "Lý thuyết độ đo và tích phân", 3], ["MATH2270", "Hình học xạ ảnh", 3],
+    ["MATH2280", "Đại số giao hoán", 3], ["MATH2290", "Phương pháp tính", 3], ["MATH2300", "Toán ứng dụng trong trường phổ thông", 3], ["MATH2310", "Bồi dưỡng học sinh giỏi Toán", 3],
+    ["MATH4900", "Thực tập sư phạm", 4], ["MATH2320", "Phương trình đạo hàm riêng", 3], ["MATH4990", "Khóa luận tốt nghiệp", 5],
   ],
 };
+
+// Ngành chưa có danh mục học phần riêng: 37 học phần chuyên ngành (học phần thứ 4, 8, 12... là 2 tín chỉ, đủ số lượng twoCredit)
+// và học phần thực tập 4 tín chỉ trước 4 học phần cuối, cộng 24 tín chỉ đại cương bằng đúng tổng tín chỉ của chương trình.
+// Mã đuôi 5 để không trùng học phần đã khai báo riêng trong danh mục (ENGL2010, PSYC2010...).
+const GENERATED_MAJORS: Record<string, { prefix: string; topic: string; internship: string; twoCredit: number }> = {
+  "601": { prefix: "LITR", topic: "Ngữ văn", internship: "Thực tập sư phạm", twoCredit: 4 },
+  "751": { prefix: "ENGL", topic: "Tiếng Anh", internship: "Thực tập nghề nghiệp", twoCredit: 7 },
+  "102": { prefix: "PHYS", topic: "Vật lý", internship: "Thực tập sư phạm", twoCredit: 4 },
+  "611": { prefix: "PSYC", topic: "Tâm lý học", internship: "Thực tập nghề nghiệp", twoCredit: 9 },
+};
+
+const GENERATED_COURSES = 37;
+const INTERNSHIP_POSITION = 33;
 
 function majorCourses(majorCode: string): CourseSeed[] {
   const own = MAJOR_COURSES[majorCode];
   if (own) return own;
-  const prefix = { "601": "LITR", "751": "ENGL", "102": "PHYS", "611": "PSYC" }[majorCode] ?? "GENL";
-  const topic = { "601": "Ngữ văn", "751": "Tiếng Anh", "102": "Vật lý", "611": "Tâm lý học" }[majorCode] ?? "Chuyên ngành";
-  return Array.from({ length: 30 }, (_, index) => [`${prefix}${2000 + index * 10}`, `${topic} chuyên ngành ${index + 1}`, index % 4 === 3 ? 2 : 3]);
+  const { prefix, topic, internship, twoCredit } = GENERATED_MAJORS[majorCode] ?? { prefix: "GENL", topic: "Chuyên ngành", internship: "Thực tập nghề nghiệp", twoCredit: 9 };
+  const regular = Array.from({ length: GENERATED_COURSES }, (_, index): CourseSeed => [
+    `${prefix}${2005 + index * 10}`,
+    `${topic} chuyên ngành ${index + 1}`,
+    index % 4 === 3 && Math.floor(index / 4) < twoCredit ? 2 : 3,
+  ]);
+  return [...regular.slice(0, INTERNSHIP_POSITION), [`${prefix}4900`, internship, 4], ...regular.slice(INTERNSHIP_POSITION)];
 }
 
 export const TERMS_DONE_BY_COHORT: Record<number, number> = { 48: 8, 49: 6, 50: 4, 51: 2 };

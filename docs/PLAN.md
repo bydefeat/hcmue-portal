@@ -220,6 +220,7 @@ PostgreSQL 18.4, khoá chính `uuid` mặc định `uuidv7()`. Ràng buộc đ�
 - Xoá toàn bộ mock (`mock*.lib.ts`, `*.mock.ts`), test end-to-end các luồng chính, cấu hình triển khai.
 - Đã làm: không còn code chạy lúc runtime đọc `*.mock.ts` hay `MOCK_MAJORS`/`MOCK_COHORTS`; ngành, khoa, khóa đọc từ DB. Mock chỉ còn là dữ liệu nguồn cho seed (`scripts/seed`) và test seed. Danh mục học phần thống nhất (201 học phần), khung chương trình mỗi ngành theo đúng thứ tự học phần trong bảng điểm mẫu. Xuất/nhập bảng điểm và xuất danh sách xét tốt nghiệp bằng CSV.
 - Còn lại: kho lưu tệp (minh chứng đơn từ, đề thi mới lưu tên tệp), dịch vụ gửi email (OTP đang in ra log server), cổng sinh viên xem thông báo lớp và đề cương, giao diện sửa khung chương trình và sửa cột điểm, khung chương trình 5 ngành ngoài CNTT trong seed chỉ khoảng 105 tín chỉ (dưới mức xét tốt nghiệp), trang 404 trong cổng trả mã 200.
+- Đã làm (đợt 2: khung, cột điểm, Excel, cảnh báo): sửa khung chương trình (thêm, bỏ, chuyển học kỳ bằng menu hoặc kéo thả; trigger chặn khung của chương trình ngừng áp dụng và học kỳ vượt số năm × 2), giảng viên sửa cột điểm khi bảng còn nháp/bị trả lại (gợi ý theo đề cương đã công bố), xuất/nhập bảng điểm `.xlsx` (vẫn nhận `.csv`) và xuất danh sách xét tốt nghiệp `.xlsx` bằng exceljs, sinh cảnh báo học vụ cho học kỳ đã kết thúc (nút ở trang cảnh báo học vụ, tác vụ cron `academic-warnings`, báo cố vấn), khung mẫu mỗi ngành đủ tổng tín chỉ của chương trình nên khóa 48 ngành nào cũng có sinh viên đủ điều kiện tốt nghiệp.
 
 ---
 

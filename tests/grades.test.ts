@@ -8,20 +8,31 @@ import { pgErrorMessage } from "@/shared/libs/pg-error.lib";
 import { classSections, enrollments, terms } from "@/modules/course-registration/course-registration.schema";
 import { courses, majors } from "@/modules/curriculum/curriculum.schema";
 import { GRADES_CONSTRAINT_MESSAGE, toLetter, toStanding, weightedScore } from "@/modules/grades/grades.constant";
+import ExcelJS from "exceljs";
+import { gradeSheetWorkbook, readWorkbookMatrix } from "@/modules/grades/grades.excel";
+import { GradeActionError, replaceGradeComponents, syncAcademicWarnings } from "@/modules/grades/grades.lib";
 import {
   buildTranscript,
+  componentKey,
   computeStanding,
   creditAverage,
+  GRADE_COMPONENTS_SAVE_SCHEMA,
   GRADE_SCORES_SAVE_SCHEMA,
   GRADE_SHEET_RETURN_SCHEMA,
+  latestWarningTerm,
+  parseScoreMatrix,
+  planComponentChanges,
+  planWarningSync,
   sheetState,
   summarizeStandings,
   warningLevelOf,
   warningReasons,
 } from "@/modules/grades/grades.rule";
-import { courseResults, gradeComponents, gradeScores, gradeSheets } from "@/modules/grades/grades.schema";
+import { academicWarnings, courseResults, gradeComponents, gradeScores, gradeSheets } from "@/modules/grades/grades.schema";
 import type { LetterGrade, TranscriptCourse } from "@/modules/grades/grades.type";
-import { administrativeClasses, students } from "@/modules/users/users.schema";
+import { notifications } from "@/modules/notifications/notifications.schema";
+import { mockTermId } from "@/shared/libs/mock.lib";
+import { administrativeClasses, lecturers, students } from "@/modules/users/users.schema";
 
 after(() => db.$client.end());
 
@@ -304,6 +315,265 @@ describe("grades: ràng buộc ở DB", () => {
         GRADES_CONSTRAINT_MESSAGE.course_results_enrollment_fk,
       );
       await tx.insert(courseResults).values({ ...base, enrollmentId: roster[0].id, score10: 7, letter: "B", point4: 3 });
+    });
+  });
+});
+
+describe("grades: sửa cột điểm", () => {
+  test("kiểm cột điểm: tên không trùng, tổng 100%, khóa cột mới sinh từ tên", () => {
+    const sectionId = "0192f3a4-0000-7000-8000-000000000000";
+    const bad = parseInput(GRADE_COMPONENTS_SAVE_SCHEMA, {
+      classSectionId: sectionId,
+      components: [
+        { key: "midterm", label: "Giữa kỳ", weight: 40 },
+        { key: null, label: "giữa kỳ", weight: 50 },
+      ],
+    });
+    assert.ok(!bad.ok);
+    assert.equal(bad.fieldErrors?.components, "Tên các cột điểm không được trùng nhau");
+    const total = parseInput(GRADE_COMPONENTS_SAVE_SCHEMA, { classSectionId: sectionId, components: [{ key: null, label: "Cuối kỳ", weight: 90 }] });
+    assert.equal(!total.ok && total.fieldErrors?.components, "Tổng trọng số các cột điểm phải bằng 100%");
+    assert.equal(componentKey("Bài tập nhóm", new Set()), "bai-tap-nhom");
+    assert.equal(componentKey("Đồ án", new Set(["do-an"])), "do-an-2");
+    const plan = planComponentChanges(
+      [
+        { id: "a", key: "midterm" },
+        { id: "b", key: "final" },
+      ],
+      [
+        { key: "final", label: "Cuối kỳ", weight: 70 },
+        { key: null, label: "Bài tập", weight: 30 },
+      ],
+    );
+    assert.deepEqual(plan.removed.map((component) => component.key), ["midterm"]);
+    assert.deepEqual(plan.kept.map((component) => [component.key, component.position]), [["final", 1]]);
+    assert.deepEqual(plan.created.map((component) => [component.key, component.position]), [["bai-tap", 2]]);
+  });
+
+  test("đổi tên, trọng số, thêm cột trong một giao dịch; tổng khác 100 bị chặn; cột có điểm phải xác nhận; chốt rồi không đổi được", async () => {
+    await inRollback(async (tx) => {
+      const { components, roster, sheet } = await makeSheet(tx);
+      await tx.insert(gradeScores).values({ gradeComponentId: components[0].id, enrollmentId: roster[0].id, score: 8 });
+      await tx.transaction(async (inner) => {
+        await replaceGradeComponents(inner, {
+          gradeSheetId: sheet.id,
+          components: [
+            { key: null, label: "Chuyên cần", weight: 20 },
+            { key: "midterm", label: "Giữa kỳ (bài tập)", weight: 30 },
+            { key: "final", label: "Cuối kỳ", weight: 50 },
+          ],
+          confirmDropScores: false,
+        });
+        await inner.execute(sql`SET CONSTRAINTS ALL IMMEDIATE`);
+      });
+      // SET CONSTRAINTS giữ tới hết giao dịch ngoài, trả lại kiểm lúc commit cho các bước sau.
+      const deferred = () => tx.execute(sql`SET CONSTRAINTS ALL DEFERRED`);
+      await deferred();
+      const saved = await tx.select().from(gradeComponents).where(eq(gradeComponents.gradeSheetId, sheet.id)).orderBy(gradeComponents.position);
+      assert.deepEqual(
+        saved.map((component) => `${component.position}:${component.key}:${component.label}:${component.weight}`),
+        ["1:chuyen-can:Chuyên cần:20", "2:midterm:Giữa kỳ (bài tập):30", "3:final:Cuối kỳ:50"],
+      );
+      const [kept] = await tx.select().from(gradeScores).where(eq(gradeScores.gradeComponentId, components[0].id));
+      assert.equal(kept?.score, 8);
+
+      assert.equal(
+        await messageOf(tx, (inner) =>
+          replaceGradeComponents(inner, {
+            gradeSheetId: sheet.id,
+            components: [
+              { key: "midterm", label: "Giữa kỳ", weight: 30 },
+              { key: "final", label: "Cuối kỳ", weight: 60 },
+            ],
+            confirmDropScores: false,
+          }),
+        ),
+        GRADES_CONSTRAINT_MESSAGE.grade_components_weights_total_100,
+      );
+      await deferred();
+
+      const dropMidterm = { gradeSheetId: sheet.id, components: [{ key: "final", label: "Cuối kỳ", weight: 100 }] };
+      await assert.rejects(
+        tx.transaction((inner) => replaceGradeComponents(inner, { ...dropMidterm, confirmDropScores: false })),
+        (error: unknown) => error instanceof GradeActionError && error.message.startsWith("Cột Giữa kỳ (bài tập) (1 điểm) đã có điểm."),
+      );
+      await replaceGradeComponents(tx, { ...dropMidterm, confirmDropScores: true });
+      assert.equal((await tx.select().from(gradeScores).where(eq(gradeScores.enrollmentId, roster[0].id))).length, 0);
+
+      await tx.insert(gradeScores).values(roster.map((entry) => ({ gradeComponentId: components[1].id, enrollmentId: entry.id, score: 7 })));
+      await tx.execute(sql`SET CONSTRAINTS ALL IMMEDIATE`);
+      await tx.update(gradeSheets).set({ status: "locked", lockedAt: new Date() }).where(eq(gradeSheets.id, sheet.id));
+      assert.equal(
+        await messageOf(tx, (inner) =>
+          replaceGradeComponents(inner, { gradeSheetId: sheet.id, components: [{ key: "final", label: "Thi cuối kỳ", weight: 100 }], confirmDropScores: false }),
+        ),
+        GRADES_CONSTRAINT_MESSAGE.grade_components_sheet_locked,
+      );
+    });
+  });
+});
+
+describe("grades: tệp Excel bảng điểm", () => {
+  const components = [
+    { key: "midterm", label: "Giữa kỳ", weight: 40 },
+    { key: "final", label: "Cuối kỳ", weight: 60 },
+  ];
+  const roster = [
+    { studentId: "s1", studentCode: "50.01.104.009", fullName: "Phạm Gia Đạt" },
+    { studentId: "s2", studentCode: "50.01.104.016", fullName: "Lê Minh Anh" },
+  ];
+
+  test("xuất .xlsx đúng mẫu, sửa điểm trong tệp rồi đọc lại được", async () => {
+    const buffer = await gradeSheetWorkbook({
+      classCode: "COMP1080.01",
+      courseName: "Trí tuệ nhân tạo",
+      components,
+      students: roster,
+      scores: { s1: { midterm: 7.5, final: 8 }, s2: { midterm: 6, final: null } },
+      locked: false,
+    });
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(new Uint8Array(buffer).buffer);
+    const sheet = workbook.worksheets[0];
+    assert.deepEqual((sheet.getRow(1).values as unknown[]).slice(1), ["MSSV", "Họ và tên", "Giữa kỳ (40%)", "Cuối kỳ (60%)", "Tổng", "Điểm chữ"]);
+    assert.equal(sheet.getCell("C2").numFmt, "0.00");
+    assert.equal(sheet.getCell("C2").protection?.locked, false);
+    assert.notEqual(sheet.getCell("A2").protection?.locked, false);
+    assert.equal((sheet.getCell("E2").value as ExcelJS.CellFormulaValue).result, 7.8);
+    assert.equal((sheet.getCell("F2").value as ExcelJS.CellFormulaValue).result, "B");
+
+    sheet.getCell("D3").value = 9.25;
+    sheet.getCell("C3").value = "6,5";
+    sheet.addRow(["99.99.999.999", "Không có trong lớp", 5, 5]);
+    sheet.addRow(["50.01.104.009", "Lặp lại", 1, 1]);
+    const edited = await workbook.xlsx.writeBuffer();
+    const matrix = await readWorkbookMatrix(edited as ArrayBuffer);
+    const { changes, errors } = parseScoreMatrix(matrix, components, roster);
+    assert.deepEqual(changes, [
+      { studentId: "s1", key: "midterm", score: 7.5 },
+      { studentId: "s1", key: "final", score: 8 },
+      { studentId: "s2", key: "midterm", score: 6.5 },
+      { studentId: "s2", key: "final", score: 9.25 },
+    ]);
+    assert.deepEqual(errors, ["Dòng 4: MSSV 99.99.999.999 không có trong lớp", "Dòng 5: MSSV 50.01.104.009 lặp lại, chỉ lấy dòng đầu"]);
+  });
+
+  test("tệp khác mẫu, điểm ngoài 0–10 báo đúng dòng; CSV dùng cùng cách đọc", () => {
+    assert.deepEqual(parseScoreMatrix([["MSSV", "Họ và tên", "Cuối kỳ"]], components, roster).errors, [
+      "Tệp không đúng mẫu: dùng tệp xuất từ nút Xuất Excel của chính bảng điểm này.",
+    ]);
+    const { changes, errors } = parseScoreMatrix(
+      [
+        ["MSSV", "Họ và tên", "Giữa kỳ (40%)", "Cuối kỳ (60%)"],
+        ["5001104009", "Phạm Gia Đạt", "11", ""],
+        ["", "", "", ""],
+        ["50.01.104.016", "Lê Minh Anh", "abc", "7"],
+      ],
+      components,
+      roster,
+    );
+    assert.deepEqual(changes, [{ studentId: "s2", key: "final", score: 7 }]);
+    assert.deepEqual(errors, ['Dòng 2: Giữa kỳ "11" phải là số từ 0 đến 10', 'Dòng 4: Giữa kỳ "abc" phải là số từ 0 đến 10']);
+  });
+});
+
+const grade = (score10: number) => ({ score10, letter: toLetter(score10).letter, point4: toLetter(score10).point4 });
+
+describe("grades: sinh cảnh báo học vụ", () => {
+  test("kế hoạch đồng bộ: thêm mới, cập nhật cảnh báo chưa xử lý, bỏ khi đã đạt, giữ cảnh báo đã xử lý", () => {
+    const warning = { level: 2 as const, termGpa4: 1.2, cpa4: 1.3, failedCredits: 3, reasons: ["CPA 1,30 dưới ngưỡng 1,5"] };
+    const plan = planWarningSync(
+      [
+        { ...warning, id: "w1", studentId: "a", status: "new" },
+        { ...warning, id: "w2", studentId: "b", status: "new" },
+        { ...warning, id: "w3", studentId: "c", status: "notified" },
+        { ...warning, id: "w4", studentId: "d", status: "new" },
+      ],
+      [
+        { ...warning, studentId: "a" },
+        { ...warning, level: 3 as const, cpa4: 0.9, studentId: "b" },
+        { ...warning, level: 3 as const, studentId: "c" },
+        { ...warning, studentId: "e" },
+      ],
+    );
+    assert.deepEqual(plan.create.map((entry) => entry.studentId), ["e"]);
+    assert.deepEqual(plan.update.map((entry) => [entry.id, entry.level]), [["w2", 3]]);
+    assert.deepEqual(plan.remove, ["w4"]);
+    assert.equal(plan.unchanged, 1);
+    assert.equal(plan.handled, 1);
+    const termList = [
+      { id: "hk2", semester: 2, endDate: "2026-06-27" },
+      { id: "he", semester: 3, endDate: "2026-08-15" },
+      { id: "hk1", semester: 1, endDate: "2027-01-16" },
+    ];
+    assert.equal(latestWarningTerm(termList, "2026-10-19")?.id, "hk2");
+    assert.equal(latestWarningTerm(termList, "2026-01-01"), null);
+  });
+
+  test("chạy hai lần không sinh trùng; điểm đổi thì cập nhật cảnh báo chưa xử lý; cố vấn nhận thông báo cảnh báo mới", async () => {
+    await inRollback(async (tx) => {
+      const [course] = await tx.select().from(courses).where(eq(courses.code, "COMP1070"));
+      const [major] = await tx.select().from(majors).limit(1);
+      const [advisor] = await tx.select().from(lecturers).where(sql`${lecturers.userId} IS NOT NULL`).limit(1);
+      const [term] = await tx
+        .insert(terms)
+        .values({ code: "TEST-AW-term", name: "Học kỳ kiểm thử cảnh báo", shortName: "Kiểm thử", academicYear: 2001, semester: 1, startDate: "2001-01-01", endDate: "2001-05-01" })
+        .returning();
+      const [homeClass] = await tx.insert(administrativeClasses).values({ code: "TEST-AW-class", majorId: major.id, cohort: 97, advisorId: advisor.id }).returning();
+      const [weak, strong] = await tx
+        .insert(students)
+        .values(
+          [1, 2].map((index) => ({
+            code: `TEST-AW-${index}`,
+            fullName: `Sinh viên kiểm thử cảnh báo ${index}`,
+            gender: "female" as const,
+            dateOfBirth: "2010-01-01",
+            email: `test-aw-${index}@student.hcmue.edu.vn`,
+            administrativeClassId: homeClass.id,
+          })),
+        )
+        .returning();
+      await tx.insert(courseResults).values([
+        { studentId: weak.id, courseId: course.id, termId: term.id, source: "legacy", ...grade(2) },
+        { studentId: strong.id, courseId: course.id, termId: term.id, source: "legacy", ...grade(9) },
+      ]);
+
+      const first = await syncAcademicWarnings(tx, term.id);
+      assert.deepEqual([first.students, first.created, first.updated, first.advisorsNotified], [2, 1, 0, 1]);
+      const second = await syncAcademicWarnings(tx, term.id);
+      assert.deepEqual([second.created, second.updated, second.removed, second.unchanged, second.advisorsNotified], [0, 0, 0, 1, 0]);
+      const stored = await tx.select().from(academicWarnings).where(eq(academicWarnings.termId, term.id));
+      assert.deepEqual(stored.map((row) => [row.studentId, row.level]), [[weak.id, 3]]);
+      const notices = await tx.select({ title: notifications.title }).from(notifications).where(eq(notifications.recipientUserId, advisor.userId!));
+      assert.ok(notices.some((notice) => notice.title === "Lớp TEST-AW-class có 1 sinh viên bị cảnh báo học vụ học kỳ kiểm thử cảnh báo"));
+
+      await tx.update(courseResults).set(grade(4.5)).where(eq(courseResults.studentId, weak.id));
+      const third = await syncAcademicWarnings(tx, term.id);
+      assert.equal(third.updated, 1);
+      const [updated] = await tx.select().from(academicWarnings).where(eq(academicWarnings.studentId, weak.id));
+      assert.equal(updated.level, 2);
+
+      // Đã gửi thông báo thì sinh lại không đổi mức; ghi thẳng vào DB cũng bị chặn.
+      await tx.update(academicWarnings).set({ status: "notified" }).where(eq(academicWarnings.id, updated.id));
+      await tx.update(courseResults).set(grade(2)).where(eq(courseResults.studentId, weak.id));
+      const fourth = await syncAcademicWarnings(tx, term.id);
+      assert.deepEqual([fourth.updated, fourth.handled], [0, 1]);
+      assert.equal(
+        await messageOf(tx, (inner) => inner.update(academicWarnings).set({ level: 3 }).where(eq(academicWarnings.id, updated.id))),
+        GRADES_CONSTRAINT_MESSAGE.academic_warnings_handled_locked,
+      );
+    });
+  });
+
+  test("học kỳ chưa kết thúc không xét được; dữ liệu mẫu sinh lại không đổi cảnh báo nào", async () => {
+    await inRollback(async (tx) => {
+      await assert.rejects(
+        tx.transaction((inner) => syncAcademicWarnings(inner, mockTermId("hk1-2026"))),
+        (error: unknown) => error instanceof GradeActionError && error.message.includes("chưa kết thúc"),
+      );
+      const result = await syncAcademicWarnings(tx, mockTermId("hk2-2025"), { notify: false });
+      assert.ok(result.students > 0 && result.unchanged + result.handled > 0);
+      assert.deepEqual([result.created, result.updated, result.removed], [0, 0, 0]);
     });
   });
 });

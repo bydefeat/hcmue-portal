@@ -164,3 +164,174 @@ export const GRADE_SHEET_RETURN_SCHEMA = z.object({
 export type GradeSheetReturnInput = z.input<typeof GRADE_SHEET_RETURN_SCHEMA>;
 
 export const WARNING_ADVANCE_SCHEMA = z.object({ id: z.uuid(), from: z.enum(["new", "notified"]) });
+
+export const MAX_GRADE_COMPONENTS = 8;
+
+// Cột điểm gửi lên khi sửa: key của cột đang có (giữ nguyên điểm), null là cột mới. DB chặn thêm bằng grade_components_weights_total_100
+// (kiểm lúc commit) và grade_components_sheet_locked.
+export const GRADE_COMPONENTS_SAVE_SCHEMA = z.object({
+  classSectionId: z.uuid(),
+  components: z
+    .array(
+      z.object({
+        key: z.string().trim().min(1).max(40).nullable(),
+        label: z.string().trim().min(1, "Chưa nhập tên cột").max(40, "Tối đa 40 ký tự"),
+        weight: z.int("Trọng số là số nguyên").min(1, "Trọng số từ 1%").max(100, "Trọng số tối đa 100%"),
+      }),
+    )
+    .min(1, "Bảng điểm cần ít nhất một cột điểm")
+    .max(MAX_GRADE_COMPONENTS, `Tối đa ${MAX_GRADE_COMPONENTS} cột điểm`)
+    .refine((components) => new Set(components.map((component) => component.label.toLowerCase())).size === components.length, "Tên các cột điểm không được trùng nhau")
+    .refine((components) => new Set(components.flatMap((component) => (component.key ? [component.key] : []))).size === components.filter((component) => component.key).length, "Cột điểm bị lặp, tải lại trang")
+    .refine((components) => components.reduce((sum, component) => sum + component.weight, 0) === 100, "Tổng trọng số các cột điểm phải bằng 100%"),
+  confirmDropScores: z.boolean().default(false),
+});
+
+export type GradeComponentsSaveInput = z.input<typeof GRADE_COMPONENTS_SAVE_SCHEMA>;
+
+// Khóa của cột mới sinh từ tên cột (không dấu), thêm số nếu trùng với cột đang có.
+export function componentKey(label: string, taken: Set<string>) {
+  const base =
+    label
+      .normalize("NFD")
+      .replace(/[̀-ͯ]/g, "")
+      .replace(/đ/gi, "d")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 30) || "cot";
+  let key = base;
+  for (let suffix = 2; taken.has(key); suffix += 1) key = `${base}-${suffix}`;
+  return key;
+}
+
+type ExistingComponent = { id: string; key: string };
+type NextComponent = { key: string | null; label: string; weight: number };
+
+// Chia danh sách cột mới thành cột bỏ, cột giữ (đổi tên, trọng số, thứ tự) và cột thêm. Cột giữ giữ nguyên key nên điểm đã nhập còn nguyên.
+export function planComponentChanges(existing: ExistingComponent[], next: NextComponent[]) {
+  const byKey = new Map(existing.map((component) => [component.key, component]));
+  const unknown = next.filter((component) => component.key !== null && !byKey.has(component.key)).map((component) => component.key!);
+  const keptKeys = new Set(next.flatMap((component) => (component.key ? [component.key] : [])));
+  const taken = new Set(existing.map((component) => component.key));
+  const kept: (NextComponent & { id: string; key: string; position: number })[] = [];
+  const created: (NextComponent & { key: string; position: number })[] = [];
+  next.forEach((component, index) => {
+    const position = index + 1;
+    const current = component.key ? byKey.get(component.key) : undefined;
+    if (current) {
+      kept.push({ ...component, id: current.id, key: current.key, position });
+      return;
+    }
+    const key = componentKey(component.label, taken);
+    taken.add(key);
+    created.push({ ...component, key, position });
+  });
+  return { unknown, removed: existing.filter((component) => !keptKeys.has(component.key)), kept, created };
+}
+
+export type ScoreMatrixStudent = { studentId: string; studentCode: string };
+
+export type ScoreChange = { studentId: string; key: string; score: number | null };
+
+const digitsOf = (code: string) => code.replace(/\D/g, "");
+
+// Đọc bảng điểm theo mẫu đã xuất (CSV hoặc Excel, đã đổi thành ma trận chữ): dòng đầu là tiêu đề, cột 1 MSSV, cột 2 họ tên,
+// rồi các cột điểm theo đúng thứ tự của bảng điểm. Ô trống thì giữ điểm đang có; dòng lỗi ghi rõ số dòng.
+export function parseScoreMatrix(matrix: string[][], components: { key: string; label: string }[], students: ScoreMatrixStudent[]) {
+  const [header, ...rows] = matrix;
+  const errors: string[] = [];
+  const changes: ScoreChange[] = [];
+  const mismatched = components.filter((component, index) => !header?.[index + 2]?.trim().startsWith(component.label));
+  if (!header || mismatched.length > 0) return { changes, errors: ["Tệp không đúng mẫu: dùng tệp xuất từ nút Xuất Excel của chính bảng điểm này."] };
+  const byCode = new Map(students.map((student) => [digitsOf(student.studentCode), student]));
+  const seen = new Set<string>();
+  rows.forEach((cells, index) => {
+    const line = index + 2;
+    if (cells.every((cell) => !cell.trim())) return;
+    const student = byCode.get(digitsOf(cells[0] ?? ""));
+    if (!student) {
+      errors.push(`Dòng ${line}: MSSV ${cells[0]?.trim() || "(trống)"} không có trong lớp`);
+      return;
+    }
+    if (seen.has(student.studentId)) {
+      errors.push(`Dòng ${line}: MSSV ${cells[0].trim()} lặp lại, chỉ lấy dòng đầu`);
+      return;
+    }
+    seen.add(student.studentId);
+    components.forEach((component, column) => {
+      const raw = (cells[column + 2] ?? "").trim();
+      if (!raw) return;
+      const value = Number(raw.replace(",", "."));
+      if (!Number.isFinite(value) || value < 0 || value > 10) {
+        errors.push(`Dòng ${line}: ${component.label} "${raw}" phải là số từ 0 đến 10`);
+        return;
+      }
+      changes.push({ studentId: student.studentId, key: component.key, score: Math.round(value * 100) / 100 });
+    });
+  });
+  return { changes, errors };
+}
+
+// Server action nhận tối đa 1 MB (mặc định của Next); bảng điểm một lớp chỉ vài chục KB.
+export const GRADE_IMPORT_MAX_BYTES = 900 * 1024;
+
+// Cảnh báo học vụ của một sinh viên sau một học kỳ, null nếu không dưới ngưỡng.
+export function academicWarningOf(standing: StudentStanding) {
+  if (standing.warningLevel === 0) return null;
+  return {
+    level: standing.warningLevel,
+    termGpa4: standing.lastTermGpa4,
+    cpa4: standing.cpa4,
+    failedCredits: standing.failedCredits,
+    reasons: warningReasons(standing),
+  };
+}
+
+export type ComputedWarning = NonNullable<ReturnType<typeof academicWarningOf>> & { studentId: string };
+
+type StoredWarning = Omit<ComputedWarning, "level"> & { id: string; level: number; status: WarningStatus };
+
+function sameWarning(stored: StoredWarning, computed: ComputedWarning) {
+  return (
+    stored.level === computed.level &&
+    stored.termGpa4 === computed.termGpa4 &&
+    stored.cpa4 === computed.cpa4 &&
+    stored.failedCredits === computed.failedCredits &&
+    stored.reasons.join("|") === computed.reasons.join("|")
+  );
+}
+
+// Sinh lại cảnh báo một học kỳ: thêm sinh viên mới dưới ngưỡng; cảnh báo chưa xử lý thì cập nhật theo điểm mới, bỏ nếu nay đã đạt;
+// cảnh báo đã gửi thông báo hoặc đã gặp sinh viên thì giữ nguyên.
+export function planWarningSync(stored: StoredWarning[], computed: ComputedWarning[]) {
+  const storedOf = new Map(stored.map((warning) => [warning.studentId, warning]));
+  const computedOf = new Map(computed.map((warning) => [warning.studentId, warning]));
+  const create = computed.filter((warning) => !storedOf.has(warning.studentId));
+  const update: (ComputedWarning & { id: string })[] = [];
+  const remove: string[] = [];
+  let unchanged = 0;
+  let handled = 0;
+  for (const warning of stored) {
+    if (warning.status !== "new") {
+      handled += 1;
+      continue;
+    }
+    const next = computedOf.get(warning.studentId);
+    if (!next) remove.push(warning.id);
+    else if (sameWarning(warning, next)) unchanged += 1;
+    else update.push({ ...next, id: warning.id });
+  }
+  return { create, update, remove, unchanged, handled };
+}
+
+// Học kỳ để xét cảnh báo: học kỳ chính (1, 2) đã kết thúc gần nhất. Học kỳ hè chỉ học lại, học vượt nên không xét riêng.
+export function isWarningTerm(term: { semester: number; endDate: string }, today: string) {
+  return term.semester !== 3 && term.endDate < today;
+}
+
+export function latestWarningTerm<T extends { semester: number; endDate: string }>(terms: T[], today: string): T | null {
+  return terms.filter((term) => isWarningTerm(term, today)).toSorted((a, b) => b.endDate.localeCompare(a.endDate))[0] ?? null;
+}
+
+export const ACADEMIC_WARNING_GENERATE_SCHEMA = z.object({ termId: z.uuid("Chọn học kỳ") });

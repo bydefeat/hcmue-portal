@@ -125,4 +125,6 @@ export const GRADES_CONSTRAINT_MESSAGE: Partial<Record<string, string>> = {
   course_results_class_has_enrollment: "Kết quả học phần học trên lớp phải gắn với đăng ký của sinh viên.",
   academic_warnings_level_range: "Mức cảnh báo học vụ từ 1 đến 3.",
   academic_warnings_has_reason: "Cảnh báo học vụ phải ghi lý do.",
+  academic_warnings_handled_locked: "Cảnh báo đã gửi thông báo hoặc đã xử lý, không đổi được mức và lý do.",
+  grade_components_grade_sheet_id_position_unique: "Thứ tự cột điểm bị trùng, tải lại trang rồi sửa lại.",
 };

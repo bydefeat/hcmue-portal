@@ -8,6 +8,17 @@ export function downloadFile(name: string, content: string, type = "text/csv;cha
   URL.revokeObjectURL(url);
 }
 
+// Tải tệp nhị phân do server action trả về dạng base64 (ví dụ .xlsx dựng bằng exceljs).
+export function downloadBase64(name: string, base64: string, type: string) {
+  const bytes = Uint8Array.from(atob(base64), (char) => char.charCodeAt(0));
+  const url = URL.createObjectURL(new Blob([bytes], { type }));
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = name;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
 function csvCell(value: string | number) {
   const text = String(value);
   return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;

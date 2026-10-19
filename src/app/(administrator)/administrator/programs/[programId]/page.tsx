@@ -5,16 +5,20 @@ import { StatusTag } from "@/shared/components/ui/status-tag";
 import { formatDate } from "@/shared/libs/date.lib";
 import { ProgramFramework } from "@/modules/curriculum/components/program-framework";
 import { PROGRAM_STATUS } from "@/modules/curriculum/curriculum.constant";
-import { getProgram } from "@/modules/curriculum/curriculum.query";
+import { getCourses, getProgram } from "@/modules/curriculum/curriculum.query";
+import { isProgramEditable } from "@/modules/curriculum/curriculum.rule";
+import { inScope } from "@/modules/access/access.constant";
 import { requirePermission } from "@/modules/access/access.query";
 
 export const metadata: Metadata = { title: "Khung chương trình" };
 
 export default async function Page({ params }: { params: Promise<{ programId: string }> }) {
-  await requirePermission("curriculum.manage");
+  const viewer = await requirePermission("curriculum.manage");
   const { programId } = await params;
   const program = await getProgram(programId);
   if (!program) notFound();
+  const editable = isProgramEditable(program.status) && inScope(viewer, program.faculty);
+  const catalog = editable ? await getCourses() : undefined;
 
   return (
     <>
@@ -34,7 +38,7 @@ export default async function Page({ params }: { params: Promise<{ programId: st
           </span>
         }
       />
-      <ProgramFramework program={program} />
+      <ProgramFramework key={program.updatedAt} program={program} catalog={catalog} />
     </>
   );
 }

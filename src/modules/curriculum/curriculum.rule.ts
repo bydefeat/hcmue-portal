@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { DEGREE_OPTIONS } from "@/modules/curriculum/curriculum.constant";
+import type { Course, FrameworkIssue, ProgramCourseChange, ProgramDetail, ProgramStatus } from "@/modules/curriculum/curriculum.type";
 
 const COURSE_CODE = /^[A-Z]{4}\d{4}$/;
 const DEGREES = DEGREE_OPTIONS.map((option) => option.value) as [string, ...string[]];
@@ -56,3 +57,106 @@ export const PROGRAM_SCHEMA = z.object({
 });
 
 export type ProgramInput = z.input<typeof PROGRAM_SCHEMA>;
+
+// Khung chỉ xếp hai học kỳ chính mỗi năm. Mô hình khung (program_courses) không có học kỳ hè: học kỳ hè dùng để học lại,
+// học vượt nên không cộng thêm. DB giới hạn tối đa 12 học kỳ và không vượt số năm đào tạo × 2.
+export const PROGRAM_MAX_SEMESTER = 12;
+
+export function programSemesterLimit(durationYears: number) {
+  return Math.min(PROGRAM_MAX_SEMESTER, durationYears * 2);
+}
+
+// Chương trình ngừng áp dụng chỉ xem; DB chặn thêm bằng trigger program_courses_program_archived.
+export function isProgramEditable(status: ProgramStatus) {
+  return status !== "archived";
+}
+
+const frameworkCourseCode = z.string().trim().regex(COURSE_CODE, "Mã học phần không hợp lệ");
+const frameworkSemester = z.int("Chọn học kỳ").min(1, "Học kỳ từ 1").max(PROGRAM_MAX_SEMESTER, `Tối đa ${PROGRAM_MAX_SEMESTER} học kỳ`);
+
+export const PROGRAM_COURSE_CHANGE_SCHEMA = z.discriminatedUnion("kind", [
+  z.object({
+    kind: z.literal("add"),
+    semester: frameworkSemester,
+    courseCodes: z
+      .array(frameworkCourseCode)
+      .min(1, "Chọn ít nhất một học phần")
+      .max(20, "Thêm tối đa 20 học phần mỗi lần")
+      .transform((codes) => [...new Set(codes)]),
+  }),
+  z.object({ kind: z.literal("remove"), courseCode: frameworkCourseCode }),
+  z.object({ kind: z.literal("move"), courseCode: frameworkCourseCode, semester: frameworkSemester }),
+]);
+
+export type ProgramCourseChangeInput = z.input<typeof PROGRAM_COURSE_CHANGE_SCHEMA>;
+
+export type FrameworkPlanEntry = { courseCode: string; semester: number };
+
+// Kiểm một thay đổi trên khung đang có, trả câu lỗi hoặc null. Server gọi lại trong giao dịch với dữ liệu mới nhất.
+export function frameworkChangeError(
+  plan: FrameworkPlanEntry[],
+  change: ProgramCourseChange,
+  catalog: Map<string, Pick<Course, "code" | "isActive">>,
+  semesterLimit: number,
+): string | null {
+  const semesterOf = new Map(plan.map((entry) => [entry.courseCode, entry.semester]));
+  if (change.kind !== "remove" && (change.semester < 1 || change.semester > semesterLimit)) {
+    return `Khung chương trình này chỉ có học kỳ 1 đến ${semesterLimit}.`;
+  }
+  if (change.kind === "add") {
+    for (const code of change.courseCodes) {
+      const course = catalog.get(code);
+      if (!course) return `Không có học phần ${code} trong danh mục.`;
+      if (!course.isActive) return `Học phần ${code} đã ngừng mở, không thêm vào khung được.`;
+      const existing = semesterOf.get(code);
+      if (existing !== undefined) return `Học phần ${code} đã có trong khung ở học kỳ ${existing}.`;
+    }
+    return null;
+  }
+  const current = semesterOf.get(change.courseCode);
+  if (current === undefined) return `Học phần ${change.courseCode} không còn trong khung, tải lại trang.`;
+  if (change.kind === "move" && current === change.semester) return `Học phần ${change.courseCode} đã ở học kỳ ${current}.`;
+  return null;
+}
+
+export function applyFrameworkChange(plan: FrameworkPlanEntry[], change: ProgramCourseChange): FrameworkPlanEntry[] {
+  if (change.kind === "add") return [...plan, ...change.courseCodes.map((courseCode) => ({ courseCode, semester: change.semester }))];
+  if (change.kind === "remove") return plan.filter((entry) => entry.courseCode !== change.courseCode);
+  return plan.map((entry) => (entry.courseCode === change.courseCode ? { ...entry, semester: change.semester } : entry));
+}
+
+// Điểm cần xem lại của khung, chỉ cảnh báo chứ không chặn lưu: tiên quyết phải xếp ở học kỳ trước, học phần ngừng mở,
+// tổng tín chỉ so với tổng của chương trình.
+export function frameworkIssues(program: Pick<ProgramDetail, "semesters" | "totalCredits" | "plannedCredits">): FrameworkIssue[] {
+  const semesterOf = new Map(program.semesters.flatMap((semester) => semester.courses.map((course) => [course.code, semester.semester] as const)));
+  const issues: FrameworkIssue[] = [];
+  for (const semester of program.semesters) {
+    for (const course of semester.courses) {
+      if (!course.isActive) issues.push({ kind: "inactive-course", courseCode: course.code, message: `${course.code} đã ngừng mở, sinh viên không đăng ký được.` });
+      for (const prerequisite of course.prerequisiteCodes) {
+        const at = semesterOf.get(prerequisite);
+        if (at === undefined) {
+          issues.push({
+            kind: "prerequisite-missing",
+            courseCode: course.code,
+            message: `${course.code} cần học trước ${prerequisite}, nhưng ${prerequisite} chưa có trong khung.`,
+          });
+        } else if (at >= semester.semester) {
+          issues.push({
+            kind: "prerequisite-order",
+            courseCode: course.code,
+            message: `${course.code} ở học kỳ ${semester.semester} nhưng tiên quyết ${prerequisite} ở học kỳ ${at}, nên xếp ${course.code} sau.`,
+          });
+        }
+      }
+    }
+  }
+  const difference = program.plannedCredits - program.totalCredits;
+  if (difference < 0) {
+    issues.push({ kind: "credits-short", courseCode: null, message: `Khung còn thiếu ${-difference} tín chỉ so với tổng ${program.totalCredits} của chương trình.` });
+  }
+  if (difference > 0) {
+    issues.push({ kind: "credits-over", courseCode: null, message: `Khung nhiều hơn tổng ${program.totalCredits} tín chỉ của chương trình ${difference} tín chỉ.` });
+  }
+  return issues;
+}

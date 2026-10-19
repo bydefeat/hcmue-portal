@@ -34,4 +34,8 @@ export const CURRICULUM_CONSTRAINT_MESSAGE: Partial<Record<string, string>> = {
   course_relations_not_self: "Học phần không thể liên quan tới chính nó.",
   programs_total_credits_positive: "Tổng tín chỉ phải lớn hơn 0.",
   programs_duration_range: "Thời gian đào tạo từ 1 đến 8 năm.",
+  program_courses_program_id_course_id_pk: "Học phần đã có trong khung chương trình.",
+  program_courses_semester_range: "Học kỳ trong khung từ 1 đến 12.",
+  program_courses_semester_within_duration: "Học kỳ vượt quá thời gian đào tạo của chương trình (mỗi năm hai học kỳ).",
+  program_courses_program_archived: "Chương trình đã ngừng áp dụng, khung chỉ xem được.",
 };

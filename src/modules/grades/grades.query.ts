@@ -1,7 +1,7 @@
 import "server-only";
 import { cache } from "react";
 import { forbidden } from "next/navigation";
-import { and, asc, eq, inArray, ne } from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray, ne } from "drizzle-orm";
 import { db } from "@/shared/libs/db.lib";
 import { dayjs } from "@/shared/libs/date.lib";
 import { isUuid } from "@/shared/libs/id.lib";
@@ -10,11 +10,12 @@ import { requireRole, requireSession } from "@/modules/authentication/authentica
 import { classSections, enrollments, terms } from "@/modules/course-registration/course-registration.schema";
 import { courses, faculties, majors } from "@/modules/curriculum/curriculum.schema";
 import { DEFAULT_COMPONENTS, DEFAULT_DEADLINE_DAYS } from "@/modules/grades/grades.constant";
-import { buildTranscript, computeStanding, sheetState, sheetSummary, summarizeStandings, type TranscriptTermInput } from "@/modules/grades/grades.rule";
+import { buildTranscript, computeStanding, isWarningTerm, sheetState, sheetSummary, summarizeStandings, type TranscriptTermInput } from "@/modules/grades/grades.rule";
 import { academicWarnings, courseResults, gradeComponents, gradeScores, gradeSheets } from "@/modules/grades/grades.schema";
 import type {
   AcademicWarning,
   FacultyStandingSummary,
+  GradeComponent,
   GradeSheet,
   GradeSheetState,
   GradeSheetSummary,
@@ -23,6 +24,7 @@ import type {
   TranscriptCourse,
   TranscriptTerm,
 } from "@/modules/grades/grades.type";
+import { syllabi, syllabusAssessments } from "@/modules/teaching/teaching.schema";
 import { administrativeClasses, students } from "@/modules/users/users.schema";
 
 // Khóa đang xét tốt nghiệp không tính vào báo cáo xếp loại học lực.
@@ -155,9 +157,10 @@ export async function getStandingSummary(): Promise<FacultyStandingSummary[]> {
   return summarizeStandings(rows.map((row) => ({ faculty: row.faculty, standing: computeStanding(row.id, transcripts.get(row.id) ?? []) })));
 }
 
-// Cảnh báo học vụ của học kỳ xét gần nhất, mức nặng và CPA thấp lên đầu.
-export async function getAcademicWarnings(studentIds?: string[]): Promise<AcademicWarning[]> {
+// Cảnh báo học vụ của một học kỳ (bỏ trống là học kỳ xét gần nhất), mức nặng và CPA thấp lên đầu.
+export async function getAcademicWarnings(studentIds?: string[], termId?: string): Promise<AcademicWarning[]> {
   await requireStaff();
+  if (termId !== undefined && !isUuid(termId)) return [];
   const ids = studentIds?.filter(isUuid);
   if (ids && ids.length === 0) return [];
   const rows = await db
@@ -186,7 +189,7 @@ export async function getAcademicWarnings(studentIds?: string[]): Promise<Academ
     .innerJoin(administrativeClasses, eq(administrativeClasses.id, students.administrativeClassId))
     .innerJoin(majors, eq(majors.id, administrativeClasses.majorId))
     .innerJoin(faculties, eq(faculties.id, majors.facultyId))
-    .where(ids ? inArray(academicWarnings.studentId, ids) : undefined);
+    .where(and(ids ? inArray(academicWarnings.studentId, ids) : undefined, termId ? eq(academicWarnings.termId, termId) : undefined));
   const latest = rows.reduce<string | null>((best, row) => (best === null || row.termStart > best ? row.termStart : best), null);
   return rows
     .filter((row) => row.termStart === latest)
@@ -280,4 +283,33 @@ export async function getGradeSheets(classSectionIds: string[]): Promise<GradeSh
 export async function getGradeSheetSummaries(classSectionIds: string[]): Promise<GradeSheetSummary[]> {
   await requireStaff();
   return (await sheetViews(classSectionIds)).map(sheetSummary);
+}
+
+export type WarningTermOption = { id: string; name: string; warnings: number; canGenerate: boolean };
+
+// Học kỳ có cảnh báo hoặc xét được cảnh báo (học kỳ chính đã kết thúc), mới nhất lên đầu.
+export async function getWarningTerms(): Promise<WarningTermOption[]> {
+  await requireStaff();
+  const today = dayjs().format("YYYY-MM-DD");
+  const [rows, counts] = await Promise.all([
+    db.select({ id: terms.id, name: terms.name, semester: terms.semester, endDate: terms.endDate }).from(terms).orderBy(desc(terms.startDate)),
+    db.select({ termId: academicWarnings.termId, total: count() }).from(academicWarnings).groupBy(academicWarnings.termId),
+  ]);
+  const countOf = new Map(counts.map((row) => [row.termId, row.total]));
+  return rows
+    .map((row) => ({ id: row.id, name: row.name, warnings: countOf.get(row.id) ?? 0, canGenerate: isWarningTerm(row, today) }))
+    .filter((row) => row.warnings > 0 || row.canGenerate);
+}
+
+// Cột điểm theo đề cương đã công bố của lớp, để giảng viên dùng làm cột của bảng điểm. Chưa công bố thì không gợi ý.
+export async function getSyllabusComponents(classSectionId: string): Promise<GradeComponent[] | null> {
+  await requireStaff();
+  if (!isUuid(classSectionId)) return null;
+  const rows = await db
+    .select({ key: syllabusAssessments.key, label: syllabusAssessments.label, weight: syllabusAssessments.weight })
+    .from(syllabusAssessments)
+    .innerJoin(syllabi, eq(syllabi.id, syllabusAssessments.syllabusId))
+    .where(and(eq(syllabi.classSectionId, classSectionId), eq(syllabi.status, "published")))
+    .orderBy(asc(syllabusAssessments.position));
+  return rows.length > 0 ? rows : null;
 }

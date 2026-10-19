@@ -351,6 +351,16 @@ npm run db:studio                 # xem dữ liệu
 | Component | Gọi action trong `useTransition`; `result.ok` thì cập nhật state từ `result.data` (dữ liệu DB trả về, không phải giá trị form), không thì `form.setFields` theo `fieldErrors` và hiện `result.message` |
 | Test | Schema zod và câu báo lỗi ràng buộc test bằng `node:test` trên DB thật (`tests/facilities.test.ts`); action cần phiên đăng nhập nên kiểm tay trên trình duyệt |
 
+### Chuyển một module từ mock sang DB
+
+| Việc | Cách làm |
+|---|---|
+| Id dùng chung | `mockId(key)` trong `shared/libs/mock.lib.ts` băm khóa ổn định (`"student:12"`, `"term:hk1-2026"`, `"section:hk1-2026:COMP1020.01"`) ra uuid dạng v7. Mock dùng `mockId`, `mockTermId`, `mockSectionId`; seed ghi đúng id đó vào DB. Nhờ vậy module đã đọc DB và module còn đọc mock trỏ về cùng một bản ghi, chuyển được từng module mà app không vỡ |
+| Seed | `scripts/db-seed.ts` gọi lần lượt `scripts/seed/*.seed.ts` (mỗi module một file, nhận `tx` và `SeedContext`). Seed lấy dữ liệu từ `*.mock.ts` của module, giữ nguyên id của mock, giữ ngày giờ tương đối (`mockDate`) để trạng thái "sắp hết hạn", "quá hạn" vẫn hiện |
+| Query | Viết lại `*.query.ts` trả đúng kiểu cũ trong `*.type.ts` để component không phải sửa. MSSV trả ra bằng `formatStudentCode` |
+| Sau khi chuyển | `*.mock.ts` chỉ còn seed dùng; không query nào import mock nữa. Test seed khớp mock trong `tests/seed.test.ts` |
+| Tài khoản seed | Sinh viên `50.01.104.009`, giảng viên `hanhpt@hcmue.edu.vn` (kiêm cố vấn), Phòng Đào tạo `khoatm@hcmue.edu.vn`, mật khẩu `Hcmue@2026`. Đây chính là sinh viên và giảng viên "hiện tại" của dữ liệu mẫu (`CURRENT_STUDENT_ID`, `CURRENT_LECTURER_ID`) |
+
 Phân quyền cổng quản trị đọc từ DB: `getViewer()` lấy các vai trò trong `role_assignments` của tài khoản đang đăng nhập; có nhiều vai trò thì đổi qua menu tài khoản (`switchActiveRole`, chỉ trong số vai trò của chính mình). Vai trò có sẵn mang `roles.key` cố định (`faculty-secretary`…) để code nhận ra, không so theo `id`.
 
 ## 11. Lint (oxlint)

@@ -52,8 +52,9 @@ function standingOf(index: number): StudentStanding {
   const cpa4 = average(courses, "point4") ?? 0;
   const cpa10 = average(courses, "score10") ?? 0;
   const failedCredits = courses.filter((course) => course.letter === "F").reduce((sum, course) => sum + course.credits, 0);
-  const lastTermGpa4 = completed.at(-1)?.gpa4 ?? 0;
-  const warningLevel = cpa4 < 1 ? 3 : cpa4 < 1.5 || failedCredits >= 12 ? 2 : lastTermGpa4 < 1 || failedCredits >= 6 ? 1 : 0;
+  const lastTerm = completed.filter((term) => term.courses.length > 0).at(-1);
+  const lastTermGpa4 = lastTerm?.gpa4 ?? 0;
+  const warningLevel = courses.length === 0 ? 0 : cpa4 < 1 ? 3 : cpa4 < 1.5 || failedCredits >= 12 ? 2 : (lastTerm && lastTermGpa4 < 1) || failedCredits >= 6 ? 1 : 0;
   return {
     studentId: `sv-${index}`,
     cpa4,

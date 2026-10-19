@@ -1,10 +1,12 @@
 import Image from "next/image";
 import Link from "next/link";
+import { ConfigProvider } from "antd";
 
 export function AuthenticationLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-dvh bg-background bg-linear-to-b from-primary from-0% via-primary via-[280px] to-background to-[620px] sm:via-[340px] sm:to-[720px]">
-      <div className="mx-auto flex min-h-dvh w-full max-w-md flex-col px-4 pt-10 pb-6 sm:pt-14">
+    <div className="relative min-h-dvh bg-background">
+      <div aria-hidden className="absolute inset-x-0 top-0 h-[300px] bg-primary sm:h-[360px]" />
+      <div className="relative mx-auto flex min-h-dvh w-full max-w-md flex-col px-4 pt-10 pb-6 sm:pt-14">
         <Link href="/" className="flex flex-col items-center gap-3 text-center text-primary-foreground">
           <Image
             src="/hcmue-logo.png"
@@ -21,7 +23,9 @@ export function AuthenticationLayout({ children }: { children: React.ReactNode }
           </span>
           <span className="text-sm text-primary-foreground/80">Cổng đào tạo và học vụ</span>
         </Link>
-        <main className="mt-8 rounded-2xl border border-border-strong bg-surface p-6 sm:p-8">{children}</main>
+        <main className="mt-8 rounded-2xl border border-border-strong bg-surface p-6 sm:p-8">
+          <ConfigProvider theme={{ token: { controlHeightLG: 48 } }}>{children}</ConfigProvider>
+        </main>
         <p className="mt-auto pt-8 text-center text-xs text-muted">© Trường Đại học Sư phạm Thành phố Hồ Chí Minh</p>
       </div>
     </div>

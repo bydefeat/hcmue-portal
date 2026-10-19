@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Button, message, Modal, Table, type TableColumnsType } from "antd";
 import { CalendarClock, Plus } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
+import { SectionCard } from "@/shared/components/ui/section-card";
 import { MeterBar } from "@/shared/components/ui/meter-bar";
 import { StatusTag } from "@/shared/components/ui/status-tag";
 import { dayjs, formatDateTime, hoursUntil } from "@/shared/libs/date.lib";
@@ -86,18 +87,23 @@ export function RegistrationPeriodList({ terms, periods }: RegistrationPeriodLis
     {
       title: "Đợt",
       key: "name",
-      width: 220,
+      width: 200,
       render: (_, row) => (
         <span className="flex flex-col">
           <span className="font-medium">{row.name}</span>
           <span className="text-xs text-muted">Khóa {row.cohorts.join(", ")}</span>
+          <span className="mt-1 flex flex-col items-start gap-1 text-xs text-muted tabular-nums md:hidden">
+            <StatusTag status={REGISTRATION_PERIOD_STATE[row.state]} />
+            Đóng {formatDateTime(row.closesAt)}
+          </span>
         </span>
       ),
     },
     {
       title: "Thời gian",
       key: "time",
-      width: 200,
+      width: 190,
+      responsive: ["md"],
       render: (_, row) => (
         <span className="flex flex-col text-xs tabular-nums">
           <span>Mở {formatDateTime(row.opensAt)}</span>
@@ -108,7 +114,8 @@ export function RegistrationPeriodList({ terms, periods }: RegistrationPeriodLis
     {
       title: "Hạn mức",
       key: "credits",
-      width: 100,
+      width: 120,
+      responsive: ["lg"],
       render: (_, row) => (
         <span className="tabular-nums">
           {row.minCredits} đến {row.maxCredits} TC
@@ -119,6 +126,7 @@ export function RegistrationPeriodList({ terms, periods }: RegistrationPeriodLis
       title: "Đã đăng ký",
       key: "registered",
       width: 160,
+      responsive: ["md"],
       render: (_, row) =>
         row.state === "upcoming" ? (
           <span className="text-xs text-muted">Chưa mở</span>
@@ -135,6 +143,7 @@ export function RegistrationPeriodList({ terms, periods }: RegistrationPeriodLis
       title: "Trạng thái",
       key: "state",
       width: 150,
+      responsive: ["md"],
       render: (_, row) => {
         const hint = timeHint(row);
         return (
@@ -148,11 +157,12 @@ export function RegistrationPeriodList({ terms, periods }: RegistrationPeriodLis
     {
       title: "",
       key: "actions",
-      width: 160,
+      width: 110,
       align: "right",
+      fixed: "right",
       render: (_, row) =>
         row.state === "closed" ? null : (
-          <span className="flex justify-end gap-1">
+          <span className="flex flex-col items-end gap-1">
             <Button size="small" type="text" onClick={() => setEditing({ termId: row.termId, period: row })}>
               Sửa
             </Button>
@@ -167,22 +177,26 @@ export function RegistrationPeriodList({ terms, periods }: RegistrationPeriodLis
   ];
 
   return (
-    <div className="flex flex-col gap-8">
+    <div className="flex flex-col gap-4 sm:gap-6">
       {messageHolder}
       {modalHolder}
       {orderedTerms.map((term) => {
         const termPeriods = rows.filter((row) => row.termId === term.id).sort((a, b) => a.opensAt.localeCompare(b.opensAt));
         const canAdd = term.isRegistrationTarget || term.isCurrent;
         return (
-          <section key={term.id} className="flex flex-col gap-3">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="flex min-w-0 flex-col">
-                <h2 className="text-lg font-semibold">{term.name}</h2>
-                <span className="text-xs text-muted">
+          <SectionCard
+            key={term.id}
+            flush
+            title={
+              <span className="flex min-w-0 flex-col py-2">
+                <span className="truncate">Đợt đăng ký {term.name}</span>
+                <span className="text-xs font-normal text-muted">
                   {term.isRegistrationTarget ? "Học kỳ đang nhận đăng ký" : term.isCurrent ? "Học kỳ đang diễn ra" : "Đã kết thúc"}
                 </span>
-              </div>
-              {canAdd && (
+              </span>
+            }
+            extra={
+              canAdd ? (
                 <Button
                   type={term.isRegistrationTarget ? "primary" : "default"}
                   icon={<Plus size={16} aria-hidden className={term.isRegistrationTarget ? undefined : "text-zinc-500"} />}
@@ -190,15 +204,16 @@ export function RegistrationPeriodList({ terms, periods }: RegistrationPeriodLis
                 >
                   Mở đợt mới
                 </Button>
-              )}
-            </div>
+              ) : undefined
+            }
+          >
             <Table
               rowKey="id"
               size="small"
               columns={columns}
               dataSource={termPeriods}
               pagination={false}
-              scroll={{ x: 1000 }}
+              scroll={{ x: "max-content" }}
               locale={{
                 emptyText: (
                   <EmptyState
@@ -209,7 +224,7 @@ export function RegistrationPeriodList({ terms, periods }: RegistrationPeriodLis
                 ),
               }}
             />
-          </section>
+          </SectionCard>
         );
       })}
       <RegistrationPeriodFormModal

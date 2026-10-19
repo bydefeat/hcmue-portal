@@ -25,7 +25,12 @@ export default async function Page() {
         <StatTile label="Lớp được khảo sát" value={results.length} />
         <StatTile label="Tỉ lệ phản hồi" value={`${enrolled > 0 ? Math.round((responses / enrolled) * 100) : 0}%`} hint={`${responses}/${enrolled} phiếu`} />
         <StatTile label="Điểm chung toàn trường" value={overall.toFixed(2).replace(".", ",")} hint="Thang 5" />
-        <StatTile label="Lớp dưới ngưỡng 3,5" value={low} tone={low > 0 ? "danger" : undefined} hint={low > 0 ? "Cần khoa trao đổi với giảng viên" : "Không có"} />
+        <StatTile
+          label="Lớp cần cải thiện"
+          value={low}
+          tone={low > 0 ? "danger" : undefined}
+          hint={low > 0 ? "Điểm chung dưới 3,5, cần khoa trao đổi với giảng viên" : "Không lớp nào có điểm chung dưới 3,5"}
+        />
       </div>
       <AdminSurveyResults results={results} questions={survey.questions} />
     </>

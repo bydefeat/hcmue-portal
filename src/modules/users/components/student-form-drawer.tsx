@@ -54,7 +54,7 @@ export function StudentFormDrawer({ open, student, onClose, onSubmit }: StudentF
       <Form
         form={form}
         layout="vertical"
-        initialValues={{ gender: "female", status: "studying" }}
+        initialValues={{ status: "studying" }}
         onFinish={(values) => onSubmit({ ...values, dateOfBirth: values.dateOfBirth?.format("YYYY-MM-DD") ?? "" })}
       >
         <div className="grid gap-x-3 sm:grid-cols-2">
@@ -71,7 +71,7 @@ export function StudentFormDrawer({ open, student, onClose, onSubmit }: StudentF
           <Form.Item name="fullName" label="Họ và tên" rules={[{ required: true, whitespace: true, message: "Chưa nhập họ và tên" }]}>
             <Input autoComplete="off" />
           </Form.Item>
-          <Form.Item name="gender" label="Giới tính">
+          <Form.Item name="gender" label="Giới tính" rules={[{ required: true, message: "Chưa chọn giới tính" }]}>
             <Radio.Group
               options={[
                 { value: "female", label: "Nữ" },
@@ -80,7 +80,7 @@ export function StudentFormDrawer({ open, student, onClose, onSubmit }: StudentF
             />
           </Form.Item>
           <Form.Item name="dateOfBirth" label="Ngày sinh" rules={[{ required: true, message: "Chưa chọn ngày sinh" }]}>
-            <DatePicker format="DD/MM/YYYY" className="w-full" />
+            <DatePicker format="DD/MM/YYYY" placeholder="Chọn ngày" className="w-full" />
           </Form.Item>
           <Form.Item name="majorCode" label="Ngành" rules={[{ required: true, message: "Chưa chọn ngành" }]}>
             <Select options={MAJOR_OPTIONS} showSearch={{ optionFilterProp: "label" }} />

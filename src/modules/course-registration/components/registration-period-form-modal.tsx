@@ -55,10 +55,11 @@ export function RegistrationPeriodFormModal({ open, period, termName, onClose, o
       width={640}
       destroyOnHidden
       mask={{ closable: false }}
-      title={period ? `Sửa ${period.name}` : `Mở đợt đăng ký, ${termName}`}
+      title={period ? "Sửa đợt đăng ký" : "Mở đợt đăng ký"}
       okText={period ? "Lưu thay đổi" : "Tạo đợt"}
       cancelText="Hủy"
     >
+      <p className="mb-4 text-sm text-muted">{period ? `${period.name}, ${termName}` : termName}</p>
       <Form
         form={form}
         layout="vertical"
@@ -77,7 +78,7 @@ export function RegistrationPeriodFormModal({ open, period, termName, onClose, o
           <Input />
         </Form.Item>
         <Form.Item name="cohorts" label="Khóa được đăng ký" rules={[{ required: true, type: "array", min: 1, message: "Chọn ít nhất một khóa" }]}>
-          <Select mode="multiple" options={COHORT_OPTIONS} />
+          <Select mode="multiple" placeholder="Chọn khóa" options={COHORT_OPTIONS} />
         </Form.Item>
         <Form.Item
           name="range"
@@ -92,7 +93,7 @@ export function RegistrationPeriodFormModal({ open, period, termName, onClose, o
             },
           ]}
         >
-          <DatePicker.RangePicker showTime={{ format: "HH:mm" }} format="HH:mm DD/MM/YYYY" className="w-full" />
+          <DatePicker.RangePicker showTime={{ format: "HH:mm" }} format="HH:mm DD/MM/YYYY" placeholder={["Mở lúc", "Đóng lúc"]} className="w-full" />
         </Form.Item>
         <div className="grid grid-cols-2 gap-x-3">
           <Form.Item name="minCredits" label="Tín chỉ tối thiểu" rules={[{ required: true, message: "Chưa nhập" }]}>

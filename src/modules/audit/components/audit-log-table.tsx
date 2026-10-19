@@ -37,11 +37,12 @@ export function AuditLogTable({ entries }: { entries: AuditEntry[] }) {
   });
 
   const columns: TableColumnsType<AuditEntry> = [
-    { title: "Thời điểm", dataIndex: "at", width: 150, render: (value: string) => <span className="text-xs tabular-nums">{formatDateTime(value)}</span> },
+    { title: "Thời điểm", dataIndex: "at", width: 140, responsive: ["md"], render: (value: string) => <span className="text-xs tabular-nums">{formatDateTime(value)}</span> },
     {
       title: "Người thực hiện",
       key: "actor",
-      width: 220,
+      width: 200,
+      responsive: ["md"],
       render: (_, row) => (
         <span className="flex min-w-0 flex-col">
           <span className="truncate font-medium">{row.actorName}</span>
@@ -49,25 +50,44 @@ export function AuditLogTable({ entries }: { entries: AuditEntry[] }) {
         </span>
       ),
     },
-    { title: "Thao tác", dataIndex: "action", width: 120, render: (value: AuditAction) => <StatusTag status={AUDIT_ACTION[value]} /> },
+    { title: "Thao tác", dataIndex: "action", width: 110, responsive: ["md"], render: (value: AuditAction) => <StatusTag status={AUDIT_ACTION[value]} /> },
     {
       title: "Đối tượng",
       key: "entity",
-      width: 240,
+      width: 220,
       render: (_, row) => (
         <span className="flex min-w-0 flex-col">
           <span className="truncate">{row.entityLabel}</span>
           <span className="text-xs text-muted">{AUDIT_ENTITY_LABEL[row.entityType]}</span>
+          <span className="mt-1 flex flex-col items-start gap-1 md:hidden">
+            <StatusTag status={AUDIT_ACTION[row.action]} />
+            <span className="text-xs text-muted tabular-nums">
+              {row.actorName} · {formatDateTime(row.at)}
+            </span>
+            <span className="text-sm text-pretty">{row.summary}</span>
+            {row.changes.length > 0 && <AuditChanges changes={row.changes} />}
+          </span>
         </span>
       ),
     },
-    { title: "Nội dung", dataIndex: "summary", render: (value: string) => <span className="text-pretty">{value}</span> },
-    { title: "IP", dataIndex: "ip", width: 110, render: (value: string) => <span className="text-xs text-muted">{value}</span> },
+    {
+      title: "Nội dung",
+      key: "summary",
+      width: 320,
+      responsive: ["md"],
+      render: (_, row) => (
+        <span className="flex flex-col gap-1">
+          <span className="text-pretty">{row.summary}</span>
+          {row.changes.length > 0 && <AuditChanges changes={row.changes} />}
+        </span>
+      ),
+    },
+    { title: "IP", dataIndex: "ip", width: 110, responsive: ["xxl"], render: (value: string) => <span className="text-xs text-muted">{value}</span> },
   ];
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex flex-wrap gap-2">
+      <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
         <Input
           allowClear
           value={query}
@@ -75,27 +95,19 @@ export function AuditLogTable({ entries }: { entries: AuditEntry[] }) {
           prefix={<Magnifier size={16} aria-hidden className="text-muted" />}
           placeholder="Đối tượng, nội dung"
           aria-label="Tìm trong nhật ký"
-          className="w-full sm:w-64"
+          className="col-span-2 w-full sm:w-64"
         />
-        <Select allowClear value={action} onChange={setAction} placeholder="Mọi thao tác" aria-label="Thao tác" options={actions.map((value) => ({ value, label: AUDIT_ACTION[value].label }))} className="min-w-0 flex-1 sm:w-40 sm:flex-none" />
-        <Select allowClear value={entity} onChange={setEntity} placeholder="Mọi đối tượng" aria-label="Loại đối tượng" options={entities.map((value) => ({ value, label: AUDIT_ENTITY_LABEL[value] }))} className="min-w-0 flex-1 sm:w-44 sm:flex-none" />
-        <Select allowClear showSearch={{ optionFilterProp: "label" }} value={actor} onChange={setActor} placeholder="Mọi người thực hiện" aria-label="Người thực hiện" options={actors.map((value) => ({ value, label: value }))} className="w-full sm:w-52" />
-        <DatePicker.RangePicker value={range} onChange={(value) => setRange(value)} format="DD/MM/YYYY" aria-label="Khoảng thời gian" className="w-full sm:w-64" />
+        <Select allowClear value={action} onChange={setAction} placeholder="Mọi thao tác" aria-label="Thao tác" options={actions.map((value) => ({ value, label: AUDIT_ACTION[value].label }))} className="min-w-0 sm:w-40" />
+        <Select allowClear value={entity} onChange={setEntity} placeholder="Mọi đối tượng" aria-label="Loại đối tượng" options={entities.map((value) => ({ value, label: AUDIT_ENTITY_LABEL[value] }))} className="min-w-0 sm:w-44" />
+        <Select allowClear showSearch={{ optionFilterProp: "label" }} value={actor} onChange={setActor} placeholder="Mọi người thực hiện" aria-label="Người thực hiện" options={actors.map((value) => ({ value, label: value }))} className="col-span-2 w-full sm:w-52" />
+        <DatePicker.RangePicker value={range} onChange={(value) => setRange(value)} format="DD/MM/YYYY" placeholder={["Từ ngày", "Đến ngày"]} aria-label="Khoảng thời gian" className="col-span-2 w-full sm:w-64" />
       </div>
       <Table
         rowKey="id"
         size="small"
         columns={columns}
         dataSource={filtered}
-        scroll={{ x: 1100 }}
-        expandable={{
-          expandedRowRender: (row) => (
-            <div className="py-1 pl-2">
-              <AuditChanges changes={row.changes} />
-            </div>
-          ),
-          rowExpandable: (row) => row.changes.length > 0,
-        }}
+        scroll={{ x: "max-content" }}
         pagination={{ pageSize: 20, hideOnSinglePage: true, showTotal: (total) => `${total} bản ghi` }}
         locale={{ emptyText: <EmptyState icon={History} title="Không có bản ghi khớp bộ lọc" description="Thử mở rộng khoảng thời gian hoặc bỏ bớt điều kiện." /> }}
       />

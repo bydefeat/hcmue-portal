@@ -62,11 +62,27 @@ export function RoomTable({ rooms, campuses, bookings, termName }: RoomTableProp
   };
 
   const columns: TableColumnsType<Room> = [
-    { title: "Phòng", dataIndex: "code", width: 170, fixed: "left", render: (code: string) => <span className="font-medium">{code}</span> },
+    {
+      title: "Phòng",
+      dataIndex: "code",
+      width: 140,
+      render: (code: string, room) => (
+        <span className="flex min-w-0 flex-col items-start gap-1">
+          <Button type="link" size="small" onClick={() => setOpenId(room.id)} className="h-auto p-0 font-medium">
+            {code}
+          </Button>
+          <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted tabular-nums md:hidden">
+            {ROOM_TYPE_LABEL[room.type]} · {room.capacity} chỗ
+            {room.status !== "active" && <StatusTag status={ROOM_STATUS[room.status]} />}
+          </span>
+        </span>
+      ),
+    },
     {
       title: "Vị trí",
       key: "place",
-      width: 220,
+      width: 200,
+      responsive: ["md"],
       render: (_, room) => (
         <span className="flex flex-col">
           {campusName(room.campusId)}
@@ -76,11 +92,12 @@ export function RoomTable({ rooms, campuses, bookings, termName }: RoomTableProp
         </span>
       ),
     },
-    { title: "Loại", dataIndex: "type", width: 140, render: (value: RoomType) => ROOM_TYPE_LABEL[value] },
+    { title: "Loại", dataIndex: "type", width: 120, responsive: ["lg"], render: (value: RoomType) => ROOM_TYPE_LABEL[value] },
     {
-      title: "Sức chứa",
+      title: <span className="whitespace-nowrap">Sức chứa</span>,
       key: "capacity",
       width: 110,
+      responsive: ["md"],
       align: "right",
       sorter: (a, b) => a.capacity - b.capacity,
       render: (_, room) => (
@@ -93,7 +110,8 @@ export function RoomTable({ rooms, campuses, bookings, termName }: RoomTableProp
     {
       title: `Sử dụng ${termName}`,
       key: "usage",
-      width: 200,
+      width: 180,
+      responsive: ["md"],
       render: (_, room) => {
         const used = usedSlots(bookings[room.code] ?? []);
         return (
@@ -104,11 +122,12 @@ export function RoomTable({ rooms, campuses, bookings, termName }: RoomTableProp
         );
       },
     },
-    { title: "Thiết bị", dataIndex: "equipment", width: 240, render: (equipment: string[]) => <span className="text-xs text-pretty text-muted">{equipment.join(", ")}</span> },
+    { title: "Thiết bị", dataIndex: "equipment", width: 200, responsive: ["xl"], render: (equipment: string[]) => <span className="text-xs text-pretty text-muted">{equipment.join(", ")}</span> },
     {
       title: "Tình trạng",
       key: "status",
-      width: 200,
+      width: 160,
+      responsive: ["md"],
       render: (_, room) =>
         room.status === "active" ? (
           <span className="text-muted">Bình thường</span>
@@ -124,19 +143,18 @@ export function RoomTable({ rooms, campuses, bookings, termName }: RoomTableProp
   return (
     <div className="flex flex-col gap-3">
       {contextHolder}
-      <div className="flex flex-wrap gap-2">
-        <Input allowClear value={query} onChange={(event) => setQuery(event.target.value)} prefix={<Magnifier size={16} aria-hidden className="text-muted" />} placeholder="Mã phòng" aria-label="Tìm phòng" className="w-full sm:w-48" />
-        <Select allowClear value={campusId} onChange={setCampusId} placeholder="Mọi cơ sở" aria-label="Cơ sở" options={campuses.map((campus) => ({ value: campus.id, label: campus.name }))} className="w-full sm:w-56" />
-        <Select allowClear value={type} onChange={setType} placeholder="Mọi loại phòng" aria-label="Loại phòng" options={ROOM_TYPE_OPTIONS} className="min-w-0 flex-1 sm:w-44 sm:flex-none" />
-        <Select allowClear value={status} onChange={setStatus} placeholder="Mọi tình trạng" aria-label="Tình trạng" options={Object.entries(ROOM_STATUS).map(([value, meta]) => ({ value, label: meta.label }))} className="min-w-0 flex-1 sm:w-44 sm:flex-none" />
+      <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+        <Input allowClear value={query} onChange={(event) => setQuery(event.target.value)} prefix={<Magnifier size={16} aria-hidden className="text-muted" />} placeholder="Mã phòng" aria-label="Tìm phòng" className="col-span-2 w-full sm:w-48" />
+        <Select allowClear value={campusId} onChange={setCampusId} placeholder="Mọi cơ sở" aria-label="Cơ sở" options={campuses.map((campus) => ({ value: campus.id, label: campus.name }))} className="col-span-2 w-full sm:w-56" />
+        <Select allowClear value={type} onChange={setType} placeholder="Mọi loại phòng" aria-label="Loại phòng" options={ROOM_TYPE_OPTIONS} className="min-w-0 sm:w-44" />
+        <Select allowClear value={status} onChange={setStatus} placeholder="Mọi tình trạng" aria-label="Tình trạng" options={Object.entries(ROOM_STATUS).map(([value, meta]) => ({ value, label: meta.label }))} className="min-w-0 sm:w-44" />
       </div>
       <Table
         rowKey="id"
         size="small"
         columns={columns}
         dataSource={filtered}
-        scroll={{ x: 1300 }}
-        onRow={(room) => ({ onClick: () => setOpenId(room.id), className: "cursor-pointer" })}
+        scroll={{ x: "max-content" }}
         pagination={false}
         locale={{ emptyText: <EmptyState icon={ApartmentBuilding} title="Không có phòng khớp bộ lọc" /> }}
       />

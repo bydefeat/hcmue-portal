@@ -16,7 +16,7 @@ export default async function Page() {
     <>
       <PageHeader
         title="Cảnh báo học vụ"
-        description={`${warnings.length} sinh viên bị cảnh báo sau học kỳ 2, năm học 2025-2026. Gặp từng em và ghi nhận trên cổng.`}
+        description={`${warnings.length} sinh viên bị cảnh báo sau học kỳ 2, năm học 2025-2026. Gặp từng sinh viên và ghi nhận trên cổng.`}
       />
       <ul className="mb-4 flex flex-col gap-1 text-xs text-muted">
         {WARNING_RULES.map((rule) => (

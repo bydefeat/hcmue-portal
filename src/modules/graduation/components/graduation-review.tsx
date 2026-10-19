@@ -17,7 +17,7 @@ export function GraduationReview({ candidates }: { candidates: GraduationCandida
   const [modal, modalContextHolder] = Modal.useModal();
   const [rows, setRows] = useState(candidates);
   const [query, setQuery] = useState("");
-  const [status, setStatus] = useState<GraduationStatus | undefined>("eligible");
+  const [status, setStatus] = useState<GraduationStatus>();
   const [faculty, setFaculty] = useState<string>();
   const [selected, setSelected] = useState<string[]>([]);
   const faculties = [...new Set(rows.map((row) => row.faculty))];
@@ -49,22 +49,26 @@ export function GraduationReview({ candidates }: { candidates: GraduationCandida
     {
       title: "Sinh viên",
       key: "student",
-      width: 230,
-      fixed: "left",
+      width: 220,
       render: (_, row) => (
         <span className="flex min-w-0 flex-col">
           <span className="truncate font-medium">{row.fullName}</span>
           <span className="truncate text-xs text-muted">
             {row.code} · {row.className}
           </span>
+          <span className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted tabular-nums md:hidden">
+            <StatusTag status={GRADUATION_STATUS[row.status]} />
+            {row.earnedCredits}/{row.requiredCredits} tín chỉ
+          </span>
         </span>
       ),
     },
-    { title: "Ngành", dataIndex: "majorName", width: 180 },
+    { title: "Ngành", dataIndex: "majorName", width: 160, responsive: ["lg"] },
     {
-      title: "Tín chỉ",
+      title: <span className="whitespace-nowrap">Tín chỉ</span>,
       key: "credits",
-      width: 100,
+      width: 96,
+      responsive: ["md"],
       align: "right",
       render: (_, row) => (
         <span className={`tabular-nums ${row.earnedCredits < row.requiredCredits ? "text-rose-700" : ""}`}>
@@ -72,29 +76,30 @@ export function GraduationReview({ candidates }: { candidates: GraduationCandida
         </span>
       ),
     },
-    { title: "CPA", dataIndex: "cpa4", width: 70, align: "right", render: (value: number) => <span className="tabular-nums">{value.toFixed(2).replace(".", ",")}</span> },
-    { title: "Xếp loại", dataIndex: "classification", width: 120 },
+    { title: "CPA", dataIndex: "cpa4", width: 70, align: "right", responsive: ["md"], render: (value: number) => <span className="tabular-nums">{value.toFixed(2).replace(".", ",")}</span> },
+    { title: "Xếp loại", dataIndex: "classification", width: 110, responsive: ["xl"] },
     {
       title: "Điều kiện chưa đạt",
       key: "missing",
-      width: 260,
+      width: 220,
+      responsive: ["md"],
       render: (_, row) => {
         const failed = row.checks.filter((check) => !check.passed);
         return failed.length === 0 ? <span className="text-muted">Không có</span> : <span className="text-xs text-pretty text-rose-700">{failed.map((check) => check.label).join(", ")}</span>;
       },
     },
-    { title: "Trạng thái", dataIndex: "status", width: 170, render: (value: GraduationStatus) => <StatusTag status={GRADUATION_STATUS[value]} /> },
+    { title: "Trạng thái", dataIndex: "status", width: 150, responsive: ["md"], render: (value: GraduationStatus) => <StatusTag status={GRADUATION_STATUS[value]} /> },
   ];
 
   return (
     <div className="flex flex-col gap-3">
       {contextHolder}
       {modalContextHolder}
-      <div className="flex flex-wrap gap-2">
-        <Input allowClear value={query} onChange={(event) => setQuery(event.target.value)} prefix={<Magnifier size={16} aria-hidden className="text-muted" />} placeholder="Tên, mã, lớp" aria-label="Tìm sinh viên" className="w-full sm:w-56" />
-        <Select allowClear value={status} onChange={setStatus} placeholder="Mọi trạng thái" aria-label="Trạng thái" options={Object.entries(GRADUATION_STATUS).map(([value, meta]) => ({ value, label: meta.label }))} className="min-w-0 flex-1 sm:w-52 sm:flex-none" />
-        <Select allowClear value={faculty} onChange={setFaculty} placeholder="Mọi khoa" aria-label="Khoa" options={faculties.map((value) => ({ value, label: value }))} className="min-w-0 flex-1 sm:w-56 sm:flex-none" />
-        <div className="flex gap-2 sm:ml-auto">
+      <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+        <Input allowClear value={query} onChange={(event) => setQuery(event.target.value)} prefix={<Magnifier size={16} aria-hidden className="text-muted" />} placeholder="Tên, mã, lớp" aria-label="Tìm sinh viên" className="col-span-2 w-full sm:w-56" />
+        <Select allowClear value={status} onChange={setStatus} placeholder="Mọi trạng thái" aria-label="Trạng thái" options={Object.entries(GRADUATION_STATUS).map(([value, meta]) => ({ value, label: meta.label }))} className="min-w-0 sm:w-52" />
+        <Select allowClear value={faculty} onChange={setFaculty} placeholder="Mọi khoa" aria-label="Khoa" options={faculties.map((value) => ({ value, label: value }))} className="min-w-0 sm:w-56" />
+        <div className="col-span-2 flex flex-wrap gap-2 sm:ml-auto">
           <Button icon={<TableDownload size={16} aria-hidden className="text-zinc-500" />} onClick={() => messageApi.success(`Đã xuất ${visible.length} dòng ra tệp Excel theo mẫu của Bộ`)}>
             Xuất danh sách
           </Button>
@@ -124,7 +129,7 @@ export function GraduationReview({ candidates }: { candidates: GraduationCandida
             </ul>
           ),
         }}
-        scroll={{ x: 1250 }}
+        scroll={{ x: "max-content" }}
         pagination={{ pageSize: 25, hideOnSinglePage: true, showTotal: (total) => `${total} sinh viên` }}
         locale={{ emptyText: <EmptyState icon={AwardCertificate} title="Không có sinh viên ở trạng thái này" /> }}
       />

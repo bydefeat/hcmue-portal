@@ -116,7 +116,7 @@ const AUDIENCES: Record<string, SectionAudience> = {
 };
 
 const RESERVED: Record<string, ReservedSeat[]> = {
-  "hk2-2026:COMP1060.01": [{ label: "Khóa 48 cần để tốt nghiệp đúng hạn", seats: 17, taken: 0, majorCodes: [], cohorts: [48] }],
+  "hk2-2026:COMP1060.01": [{ label: "Khóa 48 cần để tốt nghiệp đúng hạn", seats: 10, taken: 0, majorCodes: [], cohorts: [48] }],
   "hk2-2026:COMP1040.01": [{ label: "Sinh viên học lại", seats: 5, taken: 2, majorCodes: ["104"], cohorts: [48, 49] }],
   "hk2-2026:MATH1013.01": [{ label: "Ngành Sư phạm Toán học", seats: 15, taken: 9, majorCodes: ["101"], cohorts: [] }],
 };

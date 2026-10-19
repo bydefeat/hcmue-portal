@@ -36,7 +36,7 @@ export default async function Page() {
     <>
       <PageHeader
         title="Sinh viên cố vấn"
-        description={`${classes.map((entry) => entry.className).join(", ")} · ${rows.length} sinh viên, ${attention} em cần chú ý`}
+        description={`${classes.map((entry) => entry.className).join(", ")} · ${rows.length} sinh viên, ${attention} cần chú ý`}
       />
       <AdviseeTable rows={rows} studentHrefBase="/lecturer/advising/students/" />
     </>

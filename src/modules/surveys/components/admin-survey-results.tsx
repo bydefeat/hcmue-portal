@@ -71,7 +71,7 @@ export function AdminSurveyResults({ results, questions }: { results: SectionSur
     {
       title: "Lớp học phần",
       key: "section",
-      width: 250,
+      width: 220,
       render: (_, row) => (
         <Button type="link" size="small" onClick={() => setOpenId(row.classSectionId)} className="h-auto max-w-full flex-col items-start gap-0 p-0 text-left">
           <span className="text-xs">{row.classCode}</span>
@@ -79,11 +79,12 @@ export function AdminSurveyResults({ results, questions }: { results: SectionSur
         </Button>
       ),
     },
-    { title: "Giảng viên", dataIndex: "lecturerName", width: 200, render: (value: string | null) => value ?? <span className="text-muted">Chưa phân công</span> },
+    { title: "Giảng viên", dataIndex: "lecturerName", width: 180, responsive: ["lg"], render: (value: string | null) => value ?? <span className="text-muted">Chưa phân công</span> },
     {
       title: "Phản hồi",
       key: "responses",
       width: 130,
+      responsive: ["md"],
       sorter: (a, b) => a.responses / a.enrolled - b.responses / b.enrolled,
       render: (_, row) => (
         <span className="tabular-nums">
@@ -91,11 +92,12 @@ export function AdminSurveyResults({ results, questions }: { results: SectionSur
         </span>
       ),
     },
-    { title: "Điểm chung", dataIndex: "overall", width: 180, sorter: (a, b) => a.overall - b.overall, render: (value: number) => <ScoreCell value={value} /> },
+    { title: <span className="whitespace-nowrap">Điểm chung</span>, dataIndex: "overall", width: 150, sorter: (a, b) => a.overall - b.overall, render: (value: number) => <ScoreCell value={value} /> },
     {
       title: "",
       key: "flag",
       width: 150,
+      responsive: ["md"],
       render: (_, row) => (row.overall < LOW_SCORE ? <StatusTag status={{ label: "Dưới ngưỡng 3,5", tone: "danger" }} /> : null),
     },
   ];
@@ -104,7 +106,7 @@ export function AdminSurveyResults({ results, questions }: { results: SectionSur
     {
       title: view === "lecturer" ? "Giảng viên" : "Khoa",
       key: "label",
-      width: 260,
+      width: 220,
       render: (_, row) => (
         <span className="flex min-w-0 flex-col">
           <span className="truncate font-medium">{row.label}</span>
@@ -112,15 +114,16 @@ export function AdminSurveyResults({ results, questions }: { results: SectionSur
         </span>
       ),
     },
-    { title: "Số lớp", dataIndex: "sections", width: 90, align: "right", render: (value: number) => <span className="tabular-nums">{value}</span> },
-    { title: "Tỉ lệ phản hồi", key: "rate", width: 140, align: "right", render: (_, row) => <span className="tabular-nums">{Math.round((row.responses / row.enrolled) * 100)}%</span> },
-    { title: "Điểm chung", dataIndex: "overall", width: 200, sorter: (a, b) => a.overall - b.overall, defaultSortOrder: "ascend", render: (value: number) => <ScoreCell value={value} /> },
+    { title: <span className="whitespace-nowrap">Số lớp</span>, dataIndex: "sections", width: 90, align: "right", responsive: ["md"], render: (value: number) => <span className="tabular-nums">{value}</span> },
+    { title: <span className="whitespace-nowrap">Tỉ lệ phản hồi</span>, key: "rate", width: 140, align: "right", responsive: ["md"], render: (_, row) => <span className="tabular-nums">{Math.round((row.responses / row.enrolled) * 100)}%</span> },
+    { title: <span className="whitespace-nowrap">Điểm chung</span>, dataIndex: "overall", width: 150, sorter: (a, b) => a.overall - b.overall, defaultSortOrder: "ascend", render: (value: number) => <ScoreCell value={value} /> },
   ];
 
   return (
     <div className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center gap-2">
         <Segmented<View>
+          className="w-fit max-w-full"
           value={view}
           onChange={setView}
           options={[
@@ -138,7 +141,7 @@ export function AdminSurveyResults({ results, questions }: { results: SectionSur
           size="small"
           columns={sectionColumns}
           dataSource={filtered}
-          scroll={{ x: 950 }}
+          scroll={{ x: "max-content" }}
           pagination={{ pageSize: 25, hideOnSinglePage: true }}
           locale={{ emptyText: <EmptyState icon={StarList} title="Chưa có kết quả khảo sát" /> }}
         />
@@ -148,7 +151,7 @@ export function AdminSurveyResults({ results, questions }: { results: SectionSur
           size="small"
           columns={groupColumns}
           dataSource={groups}
-          scroll={{ x: 720 }}
+          scroll={{ x: "max-content" }}
           pagination={false}
           locale={{ emptyText: <EmptyState icon={StarList} title="Chưa có kết quả khảo sát" /> }}
         />

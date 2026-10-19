@@ -34,7 +34,7 @@ export default async function Page() {
     <div className="flex flex-col gap-6 sm:gap-8">
       <PageHeader
         title="Cổng đào tạo và học vụ"
-        description={`Đang học ${currentTerm.name}. Thông báo đào tạo mới nhất và lịch đăng ký học phần ${targetTerm.name.toLowerCase()}.`}
+        description={`Hiện tại: ${currentTerm.name.toLowerCase()}. Thông báo đào tạo mới nhất và lịch đăng ký học phần ${targetTerm.name.toLowerCase()}.`}
       />
 
       {active.map((period) => (

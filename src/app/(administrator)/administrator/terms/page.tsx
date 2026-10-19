@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { PageHeader } from "@/shared/components/ui/page-header";
+import { SectionCard } from "@/shared/components/ui/section-card";
 import { RegistrationPeriodList } from "@/modules/course-registration/components/registration-period-list";
 import { TermList } from "@/modules/course-registration/components/term-list";
 import { getClassSections, getRegistrationPeriods, getTerms } from "@/modules/course-registration/course-registration.query";
@@ -23,11 +24,10 @@ export default async function Page() {
         title="Học kỳ và đợt đăng ký"
         description="Mỗi đợt quy định khóa được đăng ký, thời gian mở và hạn mức tín chỉ. Đợt còn dưới 48 giờ được đánh dấu sắp đóng."
       />
-      <div className="flex flex-col gap-8">
-        <section className="flex flex-col gap-3">
-          <h2 className="text-lg font-semibold">Học kỳ</h2>
+      <div className="flex flex-col gap-4 sm:gap-6">
+        <SectionCard title="Học kỳ" flush>
           <TermList terms={termRows} />
-        </section>
+        </SectionCard>
         <RegistrationPeriodList terms={terms.filter((term) => periods.some((period) => period.termId === term.id) || term.isCurrent || term.isRegistrationTarget)} periods={periods} />
       </div>
     </>

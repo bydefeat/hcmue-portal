@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Checkbox, Input, Select, Table, type TableColumnsType } from "antd";
+import { Card, Checkbox, Input, Select, Table, type TableColumnsType } from "antd";
 import { Magnifier, Users } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { StatusTag } from "@/shared/components/ui/status-tag";
@@ -39,6 +39,14 @@ export function AdviseeTable({ rows, studentHrefBase }: AdviseeTableProps) {
       (!needle || normalize(`${row.student.fullName} ${row.student.code}`).includes(needle)) &&
       (!className || row.student.className === className) &&
       (!onlyAttention || row.needsAttention),
+  );
+
+  const emptyText = (
+    <EmptyState
+      icon={Users}
+      title={rows.length === 0 ? "Chưa được phân công lớp cố vấn" : "Không có sinh viên khớp bộ lọc"}
+      description={rows.length === 0 ? "Phòng Đào tạo chưa giao lớp sinh hoạt nào cho bạn." : "Thử bỏ bớt điều kiện lọc."}
+    />
   );
 
   const columns: TableColumnsType<AdviseeRow> = [
@@ -129,16 +137,41 @@ export function AdviseeTable({ rows, studentHrefBase }: AdviseeTableProps) {
         dataSource={filtered}
         scroll={{ x: 1100 }}
         pagination={{ pageSize: 30, hideOnSinglePage: true, showTotal: (total) => `${total} sinh viên` }}
-        locale={{
-          emptyText: (
-            <EmptyState
-              icon={Users}
-              title={rows.length === 0 ? "Chưa được phân công lớp cố vấn" : "Không có sinh viên khớp bộ lọc"}
-              description={rows.length === 0 ? "Phòng Đào tạo chưa giao lớp sinh hoạt nào cho bạn." : "Thử bỏ bớt điều kiện lọc."}
-            />
-          ),
-        }}
+        locale={{ emptyText }}
+        className="hidden md:block"
       />
+      {filtered.length === 0 ? (
+        <Card size="small" className="md:hidden">
+          {emptyText}
+        </Card>
+      ) : (
+        <ul className="flex flex-col gap-2 md:hidden">
+          {filtered.map((row) => (
+            <li key={row.student.id}>
+              <Card size="small" classNames={{ body: "flex flex-col gap-2" }}>
+                <span className="flex items-start justify-between gap-2">
+                  <Link href={`${studentHrefBase}${row.student.id}`} className="flex min-w-0 flex-col">
+                    <span className="truncate font-medium">{row.student.fullName}</span>
+                    <span className="text-xs text-muted">
+                      {row.student.code} · {row.student.className}
+                    </span>
+                  </Link>
+                  <a href={`tel:${row.student.phone}`} className="shrink-0 text-sm tabular-nums">
+                    {row.student.phone}
+                  </a>
+                </span>
+                <span className="text-xs text-muted tabular-nums">
+                  CPA {row.cpa4.toFixed(2).replace(".", ",")} · {row.standingLabel} · {row.earnedCredits} tín chỉ tích lũy
+                </span>
+                <span className="flex flex-wrap items-center gap-2">
+                  {row.warning && <StatusTag status={row.warning} />}
+                  {row.plan ? <StatusTag status={row.plan} /> : <span className="text-xs text-muted">Chưa lập kế hoạch học tập</span>}
+                </span>
+              </Card>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

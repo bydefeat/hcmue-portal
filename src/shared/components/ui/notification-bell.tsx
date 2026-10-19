@@ -31,7 +31,7 @@ export function NotificationBell({ items, viewAllHref }: NotificationBellProps) 
   const unread = items.filter((item) => !isRead(item)).length;
 
   const content = (
-    <div className="flex w-[min(360px,calc(100vw-32px))] flex-col">
+    <div className="flex w-[min(360px,calc(100vw-64px))] flex-col">
       <div className="flex items-center justify-between gap-3 border-b border-border-strong px-1 pb-2">
         <span className="font-semibold">Thông báo</span>
         {unread > 0 && (

@@ -117,3 +117,7 @@ export const REGISTRATION_EVENT: Record<RegistrationEventKind, StatusMeta> = {
   "admin-drop": { label: "Phòng Đào tạo hủy hộ", tone: "warning" },
   "section-cancelled": { label: "Lớp bị hủy", tone: "danger" },
 };
+
+export function keepCurrencyTogether(value: string) {
+  return value.replace(/ đ(?=[\s,.)]|$)/g, "\u00a0đ");
+}

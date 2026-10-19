@@ -45,27 +45,30 @@ export function RegistrationMonitorStudents({ students }: { students: PendingStu
     {
       title: "Sinh viên",
       key: "student",
-      width: 240,
+      width: 180,
       render: (_, student) => (
         <span className="flex min-w-0 flex-col">
           <span className="truncate font-medium">{student.fullName}</span>
-          <span className="text-xs text-muted">{student.code}</span>
+          <span className="text-xs text-muted">
+            {student.code}
+            <span className="md:hidden"> · {student.className}</span>
+          </span>
         </span>
       ),
     },
-    { title: "Lớp", dataIndex: "className", width: 130, render: (value: string) => <span className="text-xs">{value}</span> },
-    { title: "Khoa", dataIndex: "faculty", width: 200 },
-    { title: "Nhắc", key: "reminded", width: 120, render: (_, student) => (reminded.includes(student.id) ? <span className="text-xs text-green-700">Đã nhắc</span> : <span className="text-xs text-muted">Chưa nhắc</span>) },
+    { title: "Lớp", dataIndex: "className", width: 130, responsive: ["md"], render: (value: string) => <span className="text-xs">{value}</span> },
+    { title: "Khoa", dataIndex: "faculty", width: 200, responsive: ["md"] },
+    { title: "Nhắc", key: "reminded", width: 100, render: (_, student) => (reminded.includes(student.id) ? <span className="text-xs text-green-700">Đã nhắc</span> : <span className="text-xs text-muted">Chưa nhắc</span>) },
   ];
 
   return (
     <div className="flex flex-col gap-3">
       {contextHolder}
-      <div className="flex flex-wrap gap-2">
-        <Input allowClear value={query} onChange={(event) => setQuery(event.target.value)} prefix={<Magnifier size={16} aria-hidden className="text-muted" />} placeholder="Tên, mã, lớp" aria-label="Tìm sinh viên" className="w-full sm:w-56" />
-        <Select allowClear value={cohort} onChange={setCohort} placeholder="Mọi khóa" aria-label="Khóa" options={cohorts.map((value) => ({ value, label: `Khóa ${value}` }))} className="min-w-0 flex-1 sm:w-32 sm:flex-none" />
-        <Select allowClear value={faculty} onChange={setFaculty} placeholder="Mọi khoa" aria-label="Khoa" options={faculties.map((value) => ({ value, label: value }))} className="min-w-0 flex-1 sm:w-56 sm:flex-none" />
-        <div className="flex gap-2 sm:ml-auto">
+      <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+        <Input allowClear value={query} onChange={(event) => setQuery(event.target.value)} prefix={<Magnifier size={16} aria-hidden className="text-muted" />} placeholder="Tên, mã, lớp" aria-label="Tìm sinh viên" className="col-span-2 w-full sm:w-56" />
+        <Select allowClear value={cohort} onChange={setCohort} placeholder="Mọi khóa" aria-label="Khóa" options={cohorts.map((value) => ({ value, label: `Khóa ${value}` }))} className="min-w-0 sm:w-32" />
+        <Select allowClear value={faculty} onChange={setFaculty} placeholder="Mọi khoa" aria-label="Khoa" options={faculties.map((value) => ({ value, label: value }))} className="min-w-0 sm:w-56" />
+        <div className="col-span-2 flex flex-wrap gap-2 sm:ml-auto">
           <Button disabled={selected.length === 0} onClick={() => remind(selected)}>
             Gửi nhắc {selected.length > 0 ? `(${selected.length})` : ""}
           </Button>
@@ -80,7 +83,7 @@ export function RegistrationMonitorStudents({ students }: { students: PendingStu
         columns={columns}
         dataSource={visible}
         rowSelection={{ selectedRowKeys: selected, onChange: (keys) => setSelected(keys as string[]) }}
-        scroll={{ x: 760 }}
+        scroll={{ x: "max-content" }}
         pagination={{ pageSize: 20, hideOnSinglePage: true, showTotal: (total) => `${total} sinh viên` }}
         locale={{ emptyText: <EmptyState icon={UsersCheck} title="Mọi sinh viên trong đợt đã đăng ký" /> }}
       />

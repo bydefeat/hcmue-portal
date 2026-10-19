@@ -21,7 +21,7 @@ export default async function Page({ params }: PageProps) {
   const announcement = await getPublishedAnnouncement(slug);
   if (!announcement) notFound();
   const related = (await getPublishedAnnouncements()).filter((entry) => entry.id !== announcement.id && entry.category === announcement.category).slice(0, 3);
-  const hint = deadlineHint(announcement.deadline);
+  const hint = deadlineHint(announcement.deadline, true);
 
   return (
     <>
@@ -29,11 +29,15 @@ export default async function Page({ params }: PageProps) {
         title={announcement.title}
         back={{ href: "/announcements", label: "Thông báo đào tạo" }}
         description={
-          <span className="flex flex-wrap gap-x-4 gap-y-1 text-xs">
-            <span>{ANNOUNCEMENT_CATEGORY_LABEL[announcement.category]}</span>
-            <span>{announcement.author}</span>
-            {announcement.publishedAt && <span className="tabular-nums">Đăng lúc {formatDateTime(announcement.publishedAt)}</span>}
-            <span>Gửi tới: {announcement.audiences.join(", ")}</span>
+          <span className="text-xs">
+            {[
+              ANNOUNCEMENT_CATEGORY_LABEL[announcement.category],
+              announcement.author,
+              announcement.publishedAt ? `Đăng lúc ${formatDateTime(announcement.publishedAt)}` : null,
+              `Gửi tới: ${announcement.audiences.join(", ")}`,
+            ]
+              .filter(Boolean)
+              .join(" · ")}
           </span>
         }
       />
@@ -44,16 +48,11 @@ export default async function Page({ params }: PageProps) {
               <Alert
                 type={hint.type}
                 showIcon
-                title={
-                  <span className="tabular-nums">
-                    {hint.text}
-                    {announcement.deadline && `, lúc ${formatDateTime(announcement.deadline)}`}
-                  </span>
-                }
+                title={<span className="tabular-nums">{hint.text}</span>}
               />
             )}
             <p className="max-w-prose text-base text-pretty">{announcement.summary}</p>
-            <p className="max-w-prose text-sm leading-7 text-pretty">{announcement.content}</p>
+            <p className="max-w-prose text-sm text-pretty">{announcement.content}</p>
           </article>
         </SectionCard>
         <SectionCard title="Cùng nhóm" flush>

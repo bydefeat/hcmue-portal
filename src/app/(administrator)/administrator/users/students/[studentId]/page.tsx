@@ -141,7 +141,7 @@ export default async function Page({ params }: PageProps) {
               <StatTile
                 label="Cảnh báo học vụ"
                 value={standing.warningLevel > 0 ? WARNING_LEVEL[standing.warningLevel as 1 | 2 | 3].label : "Không"}
-                hint={standing.warningLevel > 0 ? `ĐTB kỳ gần nhất ${formatPoint(standing.lastTermGpa4)}` : undefined}
+                hint={standing.warningLevel > 0 ? `ĐTB học kỳ gần nhất ${formatPoint(standing.lastTermGpa4)}` : undefined}
                 tone={standing.warningLevel > 0 ? "danger" : undefined}
               />
             </div>
@@ -161,10 +161,9 @@ export default async function Page({ params }: PageProps) {
               credits={cap}
               actorName={viewer.name}
             />
-            <section className="flex flex-col gap-3">
-              <h2 className="text-lg font-semibold">Kết quả học tập</h2>
-              <TranscriptView terms={transcript} />
-            </section>
+            <SectionCard title="Kết quả học tập" flush>
+              <TranscriptView terms={transcript} inCard />
+            </SectionCard>
           </div>
         </div>
       </div>

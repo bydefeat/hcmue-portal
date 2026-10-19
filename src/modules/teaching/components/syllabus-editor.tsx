@@ -122,14 +122,7 @@ export function SyllabusEditor({ syllabus: initial, gradeComponents, classCode }
           </span>
         </div>
         <div className="flex flex-wrap gap-2">
-          {isEditing ? (
-            <>
-              <Button onClick={() => setIsEditing(false)}>Hủy</Button>
-              <Button type="primary" onClick={() => form.submit()}>
-                Lưu
-              </Button>
-            </>
-          ) : (
+          {isEditing ? null : (
             <>
               <Button icon={<Pen size={16} aria-hidden className="text-zinc-500" />} onClick={startEdit}>
                 Sửa đề cương
@@ -208,7 +201,9 @@ export function SyllabusEditor({ syllabus: initial, gradeComponents, classCode }
                       <Form.Item name={[field.name, "key"]} hidden>
                         <Input />
                       </Form.Item>
-                      <Button type="text" aria-label="Xóa hình thức đánh giá" icon={<Trash size={16} aria-hidden className="text-zinc-500" />} onClick={() => remove(field.name)} className="md:mt-8" />
+                      <Button type="text" aria-label="Xóa hình thức đánh giá" icon={<Trash size={16} aria-hidden className="text-zinc-500" />} onClick={() => remove(field.name)} className="justify-self-end md:mt-8">
+                        <span className="md:hidden">Xóa hình thức này</span>
+                      </Button>
                     </div>
                   ))}
                   <Button icon={<Plus size={16} aria-hidden className="text-zinc-500" />} onClick={() => add({ key: `custom-${Date.now()}`, label: "", weight: 0, method: "", outcomes: [] })} className="self-start">
@@ -261,23 +256,33 @@ export function SyllabusEditor({ syllabus: initial, gradeComponents, classCode }
               )}
             </Form.List>
           </SectionCard>
+          <Card size="small" className="sticky bottom-[calc(74px+env(safe-area-inset-bottom))] z-10 md:bottom-4" classNames={{ body: "flex flex-wrap items-center justify-end gap-2" }}>
+            <span className="mr-auto text-sm text-muted">Đang sửa đề cương</span>
+            <Button onClick={() => setIsEditing(false)}>Hủy</Button>
+            <Button type="primary" htmlType="submit">
+              Lưu
+            </Button>
+          </Card>
         </Form>
       </div>
     );
   }
 
+  const assessmentEmpty = <EmptyState title="Chưa có hình thức đánh giá" description="Bấm Sửa đề cương, chọn Lấy theo bảng điểm để điền nhanh." />;
+
   const assessmentColumns: TableColumnsType<SyllabusAssessment> = [
     { title: "Hình thức", dataIndex: "label", width: 160, render: (value: string) => <span className="font-medium">{value}</span> },
     { title: "Trọng số", dataIndex: "weight", width: 96, align: "right", render: (value: number) => <span className="tabular-nums">{value}%</span> },
     {
-      title: "Bảng điểm",
+      title: "So với bảng điểm",
       key: "sheet",
-      width: 110,
+      width: 140,
       align: "right",
       render: (_, row) => {
         const component = gradeComponents.find((entry) => entry.key === row.key);
         if (!component) return <span className="text-rose-700">Không có</span>;
-        return <span className={`tabular-nums ${component.weight === row.weight ? "text-muted" : "text-rose-700"}`}>{component.weight}%</span>;
+        if (component.weight === row.weight) return <span className="text-muted">Khớp</span>;
+        return <span className="text-rose-700 tabular-nums">{component.weight}%</span>;
       },
     },
     { title: "Cách đánh giá", dataIndex: "method", width: 240, render: (value: string) => <span className="text-muted">{value}</span> },
@@ -352,11 +357,11 @@ export function SyllabusEditor({ syllabus: initial, gradeComponents, classCode }
         </SectionCard>
       )}
 
-      <section className="flex min-w-0 flex-col gap-3">
-        <div className="flex items-center justify-between gap-3">
-          <h2 className="text-lg font-semibold">Đánh giá</h2>
-          <span className={`text-sm tabular-nums ${totalWeight === 100 ? "text-muted" : "text-rose-700"}`}>Tổng {totalWeight}%</span>
-        </div>
+      <SectionCard
+        title="Đánh giá"
+        extra={<span className={`text-sm tabular-nums ${totalWeight === 100 ? "text-muted" : "text-rose-700"}`}>Tổng {totalWeight}%</span>}
+        flush
+      >
         <Table
           rowKey="key"
           size="small"
@@ -364,14 +369,49 @@ export function SyllabusEditor({ syllabus: initial, gradeComponents, classCode }
           dataSource={syllabus.assessments}
           pagination={false}
           scroll={{ x: 760 }}
-          locale={{ emptyText: <EmptyState title="Chưa có hình thức đánh giá" description="Bấm Sửa đề cương, chọn Lấy theo bảng điểm để điền nhanh." /> }}
+          locale={{ emptyText: assessmentEmpty }}
+          className="hidden md:block"
         />
-      </section>
+        <div className="md:hidden">
+          {syllabus.assessments.length === 0 ? (
+            assessmentEmpty
+          ) : (
+            <ul className="flex flex-col divide-y divide-border-strong">
+              {syllabus.assessments.map((row) => {
+                const component = gradeComponents.find((entry) => entry.key === row.key);
+                const isMismatch = !component || component.weight !== row.weight;
+                return (
+                  <li key={row.key} className="flex flex-col gap-1 px-4 py-3">
+                    <span className="flex items-baseline justify-between gap-2">
+                      <span className="font-medium">{row.label}</span>
+                      <span className="tabular-nums">{row.weight}%</span>
+                    </span>
+                    {row.method && <span className="text-sm text-pretty text-muted">{row.method}</span>}
+                    <span className="text-xs text-muted">
+                      {row.outcomes.join(", ")}
+                      {isMismatch && <span className="text-rose-700"> · Bảng điểm: {component ? `${component.weight}%` : "không có"}</span>}
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+      </SectionCard>
 
-      <section className="flex min-w-0 flex-col gap-3">
-        <h2 className="text-lg font-semibold">Kế hoạch giảng dạy</h2>
-        <Table rowKey="week" size="small" columns={WEEK_COLUMNS} dataSource={syllabus.weeks} pagination={false} scroll={{ x: 800 }} />
-      </section>
+      <SectionCard title="Kế hoạch giảng dạy" flush>
+        <Table rowKey="week" size="small" columns={WEEK_COLUMNS} dataSource={syllabus.weeks} pagination={false} scroll={{ x: 800 }} className="hidden md:block" />
+        <ul className="flex flex-col divide-y divide-border-strong md:hidden">
+          {syllabus.weeks.map((week) => (
+            <li key={week.week} className="flex flex-col gap-1 px-4 py-3">
+              <span className="text-xs text-muted tabular-nums">Tuần {week.week}</span>
+              <span className="text-sm text-pretty">{week.topic || <span className="text-muted">Chưa nhập</span>}</span>
+              {week.activities && <span className="text-xs text-pretty text-muted">{week.activities}</span>}
+              {week.readings && <span className="text-xs text-pretty text-muted">Đọc: {week.readings}</span>}
+            </li>
+          ))}
+        </ul>
+      </SectionCard>
     </div>
   );
 }

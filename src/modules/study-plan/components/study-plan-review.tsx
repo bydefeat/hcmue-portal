@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Alert, Button, Drawer, Form, Input, message, Modal, Select, Table, type TableColumnsType } from "antd";
+import { Alert, Button, Card, Drawer, Form, Input, message, Modal, Select, Table, type TableColumnsType } from "antd";
 import { Magnifier, Route } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { StatusTag } from "@/shared/components/ui/status-tag";
@@ -59,6 +59,33 @@ export function StudyPlanReview({ plans }: { plans: StudyPlan[] }) {
     messageApi.success(next === "approved" ? `Đã duyệt kế hoạch của ${plan.fullName}` : `Đã trả lại kế hoạch cho ${plan.fullName}, sinh viên nhận email kèm nhận xét`);
   };
 
+  const creditText = (value: number) =>
+    isCreditOutOfRange(value) ? (
+      <span className="flex flex-col items-end tabular-nums">
+        <span className="font-medium text-amber-700">{value}</span>
+        <span className="text-xs text-amber-700">
+          Ngoài {STUDY_PLAN_CREDIT_LIMIT.min}-{STUDY_PLAN_CREDIT_LIMIT.max} TC
+        </span>
+      </span>
+    ) : (
+      <span className="tabular-nums">{value}</span>
+    );
+
+  const actionButton = (row: StudyPlan) =>
+    row.status === "draft" ? null : (
+      <Button size="small" type={row.status === "pending" ? "primary" : "default"} onClick={() => setOpenId(row.id)}>
+        {row.status === "pending" ? "Xét duyệt" : "Xem"}
+      </Button>
+    );
+
+  const emptyText = (
+    <EmptyState
+      icon={Route}
+      title={plans.length === 0 ? "Chưa có kế hoạch học tập" : "Không có kế hoạch khớp bộ lọc"}
+      description={plans.length === 0 ? "Sinh viên được cố vấn chưa nộp kế hoạch nào." : "Thử bỏ bớt điều kiện lọc."}
+    />
+  );
+
   const columns: TableColumnsType<StudyPlan> = [
     {
       title: "Sinh viên",
@@ -77,9 +104,7 @@ export function StudyPlanReview({ plans }: { plans: StudyPlan[] }) {
       dataIndex: "totalCredits",
       width: 110,
       align: "right",
-      render: (value: number) => (
-        <span className={`tabular-nums ${isCreditOutOfRange(value) ? "font-medium text-amber-700" : ""}`}>{value}</span>
-      ),
+      render: (value: number) => creditText(value),
     },
     {
       title: "Nộp lúc",
@@ -102,11 +127,7 @@ export function StudyPlanReview({ plans }: { plans: StudyPlan[] }) {
       key: "action",
       width: 96,
       align: "right",
-      render: (_, row) => (
-        <Button size="small" type={row.status === "pending" ? "default" : "text"} disabled={row.status === "draft"} onClick={() => setOpenId(row.id)}>
-          {row.status === "pending" ? "Xét duyệt" : "Xem"}
-        </Button>
-      ),
+      render: (_, row) => actionButton(row),
     },
   ];
 
@@ -152,16 +173,41 @@ export function StudyPlanReview({ plans }: { plans: StudyPlan[] }) {
         dataSource={filtered}
         scroll={{ x: 860 }}
         pagination={{ pageSize: 20, hideOnSinglePage: true, showTotal: (total) => `${total} kế hoạch` }}
-        locale={{
-          emptyText: (
-            <EmptyState
-              icon={Route}
-              title={plans.length === 0 ? "Chưa có kế hoạch học tập" : "Không có kế hoạch khớp bộ lọc"}
-              description={plans.length === 0 ? "Sinh viên được cố vấn chưa nộp kế hoạch nào." : "Thử bỏ bớt điều kiện lọc."}
-            />
-          ),
-        }}
+        locale={{ emptyText }}
+        className="hidden md:block"
       />
+      {filtered.length === 0 ? (
+        <Card size="small" className="md:hidden">
+          {emptyText}
+        </Card>
+      ) : (
+        <ul className="flex flex-col gap-2 md:hidden">
+          {filtered.map((row) => {
+            const days = waitingDays(row);
+            return (
+              <li key={row.id}>
+                <Card size="small" classNames={{ body: "flex flex-col gap-2" }}>
+                  <span className="flex items-start justify-between gap-2">
+                    <span className="flex min-w-0 flex-col">
+                      <span className="truncate font-medium">{row.fullName}</span>
+                      <span className="text-xs text-muted">
+                        {row.studentCode} · {row.className}
+                      </span>
+                    </span>
+                    <StatusTag status={STUDY_PLAN_STATUS[row.status]} />
+                  </span>
+                  <span className="flex flex-wrap items-center gap-x-2 text-xs text-muted tabular-nums">
+                    <span className={isCreditOutOfRange(row.totalCredits) ? "font-medium text-amber-700" : ""}>{row.totalCredits} tín chỉ kỳ tới</span>
+                    <span>{row.submittedAt ? `Nộp ${formatDateTime(row.submittedAt)}` : "Chưa nộp"}</span>
+                    {row.status === "pending" && days > PENDING_TOO_LONG_DAYS && <span className="font-medium text-amber-700">Chờ {days} ngày</span>}
+                  </span>
+                  {row.status !== "draft" && <div className="flex justify-end">{actionButton(row)}</div>}
+                </Card>
+              </li>
+            );
+          })}
+        </ul>
+      )}
 
       <Drawer
         open={Boolean(openPlan)}

@@ -39,12 +39,12 @@ export function ForgotPasswordForm({ defaultEmail }: { defaultEmail?: string }) 
           <Form.Item name="email" label="Email" rules={EMAIL_RULES}>
             <Input autoFocus autoComplete="email" inputMode="email" placeholder="Nhập email" />
           </Form.Item>
-          <Button type="primary" htmlType="submit" block>
+          <Button type="primary" htmlType="submit" block className="mt-2">
             Gửi mã
           </Button>
         </Form>
         <p className="mt-6 text-center text-sm">
-          <Link href="/authentication/sign-in" className="text-foreground hover:underline">
+          <Link href="/authentication/sign-in" className="text-sm text-primary hover:underline">
             Quay lại đăng nhập
           </Link>
         </p>
@@ -67,7 +67,7 @@ export function ForgotPasswordForm({ defaultEmail }: { defaultEmail?: string }) 
           <Form.Item name="code" label="Mã đặt lại" rules={OTP_RULES}>
             <Input.OTP length={6} autoFocus />
           </Form.Item>
-          <Button type="primary" htmlType="submit" block>
+          <Button type="primary" htmlType="submit" block className="mt-2">
             Tiếp tục
           </Button>
         </Form>
@@ -97,7 +97,7 @@ export function ForgotPasswordForm({ defaultEmail }: { defaultEmail?: string }) 
           <Form.Item name="password" label="Mật khẩu mới" extra="Ít nhất 8 ký tự" rules={NEW_PASSWORD_RULES}>
             <Input.Password autoFocus autoComplete="new-password" placeholder="Tạo mật khẩu" />
           </Form.Item>
-          <Button type="primary" htmlType="submit" block>
+          <Button type="primary" htmlType="submit" block className="mt-2">
             Lưu mật khẩu
           </Button>
         </Form>

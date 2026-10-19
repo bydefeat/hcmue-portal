@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { PageHeader } from "@/shared/components/ui/page-header";
 import { STANDING_LABEL } from "@/modules/grades/grades.constant";
 import { getStudentStandings } from "@/modules/grades/grades.query";
 import { StudentTable } from "@/modules/users/components/student-table";
@@ -24,12 +23,12 @@ export default async function Page() {
   });
 
   return (
-    <>
-      <PageHeader
-        title="Sinh viên"
-        description={`${students.length.toLocaleString("vi-VN")} hồ sơ thuộc ${new Set(students.map((student) => student.className)).size} lớp sinh hoạt. Bấm tên sinh viên để xem kết quả học tập.`}
-      />
-      <StudentTable students={rows} />
-    </>
+    <StudentTable
+      header={{
+        title: "Sinh viên",
+        description: `${students.length.toLocaleString("vi-VN")} hồ sơ thuộc ${new Set(students.map((student) => student.className)).size} lớp sinh hoạt. Mở hồ sơ từng sinh viên để xem kết quả học tập và đăng ký học phần.`,
+      }}
+      students={rows}
+    />
   );
 }

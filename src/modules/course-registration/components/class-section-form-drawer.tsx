@@ -184,7 +184,7 @@ export function ClassSectionFormDrawer({ open, section, termName, courses, lectu
           {(fields, { add, remove }, { errors }) => (
             <div className="flex flex-col gap-3">
               {fields.map((field) => (
-                <Card key={field.key} size="small" classNames={{ body: "grid grid-cols-2 gap-x-3 sm:grid-cols-[1fr_1fr_1fr_auto]" }}>
+                <Card key={field.key} size="small" classNames={{ body: "grid grid-cols-2 gap-x-3 sm:grid-cols-[repeat(4,minmax(0,1fr))_auto]" }}>
                   <Form.Item name={[field.name, "dayOfWeek"]} label="Thứ" rules={[{ required: true, message: "Chưa chọn" }]}>
                     <Select options={DAY_OPTIONS} />
                   </Form.Item>

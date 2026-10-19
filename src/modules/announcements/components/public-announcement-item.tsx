@@ -1,16 +1,17 @@
 import Link from "next/link";
 import { Pin } from "defeat-icons-react";
-import { daysUntil, formatDate } from "@/shared/libs/date.lib";
+import { daysUntil, formatDate, formatDateTime } from "@/shared/libs/date.lib";
 import { ANNOUNCEMENT_CATEGORY_LABEL } from "../announcements.constant";
 import type { Announcement } from "../announcements.type";
 
-export function deadlineHint(deadline: string | null) {
+export function deadlineHint(deadline: string | null, withTime = false) {
   if (!deadline) return null;
   const days = daysUntil(deadline);
-  if (days < 0) return { text: `Đã hết hạn ${formatDate(deadline)}`, className: "text-muted", type: "info" as const };
-  if (days === 0) return { text: "Hết hạn hôm nay", className: "text-rose-700", type: "error" as const };
-  if (days <= 3) return { text: `Còn ${days} ngày, hạn ${formatDate(deadline)}`, className: "text-amber-700", type: "warning" as const };
-  return { text: `Hạn ${formatDate(deadline)}`, className: "text-muted", type: "info" as const };
+  const when = withTime ? formatDateTime(deadline) : formatDate(deadline);
+  if (days < 0) return { text: `Đã hết hạn ${when}`, className: "text-muted", type: "info" as const };
+  if (days === 0) return { text: withTime ? `Hết hạn hôm nay, ${when}` : "Hết hạn hôm nay", className: "text-rose-700", type: "error" as const };
+  if (days <= 3) return { text: `Còn ${days} ngày, hạn ${when}`, className: "text-amber-700", type: "warning" as const };
+  return { text: `Hạn ${when}`, className: "text-muted", type: "info" as const };
 }
 
 export function PublicAnnouncementItem({ announcement }: { announcement: Announcement }) {
@@ -25,14 +26,19 @@ export function PublicAnnouncementItem({ announcement }: { announcement: Announc
         {ANNOUNCEMENT_CATEGORY_LABEL[announcement.category]}
       </span>
       <span className="flex min-w-0 flex-1 flex-col gap-1">
-        <span className="flex items-start gap-2">
-          {announcement.isPinned && <Pin size={16} aria-label="Ghim" className="mt-0.5 shrink-0 text-primary" />}
-          <span className="text-base font-medium text-pretty">{announcement.title}</span>
+        <span className="text-base font-medium text-pretty">
+          {announcement.isPinned && <Pin size={16} aria-label="Ghim" className="mr-1.5 inline-block align-[-2px] text-primary" />}
+          {announcement.title}
         </span>
         <span className="line-clamp-2 text-sm text-pretty text-muted">{announcement.summary}</span>
-        <span className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted">
+        <span className="text-xs text-muted">
           {announcement.audiences.join(", ")}
-          {hint && <span className={`tabular-nums ${hint.className}`}>{hint.text}</span>}
+          {hint && (
+            <>
+              {" · "}
+              <span className={`tabular-nums ${hint.className}`}>{hint.text}</span>
+            </>
+          )}
         </span>
       </span>
     </Link>

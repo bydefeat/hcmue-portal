@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Card, Collapse } from "antd";
-import { Location, PhoneOffice } from "defeat-icons-react";
+import { Location, Phone } from "defeat-icons-react";
 import { getRegulationVersions } from "@/modules/settings/settings.query";
 import { PageHeader } from "@/shared/components/ui/page-header";
 import { SectionCard } from "@/shared/components/ui/section-card";
@@ -81,7 +81,7 @@ export default async function Page() {
                 280 An Dương Vương, Phường Chợ Quán, Thành phố Hồ Chí Minh
               </p>
               <p className="flex items-center gap-2 text-sm">
-                <PhoneOffice size={18} aria-hidden className="shrink-0 text-muted" />
+                <Phone size={18} aria-hidden className="shrink-0 text-muted" />
                 <a href="tel:02838352020" className="tabular-nums">
                   028 - 38352020
                 </a>

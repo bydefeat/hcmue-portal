@@ -1,13 +1,10 @@
 import Image from "next/image";
-import { Roboto_Slab } from "next/font/google";
 import { Layout } from "antd";
-import { Envelope, House, Phone, PhoneOffice } from "defeat-icons-react";
-
-const robotoSlab = Roboto_Slab({ subsets: ["latin", "vietnamese"], weight: "400", variable: "--font-roboto-slab" });
+import { Envelope, House, Phone, Print } from "defeat-icons-react";
 
 const LEFT_LINKS = [
   { label: "Trang chủ", href: "https://hcmue.edu.vn/vi/" },
-  { label: "Fanpage FB", href: "https://www.facebook.com/HCMUE.VN/" },
+  { label: "Trang Facebook", href: "https://www.facebook.com/HCMUE.VN/" },
 ];
 
 const RIGHT_LINKS = [
@@ -23,7 +20,7 @@ const CAMPUSES = [
 const CONTACTS = [
   { icon: Envelope, label: "Email", value: "phongctct@hcmue.edu.vn", href: "mailto:phongctct@hcmue.edu.vn" },
   { icon: Phone, label: "Hotline", value: "028 - 38352020", href: "tel:02838352020" },
-  { icon: PhoneOffice, label: "Fax", value: "028 - 38398946" },
+  { icon: Print, label: "Fax", value: "028 - 38398946" },
 ];
 
 function FooterLinks({ links, className }: { links: typeof LEFT_LINKS; className: string }) {
@@ -35,7 +32,7 @@ function FooterLinks({ links, className }: { links: typeof LEFT_LINKS; className
           href={link.href}
           target="_blank"
           rel="noreferrer"
-          className="font-slab text-[15px] whitespace-nowrap text-primary-tint uppercase transition-colors hover:text-white"
+          className="text-sm font-medium whitespace-nowrap text-primary-tint transition-colors hover:text-white"
         >
           {link.label}
         </a>
@@ -46,7 +43,7 @@ function FooterLinks({ links, className }: { links: typeof LEFT_LINKS; className
 
 export function PublicFooter() {
   return (
-    <Layout.Footer className={`${robotoSlab.variable} relative mt-20 text-white`}>
+    <Layout.Footer className="relative mt-20 text-white">
       <Image
         src="/hcmue-logo.png"
         alt="Logo Trường Đại học Sư phạm TP.HCM"
@@ -58,22 +55,22 @@ export function PublicFooter() {
         <div className="grid grid-cols-2 items-center gap-4 border-b border-primary-tint/16 pb-4 md:grid-cols-[1fr_auto_1fr]">
           <FooterLinks links={LEFT_LINKS} className="items-start justify-start" />
           <p className="order-last col-span-2 text-center text-xs text-primary-tint md:order-none md:col-span-1">
-            Copyright © {new Date().getFullYear()} Ho Chi Minh City University of Education
+            Bản quyền © {new Date().getFullYear()} Trường Đại học Sư phạm Thành phố Hồ Chí Minh
           </p>
           <FooterLinks links={RIGHT_LINKS} className="items-end justify-end" />
         </div>
 
-        <div className="grid gap-8 py-6 text-base leading-7 md:grid-cols-2">
+        <div className="grid gap-8 py-6 text-sm md:grid-cols-2">
           <div>
-            <p className="flex items-center gap-2 text-xs font-semibold uppercase">
+            <p className="flex items-center gap-2 font-medium">
               <House size={18} aria-hidden />
               Địa chỉ
             </p>
             <p className="mt-2 text-pretty">
-              <span className="font-bold">Trụ sở chính</span>: 280 An Dương Vương, Phường Chợ Quán, Thành phố Hồ Chí Minh
+              <span className="font-medium">Trụ sở chính</span>: 280 An Dương Vương, Phường Chợ Quán, Thành phố Hồ Chí Minh
             </p>
-            <p className="font-bold">Các cơ sở đào tạo khác:</p>
-            <ul>
+            <p className="mt-1 font-medium">Các cơ sở đào tạo khác:</p>
+            <ul className="flex flex-col gap-0.5">
               {CAMPUSES.map((campus) => (
                 <li key={campus} className="text-pretty">
                   • {campus}
@@ -81,7 +78,7 @@ export function PublicFooter() {
               ))}
             </ul>
           </div>
-          <ul className="flex flex-col gap-1">
+          <ul className="flex flex-col gap-2">
             {CONTACTS.map(({ icon: Icon, label, value, href }) => (
               <li key={label} className="flex items-center gap-3">
                 <Icon size={18} aria-hidden className="shrink-0" />
@@ -99,8 +96,6 @@ export function PublicFooter() {
             ))}
           </ul>
         </div>
-
-        <p className="border-t border-primary-tint/16 pt-4 text-center text-xs text-white/90">All Rights Reserved</p>
       </div>
     </Layout.Footer>
   );

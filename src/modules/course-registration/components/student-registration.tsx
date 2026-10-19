@@ -215,23 +215,35 @@ export function StudentRegistration({
 
   const removePlanned = (section: ClassSectionView) => setPlannedIds((current) => current.filter((id) => id !== section.id));
 
+  const problems = basketProblems(basket, context);
+  const closedLabel = state === "upcoming" ? "Chờ đợt đăng ký mở" : "Ngoài thời gian đăng ký";
+  const blockReason =
+    activeHolds.length > 0
+      ? `Tài khoản đang bị khóa đăng ký: ${activeHolds[0].reason}`
+      : !isOpen
+        ? closedLabel
+        : planned.length === 0
+          ? registered.length > 0
+            ? `Đã đăng ký ${registered.length} lớp, chọn thêm lớp nếu cần`
+            : "Chọn ít nhất 1 lớp để đăng ký"
+          : basketCredits < credits.min
+            ? `Cần tối thiểu ${credits.min} tín chỉ, còn thiếu ${credits.min - basketCredits}`
+            : problems.length > 0
+              ? `${problems[0].section.code}: ${problems[0].issue.message}`
+              : null;
+  const registerLabel = activeHolds.length > 0 ? "Đang bị khóa đăng ký" : isOpen ? `Đăng ký ${planned.length} lớp` : closedLabel;
+
   const register = () => {
-    if (!isOpen) return;
-    if (activeHolds.length > 0) {
-      messageApi.error(`Tài khoản đang bị khóa đăng ký: ${activeHolds[0].reason}. ${activeHolds[0].resolveHint}.`);
-      return;
-    }
-    if (basketCredits < credits.min) {
-      messageApi.warning(`Cần tối thiểu ${credits.min} tín chỉ, các lớp đã chọn mới có ${basketCredits}. Chọn thêm học phần rồi đăng ký lại.`);
-      return;
-    }
-    const problems = basketProblems(basket, { ...context });
-    if (problems.length > 0) {
-      messageApi.error(`${problems[0].section.code}: ${problems[0].issue.message}`);
-      return;
-    }
+    if (blockReason) return;
     setIsQueueOpen(true);
   };
+
+  const creditSummary = (
+    <span className="text-sm">
+      Tổng <span className="font-semibold tabular-nums">{basketCredits}</span>
+      <span className="text-muted tabular-nums">/{credits.max} tín chỉ</span> · <span className="tabular-nums">{basket.length}</span> lớp
+    </span>
+  );
 
   const commitRegistration = () => {
     setIsQueueOpen(false);
@@ -273,7 +285,7 @@ export function StudentRegistration({
             />
           ))}
         {credits.note && <Alert type="warning" showIcon title={credits.note} />}
-        <Form layout="inline" size="small">
+        <Form layout="inline" colon={false}>
           <Form.Item label="Xem thử trạng thái đợt" className="mb-0">
             <Select<Simulation> value={simulation} onChange={setSimulation} options={SIMULATION_OPTIONS} className="w-48" />
           </Form.Item>
@@ -456,33 +468,31 @@ export function StudentRegistration({
                 ))}
               </ul>
             )}
+            <div className="hidden flex-col gap-2 border-t border-border-strong px-4 py-3 lg:flex">
+              {creditSummary}
+              <MeterBar value={basketCredits} max={credits.max} tone={basketCredits < credits.min ? "warning" : "primary"} label="Số tín chỉ đã chọn" />
+              {blockReason && isOpen && <span className={`text-xs text-pretty ${planned.length === 0 ? "text-muted" : "text-amber-700"}`}>{blockReason}</span>}
+              <Button type="primary" block disabled={Boolean(blockReason)} onClick={register}>
+                {registerLabel}
+              </Button>
+            </div>
           </SectionCard>
         </aside>
       </div>
 
-      <Card size="small" className="sticky bottom-24 z-10 lg:bottom-4" classNames={{ body: "flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between" }}>
-        <div className="flex min-w-0 flex-col gap-1">
-          <span className="text-sm">
-            Tổng <span className="font-semibold tabular-nums">{basketCredits}</span>
-            <span className="text-muted tabular-nums">/{credits.max} tín chỉ</span> · <span className="tabular-nums">{basket.length}</span> lớp
-          </span>
-          <div className="w-48 max-w-full">
-            <MeterBar value={basketCredits} max={credits.max} tone={basketCredits < credits.min ? "warning" : "primary"} label="Số tín chỉ đã chọn" />
+      <div aria-hidden className="h-16 lg:hidden" />
+      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-border-strong bg-surface px-4 pt-3 pb-[calc(78px+env(safe-area-inset-bottom))] lg:hidden print:hidden">
+        <div className="mx-auto flex max-w-[420px] items-center gap-3">
+          <div className="flex min-w-0 flex-1 flex-col">
+            {creditSummary}
+            {blockReason && isOpen && <span className={`line-clamp-2 text-xs text-pretty ${planned.length === 0 ? "text-muted" : "text-amber-700"}`}>{blockReason}</span>}
           </div>
-          {basketCredits < credits.min && (
-            <span className="text-xs text-amber-700 tabular-nums">Cần tối thiểu {credits.min} tín chỉ, còn thiếu {credits.min - basketCredits}.</span>
-          )}
+          <Button type="primary" disabled={Boolean(blockReason)} onClick={register} className="shrink-0">
+            {isOpen && activeHolds.length === 0 ? "Đăng ký" : registerLabel}
+          </Button>
         </div>
-        <Button type="primary" disabled={!isOpen || planned.length === 0 || activeHolds.length > 0} onClick={register} className="shrink-0">
-          {activeHolds.length > 0
-            ? "Đang bị khóa đăng ký"
-            : isOpen
-              ? `Đăng ký ${planned.length} lớp`
-              : state === "upcoming"
-                ? "Chờ đợt đăng ký mở"
-                : "Ngoài thời gian đăng ký"}
-        </Button>
-      </Card>
+      </div>
+
       <LabGroupPicker
         key={pickerSection?.id ?? "none"}
         section={pickerSection}

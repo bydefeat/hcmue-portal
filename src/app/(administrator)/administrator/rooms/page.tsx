@@ -25,7 +25,7 @@ export default async function Page() {
     <>
       <PageHeader
         title="Phòng học"
-        description={`${rooms.length} phòng tại ${campuses.length} cơ sở${maintenance > 0 ? `, ${maintenance} phòng đang bảo trì` : ""}. Bấm vào phòng để xem lịch sử dụng theo tuần và sửa thông tin.`}
+        description={`${rooms.length} phòng tại ${campuses.length} cơ sở${maintenance > 0 ? `, ${maintenance} phòng đang bảo trì` : ""}. Mở từng phòng để xem lịch sử dụng theo tuần và sửa thông tin.`}
       />
       <RoomTable rooms={rooms} campuses={campuses} bookings={bookings} termName={term.shortName} />
     </>

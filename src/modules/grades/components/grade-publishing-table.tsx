@@ -104,20 +104,25 @@ export function GradePublishingTable({ rows: initialRows, canApprove, canPublish
     {
       title: "Lớp học phần",
       key: "section",
-      width: 250,
-      fixed: "left",
+      width: 200,
       render: (_, row) => (
-        <Button type="link" size="small" onClick={() => setPreviewId(row.classSectionId)} className="h-auto max-w-full flex-col items-start gap-0 p-0 text-left">
-          <span className="text-xs">{row.code}</span>
-          <span className="max-w-full truncate text-foreground">{row.courseName}</span>
-        </Button>
+        <span className="flex min-w-0 flex-col items-start gap-1">
+          <Button type="link" size="small" onClick={() => setPreviewId(row.classSectionId)} className="h-auto max-w-full flex-col items-start gap-0 p-0 text-left">
+            <span className="text-xs">{row.code}</span>
+            <span className="max-w-full truncate text-foreground">{row.courseName}</span>
+          </Button>
+          <span className="md:hidden">
+            <StatusTag status={GRADE_SHEET_STATE[row.state]} />
+          </span>
+        </span>
       ),
     },
-    { title: "Giảng viên", dataIndex: "lecturerName", width: 190, render: (value: string | null) => value ?? <span className="text-muted">Chưa phân công</span> },
+    { title: "Giảng viên", dataIndex: "lecturerName", width: 170, responsive: ["lg"], render: (value: string | null) => value ?? <span className="text-muted">Chưa phân công</span> },
     {
       title: "Đã nhập",
       key: "filled",
-      width: 170,
+      width: 140,
+      responsive: ["md"],
       render: (_, row) => (
         <span className="flex items-center gap-2">
           <MeterBar value={row.filledCells} max={row.totalCells} label={`Đã nhập ${row.code}`} />
@@ -125,12 +130,13 @@ export function GradePublishingTable({ rows: initialRows, canApprove, canPublish
         </span>
       ),
     },
-    { title: "ĐTB", dataIndex: "average", width: 70, align: "right", render: (value: number | null) => <span className="tabular-nums">{formatPoint(value, 1)}</span> },
-    { title: "Tỉ lệ đạt", dataIndex: "passRate", width: 90, align: "right", render: (value: number | null) => <span className="tabular-nums">{value === null ? "" : `${value}%`}</span> },
+    { title: "ĐTB", dataIndex: "average", width: 70, align: "right", responsive: ["lg"], render: (value: number | null) => <span className="tabular-nums">{formatPoint(value, 1)}</span> },
+    { title: <span className="whitespace-nowrap">Tỉ lệ đạt</span>, dataIndex: "passRate", width: 100, align: "right", responsive: ["lg"], render: (value: number | null) => <span className="tabular-nums">{value === null ? "" : `${value}%`}</span> },
     {
       title: "Trạng thái",
       key: "state",
-      width: 200,
+      width: 180,
+      responsive: ["md"],
       render: (_, row) => (
         <span className="flex flex-col items-start gap-1">
           <StatusTag status={GRADE_SHEET_STATE[row.state]} />
@@ -142,22 +148,23 @@ export function GradePublishingTable({ rows: initialRows, canApprove, canPublish
     {
       title: "",
       key: "actions",
-      width: 190,
+      width: 120,
       align: "right",
+      fixed: "right",
       render: (_, row) => (
-        <div className="flex justify-end gap-2">
+        <div className="flex flex-wrap justify-end gap-1">
           {row.state === "locked" && canApprove && (
             <>
-              <Button size="small" onClick={() => setReturning(row)}>
+              <Button size="small" type="text" onClick={() => setReturning(row)}>
                 Trả lại
               </Button>
-              <Button size="small" onClick={() => approve([row])}>
+              <Button size="small" type="text" onClick={() => approve([row])}>
                 Duyệt
               </Button>
             </>
           )}
           {row.state === "approved" && canPublish && (
-            <Button size="small" onClick={() => publish([row])}>
+            <Button size="small" type="text" onClick={() => publish([row])}>
               Công bố
             </Button>
           )}
@@ -172,11 +179,11 @@ export function GradePublishingTable({ rows: initialRows, canApprove, canPublish
     <div className="flex flex-col gap-3">
       {contextHolder}
       {modalContextHolder}
-      <div className="flex flex-wrap gap-2">
-        <Input allowClear value={query} onChange={(event) => setQuery(event.target.value)} prefix={<Magnifier size={16} aria-hidden className="text-muted" />} placeholder="Mã lớp, học phần, giảng viên" aria-label="Tìm lớp" className="w-full sm:w-64" />
-        <Select allowClear value={state} onChange={setState} placeholder="Mọi trạng thái" aria-label="Trạng thái" options={STATE_ORDER.map((value) => ({ value, label: GRADE_SHEET_STATE[value].label }))} className="min-w-0 flex-1 sm:w-52 sm:flex-none" />
-        <Select allowClear value={faculty} onChange={setFaculty} placeholder="Mọi khoa" aria-label="Khoa" options={faculties.map((value) => ({ value, label: value }))} className="min-w-0 flex-1 sm:w-56 sm:flex-none" />
-        <div className="flex gap-2 sm:ml-auto">
+      <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+        <Input allowClear value={query} onChange={(event) => setQuery(event.target.value)} prefix={<Magnifier size={16} aria-hidden className="text-muted" />} placeholder="Mã lớp, học phần, giảng viên" aria-label="Tìm lớp" className="col-span-2 w-full sm:w-64" />
+        <Select allowClear value={state} onChange={setState} placeholder="Mọi trạng thái" aria-label="Trạng thái" options={STATE_ORDER.map((value) => ({ value, label: GRADE_SHEET_STATE[value].label }))} className="min-w-0 sm:w-52" />
+        <Select allowClear value={faculty} onChange={setFaculty} placeholder="Mọi khoa" aria-label="Khoa" options={faculties.map((value) => ({ value, label: value }))} className="min-w-0 sm:w-56" />
+        <div className="col-span-2 flex gap-2 sm:ml-auto">
           {canApprove && (
             <Button disabled={approvable.length === 0} onClick={() => approve(approvable)}>
               Duyệt {approvable.length > 0 ? `(${approvable.length})` : ""}
@@ -199,7 +206,7 @@ export function GradePublishingTable({ rows: initialRows, canApprove, canPublish
           onChange: (keys) => setSelected(keys as string[]),
           getCheckboxProps: (row) => ({ disabled: !((row.state === "locked" && canApprove) || (row.state === "approved" && canPublish)) }),
         }}
-        scroll={{ x: 1200 }}
+        scroll={{ x: "max-content" }}
         pagination={{ pageSize: 25, hideOnSinglePage: true }}
         locale={{ emptyText: <EmptyState icon={ClipboardCheck} title="Không có bảng điểm ở trạng thái này" /> }}
       />
@@ -264,7 +271,7 @@ export function GradePublishingTable({ rows: initialRows, canApprove, canPublish
         width={480}
       >
         <p className="mb-3 text-sm text-pretty text-muted">Bảng điểm mở khóa để giảng viên sửa, giảng viên nhận thông báo kèm lý do.</p>
-        <Input.TextArea value={reason} onChange={(event) => setReason(event.target.value)} autoSize={{ minRows: 3, maxRows: 6 }} maxLength={300} showCount placeholder="Ví dụ: cột giữa kỳ của 3 sinh viên vượt 10 điểm" aria-label="Lý do trả lại" />
+        <Input.TextArea value={reason} onChange={(event) => setReason(event.target.value)} autoSize={{ minRows: 3, maxRows: 6 }} maxLength={300} showCount placeholder="Ví dụ: cột giữa kỳ của 3 sinh viên vượt 10 điểm" aria-label="Lý do trả lại" className="mb-6" />
       </Modal>
     </div>
   );

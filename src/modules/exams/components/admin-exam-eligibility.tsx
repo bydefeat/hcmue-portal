@@ -59,13 +59,17 @@ export function AdminExamEligibility({ rows: initialRows, limitPercent }: { rows
           <span className="truncate text-xs text-muted">
             {row.studentCode} · {row.className}
           </span>
+          <span className="mt-1 text-xs text-muted tabular-nums md:hidden">
+            {row.sectionCode} · vắng {row.absences}/{row.sessions} buổi
+          </span>
         </span>
       ),
     },
     {
       title: "Lớp học phần",
       key: "section",
-      width: 250,
+      width: 240,
+      responsive: ["md"],
       render: (_, row) => (
         <span className="flex min-w-0 flex-col">
           <span className="text-xs">{row.sectionCode}</span>
@@ -77,6 +81,7 @@ export function AdminExamEligibility({ rows: initialRows, limitPercent }: { rows
       title: "Số buổi vắng",
       key: "absences",
       width: 150,
+      responsive: ["md"],
       sorter: (a, b) => a.ratio - b.ratio,
       render: (_, row) => (
         <span className="tabular-nums">
@@ -87,7 +92,8 @@ export function AdminExamEligibility({ rows: initialRows, limitPercent }: { rows
     {
       title: "Kết quả",
       key: "result",
-      width: 280,
+      width: 260,
+      responsive: ["md"],
       render: (_, row) =>
         row.overrideReason ? (
           <span className="flex flex-col items-start gap-1">
@@ -95,17 +101,18 @@ export function AdminExamEligibility({ rows: initialRows, limitPercent }: { rows
             <span className="text-xs text-pretty text-muted">{row.overrideReason}</span>
           </span>
         ) : (
-          <StatusTag status={{ label: "Cấm thi", tone: "danger" }} />
+          <span className="text-muted">Cấm thi</span>
         ),
     },
     {
       title: "",
       key: "actions",
-      width: 120,
+      width: 110,
       align: "right",
+      fixed: "right",
       render: (_, row) =>
         row.overrideReason ? null : (
-          <Button size="small" onClick={() => setTarget(row)}>
+          <Button size="small" type="text" onClick={() => setTarget(row)}>
             Cho dự thi
           </Button>
         ),
@@ -124,7 +131,7 @@ export function AdminExamEligibility({ rows: initialRows, limitPercent }: { rows
         size="small"
         columns={columns}
         dataSource={visible}
-        scroll={{ x: 1050 }}
+        scroll={{ x: "max-content" }}
         pagination={{ pageSize: 25, hideOnSinglePage: true, showTotal: (total) => `${total} trường hợp` }}
         locale={{ emptyText: <EmptyState icon={UsersCheck} title="Không có sinh viên bị cấm thi" description={`Không sinh viên nào vắng từ ${limitPercent}% số buổi trở lên.`} /> }}
       />
@@ -140,7 +147,7 @@ export function AdminExamEligibility({ rows: initialRows, limitPercent }: { rows
         width={480}
       >
         <p className="mb-3 text-sm text-pretty text-muted">Chỉ áp dụng khi có minh chứng vắng hợp lệ. Lý do được lưu vào nhật ký thao tác.</p>
-        <Input.TextArea value={reason} onChange={(event) => setReason(event.target.value)} autoSize={{ minRows: 3, maxRows: 6 }} maxLength={300} showCount aria-label="Lý do" />
+        <Input.TextArea value={reason} onChange={(event) => setReason(event.target.value)} autoSize={{ minRows: 3, maxRows: 6 }} maxLength={300} showCount aria-label="Lý do" className="mb-6" />
       </Modal>
     </div>
   );

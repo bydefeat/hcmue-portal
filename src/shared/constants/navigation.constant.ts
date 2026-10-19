@@ -1,6 +1,5 @@
 import type { ComponentType } from "react";
 import {
-  AlertWarning,
   ApartmentBuilding,
   AwardCertificate,
   BookOpen,
@@ -36,6 +35,7 @@ import {
   Suitcase,
   TableDownload,
   User,
+  UserAlert,
   UserCap,
   UserChange,
   UserLock,
@@ -128,7 +128,7 @@ export const LECTURER_ADVISING_GROUP: NavGroup = {
   items: [
     { label: "Sinh viên cố vấn", href: "/lecturer/advising/students", icon: Users },
     { label: "Kế hoạch học tập", href: "/lecturer/advising/study-plans", icon: Route },
-    { label: "Cảnh báo học vụ", href: "/lecturer/advising/academic-warnings", icon: AlertWarning },
+    { label: "Cảnh báo học vụ", href: "/lecturer/advising/academic-warnings", icon: UserAlert },
     { label: "Lịch hẹn", href: "/lecturer/advising/appointments", icon: CalendarUser },
   ],
 };
@@ -201,7 +201,7 @@ export const ADMINISTRATOR_NAVIGATION: NavGroup[] = [
     icon: ChartColumn,
     items: [
       { label: "Thống kê học vụ", shortLabel: "Thống kê", href: "/administrator/reports", icon: ChartPie, exact: true, permission: "reports.view" },
-      { label: "Cảnh báo học vụ", href: "/administrator/reports/academic-warnings", icon: AlertWarning, permission: "reports.view" },
+      { label: "Cảnh báo học vụ", href: "/administrator/reports/academic-warnings", icon: UserAlert, permission: "reports.view" },
       { label: "Khảo sát giảng dạy", href: "/administrator/reports/surveys", icon: StarList, permission: "surveys.view" },
       { label: "Xuất báo cáo", href: "/administrator/reports/exports", icon: TableDownload, permission: "reports.view" },
     ],

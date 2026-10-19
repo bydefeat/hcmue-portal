@@ -103,20 +103,24 @@ export function RegistrationMonitorSections({ sections }: { sections: ClassSecti
     {
       title: "Lớp học phần",
       key: "section",
-      width: 260,
+      width: 220,
       render: (_, section) => (
         <span className="flex min-w-0 flex-col">
           <span className="text-xs">{section.code}</span>
           <span className="truncate">{section.courseName}</span>
+          <span className="mt-1 text-xs text-muted tabular-nums md:hidden">
+            {section.enrolled}/{section.capacity} sinh viên
+          </span>
         </span>
       ),
     },
-    { title: "Khoa", dataIndex: "faculty", width: 200 },
-    { title: "Giảng viên", dataIndex: "lecturerName", width: 200, render: (value: string | null) => value ?? <span className="text-amber-700">Chưa phân công</span> },
+    { title: "Khoa", dataIndex: "faculty", width: 180, responsive: ["lg"] },
+    { title: "Giảng viên", dataIndex: "lecturerName", width: 180, responsive: ["lg"], render: (value: string | null) => value ?? <span className="text-amber-700">Chưa phân công</span> },
     {
       title: "Đã đăng ký",
       key: "fill",
       width: 200,
+      responsive: ["md"],
       sorter: (a, b) => a.enrolled / a.capacity - b.enrolled / b.capacity,
       render: (_, section) => (
         <span className="flex items-center gap-2">
@@ -127,7 +131,7 @@ export function RegistrationMonitorSections({ sections }: { sections: ClassSecti
         </span>
       ),
     },
-    { title: "", key: "status", width: 120, render: (_, section) => (section.status === "open" ? null : <StatusTag status={CLASS_SECTION_STATUS[section.status]} />) },
+    { title: "", key: "status", width: 120, responsive: ["md"], render: (_, section) => (section.status === "open" ? null : <StatusTag status={CLASS_SECTION_STATUS[section.status]} />) },
   ];
 
   return (
@@ -136,15 +140,16 @@ export function RegistrationMonitorSections({ sections }: { sections: ClassSecti
       {modalContextHolder}
       <div className="flex flex-wrap items-center gap-2">
         <Segmented<Bucket>
+          className="max-w-full"
           value={bucket}
           onChange={(value) => {
             setBucket(value);
             setSelected([]);
           }}
           options={[
-            { value: "full", label: `Đã đủ chỗ (${counts.full})` },
+            { value: "full", label: `Đủ chỗ (${counts.full})` },
             { value: "near", label: `Sắp đủ (${counts.near})` },
-            { value: "under", label: `Dưới ${MIN_CLASS_SIZE} sinh viên (${counts.under})` },
+            { value: "under", label: `Thiếu sĩ số (${counts.under})`, title: `Dưới ${MIN_CLASS_SIZE} sinh viên` },
           ]}
         />
         <div className="flex gap-2 sm:ml-auto">
@@ -165,7 +170,7 @@ export function RegistrationMonitorSections({ sections }: { sections: ClassSecti
         columns={columns}
         dataSource={visible}
         rowSelection={{ selectedRowKeys: selected, onChange: (keys) => setSelected(keys as string[]) }}
-        scroll={{ x: 1000 }}
+        scroll={{ x: "max-content" }}
         pagination={false}
         locale={{ emptyText: <EmptyState icon={CircleCheck} title="Không có lớp trong nhóm này" /> }}
       />

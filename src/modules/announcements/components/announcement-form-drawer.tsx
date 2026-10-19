@@ -67,7 +67,7 @@ export function AnnouncementFormDrawer({ open, announcement, onClose, onSubmit }
       <Form
         form={form}
         layout="vertical"
-        initialValues={{ publishMode: "now", isPinned: false, audiences: ["Sinh viên"] }}
+        initialValues={{ publishMode: "now", isPinned: false }}
         onFinish={(values) =>
           onSubmit({
             ...values,
@@ -84,7 +84,7 @@ export function AnnouncementFormDrawer({ open, announcement, onClose, onSubmit }
             <Select options={ANNOUNCEMENT_CATEGORY_OPTIONS} />
           </Form.Item>
           <Form.Item name="deadline" label="Hạn chót" extra="Bỏ trống nếu thông báo không có hạn">
-            <DatePicker showTime={{ format: "HH:mm" }} format="HH:mm DD/MM/YYYY" className="w-full" />
+            <DatePicker showTime={{ format: "HH:mm" }} format="HH:mm DD/MM/YYYY" placeholder="Chọn ngày giờ" className="w-full" />
           </Form.Item>
         </div>
         <Form.Item name="audiences" label="Đối tượng" rules={[{ required: true, message: "Chọn ít nhất một đối tượng" }]}>
@@ -120,7 +120,7 @@ export function AnnouncementFormDrawer({ open, announcement, onClose, onSubmit }
               },
             ]}
           >
-            <DatePicker showTime={{ format: "HH:mm" }} format="HH:mm DD/MM/YYYY" className="w-full" />
+            <DatePicker showTime={{ format: "HH:mm" }} format="HH:mm DD/MM/YYYY" placeholder="Chọn ngày giờ" className="w-full" />
           </Form.Item>
         )}
       </Form>

@@ -35,13 +35,13 @@ export function VerifyForm({ email }: { email?: string }) {
         <Form.Item name="code" label="Mã xác minh" rules={OTP_RULES}>
           <Input.OTP length={6} autoFocus />
         </Form.Item>
-        <Button type="primary" htmlType="submit" block loading={isPending}>
+        <Button type="primary" htmlType="submit" block loading={isPending} className="mt-2">
           Xác minh
         </Button>
       </Form>
       <div className="mt-6 flex items-center justify-between gap-3 text-sm">
         <ResendCodeButton />
-        <Link href="/authentication/sign-in" className="text-foreground hover:underline">
+        <Link href="/authentication/sign-in" className="text-sm text-primary hover:underline">
           Quay lại đăng nhập
         </Link>
       </div>

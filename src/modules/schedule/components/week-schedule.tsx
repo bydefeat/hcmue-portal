@@ -51,10 +51,17 @@ function EventBlock({ event, compact = false }: { event: ScheduleEvent; compact?
 }
 
 
-function breakTitle(period: number) {
-  const pause = BREAKS.find((entry) => entry.afterPeriod === period);
-  return pause ? `${pause.label} ${pause.start} - ${pause.end}` : undefined;
+function rowOf(period: number) {
+  return period + 1 + BREAKS.filter((entry) => entry.afterPeriod < period).length;
 }
+
+const GRID_ROWS = [
+  "auto",
+  ...PERIODS.flatMap((period) => {
+    const pause = BREAKS.find((entry) => entry.afterPeriod === period.period);
+    return pause ? ["44px", pause.afterPeriod === 6 ? "28px" : "20px"] : ["44px"];
+  }),
+].join(" ");
 
 export function WeekSchedule({ events, termStart, termEnd }: WeekScheduleProps) {
   const weeks = termWeeks(termStart, termEnd);
@@ -99,7 +106,7 @@ export function WeekSchedule({ events, termStart, termEnd }: WeekScheduleProps) 
             <div className="overflow-x-auto">
               <div
                 className="grid min-w-[880px]"
-                style={{ gridTemplateColumns: "72px repeat(7, minmax(0, 1fr))", gridTemplateRows: `auto repeat(${PERIODS.length}, 44px)` }}
+                style={{ gridTemplateColumns: "72px repeat(7, minmax(0, 1fr))", gridTemplateRows: GRID_ROWS }}
               >
                 <div className="border-b border-border-strong" />
                 {days.map((day, index) => {
@@ -115,32 +122,41 @@ export function WeekSchedule({ events, termStart, termEnd }: WeekScheduleProps) 
                     </div>
                   );
                 })}
-                {PERIODS.map((period, index) => (
+                {PERIODS.map((period) => (
                   <div
                     key={period.period}
-                    style={{ gridColumn: 1, gridRow: index + 2 }}
-                    title={breakTitle(period.period)}
-                    className={`flex flex-col justify-center border-b px-2 text-xs text-muted tabular-nums ${breakTitle(period.period) ? "border-border-strong" : "border-border"}`}
+                    style={{ gridColumn: 1, gridRow: rowOf(period.period) }}
+                    className="flex flex-col justify-center border-b border-border px-2 text-xs text-muted tabular-nums"
                   >
                     <span className="font-medium text-foreground">Tiết {period.period}</span>
                     {period.start}
                   </div>
                 ))}
                 {days.map((day, dayIndex) =>
-                  PERIODS.map((period, index) => (
+                  PERIODS.map((period) => (
                     <div
                       key={`${day.value}-${period.period}`}
-                      style={{ gridColumn: dayIndex + 2, gridRow: index + 2 }}
-                      className={`border-b border-l ${breakTitle(period.period) ? "border-b-border-strong" : ""} border-border ${day.date.isSame(today, "day") ? "bg-primary-light" : ""}`}
+                      style={{ gridColumn: dayIndex + 2, gridRow: rowOf(period.period) }}
+                      className={`border-b border-l border-border ${day.date.isSame(today, "day") ? "bg-primary-light" : ""}`}
                     />
                   )),
                 )}
+                {BREAKS.map((pause) => (
+                  <div
+                    key={pause.afterPeriod}
+                    style={{ gridColumn: "1 / -1", gridRow: rowOf(pause.afterPeriod) + 1 }}
+                    className="flex items-center gap-2 border-b border-border bg-background px-2 text-xs text-muted tabular-nums"
+                  >
+                    <span className="font-medium">{pause.label}</span>
+                    {pause.start} - {pause.end}
+                  </div>
+                ))}
                 {visibleEvents.map((event) => {
                   const dayIndex = WEEKDAYS.findIndex((day) => day.value === event.dayOfWeek);
                   return (
                     <div
                       key={event.id}
-                      style={{ gridColumn: dayIndex + 2, gridRow: `${event.startPeriod + 1} / ${event.endPeriod + 2}` }}
+                      style={{ gridColumn: dayIndex + 2, gridRow: `${rowOf(event.startPeriod)} / ${rowOf(event.endPeriod) + 1}` }}
                       className="z-10 p-1"
                     >
                       <EventBlock event={event} />

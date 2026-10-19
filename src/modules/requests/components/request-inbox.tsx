@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Alert, Button, Descriptions, Drawer, Input, message, Modal, Segmented, Select, Table, type TableColumnsType } from "antd";
+import { Alert, Button, Card, Descriptions, Drawer, Input, message, Modal, Segmented, Select, Table, type TableColumnsType } from "antd";
 import { CircleCheck, FileContent, Inbox, Magnifier } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { StatusTag } from "@/shared/components/ui/status-tag";
@@ -102,6 +102,15 @@ export function RequestInbox({
       },
     });
 
+  const emptyText =
+    rows.length === 0 ? (
+      <EmptyState icon={Inbox} title="Chưa có đơn nào" description={mode === "own" ? "Đơn bạn gửi sẽ hiện ở đây cùng tiến độ xử lý." : undefined} />
+    ) : scope === "mine" && actionable.length === 0 ? (
+      <EmptyState icon={CircleCheck} title="Không còn đơn chờ bạn xử lý" description="Chuyển sang Tất cả để xem đơn đã xử lý." />
+    ) : (
+      <EmptyState title="Không có đơn khớp bộ lọc" description="Thử bỏ bớt điều kiện lọc." />
+    );
+
   const columns: TableColumnsType<RequestView> = [
     {
       title: "Mã đơn",
@@ -113,13 +122,13 @@ export function RequestInbox({
         </Button>
       ),
     },
-    { title: "Loại đơn", dataIndex: "kind", width: 170, render: (value: RequestKind) => REQUEST_KINDS[value].label },
+    { title: "Loại đơn", dataIndex: "kind", width: 150, render: (value: RequestKind) => REQUEST_KINDS[value].label },
     ...(showRequester
       ? [
           {
             title: "Người gửi",
             key: "requester",
-            width: 220,
+            width: 200,
             render: (_: unknown, row: RequestView) => (
               <span className="flex min-w-0 flex-col">
                 <span className="truncate font-medium">{row.requesterName}</span>
@@ -131,11 +140,11 @@ export function RequestInbox({
           },
         ]
       : []),
-    { title: "Nội dung", dataIndex: "subject", width: 260, render: (value: string) => <span className="text-pretty">{value}</span> },
+    { title: "Nội dung", dataIndex: "subject", width: 240, render: (value: string) => <span className="text-pretty">{value}</span> },
     {
       title: "Bước hiện tại",
       key: "step",
-      width: 220,
+      width: 200,
       render: (_, row) => {
         if (!row.currentStep || row.status === "cancelled") return <span className="text-muted">Đã kết thúc</span>;
         const due = waitingText(row);
@@ -147,11 +156,11 @@ export function RequestInbox({
         );
       },
     },
-    { title: "Trạng thái", dataIndex: "status", width: 130, render: (value: RequestStatus) => <StatusTag status={REQUEST_STATUS[value]} /> },
+    { title: "Trạng thái", dataIndex: "status", width: 120, render: (value: RequestStatus) => <StatusTag status={REQUEST_STATUS[value]} /> },
     {
       title: "Ngày gửi",
       dataIndex: "createdAt",
-      width: 110,
+      width: 100,
       sorter: (a, b) => a.createdAt.localeCompare(b.createdAt),
       render: (value: string) => <span className="text-xs text-muted tabular-nums">{formatDate(value)}</span>,
     },
@@ -207,19 +216,47 @@ export function RequestInbox({
         dataSource={filtered}
         onRow={(row) => ({ onClick: () => setOpenId(row.id), className: "cursor-pointer" })}
         rowClassName={(row) => (row.isOverdue ? "bg-rose-50/40" : "")}
-        scroll={{ x: showRequester ? 1250 : 1030 }}
+        scroll={{ x: showRequester ? 1150 : 950 }}
         pagination={{ pageSize: 15, hideOnSinglePage: true, showTotal: (total) => `${total} đơn` }}
-        locale={{
-          emptyText:
-            rows.length === 0 ? (
-              <EmptyState icon={Inbox} title="Chưa có đơn nào" description={mode === "own" ? "Đơn bạn gửi sẽ hiện ở đây cùng tiến độ xử lý." : undefined} />
-            ) : scope === "mine" && actionable.length === 0 ? (
-              <EmptyState icon={CircleCheck} title="Không còn đơn chờ bạn xử lý" description="Chuyển sang Tất cả để xem đơn đã xử lý." />
-            ) : (
-              <EmptyState title="Không có đơn khớp bộ lọc" description="Thử bỏ bớt điều kiện lọc." />
-            ),
-        }}
+        locale={{ emptyText }}
+        className="hidden md:block"
       />
+      {filtered.length === 0 ? (
+        <Card size="small" className="md:hidden">
+          {emptyText}
+        </Card>
+      ) : (
+        <ul className="flex flex-col gap-2 md:hidden">
+          {filtered.map((row) => {
+            const due = row.currentStep && row.status !== "cancelled" ? waitingText(row) : null;
+            return (
+              <li key={row.id}>
+                <Card size="small" hoverable onClick={() => setOpenId(row.id)} classNames={{ body: "flex flex-col gap-1.5" }}>
+                  <span className="flex items-start justify-between gap-2">
+                    <span className="flex min-w-0 flex-col">
+                      <span className="font-medium">{REQUEST_KINDS[row.kind].label}</span>
+                      <span className="text-xs text-muted tabular-nums">
+                        {row.code} · {formatDate(row.createdAt)}
+                      </span>
+                    </span>
+                    <StatusTag status={REQUEST_STATUS[row.status]} />
+                  </span>
+                  {showRequester && (
+                    <span className="truncate text-xs text-muted">
+                      {row.requesterName} · {row.requesterCode}
+                    </span>
+                  )}
+                  <span className="text-sm text-pretty">{row.subject}</span>
+                  <span className="text-xs text-muted">
+                    {!row.currentStep || row.status === "cancelled" ? "Đã kết thúc" : row.currentStep.label}
+                    {due && <span className={`tabular-nums ${due.className}`}> · {due.text}</span>}
+                  </span>
+                </Card>
+              </li>
+            );
+          })}
+        </ul>
+      )}
 
       <Drawer
         open={opened !== null}
@@ -241,6 +278,7 @@ export function RequestInbox({
                 showCount
                 placeholder="Ý kiến xử lý, bắt buộc khi không đồng ý"
                 aria-label="Ý kiến xử lý"
+                className="mb-5"
               />
               <div className="flex justify-end gap-2">
                 <Button danger onClick={() => decide("rejected")}>

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Tabs } from "antd";
 import { PageHeader } from "@/shared/components/ui/page-header";
+import { SectionCard } from "@/shared/components/ui/section-card";
 import { StatTile } from "@/shared/components/ui/stat-tile";
 import { RegistrationReport } from "@/modules/course-registration/components/registration-report";
 import {
@@ -37,42 +38,37 @@ export default async function Page() {
         title="Thống kê học vụ"
         description="Xếp loại tính theo CPA thang 4 đến hết học kỳ 2, năm học 2025-2026, không gồm khóa 48 đã xét tốt nghiệp."
       />
-      <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <StatTile label="Sinh viên được xếp loại" value={total.toLocaleString("vi-VN")} hint={`${standings.length} khoa`} />
-        <StatTile label="CPA trung bình" value={formatPoint(averageCpa)} hint="Thang 4" />
-        <StatTile label="Giỏi và xuất sắc" value={`${total > 0 ? Math.round((topCount / total) * 100) : 0}%`} hint={`${topCount} sinh viên`} />
-        <StatTile
-          label="Bị cảnh báo học vụ"
-          value={warnings}
-          hint="Xem danh sách và xử lý"
-          tone={warnings > 0 ? "warning" : undefined}
-          href="/administrator/reports/academic-warnings"
-        />
-      </div>
-
-      <section className="mb-8 flex flex-col gap-3">
-        <h2 className="text-lg font-semibold">Xếp loại học lực theo khoa</h2>
-        <StandingReport summaries={standings} />
-      </section>
-
-      <section className="flex flex-col gap-1">
-        <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <h2 className="text-lg font-semibold">Đăng ký học phần theo khoa</h2>
-          <Link href="/administrator/class-sections" className="text-sm">
-            Xem lớp học phần
-          </Link>
+      <div className="flex flex-col gap-4 sm:gap-6">
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <StatTile label="Sinh viên được xếp loại" value={total.toLocaleString("vi-VN")} hint={`${standings.length} khoa`} />
+          <StatTile label="CPA trung bình" value={formatPoint(averageCpa)} hint="Thang 4" />
+          <StatTile label="Giỏi và xuất sắc" value={`${total > 0 ? Math.round((topCount / total) * 100) : 0}%`} hint={`${topCount} sinh viên`} />
+          <StatTile
+            label="Bị cảnh báo học vụ"
+            value={warnings}
+            hint="Xem danh sách và xử lý"
+            tone={warnings > 0 ? "warning" : undefined}
+            href="/administrator/reports/academic-warnings"
+          />
         </div>
-        <p className="text-sm text-muted tabular-nums">
-          {targetTerm.name}: {targetEnrolled.toLocaleString("vi-VN")}/{targetSeats.toLocaleString("vi-VN")} chỗ đã có người đăng ký.
-        </p>
-        <Tabs
-          defaultActiveKey={targetTerm.id}
-          items={[
-            { key: targetTerm.id, label: `${targetTerm.shortName}, đang đăng ký`, children: <RegistrationReport summaries={targetRegistration} /> },
-            { key: currentTerm.id, label: `${currentTerm.shortName}, đang học`, children: <RegistrationReport summaries={currentRegistration} /> },
-          ]}
-        />
-      </section>
+
+        <SectionCard title="Xếp loại học lực theo khoa">
+          <StandingReport summaries={standings} />
+        </SectionCard>
+
+        <SectionCard title="Đăng ký học phần theo khoa" extra={<Link href="/administrator/class-sections">Xem lớp học phần</Link>}>
+          <p className="text-sm text-muted tabular-nums">
+            {targetTerm.name}: {targetEnrolled.toLocaleString("vi-VN")}/{targetSeats.toLocaleString("vi-VN")} chỗ đã có người đăng ký.
+          </p>
+          <Tabs
+            defaultActiveKey={targetTerm.id}
+            items={[
+              { key: targetTerm.id, label: `${targetTerm.shortName}, đang đăng ký`, children: <RegistrationReport summaries={targetRegistration} /> },
+              { key: currentTerm.id, label: `${currentTerm.shortName}, đang học`, children: <RegistrationReport summaries={currentRegistration} /> },
+            ]}
+          />
+        </SectionCard>
+      </div>
     </>
   );
 }

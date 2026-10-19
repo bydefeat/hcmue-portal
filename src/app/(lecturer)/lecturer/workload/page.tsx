@@ -36,16 +36,14 @@ function TermLoad({ title, workload, sections }: { title: string; workload: Lect
   const norm = workload?.normHours ?? 0;
   const ratio = norm > 0 ? Math.round((standard / norm) * 100) : 0;
   return (
-    <SectionCard
-      title={title}
-      extra={
-        <span className={`text-sm tabular-nums ${ratio > 130 ? "text-amber-700" : ratio < 80 ? "text-amber-700" : "text-muted"}`}>
-          {standard}/{norm} giờ chuẩn, {ratio}% định mức
-        </span>
-      }
-    >
+    <SectionCard title={title}>
       <div className="flex flex-col gap-4">
-        <MeterBar value={standard} max={norm} tone={ratio > 130 ? "warning" : "primary"} label={`Giờ chuẩn ${title}`} />
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+          <MeterBar value={standard} max={norm} tone={ratio > 130 ? "warning" : "primary"} label={`Giờ chuẩn ${title}`} />
+          <span className={`shrink-0 text-sm tabular-nums ${ratio > 130 || ratio < 80 ? "text-amber-700" : "text-muted"}`}>
+            {standard}/{norm} giờ chuẩn, {ratio}% định mức
+          </span>
+        </div>
         {sections.length === 0 ? (
           <EmptyState title="Chưa được phân công lớp" description="Khoa sẽ phân công trước khi mở đăng ký học phần." />
         ) : (

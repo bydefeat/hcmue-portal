@@ -3,8 +3,9 @@
 import { useState } from "react";
 import Link from "next/link";
 import { Button, Input, message, Select, Table, type TableColumnsType } from "antd";
-import { BookOpen, Magnifier, Plus } from "defeat-icons-react";
+import { BookOpen, Magnifier, Pen, Plus } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
+import { PageHeader } from "@/shared/components/ui/page-header";
 import { StatusTag } from "@/shared/components/ui/status-tag";
 import { formatDate } from "@/shared/libs/date.lib";
 import { MOCK_MAJORS } from "@/shared/libs/mock.lib";
@@ -22,7 +23,7 @@ function cohortText(cohorts: number[]) {
   return sorted.length > 1 ? `K${sorted[0]} đến K${sorted.at(-1)}` : `K${sorted[0]}`;
 }
 
-export function ProgramTable({ programs }: { programs: ProgramSummary[] }) {
+export function ProgramTable({ programs, header }: { programs: ProgramSummary[]; header: { title: string; description?: React.ReactNode } }) {
   const [messageApi, contextHolder] = message.useMessage();
   const [rows, setRows] = useState(programs);
   const [query, setQuery] = useState("");
@@ -63,39 +64,45 @@ export function ProgramTable({ programs }: { programs: ProgramSummary[] }) {
     {
       title: "Chương trình",
       key: "name",
-      fixed: "left",
-      width: 280,
+      width: 260,
       render: (_, row) => (
         <Link href={`/administrator/programs/${row.id}`} className="flex min-w-0 flex-col">
           <span className="font-medium text-pretty">{row.name}</span>
           <span className="text-xs text-muted">{row.code}</span>
+          <span className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted tabular-nums md:hidden">
+            <StatusTag status={PROGRAM_STATUS[row.status]} />
+            {row.totalCredits} tín chỉ
+          </span>
         </Link>
       ),
     },
-    { title: "Khoa", dataIndex: "faculty", width: 200 },
-    { title: "Văn bằng", dataIndex: "degree", width: 140 },
+    { title: "Khoa", dataIndex: "faculty", width: 180, responsive: ["md"] },
+    { title: "Văn bằng", dataIndex: "degree", width: 120, responsive: ["xl"] },
     {
-      title: "Tín chỉ",
+      title: <span className="whitespace-nowrap">Tín chỉ</span>,
       dataIndex: "totalCredits",
-      width: 80,
+      width: 96,
+      responsive: ["md"],
       align: "right",
       sorter: (a, b) => a.totalCredits - b.totalCredits,
       render: (value: number) => <span className="tabular-nums">{value}</span>,
     },
     {
-      title: "Học phần trong khung",
+      title: <span className="whitespace-nowrap">Số học phần</span>,
       dataIndex: "courseCount",
-      width: 150,
+      width: 120,
+      responsive: ["lg"],
       align: "right",
       render: (value: number) =>
         value > 0 ? <span className="tabular-nums">{value}</span> : <span className="text-amber-700">Chưa có khung</span>,
     },
-    { title: "Khóa áp dụng", dataIndex: "cohorts", width: 130, render: (value: number[]) => <span className="tabular-nums">{cohortText(value)}</span> },
-    { title: "Trạng thái", dataIndex: "status", width: 140, render: (value: ProgramStatus) => <StatusTag status={PROGRAM_STATUS[value]} /> },
+    { title: "Khóa áp dụng", dataIndex: "cohorts", width: 110, responsive: ["lg"], render: (value: number[]) => <span className="tabular-nums">{cohortText(value)}</span> },
+    { title: "Trạng thái", dataIndex: "status", width: 130, responsive: ["md"], render: (value: ProgramStatus) => <StatusTag status={PROGRAM_STATUS[value]} /> },
     {
       title: "Cập nhật",
       dataIndex: "updatedAt",
-      width: 110,
+      width: 100,
+      responsive: ["xxl"],
       render: (value: string) => <span className="text-xs text-muted tabular-nums">{formatDate(value)}</span>,
     },
     {
@@ -103,8 +110,9 @@ export function ProgramTable({ programs }: { programs: ProgramSummary[] }) {
       key: "actions",
       width: 80,
       align: "right",
+      fixed: "right",
       render: (_, row) => (
-        <Button size="small" type="text" onClick={() => openForm(row)}>
+        <Button size="small" type="text" icon={<Pen size={14} aria-hidden className="text-zinc-500" />} onClick={() => openForm(row)} aria-label={`Sửa ${row.name}`}>
           Sửa
         </Button>
       ),
@@ -112,57 +120,64 @@ export function ProgramTable({ programs }: { programs: ProgramSummary[] }) {
   ];
 
   return (
-    <div className="flex flex-col gap-3">
+    <>
       {contextHolder}
-      <div className="flex flex-wrap gap-2">
-        <Input
-          allowClear
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          prefix={<Magnifier size={16} aria-hidden className="text-muted" />}
-          placeholder="Tên chương trình hoặc mã ngành"
-          aria-label="Tìm chương trình"
-          className="w-full sm:w-72"
-        />
-        <Select
-          allowClear
-          value={faculty}
-          onChange={setFaculty}
-          placeholder="Mọi khoa"
-          aria-label="Khoa"
-          options={faculties.map((value) => ({ value, label: value }))}
-          className="min-w-0 flex-1 sm:w-60 sm:flex-none"
-        />
-        <Select
-          allowClear
-          value={status}
-          onChange={setStatus}
-          placeholder="Mọi trạng thái"
-          aria-label="Trạng thái"
-          options={PROGRAM_STATUS_OPTIONS}
-          className="min-w-0 flex-1 sm:w-44 sm:flex-none"
-        />
-        <Button type="primary" icon={<Plus size={16} aria-hidden />} onClick={() => openForm(null)} className="w-full sm:ml-auto sm:w-auto">
-          Thêm chương trình
-        </Button>
-      </div>
-      <Table
-        rowKey="id"
-        columns={columns}
-        dataSource={filtered}
-        scroll={{ x: 1300 }}
-        pagination={{ pageSize: 20, hideOnSinglePage: true, showTotal: (total) => `${total} chương trình` }}
-        locale={{
-          emptyText: (
-            <EmptyState
-              icon={BookOpen}
-              title={rows.length === 0 ? "Chưa có chương trình đào tạo" : "Không có chương trình khớp bộ lọc"}
-              description={rows.length === 0 ? "Thêm chương trình đầu tiên để mở lớp học phần theo khung." : "Thử bỏ bớt điều kiện lọc."}
-            />
-          ),
-        }}
+      <PageHeader
+        {...header}
+        actions={
+          <Button type="primary" icon={<Plus size={16} aria-hidden />} onClick={() => openForm(null)}>
+            Thêm chương trình
+          </Button>
+        }
       />
-      <ProgramFormDrawer open={isOpen} program={editing} onClose={() => setIsOpen(false)} onSubmit={submit} />
-    </div>
+      <div className="flex flex-col gap-3">
+        <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+          <Input
+            allowClear
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            prefix={<Magnifier size={16} aria-hidden className="text-muted" />}
+            placeholder="Tên chương trình hoặc mã ngành"
+            aria-label="Tìm chương trình"
+            className="col-span-2 w-full sm:w-72"
+          />
+          <Select
+            allowClear
+            value={faculty}
+            onChange={setFaculty}
+            placeholder="Mọi khoa"
+            aria-label="Khoa"
+            options={faculties.map((value) => ({ value, label: value }))}
+            className="min-w-0 sm:w-60"
+          />
+          <Select
+            allowClear
+            value={status}
+            onChange={setStatus}
+            placeholder="Mọi trạng thái"
+            aria-label="Trạng thái"
+            options={PROGRAM_STATUS_OPTIONS}
+            className="min-w-0 sm:w-44"
+          />
+        </div>
+        <Table
+          rowKey="id"
+          columns={columns}
+          dataSource={filtered}
+          scroll={{ x: "max-content" }}
+          pagination={{ pageSize: 20, hideOnSinglePage: true, showTotal: (total) => `${total} chương trình` }}
+          locale={{
+            emptyText: (
+              <EmptyState
+                icon={BookOpen}
+                title={rows.length === 0 ? "Chưa có chương trình đào tạo" : "Không có chương trình khớp bộ lọc"}
+                description={rows.length === 0 ? "Thêm chương trình đầu tiên để mở lớp học phần theo khung." : "Thử bỏ bớt điều kiện lọc."}
+              />
+            ),
+          }}
+        />
+        <ProgramFormDrawer open={isOpen} program={editing} onClose={() => setIsOpen(false)} onSubmit={submit} />
+      </div>
+    </>
   );
 }

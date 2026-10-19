@@ -50,7 +50,7 @@ export default async function Page() {
   const courseNames = Object.fromEntries(courses.map((course) => [course.code, course.name]));
   const openSections = sections.filter((section) => section.status === "open");
   const period = periods.find((entry) => entry.cohorts.includes(student.cohort)) ?? null;
-  const planCodes = plan?.terms[0]?.courses.map((course) => course.code) ?? [];
+  const planCodes = (plan?.terms[0]?.courses.map((course) => course.code) ?? []).filter((code) => !passedGrades[code] || passedGrades[code] === "F");
 
   const timetable = pickTimetable(enrollments, passedGrades, { faculty: student.faculty, prerequisites });
   const inProgressCodes = timetable.map(({ section }) => section.courseCode);

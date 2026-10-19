@@ -87,7 +87,9 @@ export default async function Page() {
             </p>
           </div>
         </SectionCard>
-        <TranscriptView terms={terms} />
+        <SectionCard title="Bảng điểm theo học kỳ" flush>
+          <TranscriptView terms={terms} inCard />
+        </SectionCard>
       </div>
     </>
   );

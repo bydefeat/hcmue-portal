@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Alert, Button, Form, Input, message, Modal, Select, Table, Upload, type TableColumnsType } from "antd";
 import { ArrowsTransaction, CalendarCheck, FileArrowIn, PresentationScreen } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
+import { SectionCard } from "@/shared/components/ui/section-card";
 import { StatusTag } from "@/shared/components/ui/status-tag";
 import { PERIODS, periodLabel, weekdayLabel } from "@/shared/constants/period.constant";
 import { dayjs, daysUntil, formatDate, formatDateTime, weekdayOf } from "@/shared/libs/date.lib";
@@ -104,6 +105,53 @@ export function LecturerExamBoard({ lecturerId, teaching, proctoring, teachingSl
     setFiles({ paper: null, key: null });
   };
 
+  const paperCell = (exam: ExamSession) => {
+    if (exam.status === "done") return <StatusTag status={EXAM_STATUS.done} />;
+    const status = paperOf(exam);
+    const hint = status === "not-submitted" ? deadlineHint(exam.paperDeadline) : null;
+    return (
+      <span className="flex flex-col items-start gap-1">
+        <StatusTag status={EXAM_PAPER_STATUS[status]} />
+        {hint && <span className={`text-xs tabular-nums ${hint.className}`}>{hint.text}</span>}
+      </span>
+    );
+  };
+
+  const paperAction = (exam: ExamSession) =>
+    exam.status !== "done" && paperOf(exam) !== "approved" ? (
+      <Button size="small" icon={<FileArrowIn size={14} aria-hidden className="text-zinc-500" />} onClick={() => setUploading(exam)}>
+        {paperOf(exam) === "submitted" ? "Nộp lại" : "Nộp đề"}
+      </Button>
+    ) : null;
+
+  const partnersText = (exam: ExamSession) =>
+    exam.proctors
+      .filter((proctor) => proctor.id !== lecturerId)
+      .map((proctor) => proctor.name)
+      .join(", ") || "Chưa phân công";
+
+  const noteCell = (exam: ExamSession) => {
+    const slot = teachingConflict(exam, teachingSlots);
+    if (slot)
+      return (
+        <span className="text-xs text-amber-700">
+          Trùng giờ dạy {slot.code} ({periodLabel(slot.startPeriod, slot.endPeriod)})
+        </span>
+      );
+    if (swapRequested.includes(exam.id)) return <span className="text-xs text-amber-700">Đã gửi đề nghị đổi ca</span>;
+    return <span className="text-xs text-muted">{exam.status === "done" ? "Đã coi thi" : "Có mặt trước giờ thi 30 phút"}</span>;
+  };
+
+  const swapAction = (exam: ExamSession) =>
+    exam.status !== "done" && !swapRequested.includes(exam.id) ? (
+      <Button size="small" icon={<ArrowsTransaction size={14} aria-hidden className="text-zinc-500" />} onClick={() => setSwapping(exam)}>
+        Đổi ca
+      </Button>
+    ) : null;
+
+  const teachingEmpty = <EmptyState icon={PresentationScreen} title="Chưa có lịch thi cho lớp bạn dạy" description="Phòng Khảo thí sẽ công bố lịch thi trước kỳ thi 2 tuần." />;
+  const proctorEmpty = <EmptyState icon={CalendarCheck} title="Không có ca coi thi" description="Bạn chưa được phân công coi thi trong học kỳ này." />;
+
   const teachingColumns: TableColumnsType<ExamSession> = [
     { title: "Lớp học phần", key: "class", width: 240, render: (_, exam) => <ClassCell exam={exam} /> },
     { title: "Lịch thi", key: "when", width: 200, render: (_, exam) => <WhenCell exam={exam} /> },
@@ -124,29 +172,14 @@ export function LecturerExamBoard({ lecturerId, teaching, proctoring, teachingSl
       title: "Đề thi",
       key: "paper",
       width: 220,
-      render: (_, exam) => {
-        if (exam.status === "done") return <StatusTag status={EXAM_STATUS.done} />;
-        const status = paperOf(exam);
-        const hint = status === "not-submitted" ? deadlineHint(exam.paperDeadline) : null;
-        return (
-          <span className="flex flex-col items-start gap-1">
-            <StatusTag status={EXAM_PAPER_STATUS[status]} />
-            {hint && <span className={`text-xs tabular-nums ${hint.className}`}>{hint.text}</span>}
-          </span>
-        );
-      },
+      render: (_, exam) => paperCell(exam),
     },
     {
       title: "",
       key: "action",
       width: 120,
       align: "right",
-      render: (_, exam) =>
-        exam.status !== "done" && paperOf(exam) !== "approved" ? (
-          <Button size="small" icon={<FileArrowIn size={14} aria-hidden className="text-zinc-500" />} onClick={() => setUploading(exam)}>
-            {paperOf(exam) === "submitted" ? "Nộp lại" : "Nộp đề"}
-          </Button>
-        ) : null,
+      render: (_, exam) => paperAction(exam),
     },
   ];
 
@@ -157,42 +190,20 @@ export function LecturerExamBoard({ lecturerId, teaching, proctoring, teachingSl
       title: "Cùng coi thi",
       key: "partners",
       width: 200,
-      render: (_, exam) => (
-        <span className="text-sm text-muted">
-          {exam.proctors
-            .filter((proctor) => proctor.id !== lecturerId)
-            .map((proctor) => proctor.name)
-            .join(", ") || "Chưa phân công"}
-        </span>
-      ),
+      render: (_, exam) => <span className="text-sm text-muted">{partnersText(exam)}</span>,
     },
     {
       title: "Ghi chú",
       key: "note",
       width: 220,
-      render: (_, exam) => {
-        const slot = teachingConflict(exam, teachingSlots);
-        if (slot)
-          return (
-            <span className="text-xs text-rose-700">
-              Trùng giờ dạy {slot.code} ({periodLabel(slot.startPeriod, slot.endPeriod)})
-            </span>
-          );
-        if (swapRequested.includes(exam.id)) return <span className="text-xs text-amber-700">Đã gửi đề nghị đổi ca</span>;
-        return <span className="text-xs text-muted">{exam.status === "done" ? "Đã coi thi" : "Có mặt trước giờ thi 30 phút"}</span>;
-      },
+      render: (_, exam) => noteCell(exam),
     },
     {
       title: "",
       key: "action",
       width: 110,
       align: "right",
-      render: (_, exam) =>
-        exam.status !== "done" && !swapRequested.includes(exam.id) ? (
-          <Button size="small" icon={<ArrowsTransaction size={14} aria-hidden className="text-zinc-500" />} onClick={() => setSwapping(exam)}>
-            Đổi ca
-          </Button>
-        ) : null,
+      render: (_, exam) => swapAction(exam),
     },
   ];
 
@@ -201,20 +212,22 @@ export function LecturerExamBoard({ lecturerId, teaching, proctoring, teachingSl
       {contextHolder}
       {conflicts.length > 0 && (
         <Alert
-          type="error"
+          type="warning"
           showIcon
           title={`${conflicts.length} ca coi thi trùng giờ dạy của bạn`}
           description="Gửi đề nghị đổi ca cho Phòng Khảo thí, hoặc đăng ký nghỉ dạy, dạy bù ở mục Đơn từ."
         />
       )}
 
-      <section className="flex flex-col gap-3">
-        <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <h2 className="text-lg font-semibold">Lớp tôi dạy</h2>
+      <SectionCard
+        title="Lớp tôi dạy"
+        extra={
           <span className={`text-sm ${pendingPapers.length > 0 ? "text-amber-700" : "text-muted"}`}>
             {pendingPapers.length > 0 ? `${pendingPapers.length} đề chưa nộp` : "Đã nộp đủ đề thi"}
           </span>
-        </div>
+        }
+        flush
+      >
         <Table
           rowKey="id"
           size="middle"
@@ -222,12 +235,33 @@ export function LecturerExamBoard({ lecturerId, teaching, proctoring, teachingSl
           dataSource={teaching}
           pagination={false}
           scroll={{ x: 950 }}
-          locale={{ emptyText: <EmptyState icon={PresentationScreen} title="Chưa có lịch thi cho lớp bạn dạy" description="Phòng Khảo thí sẽ công bố lịch thi trước kỳ thi 2 tuần." /> }}
+          locale={{ emptyText: teachingEmpty }}
+          className="hidden md:block"
         />
-      </section>
+        <div className="md:hidden">
+          {teaching.length === 0 ? (
+            teachingEmpty
+          ) : (
+            <ul className="flex flex-col divide-y divide-border-strong">
+              {teaching.map((exam) => (
+                <li key={exam.id} className="flex flex-col gap-2 px-4 py-3">
+                  <ClassCell exam={exam} />
+                  <WhenCell exam={exam} />
+                  <span className="text-xs text-muted tabular-nums">
+                    {EXAM_FORMAT_LABEL[exam.format]} · {exam.durationMinutes} phút · {exam.candidateCount} thí sinh
+                  </span>
+                  <span className="flex items-start justify-between gap-2">
+                    {paperCell(exam)}
+                    {paperAction(exam)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </SectionCard>
 
-      <section className="flex flex-col gap-3">
-        <h2 className="text-lg font-semibold">Lịch coi thi</h2>
+      <SectionCard title="Lịch coi thi" flush>
         <Table
           rowKey="id"
           size="middle"
@@ -235,9 +269,29 @@ export function LecturerExamBoard({ lecturerId, teaching, proctoring, teachingSl
           dataSource={proctoring}
           pagination={false}
           scroll={{ x: 970 }}
-          locale={{ emptyText: <EmptyState icon={CalendarCheck} title="Không có ca coi thi" description="Bạn chưa được phân công coi thi trong học kỳ này." /> }}
+          locale={{ emptyText: proctorEmpty }}
+          className="hidden md:block"
         />
-      </section>
+        <div className="md:hidden">
+          {proctoring.length === 0 ? (
+            proctorEmpty
+          ) : (
+            <ul className="flex flex-col divide-y divide-border-strong">
+              {proctoring.map((exam) => (
+                <li key={exam.id} className="flex flex-col gap-2 px-4 py-3">
+                  <WhenCell exam={exam} />
+                  <ClassCell exam={exam} />
+                  <span className="text-xs text-muted">Cùng coi thi: {partnersText(exam)}</span>
+                  <span className="flex items-start justify-between gap-2">
+                    {noteCell(exam)}
+                    {swapAction(exam)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </SectionCard>
 
       <Modal
         open={uploading !== null}

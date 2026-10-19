@@ -11,19 +11,21 @@ function fillRate(row: FacultyRegistrationSummary) {
 }
 
 const COLUMNS: TableColumnsType<FacultyRegistrationSummary> = [
-  { title: "Khoa", dataIndex: "faculty", width: 220, fixed: "left" },
-  { title: "Lớp mở", dataIndex: "sections", width: 88, align: "right", render: (value: number) => <span className="tabular-nums">{value}</span> },
+  { title: "Khoa", dataIndex: "faculty", width: 170 },
+  { title: <span className="whitespace-nowrap">Lớp mở</span>, dataIndex: "sections", width: 96, align: "right", responsive: ["md"], render: (value: number) => <span className="tabular-nums">{value}</span> },
   {
-    title: "Lớp đủ chỗ",
+    title: <span className="whitespace-nowrap">Lớp đủ chỗ</span>,
     dataIndex: "fullSections",
-    width: 100,
+    width: 120,
+    responsive: ["md"],
     align: "right",
     render: (value: number) => <span className="tabular-nums">{value}</span>,
   },
   {
     title: "Đăng ký / chỉ tiêu",
     key: "seats",
-    width: 140,
+    width: 150,
+    responsive: ["md"],
     align: "right",
     render: (_, row) => (
       <span className="tabular-nums">
@@ -34,7 +36,7 @@ const COLUMNS: TableColumnsType<FacultyRegistrationSummary> = [
   {
     title: "Tỉ lệ lấp đầy",
     key: "rate",
-    width: 240,
+    width: 160,
     sorter: (a, b) => fillRate(a) - fillRate(b),
     render: (_, row) => {
       const rate = fillRate(row);
@@ -56,7 +58,7 @@ export function RegistrationReport({ summaries }: { summaries: FacultyRegistrati
       columns={COLUMNS}
       dataSource={summaries}
       pagination={false}
-      scroll={{ x: 790 }}
+      scroll={{ x: "max-content" }}
       locale={{
         emptyText: <EmptyState icon={ChartColumn} title="Chưa có lớp mở đăng ký" description="Số liệu hiện khi Phòng Đào tạo mở lớp học phần cho học kỳ này." />,
       }}

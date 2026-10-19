@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { PageHeader } from "@/shared/components/ui/page-header";
 import { CourseTable } from "@/modules/curriculum/components/course-table";
 import { getCourses } from "@/modules/curriculum/curriculum.query";
 import { requirePermission } from "@/modules/access/access.query";
@@ -10,12 +9,13 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ q
   await requirePermission("curriculum.manage");
   const [{ q }, courses] = await Promise.all([searchParams, getCourses()]);
   return (
-    <>
-      <PageHeader
-        title="Danh mục học phần"
-        description="Mã, số tín chỉ và học phần tiên quyết dùng chung cho mọi chương trình. Hệ thống chặn đăng ký khi sinh viên chưa đạt tiên quyết."
-      />
-      <CourseTable courses={courses} initialQuery={q} />
-    </>
+    <CourseTable
+      header={{
+        title: "Danh mục học phần",
+        description: "Mã, số tín chỉ và học phần tiên quyết dùng chung cho mọi chương trình. Hệ thống chặn đăng ký khi sinh viên chưa đạt tiên quyết.",
+      }}
+      courses={courses}
+      initialQuery={q}
+    />
   );
 }

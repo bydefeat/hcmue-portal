@@ -114,17 +114,31 @@ function CourseCard({
   );
 }
 
-function Column({ id, title, children, footer }: { id: string; title: React.ReactNode; children: React.ReactNode; footer?: React.ReactNode }) {
+function Column({
+  id,
+  title,
+  children,
+  footer,
+  className = "",
+  listClassName = "flex flex-col",
+}: {
+  id: string;
+  title: React.ReactNode;
+  children: React.ReactNode;
+  footer?: React.ReactNode;
+  className?: string;
+  listClassName?: string;
+}) {
   const { setNodeRef, isOver } = useDroppable({ id });
   return (
     <Card
       ref={setNodeRef}
       size="small"
-      className={`min-w-0 transition-colors ${isOver ? "border-primary bg-primary-light" : ""}`}
+      className={`min-w-0 transition-colors ${isOver ? "border-primary bg-primary-light" : ""} ${className}`}
       classNames={{ body: "flex flex-col gap-2" }}
     >
       <header className="flex flex-col gap-1">{title}</header>
-      <div className="flex min-h-24 flex-col gap-2">{children}</div>
+      <div className={`min-h-24 gap-2 ${listClassName}`}>{children}</div>
       {footer}
     </Card>
   );
@@ -221,7 +235,7 @@ export function StudyPlanEditor({ plan, termNames, pool, passedGrades, prerequis
             Lưu nháp
           </Button>
           <Button type="primary" onClick={submit} disabled={status === "pending" || status === "approved"}>
-            Gửi cố vấn duyệt
+            {status === "pending" ? "Đang chờ cố vấn duyệt" : status === "approved" ? "Đã được duyệt" : "Gửi cố vấn duyệt"}
           </Button>
         </div>
       </Card>
@@ -276,6 +290,8 @@ export function StudyPlanEditor({ plan, termNames, pool, passedGrades, prerequis
           })}
           <Column
             id={POOL}
+            className="lg:col-span-3"
+            listClassName="grid sm:grid-cols-2 lg:grid-cols-3"
             title={
               <>
                 <h2 className="text-base font-semibold">Học phần còn lại trong chương trình</h2>

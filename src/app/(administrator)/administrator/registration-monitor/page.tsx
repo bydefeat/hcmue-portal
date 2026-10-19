@@ -63,8 +63,12 @@ export default async function Page() {
     <>
       <PageHeader
         title="Theo dõi đăng ký"
-        description={`${term.name}. Số liệu cập nhật theo thời gian thực trong đợt đăng ký; lớp đủ chỗ cân nhắc mở thêm, lớp dưới sĩ số tối thiểu cân nhắc hủy.`}
-        actions={<Link href="/administrator/terms">Cấu hình đợt</Link>}
+        description={
+          <>
+            {term.name}. Số liệu cập nhật theo thời gian thực trong đợt đăng ký; lớp đủ chỗ cân nhắc mở thêm, lớp dưới sĩ số tối thiểu cân nhắc hủy. Thời gian và
+            hạn mức của từng đợt sửa ở <Link href="/administrator/terms">Học kỳ và đợt đăng ký</Link>.
+          </>
+        }
       />
       <div className="flex flex-col gap-4 sm:gap-6">
         {active.length === 0 ? (
@@ -72,7 +76,7 @@ export default async function Page() {
             <EmptyState icon={CalendarClock} title="Không có đợt đăng ký đang mở" description="Số liệu dưới đây là kết quả của các đợt đã đóng." />
           </SectionCard>
         ) : (
-          <div className="grid gap-3 md:grid-cols-2">
+          <div className={`grid gap-3 ${active.length > 1 ? "md:grid-cols-2" : ""}`}>
             {active.map((period) => (
               <SectionCard key={period.id} title={period.name} extra={<StatusTag status={REGISTRATION_PERIOD_STATE[period.state]} />}>
                 <div className="flex flex-col gap-3">
@@ -105,18 +109,15 @@ export default async function Page() {
             }
           />
         </div>
-        <section className="flex flex-col gap-3">
-          <h2 className="text-lg font-semibold">Lớp cần xử lý</h2>
+        <SectionCard title="Lớp cần xử lý">
           <RegistrationMonitorSections sections={sections} />
-        </section>
-        <section className="flex flex-col gap-3">
-          <h2 className="text-lg font-semibold">Sinh viên chưa đăng ký</h2>
+        </SectionCard>
+        <SectionCard title="Sinh viên chưa đăng ký">
           <RegistrationMonitorStudents students={pending} />
-        </section>
-        <section className="flex flex-col gap-3">
-          <h2 className="text-lg font-semibold">Tỉ lệ lấp đầy theo khoa</h2>
+        </SectionCard>
+        <SectionCard title="Tỉ lệ lấp đầy theo khoa">
           <RegistrationReport summaries={summary.filter((row) => inScope(viewer, row.faculty))} />
-        </section>
+        </SectionCard>
       </div>
     </>
   );

@@ -154,11 +154,10 @@ export function AppointmentBoard({ appointments, advisees, notes: initialNotes, 
             value={view}
             onChange={setView}
             options={[
-              { value: "upcoming", label: `Sắp tới (${upcoming.length})` },
+              { value: "upcoming", label: today > 0 ? `Sắp tới (${upcoming.length}, ${today} hôm nay)` : `Sắp tới (${upcoming.length})` },
               { value: "past", label: `Đã qua (${past.length})` },
             ]}
           />
-          {today > 0 && <span className="text-sm text-muted">{today} lịch hẹn hôm nay</span>}
           <Button type="primary" icon={<Plus size={16} aria-hidden />} onClick={() => setIsCreateOpen(true)} className="ml-auto">
             Đặt lịch hẹn
           </Button>
@@ -178,9 +177,9 @@ export function AppointmentBoard({ appointments, advisees, notes: initialNotes, 
               const isToday = dayjs(appointment.date).isSame(now, "day");
               return (
                 <li key={appointment.id}>
-                  <Card size="small">
+                  <Card size="small" classNames={{ body: "flex flex-col gap-3" }}>
                     <div className="flex flex-col gap-3 sm:flex-row">
-                      <div className="flex w-36 shrink-0 flex-col">
+                      <div className="flex shrink-0 flex-col whitespace-nowrap sm:w-44">
                         <span className={`font-medium ${isToday && appointment.status === "scheduled" ? "text-primary" : ""}`}>{dayText(appointment.date)}</span>
                         <span className="text-sm text-muted tabular-nums">
                           {appointment.startTime} - {startOf(appointment).add(appointment.durationMinutes, "minute").format("HH:mm")}
@@ -203,26 +202,26 @@ export function AppointmentBoard({ appointments, advisees, notes: initialNotes, 
                         </span>
                         {appointment.note && <p className="mt-1 text-sm text-pretty text-muted">“{appointment.note}”</p>}
                       </div>
-                      {appointment.status === "scheduled" && (
-                        <div className="flex shrink-0 flex-wrap gap-2 sm:flex-col sm:items-end">
-                          <Button size="small" onClick={() => setCompleting(appointment)}>
-                            Ghi nhận đã gặp
-                          </Button>
-                          <Button
-                            size="small"
-                            onClick={() => {
-                              update(appointment.id, { status: "missed", note: "Sinh viên không đến." });
-                              messageApi.info("Đã ghi nhận sinh viên vắng");
-                            }}
-                          >
-                            Sinh viên vắng
-                          </Button>
-                          <Button size="small" danger onClick={() => cancel(appointment)}>
-                            Hủy hẹn
-                          </Button>
-                        </div>
-                      )}
                     </div>
+                    {appointment.status === "scheduled" && (
+                      <div className="flex flex-wrap justify-end gap-2 border-t border-border-strong pt-3">
+                        <Button size="small" danger onClick={() => cancel(appointment)}>
+                          Hủy hẹn
+                        </Button>
+                        <Button
+                          size="small"
+                          onClick={() => {
+                            update(appointment.id, { status: "missed", note: "Sinh viên không đến." });
+                            messageApi.info("Đã ghi nhận sinh viên vắng");
+                          }}
+                        >
+                          Sinh viên vắng
+                        </Button>
+                        <Button size="small" type="primary" onClick={() => setCompleting(appointment)}>
+                          Ghi nhận đã gặp
+                        </Button>
+                      </div>
+                    )}
                   </Card>
                 </li>
               );
@@ -313,10 +312,10 @@ export function AppointmentBoard({ appointments, advisees, notes: initialNotes, 
           </Form.Item>
           <div className="grid gap-x-3 sm:grid-cols-3">
             <Form.Item name="date" label="Ngày" rules={[{ required: true, message: "Chọn ngày" }]}>
-              <DatePicker format="DD/MM/YYYY" disabledDate={(value) => value.isBefore(dayjs().startOf("day"))} className="w-full" />
+              <DatePicker format="DD/MM/YYYY" placeholder="Chọn ngày" disabledDate={(value) => value.isBefore(dayjs().startOf("day"))} className="w-full" />
             </Form.Item>
             <Form.Item name="time" label="Giờ bắt đầu" rules={[{ required: true, message: "Chọn giờ" }]}>
-              <TimePicker format="HH:mm" minuteStep={15} className="w-full" />
+              <TimePicker format="HH:mm" minuteStep={15} placeholder="Chọn giờ" className="w-full" />
             </Form.Item>
             <Form.Item name="durationMinutes" label="Thời lượng">
               <Select options={APPOINTMENT_DURATIONS.map((value) => ({ value, label: `${value} phút` }))} />

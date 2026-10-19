@@ -5,10 +5,11 @@ import Link from "next/link";
 import { Button, Drawer, Form, Input, message, Modal, Segmented, Select, Switch, Table, type TableColumnsType } from "antd";
 import { LockOpen, Magnifier, Plus } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
+import { PageHeader } from "@/shared/components/ui/page-header";
 import { StatusTag } from "@/shared/components/ui/status-tag";
 import type { StatusMeta } from "@/shared/constants/status.constant";
 import { dayjs, formatDate, formatDateTime } from "@/shared/libs/date.lib";
-import { HOLD_KIND_LABEL, HOLD_KIND_OPTIONS } from "../course-registration.constant";
+import { HOLD_KIND_LABEL, HOLD_KIND_OPTIONS, keepCurrencyTogether } from "../course-registration.constant";
 import type { HoldKind, RegistrationHold } from "../course-registration.type";
 
 export type HoldStudentOption = {
@@ -41,9 +42,10 @@ type RegistrationHoldTableProps = {
   students: HoldStudentOption[];
   actorName: string;
   studentHrefBase: string;
+  header: { title: string; description?: React.ReactNode };
 };
 
-export function RegistrationHoldTable({ holds, students, actorName, studentHrefBase }: RegistrationHoldTableProps) {
+export function RegistrationHoldTable({ holds, students, actorName, studentHrefBase, header }: RegistrationHoldTableProps) {
   const [messageApi, contextHolder] = message.useMessage();
   const [rows, setRows] = useState(holds);
   const [view, setView] = useState<View>("active");
@@ -113,23 +115,31 @@ export function RegistrationHoldTable({ holds, students, actorName, studentHrefB
       key: "student",
       width: 220,
       render: (_, row) => (
-        <Link href={`${studentHrefBase}${row.studentId}`} className="flex min-w-0 flex-col">
-          <span className="truncate font-medium">{row.studentName}</span>
-          <span className="text-xs text-muted">
-            {row.studentCode} · {row.className}
+        <span className="flex min-w-0 flex-col gap-1">
+          <Link href={`${studentHrefBase}${row.studentId}`} className="flex min-w-0 flex-col">
+            <span className="truncate font-medium">{row.studentName}</span>
+            <span className="text-xs text-muted">
+              {row.studentCode} · {row.className}
+            </span>
+          </Link>
+          <span className="flex flex-wrap items-center gap-2 text-xs md:hidden">
+            <StatusTag status={row.blocking ? BLOCKING : WARNING} />
+            {HOLD_KIND_LABEL[row.kind]}
           </span>
-        </Link>
+          <span className="text-xs text-pretty text-muted md:hidden">{keepCurrencyTogether(row.reason)}</span>
+        </span>
       ),
     },
-    { title: "Loại", dataIndex: "kind", width: 150, render: (value: HoldKind) => HOLD_KIND_LABEL[value] },
-    { title: "Mức", key: "blocking", width: 140, render: (_, row) => <StatusTag status={row.blocking ? BLOCKING : WARNING} /> },
+    { title: "Loại", dataIndex: "kind", width: 130, responsive: ["md"], render: (value: HoldKind) => HOLD_KIND_LABEL[value] },
+    { title: "Mức", key: "blocking", width: 130, responsive: ["md"], render: (_, row) => <StatusTag status={row.blocking ? BLOCKING : WARNING} /> },
     {
       title: "Lý do và cách gỡ",
       key: "reason",
-      width: 360,
+      width: 330,
+      responsive: ["md"],
       render: (_, row) => (
         <span className="flex flex-col gap-0.5">
-          <span className="text-pretty">{row.reason}</span>
+          <span className="text-pretty">{keepCurrencyTogether(row.reason)}</span>
           <span className="text-xs text-pretty text-muted">{row.resolveHint}</span>
         </span>
       ),
@@ -137,7 +147,8 @@ export function RegistrationHoldTable({ holds, students, actorName, studentHrefB
     {
       title: view === "active" ? "Người tạo" : "Đã gỡ",
       key: "meta",
-      width: 220,
+      width: 180,
+      responsive: ["md"],
       render: (_, row) =>
         view === "active" ? (
           <span className="flex flex-col text-xs text-muted">
@@ -155,9 +166,11 @@ export function RegistrationHoldTable({ holds, students, actorName, studentHrefB
       title: "",
       key: "actions",
       width: 110,
+      fixed: "right",
+      align: "right",
       render: (_, row) =>
         row.releasedAt ? null : (
-          <Button size="small" icon={<LockOpen size={14} aria-hidden className="text-zinc-500" />} onClick={() => setReleasing(row)}>
+          <Button size="small" type="text" icon={<LockOpen size={14} aria-hidden className="text-zinc-500" />} onClick={() => setReleasing(row)}>
             Gỡ khóa
           </Button>
         ),
@@ -165,109 +178,117 @@ export function RegistrationHoldTable({ holds, students, actorName, studentHrefB
   ];
 
   return (
-    <div className="flex flex-col gap-3">
+    <>
       {contextHolder}
-      <div className="flex flex-wrap items-center gap-2">
-        <Segmented<View>
-          value={view}
-          onChange={setView}
-          options={[
-            { value: "active", label: `Đang áp dụng (${active.length})` },
-            { value: "released", label: `Đã gỡ (${rows.length - active.length})` },
-          ]}
-        />
-        <Input
-          allowClear
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          prefix={<Magnifier size={16} aria-hidden className="text-muted" />}
-          placeholder="Tên, mã sinh viên, lý do"
-          aria-label="Tìm"
-          className="w-full sm:w-64"
-        />
-        <Select allowClear value={kind} onChange={setKind} placeholder="Mọi loại" aria-label="Loại khóa" options={HOLD_KIND_OPTIONS} className="w-full sm:w-48" />
-        <Button type="primary" icon={<Plus size={16} aria-hidden />} onClick={() => setIsCreating(true)} className="sm:ml-auto">
-          Thêm khóa đăng ký
-        </Button>
-      </div>
-      <Table
-        rowKey="id"
-        size="small"
-        columns={columns}
-        dataSource={visible}
-        scroll={{ x: 1200 }}
-        pagination={{ pageSize: 20, hideOnSinglePage: true }}
-        locale={{
-          emptyText: (
-            <EmptyState
-              icon={LockOpen}
-              title={view === "active" ? "Không có sinh viên nào bị khóa" : "Chưa gỡ khóa nào"}
-              description={view === "active" ? "Sinh viên nợ học phí quá hạn được khóa tự động theo dữ liệu của Phòng Kế hoạch - Tài chính." : undefined}
-            />
-          ),
-        }}
-      />
-
-      <Drawer
-        open={isCreating}
-        onClose={() => setIsCreating(false)}
-        size={520}
-        destroyOnHidden
-        mask={{ closable: false }}
-        title="Thêm khóa đăng ký"
-        footer={
-          <div className="flex justify-end gap-2">
-            <Button onClick={() => setIsCreating(false)}>Hủy</Button>
-            <Button type="primary" onClick={() => form.submit()}>
-              Lưu
-            </Button>
-          </div>
+      <PageHeader
+        {...header}
+        actions={
+          <Button type="primary" icon={<Plus size={16} aria-hidden />} onClick={() => setIsCreating(true)}>
+            Thêm khóa đăng ký
+          </Button>
         }
-      >
-        <Form form={form} layout="vertical" initialValues={{ kind: "documents", blocking: true }} onFinish={create}>
-          <Form.Item name="studentId" label="Sinh viên" rules={[{ required: true, message: "Chưa chọn sinh viên" }]}>
-            <Select
-              showSearch={{ optionFilterProp: "label" }}
-              options={students.map((student) => ({ value: student.id, label: `${student.code} ${student.fullName} (${student.className})` }))}
-            />
-          </Form.Item>
-          <Form.Item name="kind" label="Loại" rules={[{ required: true, message: "Chưa chọn loại" }]}>
-            <Select options={HOLD_KIND_OPTIONS} />
-          </Form.Item>
-          <Form.Item name="blocking" label="Chặn đăng ký học phần" valuePropName="checked" extra="Tắt nếu chỉ muốn nhắc sinh viên mà vẫn cho đăng ký.">
-            <Switch />
-          </Form.Item>
-          <Form.Item name="reason" label="Lý do sinh viên sẽ thấy" rules={[{ required: true, whitespace: true, message: "Chưa nhập lý do" }]}>
-            <Input.TextArea autoSize={{ minRows: 2 }} maxLength={200} showCount />
-          </Form.Item>
-          <Form.Item name="resolveHint" label="Cách gỡ khóa" rules={[{ required: true, whitespace: true, message: "Chưa hướng dẫn cách gỡ" }]}>
-            <Input.TextArea autoSize={{ minRows: 2 }} maxLength={200} showCount />
-          </Form.Item>
-        </Form>
-      </Drawer>
-
-      <Modal
-        open={releasing !== null}
-        title={releasing ? `Gỡ khóa đăng ký cho ${releasing.studentName}?` : ""}
-        okText="Gỡ khóa"
-        cancelText="Hủy"
-        onOk={release}
-        onCancel={() => {
-          setReleasing(null);
-          setReleaseNote("");
-        }}
-        mask={{ closable: false }}
-        destroyOnHidden
-      >
-        <p className="mb-3 text-sm text-pretty text-muted">{releasing?.reason}</p>
-        <Input.TextArea
-          value={releaseNote}
-          onChange={(event) => setReleaseNote(event.target.value)}
-          autoSize={{ minRows: 2 }}
-          placeholder="Căn cứ gỡ khóa"
-          aria-label="Căn cứ gỡ khóa"
+      />
+      <div className="flex flex-col gap-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <Segmented<View>
+            className="w-fit max-w-full"
+            value={view}
+            onChange={setView}
+            options={[
+              { value: "active", label: `Đang áp dụng (${active.length})` },
+              { value: "released", label: `Đã gỡ (${rows.length - active.length})` },
+            ]}
+          />
+          <Input
+            allowClear
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            prefix={<Magnifier size={16} aria-hidden className="text-muted" />}
+            placeholder="Tên, mã sinh viên, lý do"
+            aria-label="Tìm"
+            className="w-full sm:w-64"
+          />
+          <Select allowClear value={kind} onChange={setKind} placeholder="Mọi loại" aria-label="Loại khóa" options={HOLD_KIND_OPTIONS} className="w-full sm:w-48" />
+        </div>
+        <Table
+          rowKey="id"
+          size="small"
+          columns={columns}
+          dataSource={visible}
+          scroll={{ x: "max-content" }}
+          pagination={{ pageSize: 20, hideOnSinglePage: true }}
+          locale={{
+            emptyText: (
+              <EmptyState
+                icon={LockOpen}
+                title={view === "active" ? "Không có sinh viên nào bị khóa" : "Chưa gỡ khóa nào"}
+                description={view === "active" ? "Sinh viên nợ học phí quá hạn được khóa tự động theo dữ liệu của Phòng Kế hoạch - Tài chính." : undefined}
+              />
+            ),
+          }}
         />
-      </Modal>
-    </div>
+
+        <Drawer
+          open={isCreating}
+          onClose={() => setIsCreating(false)}
+          size={520}
+          destroyOnHidden
+          mask={{ closable: false }}
+          title="Thêm khóa đăng ký"
+          footer={
+            <div className="flex justify-end gap-2">
+              <Button onClick={() => setIsCreating(false)}>Hủy</Button>
+              <Button type="primary" onClick={() => form.submit()}>
+                Thêm khóa
+              </Button>
+            </div>
+          }
+        >
+          <Form form={form} layout="vertical" initialValues={{ blocking: true }} onFinish={create}>
+            <Form.Item name="studentId" label="Sinh viên" rules={[{ required: true, message: "Chưa chọn sinh viên" }]}>
+              <Select
+                showSearch={{ optionFilterProp: "label" }}
+                options={students.map((student) => ({ value: student.id, label: `${student.code} ${student.fullName} (${student.className})` }))}
+              />
+            </Form.Item>
+            <Form.Item name="kind" label="Loại" rules={[{ required: true, message: "Chưa chọn loại" }]}>
+              <Select options={HOLD_KIND_OPTIONS} placeholder="Chọn loại khóa" />
+            </Form.Item>
+            <Form.Item name="blocking" label="Chặn đăng ký học phần" valuePropName="checked" extra="Tắt nếu chỉ muốn nhắc sinh viên mà vẫn cho đăng ký.">
+              <Switch />
+            </Form.Item>
+            <Form.Item name="reason" label="Lý do sinh viên sẽ thấy" rules={[{ required: true, whitespace: true, message: "Chưa nhập lý do" }]}>
+              <Input.TextArea autoSize={{ minRows: 2 }} maxLength={200} showCount />
+            </Form.Item>
+            <Form.Item name="resolveHint" label="Cách gỡ khóa" rules={[{ required: true, whitespace: true, message: "Chưa hướng dẫn cách gỡ" }]}>
+              <Input.TextArea autoSize={{ minRows: 2 }} maxLength={200} showCount />
+            </Form.Item>
+          </Form>
+        </Drawer>
+
+        <Modal
+          open={releasing !== null}
+          title={releasing ? `Gỡ khóa đăng ký cho ${releasing.studentName}?` : ""}
+          okText="Gỡ khóa"
+          cancelText="Hủy"
+          onOk={release}
+          onCancel={() => {
+            setReleasing(null);
+            setReleaseNote("");
+          }}
+          mask={{ closable: false }}
+          destroyOnHidden
+        >
+          <p className="mb-3 text-sm text-pretty text-muted">{releasing?.reason}</p>
+          <Input.TextArea
+            value={releaseNote}
+            onChange={(event) => setReleaseNote(event.target.value)}
+            autoSize={{ minRows: 2 }}
+            placeholder="Căn cứ gỡ khóa"
+            aria-label="Căn cứ gỡ khóa"
+          />
+        </Modal>
+      </div>
+    </>
   );
 }

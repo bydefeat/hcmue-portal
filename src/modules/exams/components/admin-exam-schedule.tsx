@@ -3,8 +3,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { Button, DatePicker, Drawer, Form, Input, message, Modal, Segmented, Select, Table, Tooltip, type TableColumnsType } from "antd";
 import type { Dayjs } from "dayjs";
-import { CalendarCheck, Magnifier } from "defeat-icons-react";
+import { CalendarCheck, Magnifier, Pen } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
+import { PageHeader } from "@/shared/components/ui/page-header";
 import { StatusTag } from "@/shared/components/ui/status-tag";
 import { dayjs, formatDate } from "@/shared/libs/date.lib";
 import { EXAM_FORMAT_LABEL, EXAM_FORMAT_OPTIONS, EXAM_PAPER_STATUS, EXAM_STATUS, examConflicts, PROCTORS_PER_ROOM } from "../exams.constant";
@@ -17,6 +18,7 @@ type AdminExamScheduleProps = {
   sessions: ExamSession[];
   rooms: ExamRoomOption[];
   proctors: ProctorOption[];
+  header: { title: string; description?: React.ReactNode };
 };
 
 type EditValues = { date: Dayjs; startTime: string; room: string; format: ExamFormat; proctorIds: string[] };
@@ -27,7 +29,7 @@ function normalize(value: string) {
   return value.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/đ/gi, "d").toLowerCase();
 }
 
-export function AdminExamSchedule({ sessions, rooms, proctors }: AdminExamScheduleProps) {
+export function AdminExamSchedule({ sessions, rooms, proctors, header }: AdminExamScheduleProps) {
   const [messageApi, contextHolder] = message.useMessage();
   const [modal, modalContextHolder] = Modal.useModal();
   const [rows, setRows] = useState(sessions);
@@ -93,8 +95,8 @@ export function AdminExamSchedule({ sessions, rooms, proctors }: AdminExamSchedu
     {
       title: "Ngày thi",
       key: "when",
-      width: 120,
-      fixed: "left",
+      width: 110,
+      responsive: ["md"],
       sorter: (a, b) => `${a.date}${a.startTime}`.localeCompare(`${b.date}${b.startTime}`),
       defaultSortOrder: "ascend",
       render: (_, row) => (
@@ -109,19 +111,24 @@ export function AdminExamSchedule({ sessions, rooms, proctors }: AdminExamSchedu
     {
       title: "Lớp học phần",
       key: "section",
-      width: 240,
+      width: 220,
       render: (_, row) => (
         <span className="flex min-w-0 flex-col">
           <span className="text-xs">{row.classCode}</span>
           <span className="truncate">{row.courseName}</span>
+          <span className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted tabular-nums md:hidden">
+            <StatusTag status={EXAM_STATUS[row.status]} />
+            {formatDate(row.date)}, {row.startTime} · {row.room}
+          </span>
         </span>
       ),
     },
-    { title: "Hình thức", dataIndex: "format", width: 140, render: (value: ExamFormat) => EXAM_FORMAT_LABEL[value] },
+    { title: "Hình thức", dataIndex: "format", width: 110, responsive: ["xl"], render: (value: ExamFormat) => EXAM_FORMAT_LABEL[value] },
     {
       title: "Phòng",
       key: "room",
-      width: 190,
+      width: 170,
+      responsive: ["md"],
       render: (_, row) => {
         const capacity = capacityOf(row.room);
         const over = row.candidateCount > capacity;
@@ -138,7 +145,8 @@ export function AdminExamSchedule({ sessions, rooms, proctors }: AdminExamSchedu
     {
       title: "Cán bộ coi thi",
       key: "proctors",
-      width: 230,
+      width: 190,
+      responsive: ["lg"],
       render: (_, row) =>
         row.proctors.length < PROCTORS_PER_ROOM ? (
           <span className="flex flex-col text-xs">
@@ -155,11 +163,12 @@ export function AdminExamSchedule({ sessions, rooms, proctors }: AdminExamSchedu
           </span>
         ),
     },
-    { title: "Đề thi", dataIndex: "paperStatus", width: 150, render: (value: ExamPaperStatus) => <StatusTag status={EXAM_PAPER_STATUS[value]} /> },
+    { title: "Đề thi", dataIndex: "paperStatus", width: 130, responsive: ["md"], render: (value: ExamPaperStatus) => <StatusTag status={EXAM_PAPER_STATUS[value]} /> },
     {
       title: "Trạng thái",
       key: "status",
-      width: 160,
+      width: 130,
+      responsive: ["md"],
       render: (_, row) => {
         const issues = conflictsOf(row.id);
         return (
@@ -177,11 +186,12 @@ export function AdminExamSchedule({ sessions, rooms, proctors }: AdminExamSchedu
     {
       title: "",
       key: "actions",
-      width: 80,
+      width: 72,
       align: "right",
+      fixed: "right",
       render: (_, row) =>
         row.status === "done" ? null : (
-          <Button size="small" onClick={() => setEditingId(row.id)}>
+          <Button size="small" type="text" icon={<Pen size={14} aria-hidden className="text-zinc-500" />} onClick={() => setEditingId(row.id)} aria-label={`Sửa ca thi ${row.classCode}`}>
             Sửa
           </Button>
         ),
@@ -189,92 +199,101 @@ export function AdminExamSchedule({ sessions, rooms, proctors }: AdminExamSchedu
   ];
 
   return (
-    <div className="flex flex-col gap-3">
+    <>
       {contextHolder}
       {modalContextHolder}
-      <div className="flex flex-wrap items-center gap-2">
-        <Segmented<ExamKind>
-          value={kind}
-          onChange={setKind}
-          options={[
-            { value: "midterm", label: "Giữa kỳ" },
-            { value: "final", label: "Cuối kỳ" },
-          ]}
-        />
-        <Input allowClear value={query} onChange={(event) => setQuery(event.target.value)} prefix={<Magnifier size={16} aria-hidden className="text-muted" />} placeholder="Lớp, phòng, cán bộ coi thi" aria-label="Tìm ca thi" className="w-full sm:w-60" />
-        <Select allowClear value={paper} onChange={setPaper} placeholder="Mọi trạng thái đề" aria-label="Trạng thái đề thi" options={Object.entries(EXAM_PAPER_STATUS).map(([value, meta]) => ({ value, label: meta.label }))} className="min-w-0 flex-1 sm:w-48 sm:flex-none" />
-        <Segmented
-          value={onlyConflicts ? "issues" : "all"}
-          onChange={(value) => setOnlyConflicts(value === "issues")}
-          options={[
-            { value: "all", label: "Tất cả" },
-            { value: "issues", label: "Có vấn đề" },
-          ]}
-        />
-        <Button type="primary" disabled={drafts.length === 0} onClick={publish} className="sm:ml-auto">
-          Công bố lịch {drafts.length > 0 ? `(${drafts.length} ca)` : ""}
-        </Button>
-      </div>
-      <p className="text-xs text-muted tabular-nums">
-        {ofKind.length} ca thi · {conflicts.length} xung đột · {missingPapers} ca chưa có đề
-      </p>
-      <Table
-        rowKey="id"
-        size="small"
-        columns={columns}
-        dataSource={visible}
-        scroll={{ x: 1350 }}
-        pagination={{ pageSize: 25, hideOnSinglePage: true }}
-        locale={{ emptyText: <EmptyState icon={CalendarCheck} title="Không có ca thi khớp bộ lọc" /> }}
-      />
-      <Drawer
-        open={editing !== null}
-        onClose={() => setEditingId(null)}
-        size={520}
-        mask={{ closable: false }}
-        destroyOnHidden
-        title={editing ? `Ca thi ${editing.classCode}` : ""}
-        footer={
-          <div className="flex justify-end gap-2">
-            <Button onClick={() => setEditingId(null)}>Hủy</Button>
-            <Button type="primary" onClick={() => form.submit()}>
-              Lưu
-            </Button>
-          </div>
+      <PageHeader
+        {...header}
+        actions={
+          <Button type="primary" disabled={drafts.length === 0} onClick={publish}>
+            Công bố lịch {drafts.length > 0 ? `(${drafts.length} ca)` : ""}
+          </Button>
         }
-      >
-        {editing && (
-          <Form form={form} layout="vertical" onFinish={save}>
-            <p className="mb-4 text-sm text-muted">
-              {editing.courseName}, <span className="tabular-nums">{editing.candidateCount}</span> thí sinh
-            </p>
-            <div className="grid gap-x-3 sm:grid-cols-2">
-              <Form.Item name="date" label="Ngày thi" rules={[{ required: true, message: "Chưa chọn ngày" }]}>
-                <DatePicker format="DD/MM/YYYY" className="w-full" disabledDate={(date) => date.day() === 0} />
-              </Form.Item>
-              <Form.Item name="startTime" label="Giờ bắt đầu" rules={[{ required: true, message: "Chưa chọn giờ" }]}>
-                <Select options={START_TIMES.map((value) => ({ value, label: value }))} />
-              </Form.Item>
+      />
+      <div className="flex flex-col gap-3">
+        <div className="grid grid-cols-2 items-center gap-2 sm:flex sm:flex-wrap">
+          <Segmented<ExamKind>
+            className="w-fit max-w-full"
+            value={kind}
+            onChange={setKind}
+            options={[
+              { value: "midterm", label: "Giữa kỳ" },
+              { value: "final", label: "Cuối kỳ" },
+            ]}
+          />
+          <Input allowClear value={query} onChange={(event) => setQuery(event.target.value)} prefix={<Magnifier size={16} aria-hidden className="text-muted" />} placeholder="Lớp, phòng, cán bộ coi thi" aria-label="Tìm ca thi" className="col-span-2 w-full sm:w-60" />
+          <Select allowClear value={paper} onChange={setPaper} placeholder="Mọi trạng thái đề" aria-label="Trạng thái đề thi" options={Object.entries(EXAM_PAPER_STATUS).map(([value, meta]) => ({ value, label: meta.label }))} className="min-w-0 sm:w-48" />
+          <Segmented
+            className="w-fit max-w-full"
+            value={onlyConflicts ? "issues" : "all"}
+            onChange={(value) => setOnlyConflicts(value === "issues")}
+            options={[
+              { value: "all", label: "Tất cả" },
+              { value: "issues", label: "Có vấn đề" },
+            ]}
+          />
+        </div>
+        <p className="text-xs text-muted tabular-nums">
+          {ofKind.length} ca thi · {conflicts.length} xung đột · {missingPapers} ca chưa có đề
+        </p>
+        <Table
+          rowKey="id"
+          size="small"
+          columns={columns}
+          dataSource={visible}
+          scroll={{ x: "max-content" }}
+          pagination={{ pageSize: 25, hideOnSinglePage: true }}
+          locale={{ emptyText: <EmptyState icon={CalendarCheck} title="Không có ca thi khớp bộ lọc" /> }}
+        />
+        <Drawer
+          open={editing !== null}
+          onClose={() => setEditingId(null)}
+          size={520}
+          mask={{ closable: false }}
+          destroyOnHidden
+          title={editing ? `Ca thi ${editing.classCode}` : ""}
+          footer={
+            <div className="flex justify-end gap-2">
+              <Button onClick={() => setEditingId(null)}>Hủy</Button>
+              <Button type="primary" onClick={() => form.submit()}>
+                Lưu
+              </Button>
             </div>
-            <Form.Item name="format" label="Hình thức">
-              <Select options={EXAM_FORMAT_OPTIONS} />
-            </Form.Item>
-            <Form.Item name="room" label="Phòng thi" rules={[{ required: true, message: "Chưa chọn phòng" }]} extra="Số trong ngoặc là số chỗ ngồi thi">
-              <Select
-                showSearch={{ optionFilterProp: "label" }}
-                options={rooms.map((room) => ({ value: room.code, disabled: !room.isAvailable, label: `${room.code} (${room.examCapacity} chỗ)${room.isAvailable ? "" : ", đang bảo trì"}` }))}
-              />
-            </Form.Item>
-            <Form.Item
-              name="proctorIds"
-              label="Cán bộ coi thi"
-              rules={[{ validator: (_, value: string[] = []) => (value.length === PROCTORS_PER_ROOM ? Promise.resolve() : Promise.reject(new Error(`Mỗi phòng thi cần đúng ${PROCTORS_PER_ROOM} cán bộ coi thi`))) }]}
-            >
-              <Select mode="multiple" maxCount={PROCTORS_PER_ROOM} showSearch={{ optionFilterProp: "label" }} options={proctors.map((proctor) => ({ value: proctor.id, label: proctor.name }))} />
-            </Form.Item>
-          </Form>
-        )}
-      </Drawer>
-    </div>
+          }
+        >
+          {editing && (
+            <Form form={form} layout="vertical" onFinish={save}>
+              <p className="mb-4 text-sm text-muted">
+                {editing.courseName}, <span className="tabular-nums">{editing.candidateCount}</span> thí sinh
+              </p>
+              <div className="grid gap-x-3 sm:grid-cols-2">
+                <Form.Item name="date" label="Ngày thi" rules={[{ required: true, message: "Chưa chọn ngày" }]}>
+                  <DatePicker format="DD/MM/YYYY" placeholder="Chọn ngày" className="w-full" disabledDate={(date) => date.day() === 0} />
+                </Form.Item>
+                <Form.Item name="startTime" label="Giờ bắt đầu" rules={[{ required: true, message: "Chưa chọn giờ" }]}>
+                  <Select options={START_TIMES.map((value) => ({ value, label: value }))} />
+                </Form.Item>
+              </div>
+              <Form.Item name="format" label="Hình thức">
+                <Select options={EXAM_FORMAT_OPTIONS} />
+              </Form.Item>
+              <Form.Item name="room" label="Phòng thi" rules={[{ required: true, message: "Chưa chọn phòng" }]} extra="Số trong ngoặc là số chỗ ngồi thi">
+                <Select
+                  showSearch={{ optionFilterProp: "label" }}
+                  options={rooms.map((room) => ({ value: room.code, disabled: !room.isAvailable, label: `${room.code} (${room.examCapacity} chỗ)${room.isAvailable ? "" : ", đang bảo trì"}` }))}
+                />
+              </Form.Item>
+              <Form.Item
+                name="proctorIds"
+                label="Cán bộ coi thi"
+                rules={[{ validator: (_, value: string[] = []) => (value.length === PROCTORS_PER_ROOM ? Promise.resolve() : Promise.reject(new Error(`Mỗi phòng thi cần đúng ${PROCTORS_PER_ROOM} cán bộ coi thi`))) }]}
+              >
+                <Select mode="multiple" maxCount={PROCTORS_PER_ROOM} showSearch={{ optionFilterProp: "label" }} options={proctors.map((proctor) => ({ value: proctor.id, label: proctor.name }))} />
+              </Form.Item>
+            </Form>
+          )}
+        </Drawer>
+      </div>
+    </>
   );
 }

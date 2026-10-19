@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { Button, Input, message, Select, Table, type TableColumnsType } from "antd";
+import { Button, Card, Input, message, Select, Table, type TableColumnsType } from "antd";
 import { Magnifier, ShieldCheck } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { StatusTag } from "@/shared/components/ui/status-tag";
@@ -54,6 +54,14 @@ export function AcademicWarningTable({ warnings, studentHrefBase, showFaculty = 
     messageApi.success(`${next.done}: ${row.fullName}`);
   };
 
+  const emptyText = (
+    <EmptyState
+      icon={ShieldCheck}
+      title={warnings.length === 0 ? "Không có sinh viên bị cảnh báo" : "Không có sinh viên khớp bộ lọc"}
+      description={warnings.length === 0 ? "Học kỳ gần nhất không có sinh viên dưới ngưỡng học vụ." : "Thử bỏ bớt điều kiện lọc."}
+    />
+  );
+
   const columns: TableColumnsType<AcademicWarning> = [
     {
       title: "Sinh viên",
@@ -67,7 +75,7 @@ export function AcademicWarningTable({ warnings, studentHrefBase, showFaculty = 
         </Link>
       ),
     },
-    { title: "Lớp", dataIndex: "className", width: 130, render: (value: string) => <span className="text-xs">{value}</span> },
+    { title: "Lớp", dataIndex: "className", width: 110, render: (value: string) => <span className="text-xs">{value}</span> },
     ...(showFaculty ? [{ title: "Khoa", dataIndex: "faculty", width: 200 }] : []),
     {
       title: "CPA",
@@ -95,13 +103,13 @@ export function AcademicWarningTable({ warnings, studentHrefBase, showFaculty = 
     {
       title: "Mức",
       dataIndex: "level",
-      width: 150,
+      width: 130,
       render: (value: 1 | 2 | 3) => <StatusTag status={WARNING_LEVEL[value]} />,
     },
     {
       title: "Lý do",
       dataIndex: "reasons",
-      width: 240,
+      width: 220,
       render: (reasons: string[]) => (
         <ul className="flex flex-col gap-0.5 text-xs text-muted">
           {reasons.map((reason) => (
@@ -113,7 +121,7 @@ export function AcademicWarningTable({ warnings, studentHrefBase, showFaculty = 
     {
       title: "Xử lý",
       key: "status",
-      width: 220,
+      width: 180,
       render: (_, row) => {
         const next = NEXT_STATUS[row.status];
         return (
@@ -131,7 +139,7 @@ export function AcademicWarningTable({ warnings, studentHrefBase, showFaculty = 
     {
       title: "Ngày lập",
       dataIndex: "createdAt",
-      width: 100,
+      width: 96,
       render: (value: string) => <span className="text-xs text-muted tabular-nums">{formatDate(value)}</span>,
     },
   ];
@@ -184,18 +192,53 @@ export function AcademicWarningTable({ warnings, studentHrefBase, showFaculty = 
         size={showFaculty ? "small" : "middle"}
         columns={columns}
         dataSource={filtered}
-        scroll={{ x: showFaculty ? 1500 : 1300 }}
+        scroll={{ x: showFaculty ? 1380 : 1180 }}
         pagination={{ pageSize: 20, hideOnSinglePage: true, showTotal: (total) => `${total} sinh viên` }}
-        locale={{
-          emptyText: (
-            <EmptyState
-              icon={ShieldCheck}
-              title={warnings.length === 0 ? "Không có sinh viên bị cảnh báo" : "Không có sinh viên khớp bộ lọc"}
-              description={warnings.length === 0 ? "Học kỳ gần nhất không có sinh viên dưới ngưỡng học vụ." : "Thử bỏ bớt điều kiện lọc."}
-            />
-          ),
-        }}
+        locale={{ emptyText }}
+        className="hidden md:block"
       />
+      {filtered.length === 0 ? (
+        <Card size="small" className="md:hidden">
+          {emptyText}
+        </Card>
+      ) : (
+        <ul className="flex flex-col gap-2 md:hidden">
+          {filtered.map((row) => {
+            const next = NEXT_STATUS[row.status];
+            return (
+              <li key={row.id}>
+                <Card size="small" classNames={{ body: "flex flex-col gap-2" }}>
+                  <span className="flex items-start justify-between gap-2">
+                    <Link href={`${studentHrefBase}${row.studentId}`} className="flex min-w-0 flex-col">
+                      <span className="truncate font-medium">{row.fullName}</span>
+                      <span className="text-xs text-muted">
+                        {row.studentCode} · {row.className}
+                      </span>
+                    </Link>
+                    <StatusTag status={WARNING_LEVEL[row.level]} />
+                  </span>
+                  <span className="text-xs text-muted tabular-nums">
+                    CPA {formatPoint(row.cpa4)} · ĐTB kỳ {formatPoint(row.termGpa4)} · Nợ {row.failedCredits} TC
+                  </span>
+                  <ul className="flex flex-col gap-0.5 text-xs text-muted">
+                    {row.reasons.map((reason) => (
+                      <li key={reason}>{reason}</li>
+                    ))}
+                  </ul>
+                  <span className="flex flex-wrap items-center gap-2">
+                    <StatusTag status={WARNING_STATUS[row.status]} />
+                    {next && (
+                      <Button size="small" onClick={() => advance(row)} className="ml-auto">
+                        {next.label}
+                      </Button>
+                    )}
+                  </span>
+                </Card>
+              </li>
+            );
+          })}
+        </ul>
+      )}
     </div>
   );
 }

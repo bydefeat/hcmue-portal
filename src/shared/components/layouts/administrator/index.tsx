@@ -32,7 +32,13 @@ type AdministratorLayoutProps = {
   children: React.ReactNode;
 };
 
-function breadcrumbItems(groups: NavGroup[], pathname: string) {
+const ACCOUNT_GROUP: Pick<NavGroup, "label" | "items"> = {
+  label: "Tài khoản",
+  items: [...ADMINISTRATOR_ACCOUNT_LINKS, { label: "Thông báo", href: ADMINISTRATOR_NOTIFICATIONS_HREF }],
+};
+
+function breadcrumbItems(navigation: Pick<NavGroup, "label" | "items">[], pathname: string) {
+  const groups = [...navigation, ACCOUNT_GROUP];
   const group = groups.find((entry) => entry.items.some((item) => isActiveItem(pathname, item)));
   const item = group?.items.find((entry) => isActiveItem(pathname, entry));
   if (!group || !item) return [];

@@ -24,9 +24,6 @@ export function LecturerRequestBoard({ assigned, own, classes, busySlots, rooms,
   const [ownRows, setOwnRows] = useState(own);
   const [tab, setTab] = useState(initialTab ?? (assigned.some((request) => request.status === "pending" || request.status === "in-review") ? "assigned" : "own"));
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
-  const waiting = assigned.filter(
-    (request) => request.currentStep && (request.currentStep.role === "advisor" || request.currentStep.role === "lecturer") && request.currentStep.assigneeId === requester.id,
-  ).length;
 
   return (
     <div className="flex flex-col gap-3">
@@ -42,7 +39,7 @@ export function LecturerRequestBoard({ assigned, own, classes, busySlots, rooms,
         items={[
           {
             key: "assigned",
-            label: `Cần tôi xử lý (${waiting})`,
+            label: "Đơn được giao",
             children: (
               <RequestInbox
                 requests={assigned}

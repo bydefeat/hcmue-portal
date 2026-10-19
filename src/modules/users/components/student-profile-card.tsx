@@ -36,8 +36,8 @@ export function StudentProfileCard({ student, advisorName }: StudentProfileCardP
           items={[
             { key: "class", label: "Lớp", children: student.className },
             { key: "major", label: "Ngành", children: student.majorName },
-            { key: "faculty", label: "Khoa", children: student.faculty },
-            { key: "cohort", label: "Khóa", children: `Khóa ${student.cohort}` },
+            { key: "faculty", label: "Đơn vị", children: student.faculty },
+            { key: "cohort", label: "Khóa học", children: `Khóa ${student.cohort}` },
             ...(advisorName !== undefined ? [{ key: "advisor", label: "Cố vấn", children: advisorName ?? "Chưa phân công" }] : []),
             { key: "dob", label: "Ngày sinh", children: <span className="tabular-nums">{formatDate(student.dateOfBirth)}</span> },
             { key: "gender", label: "Giới tính", children: GENDER_LABEL[student.gender] },
@@ -46,7 +46,7 @@ export function StudentProfileCard({ student, advisorName }: StudentProfileCardP
               key: "email",
               label: "Email",
               children: (
-                <a href={`mailto:${student.email}`} className="break-all">
+                <a href={`mailto:${student.email}`} title={student.email} className="block truncate">
                   {student.email}
                 </a>
               ),

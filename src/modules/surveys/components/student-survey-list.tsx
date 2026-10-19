@@ -21,13 +21,15 @@ export function StudentSurveyList({ survey, tasks }: { survey: Survey; tasks: St
   return (
     <div className="flex flex-col gap-4">
       {contextHolder}
-      <SectionCard title={survey.title}>
+      <SectionCard>
         <div className="flex flex-col gap-2">
-          <p className="text-xs text-muted tabular-nums">
-            Mở đến {formatDateTime(survey.closesAt)} · Đã đánh giá {done}/{rows.length} lớp
-          </p>
-          <div className="w-full max-w-xs">
+          <h2 className="font-medium text-pretty">{survey.title}</h2>
+          <p className="text-xs text-muted tabular-nums">Mở đến {formatDateTime(survey.closesAt)}</p>
+          <div className="flex items-center gap-3">
             <MeterBar value={done} max={rows.length} tone={done === rows.length ? "success" : "primary"} label="Số lớp đã đánh giá" />
+            <span className="shrink-0 text-sm tabular-nums">
+              Đã đánh giá {done}/{rows.length} lớp
+            </span>
           </div>
         </div>
       </SectionCard>

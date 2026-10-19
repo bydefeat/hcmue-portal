@@ -20,7 +20,11 @@ export function RegistrationQueueModal({ open, onAdmitted, onLeave }: Registrati
 
 function QueueBody({ onAdmitted, onLeave }: Omit<RegistrationQueueModalProps, "open">) {
   const [position, setPosition] = useState(START_POSITION);
-  const admitted = useRef(false);
+  const onAdmittedRef = useRef(onAdmitted);
+
+  useEffect(() => {
+    onAdmittedRef.current = onAdmitted;
+  });
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -29,12 +33,13 @@ function QueueBody({ onAdmitted, onLeave }: Omit<RegistrationQueueModalProps, "o
     return () => clearInterval(timer);
   }, []);
 
+  const isAdmitted = position === 0;
+
   useEffect(() => {
-    if (position > 0 || admitted.current) return;
-    admitted.current = true;
-    const timer = setTimeout(onAdmitted, 600);
+    if (!isAdmitted) return;
+    const timer = setTimeout(() => onAdmittedRef.current(), 600);
     return () => clearTimeout(timer);
-  }, [position, onAdmitted]);
+  }, [isAdmitted]);
 
   const seconds = Math.ceil((position / THROUGHPUT_PER_MINUTE) * 60);
   const percent = Math.round(((START_POSITION - position) / START_POSITION) * 100);

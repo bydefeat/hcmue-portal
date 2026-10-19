@@ -85,7 +85,7 @@ export function InvoiceList({ invoices, studentCode }: { invoices: TuitionInvoic
             <div className="flex flex-col gap-4">
               <header className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                 <div className="flex flex-col gap-1">
-                  <h2 className="text-lg font-semibold">{invoice.termName}</h2>
+                  <h2 className="text-base font-semibold">{invoice.termName}</h2>
                   <span className="text-xs text-muted tabular-nums">
                     Phát hành {formatDate(invoice.issuedAt)} · Hạn nộp {formatDateTime(invoice.dueDate)}
                   </span>
@@ -153,9 +153,10 @@ export function InvoiceList({ invoices, studentCode }: { invoices: TuitionInvoic
         );
       })}
       {history.length > 0 && (
-        <section className="flex flex-col gap-2">
-          <h2 className="text-lg font-semibold">Các học kỳ đã nộp</h2>
+        <SectionCard title="Các học kỳ đã nộp" flush>
           <Collapse
+            bordered={false}
+            ghost
             items={history.map((invoice) => ({
               key: invoice.id,
               label: (
@@ -167,7 +168,7 @@ export function InvoiceList({ invoices, studentCode }: { invoices: TuitionInvoic
               children: <InvoiceBody invoice={invoice} />,
             }))}
           />
-        </section>
+        </SectionCard>
       )}
     </div>
   );

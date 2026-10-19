@@ -41,7 +41,7 @@ export function RegistrationReceipt({ student, termName, enrollments, confirmedA
 
   if (variant === "screen") {
     return (
-      <SectionCard title="Phiếu đăng ký học phần" extra={<span className="text-xs text-muted">{termName}</span>}>
+      <SectionCard title="Phiếu đăng ký học phần" extra={<span className="hidden text-xs text-muted sm:inline">{termName}</span>}>
         <div className="flex flex-col gap-4">
           <div className="grid gap-x-6 gap-y-1 text-sm sm:grid-cols-2">
             <p>

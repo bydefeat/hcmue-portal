@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Alert, Button, message, Radio, Select, Table, type TableColumnsType } from "antd";
+import { Alert, Button, Card, message, Radio, Select, Table, type TableColumnsType } from "antd";
 import { CalendarClock } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { SectionCard } from "@/shared/components/ui/section-card";
@@ -85,12 +85,41 @@ export function AttendanceSheet({ book, students, absenceLimitPercent = ABSENCE_
 
   const save = () => {
     if (missing > 0) {
-      messageApi.error(`Còn ${missing} sinh viên chưa điểm danh. Chọn trạng thái cho từng em hoặc bấm "Tất cả có mặt" trước khi lưu.`);
+      messageApi.error(`Còn ${missing} sinh viên chưa điểm danh. Chọn trạng thái cho từng sinh viên hoặc bấm "Tất cả có mặt" trước khi lưu.`);
       return;
     }
     setSavedIds((value) => [...new Set([...value, session.id])]);
     const absent = counts.filter((entry) => entry.key === "absent" || entry.key === "excused").reduce((sum, entry) => sum + entry.count, 0);
     messageApi.success(`Đã lưu điểm danh ngày ${formatDate(session.date)}: ${students.length - absent} có mặt, ${absent} vắng.`);
+  };
+
+  const statusGroup = (row: AttendanceStudent, className?: string) => (
+    <Radio.Group
+      size="small"
+      optionType="button"
+      buttonStyle="solid"
+      disabled={!editable}
+      value={current[row.studentId]}
+      onChange={(event) => setStatus(row.studentId, event.target.value)}
+      aria-label={`Trạng thái của ${row.fullName}`}
+      className={className}
+      options={STATUS_KEYS.map((key) => ({ value: key, label: ATTENDANCE_STATUS[key].label }))}
+    />
+  );
+
+  const absenceText = (row: AttendanceStudent) => {
+    const count = absences[row.studentId] ?? 0;
+    const isOver = pastSessions.length > 0 && count / pastSessions.length > limitRatio;
+    const isNear = !isOver && pastSessions.length > 0 && (count + 1) / pastSessions.length > limitRatio;
+    return (
+      <span className="flex flex-col text-xs tabular-nums">
+        <span className={isOver ? "font-medium text-rose-700" : "text-muted"}>
+          Đã vắng {count}/{pastSessions.length} buổi
+        </span>
+        {isOver && <span className="text-rose-700">Vượt {absenceLimitPercent}%, cấm thi</span>}
+        {isNear && <span className="text-amber-700">Vắng thêm 1 buổi sẽ bị cấm thi</span>}
+      </span>
+    );
   };
 
   const columns: TableColumnsType<AttendanceStudent> = [
@@ -110,46 +139,13 @@ export function AttendanceSheet({ book, students, absenceLimitPercent = ABSENCE_
       title: "Trạng thái",
       key: "status",
       width: 360,
-      render: (_, row) => (
-        <Radio.Group
-          size="small"
-          optionType="button"
-          buttonStyle="solid"
-          disabled={!editable}
-          value={current[row.studentId]}
-          onChange={(event) => setStatus(row.studentId, event.target.value)}
-          aria-label={`Trạng thái của ${row.fullName}`}
-          options={STATUS_KEYS.map((key) => ({
-            value: key,
-            title: ATTENDANCE_STATUS[key].label,
-            label: (
-              <>
-                <span className="md:hidden">{ATTENDANCE_STATUS[key].short}</span>
-                <span className="hidden md:inline">{ATTENDANCE_STATUS[key].label}</span>
-              </>
-            ),
-          }))}
-        />
-      ),
+      render: (_, row) => statusGroup(row),
     },
     {
       title: "Đã vắng",
       key: "absences",
-      width: 130,
-      render: (_, row) => {
-        const count = absences[row.studentId] ?? 0;
-        const isOver = pastSessions.length > 0 && count / pastSessions.length > limitRatio;
-        const isNear = !isOver && pastSessions.length > 0 && (count + 1) / pastSessions.length > limitRatio;
-        return (
-          <span className="flex flex-col text-xs tabular-nums">
-            <span className={isOver ? "font-medium text-rose-700" : "text-muted"}>
-              {count}/{pastSessions.length} buổi
-            </span>
-            {isOver && <span className="text-rose-700">Vượt {absenceLimitPercent}%, cấm thi</span>}
-            {isNear && <span className="text-amber-700">Vắng thêm 1 buổi sẽ bị cấm thi</span>}
-          </span>
-        );
-      },
+      width: 150,
+      render: (_, row) => absenceText(row),
     },
   ];
 
@@ -165,14 +161,6 @@ export function AttendanceSheet({ book, students, absenceLimitPercent = ABSENCE_
           options={book.sessions.map((entry, index) => ({ value: entry.id, label: sessionLabel(entry, index) }))}
         />
         <span className="text-sm text-muted">Phòng {session.room}</span>
-        <div className="flex gap-2 md:ml-auto">
-          <Button disabled={!editable} onClick={markAllPresent}>
-            Tất cả có mặt
-          </Button>
-          <Button type="primary" disabled={!editable} onClick={save}>
-            Lưu điểm danh
-          </Button>
-        </div>
       </div>
 
       {!editable ? (
@@ -201,16 +189,46 @@ export function AttendanceSheet({ book, students, absenceLimitPercent = ABSENCE_
         </p>
       )}
 
-      <Table
-        rowKey="studentId"
-        size="middle"
-        columns={columns}
-        dataSource={students}
-        pagination={false}
-        scroll={{ x: 720 }}
-        rowClassName={(row) => (editable && !current[row.studentId] ? "[&>td]:bg-amber-50" : "")}
-        locale={{ emptyText: <EmptyState title="Lớp chưa có sinh viên" description="Danh sách sẽ có sau khi sinh viên đăng ký học phần." /> }}
-      />
+      {students.length === 0 ? (
+        <SectionCard flush>
+          <EmptyState title="Lớp chưa có sinh viên" description="Danh sách sẽ có sau khi sinh viên đăng ký học phần." />
+        </SectionCard>
+      ) : (
+        <>
+          <Table rowKey="studentId" size="middle" columns={columns} dataSource={students} pagination={false} className="hidden md:block" />
+          <ul className="flex flex-col gap-2 md:hidden">
+            {students.map((student, index) => (
+              <li key={student.studentId}>
+                <Card size="small" classNames={{ body: "flex flex-col gap-2" }}>
+                  <span className="flex items-start gap-2">
+                    <span className="w-6 shrink-0 text-right text-xs text-muted tabular-nums">{index + 1}</span>
+                    <span className="flex min-w-0 flex-1 flex-col">
+                      <span className="truncate font-medium">{student.fullName}</span>
+                      <span className="text-xs text-muted">{student.studentCode}</span>
+                    </span>
+                    {absenceText(student)}
+                  </span>
+                  {statusGroup(student, "grid grid-cols-2 gap-1 [&_.ant-radio-button-wrapper]:rounded-md [&_.ant-radio-button-wrapper]:border-s [&_.ant-radio-button-wrapper]:text-center")}
+                </Card>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+
+      {editable && (
+        <Card size="small" className="sticky bottom-[calc(74px+env(safe-area-inset-bottom))] z-10 md:bottom-4" classNames={{ body: "flex flex-wrap items-center gap-2" }}>
+          <span className="text-sm text-muted tabular-nums">
+            Chưa điểm danh <span className="font-medium text-foreground">{missing}</span>/{students.length}
+          </span>
+          <div className="ml-auto flex gap-2">
+            <Button onClick={markAllPresent}>Tất cả có mặt</Button>
+            <Button type="primary" onClick={save}>
+              Lưu điểm danh
+            </Button>
+          </div>
+        </Card>
+      )}
     </div>
   );
 }

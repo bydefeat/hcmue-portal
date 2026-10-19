@@ -9,13 +9,14 @@ import type { Course, CourseType, ProgramDetail } from "../curriculum.type";
 import { SectionCard } from "@/shared/components/ui/section-card";
 
 const COLUMNS: TableColumnsType<Course> = [
-  { title: "Mã HP", dataIndex: "code", width: 110, render: (code: string) => <span className="text-xs">{code}</span> },
+  { title: "Mã HP", dataIndex: "code", width: 110, responsive: ["sm"], render: (code: string) => <span className="text-xs">{code}</span> },
   { title: "Tên học phần", dataIndex: "name", render: (name: string) => <span className="text-pretty">{name}</span> },
-  { title: "TC", dataIndex: "credits", width: 56, align: "right", render: (value: number) => <span className="tabular-nums">{value}</span> },
+  { title: <span className="whitespace-nowrap">TC</span>, dataIndex: "credits", width: 56, align: "right", render: (value: number) => <span className="tabular-nums">{value}</span> },
   {
-    title: "LT/TH",
+    title: <span className="whitespace-nowrap">LT/TH</span>,
     key: "split",
-    width: 72,
+    width: 80,
+    responsive: ["md"],
     align: "right",
     render: (_, row) => (
       <span className="text-muted tabular-nums">
@@ -23,11 +24,12 @@ const COLUMNS: TableColumnsType<Course> = [
       </span>
     ),
   },
-  { title: "Loại", dataIndex: "type", width: 96, render: (value: CourseType) => COURSE_TYPE_LABEL[value] },
+  { title: "Loại", dataIndex: "type", width: 96, responsive: ["md"], render: (value: CourseType) => COURSE_TYPE_LABEL[value] },
   {
     title: "Tiên quyết",
     dataIndex: "prerequisiteCodes",
     width: 180,
+    responsive: ["lg"],
     render: (codes: string[]) =>
       codes.length > 0 ? <span className="text-xs">{codes.join(", ")}</span> : <span className="text-muted">Không</span>,
   },
@@ -50,17 +52,20 @@ export function ProgramFramework({ program }: { program: ProgramDetail }) {
 
   return (
     <div className="grid gap-4 lg:grid-cols-[1fr_280px] lg:items-start">
-      <div className="flex min-w-0 flex-col gap-6">
+      <div className="flex min-w-0 flex-col gap-4">
         {program.semesters.map((semester) => (
-          <section key={semester.semester} className="flex flex-col gap-2">
-            <div className="flex items-baseline justify-between gap-3">
-              <h2 className="text-lg font-semibold">Học kỳ {semester.semester}</h2>
-              <span className="text-sm text-muted tabular-nums">
+          <SectionCard
+            key={semester.semester}
+            flush
+            title={`Học kỳ ${semester.semester}`}
+            extra={
+              <span className="text-sm font-normal text-muted tabular-nums">
                 {semester.courses.length} học phần · {semester.credits} tín chỉ
               </span>
-            </div>
-            <Table rowKey="code" size="small" columns={COLUMNS} dataSource={semester.courses} pagination={false} scroll={{ x: 640 }} />
-          </section>
+            }
+          >
+            <Table rowKey="code" size="small" columns={COLUMNS} dataSource={semester.courses} pagination={false} scroll={{ x: "max-content" }} />
+          </SectionCard>
         ))}
       </div>
       <SectionCard className="lg:sticky lg:top-20">

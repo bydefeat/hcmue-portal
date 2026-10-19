@@ -25,31 +25,31 @@ export default async function Page() {
         <div className="flex min-w-0 flex-col gap-4">
           <SectionCard title="Lớp cố vấn">
             <div className="flex flex-col gap-3">
-            {advisedClasses.length === 0 ? (
-              <p className="text-sm text-muted">Bạn chưa được phân công cố vấn lớp nào.</p>
-            ) : (
-              <ul className="flex flex-col divide-y divide-border-strong">
-                {advisedClasses.map((entry) => (
-                  <li key={entry.className} className="flex items-center justify-between gap-3 py-2 text-sm">
-                    <span className="flex min-w-0 flex-col">
-                      {entry.className}
-                      <span className="text-xs text-muted">
-                        {entry.majorName}, khóa {entry.cohort}
+              {advisedClasses.length === 0 ? (
+                <p className="text-sm text-muted">Bạn chưa được phân công cố vấn lớp nào.</p>
+              ) : (
+                <ul className="flex flex-col divide-y divide-border-strong">
+                  {advisedClasses.map((entry) => (
+                    <li key={entry.className} className="flex items-center justify-between gap-3 py-2 text-sm">
+                      <span className="flex min-w-0 flex-col">
+                        {entry.className}
+                        <span className="text-xs text-muted">
+                          {entry.majorName}, khóa {entry.cohort}
+                        </span>
                       </span>
-                    </span>
-                    <span className="shrink-0 text-muted tabular-nums">{entry.studentCount} sinh viên</span>
-                  </li>
-                ))}
-              </ul>
-            )}
-            {advisedClasses.length > 0 && (
-              <Link href="/lecturer/advising/students" className="text-sm">
-                Xem sinh viên cố vấn
-              </Link>
-            )}
+                      <span className="shrink-0 text-muted tabular-nums">{entry.studentCount} sinh viên</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {advisedClasses.length > 0 && (
+                <Link href="/lecturer/advising/students" className="text-sm">
+                  Xem sinh viên cố vấn
+                </Link>
+              )}
             </div>
           </SectionCard>
-          <SectionCard title="Lịch sử giảng dạy">
+          <SectionCard title="Lớp giảng dạy theo học kỳ">
             {withSections.length === 0 ? (
               <EmptyState title="Chưa có lớp học phần" />
             ) : (

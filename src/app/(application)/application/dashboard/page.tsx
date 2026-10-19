@@ -180,7 +180,7 @@ export default async function Page() {
           </div>
 
           <div className="flex min-w-0 flex-col gap-4 sm:gap-6">
-            <SectionCard title="Đăng ký học phần" extra={<Link href="/application/registration" className="text-sm">Mở</Link>} flush>
+            <SectionCard title="Đăng ký học phần" extra={<Link href="/application/registration" className="text-sm">Đến trang đăng ký</Link>} flush>
               <div className="flex flex-col gap-2 px-4 py-3 sm:px-5">
                 {period ? (
                   <>

@@ -77,13 +77,13 @@ export function RegulationForm({ regulation, versions }: RegulationFormProps) {
                 rowKey="key"
                 pagination={false}
                 dataSource={fields}
-                scroll={{ x: 360 }}
+                scroll={{ x: 280 }}
                 className="mb-4"
                 columns={[
                   {
                     title: "Điểm chữ",
                     key: "letter",
-                    width: 96,
+                    width: 72,
                     render: (_, field) => (
                       <Form.Item name={[field.name, "letter"]} noStyle>
                         <Input readOnly variant="borderless" className="w-16 px-0 font-medium" />
@@ -95,7 +95,7 @@ export function RegulationForm({ regulation, versions }: RegulationFormProps) {
                     key: "min",
                     render: (_, field) => (
                       <Form.Item name={[field.name, "min"]} className="mb-0" rules={[{ required: true, message: "Chưa nhập" }]}>
-                        <InputNumber min={0} max={10} step={0.5} decimalSeparator="," className="w-28 tabular-nums" />
+                        <InputNumber min={0} max={10} step={0.5} decimalSeparator="," className="w-full max-w-28 tabular-nums" />
                       </Form.Item>
                     ),
                   },
@@ -104,7 +104,7 @@ export function RegulationForm({ regulation, versions }: RegulationFormProps) {
                     key: "point4",
                     render: (_, field) => (
                       <Form.Item name={[field.name, "point4"]} className="mb-0" rules={[{ required: true, message: "Chưa nhập" }]}>
-                        <InputNumber min={0} max={4} step={0.5} decimalSeparator="," className="w-28 tabular-nums" />
+                        <InputNumber min={0} max={4} step={0.5} decimalSeparator="," className="w-full max-w-28 tabular-nums" />
                       </Form.Item>
                     ),
                   },
@@ -152,7 +152,7 @@ export function RegulationForm({ regulation, versions }: RegulationFormProps) {
           </div>
         </SectionCard>
 
-        <Card size="small" className="sticky bottom-24 z-10 lg:bottom-4">
+        <Card size="small" className="sticky bottom-[calc(74px+env(safe-area-inset-bottom))] z-10 lg:bottom-4">
           <div className="flex flex-wrap items-center justify-end gap-2">
             {isDirty ? <StatusTag status={{ label: "Có thay đổi chưa lưu", tone: "warning" }} /> : <span className="text-xs text-muted">Không có thay đổi</span>}
             <Button
@@ -213,12 +213,12 @@ export function RegulationForm({ regulation, versions }: RegulationFormProps) {
         <p className="mb-4 text-sm text-pretty text-muted">
           Quy chế mới ảnh hưởng đến xét cảnh báo, đăng ký học phần và quy đổi điểm của toàn trường. Ghi rõ căn cứ để lưu vào nhật ký.
         </p>
-        <Form form={saveForm} layout="vertical" onFinish={save} initialValues={{ effectiveFrom: dayjs().add(1, "day") }}>
+        <Form form={saveForm} layout="vertical" onFinish={save}>
           <Form.Item name="reason" label="Căn cứ, lý do thay đổi" rules={[{ required: true, whitespace: true, message: "Chưa nhập căn cứ thay đổi" }]}>
-            <Input.TextArea autoSize={{ minRows: 2, maxRows: 4 }} maxLength={300} showCount />
+            <Input.TextArea autoSize={{ minRows: 2, maxRows: 4 }} maxLength={300} showCount className="mb-2" />
           </Form.Item>
           <Form.Item name="effectiveFrom" label="Áp dụng từ ngày" rules={[{ required: true, message: "Chưa chọn ngày áp dụng" }]}>
-            <DatePicker format="DD/MM/YYYY" className="w-full" disabledDate={(date) => date.isBefore(dayjs().startOf("day"))} />
+            <DatePicker format="DD/MM/YYYY" placeholder="Chọn ngày" className="w-full" disabledDate={(date) => date.isBefore(dayjs().startOf("day"))} />
           </Form.Item>
         </Form>
       </Modal>

@@ -28,11 +28,15 @@ const MENU_KEY = "menu";
 const SPRING = { type: "spring", stiffness: 400, damping: 30 } as const;
 const HIDE_TRANSITION = { duration: 0.28, ease: [0.16, 1, 0.3, 1] } as const;
 
+const TYPING_INPUT_TYPES = new Set(["text", "search", "email", "tel", "number", "password", "url"]);
+
 function isTextField(element: Element | null) {
-  return (
-    element instanceof HTMLElement &&
-    (element.tagName === "INPUT" || element.tagName === "TEXTAREA" || element.isContentEditable)
-  );
+  if (!(element instanceof HTMLElement)) return false;
+  if (element.isContentEditable) return true;
+  if (element instanceof HTMLTextAreaElement) return !element.readOnly;
+  if (!(element instanceof HTMLInputElement)) return false;
+  if (element.readOnly || element.getAttribute("role") === "combobox") return false;
+  return TYPING_INPUT_TYPES.has(element.type);
 }
 
 function classes(...values: (string | false | undefined)[]) {
@@ -105,7 +109,7 @@ export function MobileNavigation({ dockItems, sections, homeHref, hideFrom, acti
         )}
       >
         <LayoutGroup id="mobile-dock">
-          <div className="flex h-[54px] items-center justify-around rounded-[22px] border border-border-strong bg-surface/90 p-1.5 shadow-[0_6px_16px_-6px_rgba(0,0,0,0.18)] backdrop-blur-xl">
+          <div className="flex h-[54px] items-center justify-around rounded-[22px] border border-border-strong bg-surface p-1.5 shadow-sm">
             {dockItems.map((item) => (
               <DockLink key={item.href} item={item} isActive={activeKey === item.href} />
             ))}
@@ -152,7 +156,7 @@ export function MobileNavigation({ dockItems, sections, homeHref, hideFrom, acti
           {sections.map((section, index) => (
             <div key={section.title ?? index} className="space-y-1">
               {section.title && (
-                <div className="px-2 pb-1 text-[10px] font-extrabold tracking-widest text-muted uppercase">
+                <div className="px-2 pb-1 text-xs font-medium text-muted">
                   {section.title}
                 </div>
               )}
@@ -166,11 +170,11 @@ export function MobileNavigation({ dockItems, sections, homeHref, hideFrom, acti
                     onClick={close}
                     aria-current={isActive ? "page" : undefined}
                     className={classes(
-                      "flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-xs font-bold tracking-wider uppercase transition-colors",
+                      "flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
                       isActive ? "bg-primary/10 text-primary" : "text-foreground hover:bg-item-hover",
                     )}
                   >
-                    {Icon && <Icon size={16} aria-hidden className="shrink-0" />}
+                    {Icon && <Icon size={16} aria-hidden className={classes("shrink-0", !isActive && "text-zinc-500")} />}
                     <span className="truncate">{item.label}</span>
                   </Link>
                 );
@@ -204,7 +208,7 @@ function DockIcon({ icon: Icon, isActive }: { icon: NonNullable<NavItem["icon"]>
           layoutId="mobile-dock-dot"
           aria-hidden
           transition={SPRING}
-          className="absolute -bottom-0.5 size-1 rounded-full bg-primary shadow-[0_0_6px_var(--primary)]"
+          className="absolute -bottom-0.5 size-1 rounded-full bg-primary"
         />
       )}
     </>
@@ -217,7 +221,7 @@ function DockLink({ item, isActive }: { item: NavItem; isActive: boolean }) {
       href={item.href}
       aria-label={item.label}
       aria-current={isActive ? "page" : undefined}
-      className={classes(DOCK_ITEM_CLASS, isActive ? "text-primary" : "text-foreground opacity-55")}
+      className={classes(DOCK_ITEM_CLASS, isActive ? "text-primary" : "text-zinc-500")}
     >
       {item.icon && <DockIcon icon={item.icon} isActive={isActive} />}
     </Link>
@@ -232,7 +236,7 @@ function DockButton({ isActive, isOpen, onPress }: { isActive: boolean; isOpen: 
       aria-controls="mobile-sidebar"
       aria-expanded={isOpen}
       onClick={onPress}
-      className={classes(DOCK_ITEM_CLASS, isActive ? "text-primary" : "text-foreground opacity-55")}
+      className={classes(DOCK_ITEM_CLASS, isActive ? "text-primary" : "text-zinc-500")}
     >
       <DockIcon icon={Menu} isActive={isActive} />
     </button>

@@ -45,12 +45,12 @@ export function StandingLegend({ summaries }: { summaries: FacultyStandingSummar
 
 export function StandingReport({ summaries }: { summaries: FacultyStandingSummary[] }) {
   const columns: TableColumnsType<FacultyStandingSummary> = [
-    { title: "Khoa", dataIndex: "faculty", width: 220, fixed: "left" },
-    { title: "Sinh viên", dataIndex: "total", width: 96, align: "right", render: (value: number) => <span className="tabular-nums">{value}</span> },
+    { title: "Khoa", dataIndex: "faculty", width: 200 },
+    { title: <span className="whitespace-nowrap">Sinh viên</span>, dataIndex: "total", width: 100, align: "right", responsive: ["md"], render: (value: number) => <span className="tabular-nums">{value}</span> },
     {
-      title: "CPA TB",
+      title: <span className="whitespace-nowrap">CPA TB</span>,
       dataIndex: "averageCpa",
-      width: 90,
+      width: 100,
       align: "right",
       sorter: (a, b) => a.averageCpa - b.averageCpa,
       render: (value: number) => <span className="tabular-nums">{formatPoint(value)}</span>,
@@ -58,22 +58,25 @@ export function StandingReport({ summaries }: { summaries: FacultyStandingSummar
     {
       title: "Phân bố xếp loại",
       key: "distribution",
-      width: 320,
+      width: 300,
+      responsive: ["md"],
       render: (_, row) => <DistributionBar counts={row.counts} total={row.total} />,
     },
     {
-      title: "Giỏi trở lên",
+      title: <span className="whitespace-nowrap">Giỏi trở lên</span>,
       key: "top",
-      width: 110,
+      width: 120,
+      responsive: ["lg"],
       align: "right",
       render: (_, row) => (
         <span className="tabular-nums">{Math.round(((row.counts.excellent + row.counts["very-good"]) / row.total) * 100)}%</span>
       ),
     },
     {
-      title: "Cảnh báo",
+      title: <span className="whitespace-nowrap">Cảnh báo</span>,
       dataIndex: "warnings",
-      width: 96,
+      width: 100,
+      responsive: ["md"],
       align: "right",
       sorter: (a, b) => a.warnings - b.warnings,
       render: (value: number) => <span className={`tabular-nums ${value > 0 ? "font-medium text-amber-700" : ""}`}>{value}</span>,
@@ -89,7 +92,7 @@ export function StandingReport({ summaries }: { summaries: FacultyStandingSummar
         columns={columns}
         dataSource={summaries}
         pagination={false}
-        scroll={{ x: 940 }}
+        scroll={{ x: "max-content" }}
         locale={{ emptyText: <EmptyState icon={ChartPie} title="Chưa có dữ liệu xếp loại" description="Kết quả học tập sẽ được tổng hợp khi học kỳ đầu tiên kết thúc." /> }}
       />
     </div>

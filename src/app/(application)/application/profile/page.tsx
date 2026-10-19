@@ -24,9 +24,9 @@ export default async function Page() {
               <div className="flex flex-col gap-2">
                 <p className="font-medium">{advisor.displayName}</p>
                 <p className="text-xs text-muted">{advisor.faculty}</p>
-                <a href={`mailto:${advisor.email}`} className="flex items-center gap-2 text-sm break-all">
+                <a href={`mailto:${advisor.email}`} title={advisor.email} className="flex min-w-0 items-center gap-2 text-sm">
                   <Envelope size={16} aria-hidden className="shrink-0 text-muted" />
-                  {advisor.email}
+                  <span className="truncate">{advisor.email}</span>
                 </a>
                 <a href={`tel:${advisor.phone}`} className="flex items-center gap-2 text-sm tabular-nums">
                   <Phone size={16} aria-hidden className="shrink-0 text-muted" />

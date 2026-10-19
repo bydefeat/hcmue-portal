@@ -106,7 +106,7 @@ export default async function Page() {
           />
         ))}
 
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 2xl:grid-cols-5">
+        <div className="flex flex-wrap gap-3 *:min-w-40 *:flex-1 *:basis-48">
           {can(viewer, "requests.process") && (
             <StatTile
               label="Đơn từ chờ xử lý"

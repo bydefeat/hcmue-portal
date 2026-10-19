@@ -74,8 +74,7 @@ export function TeachingAssignmentBoard({ sections, lecturers, terms, termId }: 
     {
       title: "Giảng viên",
       key: "lecturer",
-      width: 240,
-      fixed: "left",
+      width: 180,
       render: (_, row) => (
         <span className="flex min-w-0 flex-col">
           <span className="truncate font-medium">{row.displayName}</span>
@@ -86,7 +85,8 @@ export function TeachingAssignmentBoard({ sections, lecturers, terms, termId }: 
     {
       title: "Lớp phụ trách",
       key: "sections",
-      width: 260,
+      width: 240,
+      responsive: ["lg"],
       render: (_, row) =>
         row.sections.length === 0 ? (
           <span className="text-muted">Chưa có</span>
@@ -94,11 +94,11 @@ export function TeachingAssignmentBoard({ sections, lecturers, terms, termId }: 
           <span className="flex flex-wrap gap-x-2 text-xs">{row.sections.map((section) => <span key={section.id}>{section.code}</span>)}</span>
         ),
     },
-    { title: "Tiết/tuần", dataIndex: "periodsPerWeek", width: 90, align: "right", sorter: (a, b) => a.periodsPerWeek - b.periodsPerWeek, render: (value: number) => <span className="tabular-nums">{value}</span> },
+    { title: <span className="whitespace-nowrap">Tiết/tuần</span>, dataIndex: "periodsPerWeek", width: 110, align: "right", responsive: ["md"], sorter: (a, b) => a.periodsPerWeek - b.periodsPerWeek, render: (value: number) => <span className="tabular-nums">{value}</span> },
     {
       title: "Giờ chuẩn / định mức",
       key: "hours",
-      width: 230,
+      width: 170,
       sorter: (a, b) => a.ratio - b.ratio,
       render: (_, row) => {
         const state = loadStateOf(row);
@@ -115,56 +115,60 @@ export function TeachingAssignmentBoard({ sections, lecturers, terms, termId }: 
     {
       title: "Đánh giá",
       key: "state",
-      width: 160,
+      width: 140,
+      responsive: ["md"],
       render: (_, row) => {
         const state = loadStateOf(row);
         return state === "balanced" ? <span className="text-muted">Trong định mức</span> : <StatusTag status={LOAD_STATE[state]} />;
       },
     },
-    { title: "", key: "leave", width: 110, render: (_, row) => (row.status === "on-leave" ? <StatusTag status={{ label: "Nghỉ phép", tone: "warning" }} /> : null) },
+    { title: "", key: "leave", width: 100, responsive: ["md"], render: (_, row) => (row.status === "on-leave" ? <StatusTag status={{ label: "Nghỉ phép", tone: "warning" }} /> : null) },
   ];
+
+  const lecturerSelect = (section: ClassSectionView) => {
+    const options = [...lecturers]
+      .sort((a, b) => Number(b.faculty === section.faculty) - Number(a.faculty === section.faculty))
+      .map((lecturer) => ({
+        value: lecturer.id,
+        disabled: lecturer.status === "on-leave",
+        label: `${lecturer.displayName}${lecturer.faculty === section.faculty ? "" : ` (${lecturer.faculty})`}`,
+      }));
+    return (
+      <Select
+        allowClear
+        showSearch={{ optionFilterProp: "label" }}
+        value={section.lecturerId ?? undefined}
+        placeholder="Chưa phân công"
+        status={section.lecturerId ? undefined : "warning"}
+        onChange={(value?: string) => assign(section, value ?? null)}
+        options={options}
+        aria-label={`Giảng viên lớp ${section.code}`}
+        className="w-full min-w-44"
+      />
+    );
+  };
 
   const sectionColumns: TableColumnsType<ClassSectionView> = [
     {
       title: "Lớp học phần",
       key: "section",
-      width: 260,
-      fixed: "left",
+      width: 240,
       render: (_, section) => (
         <span className="flex min-w-0 flex-col">
           <span className="text-xs">{section.code}</span>
           <span className="truncate">{section.courseName}</span>
+          <span className="mt-2 md:hidden">{lecturerSelect(section)}</span>
         </span>
       ),
     },
-    { title: "Lịch học", key: "schedule", width: 260, render: (_, section) => <span className="text-xs text-muted">{section.meetings.map(meetingText).join("; ")}</span> },
-    { title: "Sĩ số", key: "size", width: 90, align: "right", render: (_, section) => <span className="tabular-nums">{section.enrolled}/{section.capacity}</span> },
+    { title: "Lịch học", key: "schedule", width: 240, responsive: ["md"], render: (_, section) => <span className="text-xs text-muted">{section.meetings.map(meetingText).join("; ")}</span> },
+    { title: "Sĩ số", key: "size", width: 90, align: "right", responsive: ["md"], render: (_, section) => <span className="tabular-nums">{section.enrolled}/{section.capacity}</span> },
     {
       title: "Giảng viên",
       key: "lecturer",
-      width: 300,
-      render: (_, section) => {
-        const options = [...lecturers]
-          .sort((a, b) => Number(b.faculty === section.faculty) - Number(a.faculty === section.faculty))
-          .map((lecturer) => ({
-            value: lecturer.id,
-            disabled: lecturer.status === "on-leave",
-            label: `${lecturer.displayName}${lecturer.faculty === section.faculty ? "" : ` (${lecturer.faculty})`}`,
-          }));
-        return (
-          <Select
-            allowClear
-            showSearch={{ optionFilterProp: "label" }}
-            value={section.lecturerId ?? undefined}
-            placeholder="Chưa phân công"
-            status={section.lecturerId ? undefined : "warning"}
-            onChange={(value?: string) => assign(section, value ?? null)}
-            options={options}
-            aria-label={`Giảng viên lớp ${section.code}`}
-            className="w-full"
-          />
-        );
-      },
+      width: 280,
+      responsive: ["md"],
+      render: (_, section) => lecturerSelect(section),
     },
   ];
 
@@ -172,7 +176,13 @@ export function TeachingAssignmentBoard({ sections, lecturers, terms, termId }: 
     <div className="flex flex-col gap-3">
       {contextHolder}
       <div className="flex flex-wrap items-center gap-2">
-        <Segmented value={termId} onChange={(value) => router.push(`/administrator/teaching-assignments?term=${value}`)} options={terms.map((term) => ({ value: term.id, label: term.name }))} block className="w-full max-w-full sm:w-auto" />
+        <Select
+          value={termId}
+          onChange={(value: string) => router.push(`/administrator/teaching-assignments?term=${value}`)}
+          aria-label="Học kỳ"
+          options={terms.map((term) => ({ value: term.id, label: term.name }))}
+          className="w-full sm:w-80"
+        />
         <Input allowClear value={query} onChange={(event) => setQuery(event.target.value)} prefix={<Magnifier size={16} aria-hidden className="text-muted" />} placeholder="Giảng viên, mã lớp, học phần" aria-label="Tìm" className="w-full sm:w-64" />
         <Select allowClear value={faculty} onChange={setFaculty} placeholder="Mọi khoa" aria-label="Khoa" options={faculties.map((value) => ({ value, label: value }))} className="w-full sm:w-60" />
       </div>
@@ -189,7 +199,7 @@ export function TeachingAssignmentBoard({ sections, lecturers, terms, termId }: 
                   size="small"
                   columns={workloadColumns}
                   dataSource={visibleWorkloads}
-                  scroll={{ x: 1100 }}
+                  scroll={{ x: "max-content" }}
                   pagination={{ pageSize: 25, hideOnSinglePage: true }}
                   locale={{ emptyText: <EmptyState icon={Suitcase} title="Không có giảng viên khớp bộ lọc" /> }}
                 />
@@ -208,14 +218,14 @@ export function TeachingAssignmentBoard({ sections, lecturers, terms, termId }: 
                     { value: "all", label: "Tất cả lớp" },
                     { value: "unassigned", label: "Chưa có giảng viên" },
                   ]}
-                  className="w-fit"
+                  className="w-fit max-w-full"
                 />
                 <Table
                   rowKey="id"
                   size="small"
                   columns={sectionColumns}
                   dataSource={visibleSections}
-                  scroll={{ x: 950 }}
+                  scroll={{ x: "max-content" }}
                   pagination={{ pageSize: 25, hideOnSinglePage: true }}
                   locale={{ emptyText: <EmptyState icon={Suitcase} title={onlyUnassigned ? "Mọi lớp đã có giảng viên" : "Không có lớp khớp bộ lọc"} /> }}
                 />

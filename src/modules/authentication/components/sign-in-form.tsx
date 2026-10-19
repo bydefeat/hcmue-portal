@@ -42,12 +42,12 @@ export function SignInForm({ defaultUsername }: { defaultUsername?: string }) {
         <Form.Item name="password" label="Mật khẩu" rules={[{ required: true, message: "Chưa nhập mật khẩu" }]}>
           <Input.Password autoFocus={Boolean(defaultUsername)} autoComplete="current-password" placeholder="Nhập mật khẩu" />
         </Form.Item>
-        <Button type="primary" htmlType="submit" block loading={isPending}>
+        <Button type="primary" htmlType="submit" block loading={isPending} className="mt-2">
           Đăng nhập
         </Button>
       </Form>
       <Divider className="my-6" />
-      <Link href={forgotHref} className="text-sm text-foreground hover:underline">
+      <Link href={forgotHref} className="text-sm text-primary hover:underline">
         Quên mật khẩu?
       </Link>
       <div className="mt-6 flex flex-col gap-2">

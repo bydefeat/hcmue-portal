@@ -34,6 +34,32 @@ const COLUMNS: TableColumnsType<TranscriptCourse> = [
   },
 ];
 
+function CourseList({ courses }: { courses: TranscriptCourse[] }) {
+  if (courses.length === 0) return <div className="md:hidden"><EmptyState title="Không có học phần" /></div>;
+  return (
+    <ul className="flex flex-col divide-y divide-border md:hidden">
+      {courses.map((course) => (
+        <li key={course.courseCode} className="flex items-start gap-3 py-2">
+          <span className="flex min-w-0 flex-1 flex-col">
+            <span className="text-sm text-pretty">{course.courseName}</span>
+            <span className="text-xs text-muted tabular-nums">
+              {course.courseCode} · {course.credits} TC
+            </span>
+          </span>
+          <span className="flex shrink-0 flex-col items-end">
+            <span className={`text-sm font-medium tabular-nums ${course.letter === "F" ? "text-rose-700" : ""}`}>{course.letter ?? "Chưa có điểm"}</span>
+            {course.score10 !== null && (
+              <span className="text-xs text-muted tabular-nums">
+                {formatPoint(course.score10, 1)} · {formatPoint(course.point4, 1)}
+              </span>
+            )}
+          </span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 function TermSummary({ term }: { term: TranscriptTerm }) {
   if (term.isInProgress) {
     return <span className="text-xs text-muted tabular-nums">Đang học · {term.attemptedCredits} tín chỉ</span>;
@@ -53,7 +79,7 @@ function TermSummary({ term }: { term: TranscriptTerm }) {
   );
 }
 
-export function TranscriptView({ terms }: { terms: TranscriptTerm[] }) {
+export function TranscriptView({ terms, inCard = false }: { terms: TranscriptTerm[]; inCard?: boolean }) {
   if (terms.length === 0) {
     return <EmptyState title="Chưa có kết quả học tập" description="Sinh viên chưa hoàn thành học kỳ nào." />;
   }
@@ -62,6 +88,8 @@ export function TranscriptView({ terms }: { terms: TranscriptTerm[] }) {
 
   return (
     <Collapse
+      bordered={!inCard}
+      ghost={inCard}
       defaultActiveKey={defaultOpen ? [defaultOpen] : []}
       items={ordered.map((term) => ({
         key: term.termId,
@@ -72,7 +100,10 @@ export function TranscriptView({ terms }: { terms: TranscriptTerm[] }) {
           </span>
         ),
         children: (
-          <Table
+          <>
+            <CourseList courses={term.courses} />
+            <Table
+            className="hidden md:block"
             rowKey="courseCode"
             size="small"
             columns={COLUMNS}
@@ -81,6 +112,7 @@ export function TranscriptView({ terms }: { terms: TranscriptTerm[] }) {
             scroll={{ x: 560 }}
             locale={{ emptyText: <EmptyState title="Không có học phần" /> }}
           />
+          </>
         ),
       }))}
     />

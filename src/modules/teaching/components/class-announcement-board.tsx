@@ -82,15 +82,15 @@ export function ClassAnnouncementBoard({ announcements, classSectionId, classCod
 
   const remove = (announcement: ClassAnnouncement) =>
     modal.confirm({
-      title: "Gỡ thông báo này?",
+      title: "Xóa thông báo này?",
       content: "Sinh viên sẽ không còn thấy thông báo trên cổng. Email đã gửi không thu hồi được.",
-      okText: "Gỡ thông báo",
+      okText: "Xóa thông báo",
       okButtonProps: { danger: true },
       cancelText: "Giữ lại",
       mask: { closable: false },
       onOk: () => {
         setRows((current) => current.filter((row) => row.id !== announcement.id));
-        messageApi.success("Đã gỡ thông báo");
+        messageApi.success("Đã xóa thông báo");
       },
     });
 
@@ -121,7 +121,7 @@ export function ClassAnnouncementBoard({ announcements, classSectionId, classCod
             <li key={announcement.id}>
               <Card size="small">
                 <div className="flex flex-col gap-2">
-                  <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="flex items-start justify-between gap-2">
                     <div className="flex min-w-0 flex-col gap-1">
                       <h2 className="flex items-center gap-2 text-base font-semibold text-pretty">
                         {announcement.isPinned && <Pin size={16} aria-label="Đã ghim" className="shrink-0 text-primary" />}
@@ -145,16 +145,24 @@ export function ClassAnnouncementBoard({ announcements, classSectionId, classCod
                         )}
                       </span>
                     </div>
-                    <div className="flex shrink-0 gap-2">
+                    <div className="hidden shrink-0 gap-2 sm:flex">
                       <Button size="small" onClick={() => openCompose(announcement)}>
                         Sửa
                       </Button>
                       <Button size="small" danger onClick={() => remove(announcement)}>
-                        Gỡ
+                        Xóa
                       </Button>
                     </div>
                   </div>
                   <p className="max-w-prose text-sm text-pretty whitespace-pre-line">{announcement.body}</p>
+                  <div className="flex justify-end gap-2 sm:hidden">
+                    <Button size="small" onClick={() => openCompose(announcement)}>
+                      Sửa
+                    </Button>
+                    <Button size="small" danger onClick={() => remove(announcement)}>
+                      Xóa
+                    </Button>
+                  </div>
                 </div>
               </Card>
             </li>
@@ -178,7 +186,7 @@ export function ClassAnnouncementBoard({ announcements, classSectionId, classCod
           </div>
         }
       >
-        <Form form={form} layout="vertical" onFinish={submit} initialValues={{ isPinned: false, sendEmail: true, schedule: false }}>
+        <Form form={form} layout="vertical" onFinish={submit} initialValues={{ isPinned: false, sendEmail: false, schedule: false }}>
           <Form.Item name="title" label="Tiêu đề" rules={[{ required: true, whitespace: true, message: "Chưa nhập tiêu đề" }]}>
             <Input maxLength={120} showCount />
           </Form.Item>

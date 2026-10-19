@@ -3,8 +3,9 @@
 import { useState } from "react";
 import { useRouter } from "@bprogress/next/app";
 import { Button, Checkbox, Input, message, Select, Table, Tooltip, type TableColumnsType } from "antd";
-import { AlertWarning, Magnifier, Plus, PresentationScreen } from "defeat-icons-react";
+import { AlertWarning, Magnifier, Pen, Plus, PresentationScreen } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
+import { PageHeader } from "@/shared/components/ui/page-header";
 import { MeterBar } from "@/shared/components/ui/meter-bar";
 import { StatusTag } from "@/shared/components/ui/status-tag";
 import {
@@ -26,6 +27,7 @@ type ClassSectionTableProps = {
   initialQuery?: string;
   courses: SectionCourseOption[];
   lecturers: SectionLecturerOption[];
+  header: { title: string; description?: React.ReactNode };
 };
 
 function normalize(value: string) {
@@ -40,7 +42,7 @@ function withConflicts(sections: ClassSectionView[]) {
   }));
 }
 
-export function ClassSectionTable({ sections, terms, termId, initialQuery = "", courses, lecturers }: ClassSectionTableProps) {
+export function ClassSectionTable({ sections, terms, termId, initialQuery = "", courses, lecturers, header }: ClassSectionTableProps) {
   const router = useRouter();
   const [messageApi, contextHolder] = message.useMessage();
   const [rows, setRows] = useState(sections);
@@ -138,17 +140,33 @@ export function ClassSectionTable({ sections, terms, termId, initialQuery = "", 
     }
   };
 
+  const statusOf = (row: ClassSectionView) =>
+    row.status === "open" && row.isFull ? (
+      <StatusTag status={CLASS_FULL_STATUS} />
+    ) : row.status === "open" ? (
+      <span className="text-xs text-muted">{CLASS_SECTION_STATUS.open.label}</span>
+    ) : (
+      <StatusTag status={CLASS_SECTION_STATUS[row.status]} />
+    );
+
   const columns: TableColumnsType<ClassSectionView> = [
     {
       title: "Lớp học phần",
       key: "section",
-      fixed: "left",
-      width: 260,
+      width: 250,
       sorter: (a, b) => a.code.localeCompare(b.code),
       render: (_, row) => (
         <span className="flex min-w-0 flex-col">
           <span className="text-xs font-medium">{row.code}</span>
           <span className="text-pretty">{row.courseName}</span>
+          <span className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted md:hidden">
+            {statusOf(row)}
+            <span className="tabular-nums">
+              {row.enrolled}/{row.capacity} chỗ
+            </span>
+            <span>{row.lecturerName ?? "Chưa phân công"}</span>
+            {row.conflicts.length > 0 && <span className="font-medium text-rose-700">{row.conflicts.length} xung đột</span>}
+          </span>
           {row.audience && <span className="text-xs text-pretty text-amber-700">{audienceText(row.audience)}</span>}
           {row.reservedSeats.map((seat) => (
             <span key={seat.label} className="text-xs text-pretty text-muted tabular-nums">
@@ -162,19 +180,22 @@ export function ClassSectionTable({ sections, terms, termId, initialQuery = "", 
       title: "TC",
       dataIndex: "credits",
       width: 56,
+      responsive: ["md"],
       align: "right",
       render: (value: number) => <span className="tabular-nums">{value}</span>,
     },
     {
       title: "Giảng viên",
       dataIndex: "lecturerName",
-      width: 200,
+      width: 180,
+      responsive: ["md"],
       render: (value: string | null) => (value ? value : <span className="text-amber-700">Chưa phân công</span>),
     },
     {
       title: "Lịch học",
       key: "meetings",
-      width: 260,
+      width: 220,
+      responsive: ["md"],
       render: (_, row) => (
         <ul className="flex flex-col gap-0.5 text-xs">
           {row.meetings.map((meeting) => (
@@ -191,7 +212,8 @@ export function ClassSectionTable({ sections, terms, termId, initialQuery = "", 
     {
       title: "Sĩ số",
       key: "enrolled",
-      width: 130,
+      width: 120,
+      responsive: ["md"],
       sorter: (a, b) => a.enrolled / a.capacity - b.enrolled / b.capacity,
       render: (_, row) => (
         <span className="flex flex-col gap-1">
@@ -205,20 +227,15 @@ export function ClassSectionTable({ sections, terms, termId, initialQuery = "", 
     {
       title: "Trạng thái",
       key: "status",
-      width: 130,
-      render: (_, row) =>
-        row.status === "open" && row.isFull ? (
-          <StatusTag status={CLASS_FULL_STATUS} />
-        ) : row.status === "open" ? (
-          <span className="text-xs text-muted">{CLASS_SECTION_STATUS.open.label}</span>
-        ) : (
-          <StatusTag status={CLASS_SECTION_STATUS[row.status]} />
-        ),
+      width: 120,
+      responsive: ["md"],
+      render: (_, row) => statusOf(row),
     },
     {
       title: "Xung đột",
       dataIndex: "conflicts",
-      width: 130,
+      width: 110,
+      responsive: ["md"],
       render: (conflicts: ClassSectionView["conflicts"]) =>
         conflicts.length > 0 ? (
           <Tooltip
@@ -242,8 +259,9 @@ export function ClassSectionTable({ sections, terms, termId, initialQuery = "", 
       key: "actions",
       width: 72,
       align: "right",
+      fixed: "right",
       render: (_, row) => (
-        <Button size="small" type="text" onClick={() => openForm(row)}>
+        <Button size="small" type="text" icon={<Pen size={14} aria-hidden className="text-zinc-500" />} onClick={() => openForm(row)} aria-label={`Sửa ${row.code}`}>
           Sửa
         </Button>
       ),
@@ -251,82 +269,89 @@ export function ClassSectionTable({ sections, terms, termId, initialQuery = "", 
   ];
 
   return (
-    <div className="flex flex-col gap-3">
+    <>
       {contextHolder}
-      <div className="flex flex-wrap items-center gap-2">
-        <Select
-          value={termId}
-          onChange={(value: string) => router.push(`/administrator/class-sections?term=${value}`)}
-          aria-label="Học kỳ"
-          options={terms.map((entry) => ({ value: entry.id, label: entry.name }))}
-          className="w-full sm:w-72"
+      <PageHeader
+        {...header}
+        actions={
+          <Button type="primary" icon={<Plus size={16} aria-hidden />} onClick={() => openForm(null)}>
+            Mở lớp
+          </Button>
+        }
+      />
+      <div className="flex flex-col gap-3">
+        <div className="grid grid-cols-2 items-center gap-2 sm:flex sm:flex-wrap">
+          <Select
+            value={termId}
+            onChange={(value: string) => router.push(`/administrator/class-sections?term=${value}`)}
+            aria-label="Học kỳ"
+            options={terms.map((entry) => ({ value: entry.id, label: entry.name }))}
+            className="col-span-2 w-full sm:w-72"
+          />
+          <Input
+            allowClear
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            prefix={<Magnifier size={16} aria-hidden className="text-muted" />}
+            placeholder="Mã lớp, học phần hoặc giảng viên"
+            aria-label="Tìm lớp học phần"
+            className="col-span-2 w-full sm:w-72"
+          />
+          <Select
+            allowClear
+            value={faculty}
+            onChange={setFaculty}
+            placeholder="Mọi khoa"
+            aria-label="Khoa"
+            options={faculties.map((value) => ({ value, label: value }))}
+            className="min-w-0 sm:w-56"
+          />
+          <Select
+            allowClear
+            value={status}
+            onChange={setStatus}
+            placeholder="Mọi trạng thái"
+            aria-label="Trạng thái"
+            options={CLASS_SECTION_STATUS_OPTIONS}
+            className="min-w-0 sm:w-40"
+          />
+          <Checkbox checked={onlyConflicts} onChange={(event) => setOnlyConflicts(event.target.checked)} className="col-span-2">
+            Chỉ lớp có xung đột
+          </Checkbox>
+        </div>
+        <p className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted tabular-nums">
+          <span>{rows.length} lớp</span>
+          {conflictCount > 0 && <span className="text-rose-700">{conflictCount} lớp trùng lịch phòng hoặc giảng viên</span>}
+          {unassignedCount > 0 && <span className="text-amber-700">{unassignedCount} lớp chưa có giảng viên</span>}
+          {fullCount > 0 && <span>{fullCount} lớp đã đủ chỗ</span>}
+        </p>
+        <Table
+          rowKey="id"
+          size="small"
+          columns={columns}
+          dataSource={filtered}
+          scroll={{ x: "max-content" }}
+          pagination={{ pageSize: 20, hideOnSinglePage: true, showTotal: (total) => `${total} lớp` }}
+          locale={{
+            emptyText: (
+              <EmptyState
+                icon={PresentationScreen}
+                title={rows.length === 0 ? "Học kỳ này chưa mở lớp nào" : "Không có lớp khớp bộ lọc"}
+                description={rows.length === 0 ? "Mở lớp đầu tiên để sinh viên có lớp đăng ký." : "Thử bỏ bớt điều kiện lọc."}
+              />
+            ),
+          }}
         />
-        <Input
-          allowClear
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          prefix={<Magnifier size={16} aria-hidden className="text-muted" />}
-          placeholder="Mã lớp, học phần hoặc giảng viên"
-          aria-label="Tìm lớp học phần"
-          className="w-full sm:w-72"
+        <ClassSectionFormDrawer
+          open={isOpen}
+          section={editing}
+          termName={term?.name ?? ""}
+          courses={courses}
+          lecturers={lecturers}
+          onClose={() => setIsOpen(false)}
+          onSubmit={submit}
         />
-        <Select
-          allowClear
-          value={faculty}
-          onChange={setFaculty}
-          placeholder="Mọi khoa"
-          aria-label="Khoa"
-          options={faculties.map((value) => ({ value, label: value }))}
-          className="min-w-0 flex-1 sm:w-56 sm:flex-none"
-        />
-        <Select
-          allowClear
-          value={status}
-          onChange={setStatus}
-          placeholder="Mọi trạng thái"
-          aria-label="Trạng thái"
-          options={CLASS_SECTION_STATUS_OPTIONS}
-          className="min-w-0 flex-1 sm:w-40 sm:flex-none"
-        />
-        <Checkbox checked={onlyConflicts} onChange={(event) => setOnlyConflicts(event.target.checked)}>
-          Chỉ lớp có xung đột
-        </Checkbox>
-        <Button type="primary" icon={<Plus size={16} aria-hidden />} onClick={() => openForm(null)} className="w-full sm:ml-auto sm:w-auto">
-          Mở lớp
-        </Button>
       </div>
-      <p className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted tabular-nums">
-        <span>{rows.length} lớp</span>
-        {conflictCount > 0 && <span className="text-rose-700">{conflictCount} lớp trùng lịch phòng hoặc giảng viên</span>}
-        {unassignedCount > 0 && <span className="text-amber-700">{unassignedCount} lớp chưa có giảng viên</span>}
-        {fullCount > 0 && <span>{fullCount} lớp đã đủ chỗ</span>}
-      </p>
-      <Table
-        rowKey="id"
-        size="small"
-        columns={columns}
-        dataSource={filtered}
-        scroll={{ x: 1250 }}
-        pagination={{ pageSize: 20, hideOnSinglePage: true, showTotal: (total) => `${total} lớp` }}
-        locale={{
-          emptyText: (
-            <EmptyState
-              icon={PresentationScreen}
-              title={rows.length === 0 ? "Học kỳ này chưa mở lớp nào" : "Không có lớp khớp bộ lọc"}
-              description={rows.length === 0 ? "Mở lớp đầu tiên để sinh viên có lớp đăng ký." : "Thử bỏ bớt điều kiện lọc."}
-            />
-          ),
-        }}
-      />
-      <ClassSectionFormDrawer
-        open={isOpen}
-        section={editing}
-        termName={term?.name ?? ""}
-        courses={courses}
-        lecturers={lecturers}
-        onClose={() => setIsOpen(false)}
-        onSubmit={submit}
-      />
-    </div>
+    </>
   );
 }

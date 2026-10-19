@@ -1,11 +1,11 @@
 import type { StatusMeta } from "@/shared/constants/status.constant";
 import type { AttendanceStatus } from "./schedule.type";
 
-export const ATTENDANCE_STATUS: Record<AttendanceStatus, StatusMeta & { short: string }> = {
-  present: { label: "Có mặt", short: "C", tone: "success" },
-  late: { label: "Đi trễ", short: "T", tone: "warning" },
-  excused: { label: "Vắng có phép", short: "P", tone: "neutral" },
-  absent: { label: "Vắng", short: "V", tone: "danger" },
+export const ATTENDANCE_STATUS: Record<AttendanceStatus, StatusMeta> = {
+  present: { label: "Có mặt", tone: "success" },
+  late: { label: "Đi trễ", tone: "warning" },
+  excused: { label: "Vắng có phép", tone: "neutral" },
+  absent: { label: "Vắng", tone: "danger" },
 };
 
 export const ATTENDANCE_OPTIONS = (Object.keys(ATTENDANCE_STATUS) as AttendanceStatus[]).map((value) => ({

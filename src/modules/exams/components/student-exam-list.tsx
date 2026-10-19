@@ -28,6 +28,11 @@ function whenText(date: string) {
   return { text: `Còn ${days} ngày`, className: days <= 7 ? "text-amber-700" : "text-muted" };
 }
 
+function weekdayText(date: string) {
+  const text = dayjs(date).format("dddd");
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
 function endTime(start: string, minutes: number) {
   return dayjs(`2000-01-01T${start}`).add(minutes, "minute").format("HH:mm");
 }
@@ -75,9 +80,9 @@ export function StudentExamList({ items, absenceLimitPercent }: { items: Student
             return (
               <li key={exam.id}>
                 <Card size="small" classNames={{ body: "flex flex-col gap-3 sm:flex-row sm:items-start" }}>
-                  <div className="flex w-24 shrink-0 flex-row items-baseline gap-2 sm:flex-col sm:gap-0">
+                  <div className="flex shrink-0 flex-row items-baseline gap-2 whitespace-nowrap sm:w-24 sm:flex-col sm:gap-0">
                     <span className="text-lg font-semibold tabular-nums">{dayjs(exam.date).format("DD/MM")}</span>
-                    <span className="text-xs text-muted capitalize">{dayjs(exam.date).format("dddd")}</span>
+                    <span className="text-xs text-muted">{weekdayText(exam.date)}</span>
                   </div>
                   <div className="flex min-w-0 flex-1 flex-col gap-1">
                     <div className="flex flex-wrap items-center gap-2">

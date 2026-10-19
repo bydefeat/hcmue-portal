@@ -94,7 +94,7 @@ export default async function Page() {
       <div className="flex flex-col gap-4 sm:gap-6">
         <div className="grid gap-4 sm:gap-6 lg:grid-cols-3">
           <div className="min-w-0 lg:col-span-2">
-            <SectionCard flush title="Lịch dạy hôm nay" extra={<Link href="/lecturer/schedule" className="text-sm">Cả tuần</Link>}>
+            <SectionCard flush title="Lịch dạy hôm nay" extra={<Link href="/lecturer/schedule" className="text-sm">Cả tuần</Link>} className="h-full">
               {todaySlots.length === 0 ? (
                 <EmptyState
                   icon={CalendarCheck}
@@ -157,14 +157,14 @@ export default async function Page() {
                       <span className="flex items-center gap-3 sm:w-56">
                         <MeterBar value={summary.filledCells} max={summary.totalCells} label="Đã nhập" />
                         <span className="shrink-0 text-xs text-muted tabular-nums">
-                          {summary.filledCells}/{summary.totalCells} ô
+                          {summary.filledCells}/{summary.totalCells} điểm
                         </span>
                       </span>
                       <span className="flex shrink-0 items-center gap-2 sm:w-48 sm:justify-end">
                         <span className={`text-xs tabular-nums ${summary.state === "overdue" ? "text-rose-700" : "text-amber-700"}`}>
                           {deadlineText(summary.deadline)}
                         </span>
-                        <StatusTag status={GRADE_SHEET_STATE[summary.state]} />
+                        {summary.state !== "overdue" && <StatusTag status={GRADE_SHEET_STATE[summary.state]} />}
                       </span>
                     </Link>
                   </li>

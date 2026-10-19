@@ -1,4 +1,4 @@
-import { mockDate } from "@/shared/libs/mock.lib";
+import { mockDate, mockSectionId } from "@/shared/libs/mock.lib";
 import type { AppNotification } from "@/modules/notifications/notifications.type";
 
 export const NOTIFICATIONS: AppNotification[] = [
@@ -9,7 +9,7 @@ export const NOTIFICATIONS: AppNotification[] = [
   { id: "nt-a05", audience: "administrator", kind: "exam", title: "6 giảng viên chưa nộp đề thi cuối kỳ", body: "Hạn nộp đề cho Phòng Khảo thí còn 5 ngày.", href: "/administrator/exams", createdAt: mockDate(-3, "08:00"), isRead: true },
   { id: "nt-a06", audience: "administrator", kind: "system", title: "Võ Thanh Trang được cấp quyền Giáo vụ khoa", body: "Người cấp: Trần Minh Khoa.", href: "/administrator/settings/access", createdAt: mockDate(-3, "10:20"), isRead: true },
 
-  { id: "nt-l01", audience: "lecturer", kind: "deadline", title: "Bảng điểm COMP1080.01 đã quá hạn nhập", body: "Hạn là 23:59 hôm qua. Hoàn tất và chốt điểm để khoa duyệt.", href: "/lecturer/classes/hk1-2026-comp1080-01/grading", createdAt: mockDate(0, "00:05"), isRead: false },
+  { id: "nt-l01", audience: "lecturer", kind: "deadline", title: "Bảng điểm COMP1080.01 đã quá hạn nhập", body: "Hạn là 23:59 hôm qua. Hoàn tất và chốt điểm để khoa duyệt.", href: `/lecturer/classes/${mockSectionId("hk1-2026", "COMP1080.01")}/grading`, createdAt: mockDate(0, "00:05"), isRead: false },
   { id: "nt-l02", audience: "lecturer", kind: "request", title: "2 đơn phúc khảo cần chấm lại", body: "Lớp COMP1070.01, hạn trả kết quả 5 ngày làm việc.", href: "/lecturer/requests", createdAt: mockDate(-1, "14:22"), isRead: false },
   { id: "nt-l03", audience: "lecturer", kind: "advising", title: "Kế hoạch học tập mới chờ duyệt", body: "Sinh viên lớp 50.01.CNTT.A vừa nộp kế hoạch học kỳ 2.", href: "/lecturer/advising/study-plans", createdAt: mockDate(-1, "09:10"), isRead: false },
   { id: "nt-l04", audience: "lecturer", kind: "exam", title: "Bạn được phân công coi thi giữa kỳ", body: "Môn Xác suất thống kê. Xem giờ thi và phòng thi ở mục Lịch thi.", href: "/lecturer/exams", createdAt: mockDate(-2, "15:00"), isRead: true },

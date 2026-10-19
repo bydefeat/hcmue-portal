@@ -1,5 +1,5 @@
 import { dayjs } from "@/shared/libs/date.lib";
-import { createRandom, mockLecturerIdentity, mockStudentIdentity } from "@/shared/libs/mock.lib";
+import { createRandom, mockLecturerIdentity, mockStudentIdentity, mockStudentIndex } from "@/shared/libs/mock.lib";
 import { mockDelay } from "@/shared/libs/mock-request.lib";
 import { conflictsOf, periodState } from "@/modules/course-registration/course-registration.constant";
 import {
@@ -116,7 +116,7 @@ function normHoursOf(title: string) {
 
 export async function getStudentEnrollments(studentId: string, termId: string): Promise<StudentEnrollment[]> {
   await mockDelay();
-  const index = Number(studentId.replace("sv-", ""));
+  const index = mockStudentIndex(studentId);
   const term = TERMS.find((entry) => entry.id === termId);
   if (!term) return [];
   return CLASS_SECTIONS.filter((section) => section.termId === termId && section.status !== "cancelled")

@@ -3,6 +3,7 @@ import {
   mockDate,
   MOCK_COHORTS,
   MOCK_MAJORS,
+  mockId,
   mockLecturerIdentity,
   mockStudentIdentity,
   pickOne,
@@ -107,9 +108,9 @@ export const LECTURERS: Lecturer[] = LECTURER_IDENTITIES.map((identity) => {
   };
 });
 
-export const CURRENT_LECTURER_ID = "gv-0";
+export const CURRENT_LECTURER_ID = mockId("lecturer:0");
 
-export const CURRENT_STUDENT_ID = "sv-12";
+export const CURRENT_STUDENT_ID = mockId("student:12");
 
 export const MAJORS = MOCK_MAJORS;
 
@@ -133,7 +134,7 @@ export const DECISIONS: StudentDecision[] = DECISION_SEEDS.map(([index, kind, st
   const student = STUDENTS[index];
   const signed = status === "signed" || status === "revoked";
   return {
-    id: `qd-${position + 1}`,
+    id: mockId(`decision:${position + 1}`),
     number: signed || status === "pending-signature" ? `${1180 + position * 7}/QĐ-ĐHSP` : null,
     kind,
     studentId: student.id,

@@ -1,5 +1,5 @@
 import { dayjs } from "@/shared/libs/date.lib";
-import { mockDate, mockLecturerIdentity } from "@/shared/libs/mock.lib";
+import { mockDate, mockLecturerIdentity, mockSectionId, mockTermId } from "@/shared/libs/mock.lib";
 import type { ExamFormat, ExamPaperStatus, ExamSession } from "@/modules/exams/exams.type";
 
 type Seed = [sectionId: string, code: string, courseName: string, lecturerIndex: number | null, candidates: number, faculty: string, format: ExamFormat];
@@ -7,24 +7,24 @@ type Seed = [sectionId: string, code: string, courseName: string, lecturerIndex:
 const IT = "Khoa Công nghệ Thông tin";
 
 const SECTIONS: Seed[] = [
-  ["hk1-2026-comp1020-01", "COMP1020.01", "Cấu trúc dữ liệu và giải thuật", 0, 42, IT, "written"],
-  ["hk1-2026-comp1020-02", "COMP1020.02", "Cấu trúc dữ liệu và giải thuật", 0, 38, IT, "written"],
-  ["hk1-2026-comp1070-01", "COMP1070.01", "Phát triển ứng dụng web", 0, 40, IT, "project"],
-  ["hk1-2026-comp1080-01", "COMP1080.01", "Trí tuệ nhân tạo", 0, 47, IT, "written"],
-  ["hk1-2026-comp1010-01", "COMP1010.01", "Lập trình cơ bản", 6, 49, IT, "practical"],
-  ["hk1-2026-comp1010-02", "COMP1010.02", "Lập trình cơ bản", 12, 44, IT, "practical"],
-  ["hk1-2026-comp1031-01", "COMP1031.01", "Lập trình hướng đối tượng", 18, 45, IT, "practical"],
-  ["hk1-2026-comp1040-01", "COMP1040.01", "Cơ sở dữ liệu", 6, 41, IT, "multiple-choice"],
-  ["hk1-2026-comp1060-01", "COMP1060.01", "Hệ điều hành", 12, 36, IT, "written"],
-  ["hk1-2026-comp1090-01", "COMP1090.01", "Công nghệ phần mềm", 18, 39, IT, "project"],
-  ["hk1-2026-math1011-01", "MATH1011.01", "Giải tích 1", 1, 58, "Khoa Toán - Tin học", "written"],
-  ["hk1-2026-math1013-01", "MATH1013.01", "Xác suất thống kê", 7, 52, "Khoa Toán - Tin học", "written"],
-  ["hk1-2026-math2001-01", "MATH2001.01", "Giải tích 2", 13, 31, "Khoa Toán - Tin học", "written"],
-  ["hk1-2026-litr1010-01", "LITR1010.01", "Văn học Việt Nam hiện đại", 2, 47, "Khoa Ngữ văn", "written"],
-  ["hk1-2026-engl1002-01", "ENGL1002.01", "Tiếng Anh 2", 3, 35, "Khoa Tiếng Anh", "oral"],
-  ["hk1-2026-phys1010-01", "PHYS1010.01", "Điện và từ", 4, 34, "Khoa Vật lý", "written"],
-  ["hk1-2026-psyc1001-01", "PSYC1001.01", "Tâm lý học giáo dục", 5, 76, "Khoa Tâm lý học", "multiple-choice"],
-  ["hk1-2026-poli1001-01", "POLI1001.01", "Triết học Mác - Lênin", null, 118, "Khoa Lý luận chính trị", "multiple-choice"],
+  [mockSectionId("hk1-2026", "COMP1020.01"), "COMP1020.01", "Cấu trúc dữ liệu và giải thuật", 0, 42, IT, "written"],
+  [mockSectionId("hk1-2026", "COMP1020.02"), "COMP1020.02", "Cấu trúc dữ liệu và giải thuật", 0, 38, IT, "written"],
+  [mockSectionId("hk1-2026", "COMP1070.01"), "COMP1070.01", "Phát triển ứng dụng web", 0, 40, IT, "project"],
+  [mockSectionId("hk1-2026", "COMP1080.01"), "COMP1080.01", "Trí tuệ nhân tạo", 0, 47, IT, "written"],
+  [mockSectionId("hk1-2026", "COMP1010.01"), "COMP1010.01", "Lập trình cơ bản", 6, 49, IT, "practical"],
+  [mockSectionId("hk1-2026", "COMP1010.02"), "COMP1010.02", "Lập trình cơ bản", 12, 44, IT, "practical"],
+  [mockSectionId("hk1-2026", "COMP1031.01"), "COMP1031.01", "Lập trình hướng đối tượng", 18, 45, IT, "practical"],
+  [mockSectionId("hk1-2026", "COMP1040.01"), "COMP1040.01", "Cơ sở dữ liệu", 6, 41, IT, "multiple-choice"],
+  [mockSectionId("hk1-2026", "COMP1060.01"), "COMP1060.01", "Hệ điều hành", 12, 36, IT, "written"],
+  [mockSectionId("hk1-2026", "COMP1090.01"), "COMP1090.01", "Công nghệ phần mềm", 18, 39, IT, "project"],
+  [mockSectionId("hk1-2026", "MATH1011.01"), "MATH1011.01", "Giải tích 1", 1, 58, "Khoa Toán - Tin học", "written"],
+  [mockSectionId("hk1-2026", "MATH1013.01"), "MATH1013.01", "Xác suất thống kê", 7, 52, "Khoa Toán - Tin học", "written"],
+  [mockSectionId("hk1-2026", "MATH2001.01"), "MATH2001.01", "Giải tích 2", 13, 31, "Khoa Toán - Tin học", "written"],
+  [mockSectionId("hk1-2026", "LITR1010.01"), "LITR1010.01", "Văn học Việt Nam hiện đại", 2, 47, "Khoa Ngữ văn", "written"],
+  [mockSectionId("hk1-2026", "ENGL1002.01"), "ENGL1002.01", "Tiếng Anh 2", 3, 35, "Khoa Tiếng Anh", "oral"],
+  [mockSectionId("hk1-2026", "PHYS1010.01"), "PHYS1010.01", "Điện và từ", 4, 34, "Khoa Vật lý", "written"],
+  [mockSectionId("hk1-2026", "PSYC1001.01"), "PSYC1001.01", "Tâm lý học giáo dục", 5, 76, "Khoa Tâm lý học", "multiple-choice"],
+  [mockSectionId("hk1-2026", "POLI1001.01"), "POLI1001.01", "Triết học Mác - Lênin", null, 118, "Khoa Lý luận chính trị", "multiple-choice"],
 ];
 
 const ROOMS_FOR: Record<ExamFormat, string[]> = {
@@ -54,7 +54,7 @@ function build(seed: Seed, index: number, kind: "midterm" | "final"): ExamSessio
   const isPast = dayjs(date).isBefore(dayjs().startOf("day"));
   return {
     id: `thi-${kind}-${code.toLowerCase()}`,
-    termId: "hk1-2026",
+    termId: mockTermId("hk1-2026"),
     kind,
     classSectionId: sectionId,
     classCode: code,

@@ -1,20 +1,20 @@
-import { createRandom, mockDate, mockLecturerIdentity, mockStudentIdentity } from "@/shared/libs/mock.lib";
+import { createRandom, mockDate, mockId, mockLecturerIdentity, mockSectionId, mockStudentIdentity, mockTermId } from "@/shared/libs/mock.lib";
 import type { ClassMeeting, ClassSection, ClassSectionStatus, RegistrationHold, RegistrationPeriod, ReservedSeat, SectionAudience, Term } from "@/modules/course-registration/course-registration.type";
 
 export const TERMS: Term[] = [
-  { id: "hk2-2025", code: "2025-2026.2", name: "Học kỳ 2, năm học 2025-2026", shortName: "HK2 2025-2026", startDate: "2026-02-23", endDate: "2026-06-27", isCurrent: false, isRegistrationTarget: false },
-  { id: "hk3-2025", code: "2025-2026.3", name: "Học kỳ hè, năm học 2025-2026", shortName: "Hè 2025-2026", startDate: "2026-07-06", endDate: "2026-08-15", isCurrent: false, isRegistrationTarget: false },
-  { id: "hk1-2026", code: "2026-2027.1", name: "Học kỳ 1, năm học 2026-2027", shortName: "HK1 2026-2027", startDate: "2026-09-07", endDate: "2027-01-16", isCurrent: true, isRegistrationTarget: false },
-  { id: "hk2-2026", code: "2026-2027.2", name: "Học kỳ 2, năm học 2026-2027", shortName: "HK2 2026-2027", startDate: "2027-02-22", endDate: "2027-06-26", isCurrent: false, isRegistrationTarget: true },
+  { id: mockTermId("hk2-2025"), code: "2025-2026.2", name: "Học kỳ 2, năm học 2025-2026", shortName: "HK2 2025-2026", startDate: "2026-02-23", endDate: "2026-06-27", isCurrent: false, isRegistrationTarget: false },
+  { id: mockTermId("hk3-2025"), code: "2025-2026.3", name: "Học kỳ hè, năm học 2025-2026", shortName: "Hè 2025-2026", startDate: "2026-07-06", endDate: "2026-08-15", isCurrent: false, isRegistrationTarget: false },
+  { id: mockTermId("hk1-2026"), code: "2026-2027.1", name: "Học kỳ 1, năm học 2026-2027", shortName: "HK1 2026-2027", startDate: "2026-09-07", endDate: "2027-01-16", isCurrent: true, isRegistrationTarget: false },
+  { id: mockTermId("hk2-2026"), code: "2026-2027.2", name: "Học kỳ 2, năm học 2026-2027", shortName: "HK2 2026-2027", startDate: "2027-02-22", endDate: "2027-06-26", isCurrent: false, isRegistrationTarget: true },
 ];
 
 export const REGISTRATION_PERIODS: RegistrationPeriod[] = [
-  { id: "dot-hk1-1", termId: "hk1-2026", name: "Đợt 1, khóa 48 và 49", cohorts: [48, 49], opensAt: "2026-08-03T01:00:00Z", closesAt: "2026-08-09T10:00:00Z", minCredits: 14, maxCredits: 25, eligibleStudents: 268, registeredStudents: 259 },
-  { id: "dot-hk1-2", termId: "hk1-2026", name: "Đợt 2, khóa 50 và 51", cohorts: [50, 51], opensAt: "2026-08-12T01:00:00Z", closesAt: "2026-08-18T10:00:00Z", minCredits: 14, maxCredits: 25, eligibleStudents: 300, registeredStudents: 296 },
-  { id: "dot-hk1-3", termId: "hk1-2026", name: "Đợt điều chỉnh", cohorts: [48, 49, 50, 51], opensAt: "2026-09-07T01:00:00Z", closesAt: "2026-09-13T10:00:00Z", minCredits: 14, maxCredits: 25, eligibleStudents: 568, registeredStudents: 74 },
-  { id: "dot-hk2-1", termId: "hk2-2026", name: "Đợt 1, khóa 48 và 49", cohorts: [48, 49], opensAt: mockDate(-4, "08:00"), closesAt: mockDate(1, "17:00"), minCredits: 14, maxCredits: 25, eligibleStudents: 268, registeredStudents: 187 },
-  { id: "dot-hk2-2", termId: "hk2-2026", name: "Đợt 2, khóa 50 và 51", cohorts: [50, 51], opensAt: mockDate(5, "08:00"), closesAt: mockDate(11, "17:00"), minCredits: 14, maxCredits: 25, eligibleStudents: 300, registeredStudents: 0 },
-  { id: "dot-hk2-3", termId: "hk2-2026", name: "Đợt điều chỉnh", cohorts: [48, 49, 50, 51], opensAt: mockDate(24, "08:00"), closesAt: mockDate(28, "17:00"), minCredits: 14, maxCredits: 25, eligibleStudents: 568, registeredStudents: 0 },
+  { id: mockId("period:dot-hk1-1"), termId: mockTermId("hk1-2026"), name: "Đợt 1, khóa 48 và 49", cohorts: [48, 49], opensAt: "2026-08-03T01:00:00Z", closesAt: "2026-08-09T10:00:00Z", minCredits: 14, maxCredits: 25, eligibleStudents: 268, registeredStudents: 259 },
+  { id: mockId("period:dot-hk1-2"), termId: mockTermId("hk1-2026"), name: "Đợt 2, khóa 50 và 51", cohorts: [50, 51], opensAt: "2026-08-12T01:00:00Z", closesAt: "2026-08-18T10:00:00Z", minCredits: 14, maxCredits: 25, eligibleStudents: 300, registeredStudents: 296 },
+  { id: mockId("period:dot-hk1-3"), termId: mockTermId("hk1-2026"), name: "Đợt điều chỉnh", cohorts: [48, 49, 50, 51], opensAt: "2026-09-07T01:00:00Z", closesAt: "2026-09-13T10:00:00Z", minCredits: 14, maxCredits: 25, eligibleStudents: 568, registeredStudents: 74 },
+  { id: mockId("period:dot-hk2-1"), termId: mockTermId("hk2-2026"), name: "Đợt 1, khóa 48 và 49", cohorts: [48, 49], opensAt: mockDate(-4, "08:00"), closesAt: mockDate(1, "17:00"), minCredits: 14, maxCredits: 25, eligibleStudents: 268, registeredStudents: 187 },
+  { id: mockId("period:dot-hk2-2"), termId: mockTermId("hk2-2026"), name: "Đợt 2, khóa 50 và 51", cohorts: [50, 51], opensAt: mockDate(5, "08:00"), closesAt: mockDate(11, "17:00"), minCredits: 14, maxCredits: 25, eligibleStudents: 300, registeredStudents: 0 },
+  { id: mockId("period:dot-hk2-3"), termId: mockTermId("hk2-2026"), name: "Đợt điều chỉnh", cohorts: [48, 49, 50, 51], opensAt: mockDate(24, "08:00"), closesAt: mockDate(28, "17:00"), minCredits: 14, maxCredits: 25, eligibleStudents: 568, registeredStudents: 0 },
 ];
 
 export const COURSE_INFO: Record<string, { name: string; credits: number; faculty: string }> = {
@@ -152,7 +152,7 @@ export const REGISTRATION_HOLDS: RegistrationHold[] = [
 ].map(([index, kind, blocking, reason, resolveHint], position) => {
   const student = mockStudentIdentity(index as number);
   return {
-    id: `khoa-${position + 1}`,
+    id: mockId(`hold:${position + 1}`),
     studentId: student.id,
     studentCode: student.code,
     studentName: student.fullName,
@@ -173,14 +173,20 @@ function meeting([dayOfWeek, startPeriod, endPeriod, room]: SectionSeed[5][numbe
   return { dayOfWeek, startPeriod, endPeriod, room };
 }
 
-function buildSections(termId: string, seeds: SectionSeed[]): ClassSection[] {
+// Khóa cũ của lớp ("hk1-2026-comp1020-01") vẫn làm hạt giống chọn sinh viên vào lớp, để danh sách lớp không đổi khi id thành uuid.
+const SECTION_ROSTER_KEY = new Map<string, string>();
+
+function buildSections(termKey: string, seeds: SectionSeed[]): ClassSection[] {
+  const termId = mockTermId(termKey);
   const term = TERMS.find((entry) => entry.id === termId)!;
   return seeds.map(([courseCode, sectionNumber, lecturerIndex, capacity, enrolled, meetings, status = "open"]) => {
     const info = COURSE_INFO[courseCode];
     const lecturer = lecturerIndex === null ? null : mockLecturerIdentity(lecturerIndex);
     const code = `${courseCode}.${String(sectionNumber).padStart(2, "0")}`;
+    const id = mockSectionId(termKey, code);
+    SECTION_ROSTER_KEY.set(id, `${termKey}-${code.toLowerCase().replace(".", "-")}`);
     return {
-      id: `${termId}-${code.toLowerCase().replace(".", "-")}`,
+      id,
       code,
       termId,
       courseCode,
@@ -196,10 +202,10 @@ function buildSections(termId: string, seeds: SectionSeed[]): ClassSection[] {
       startDate: term.startDate,
       endDate: term.endDate,
       minEnrollment: MIN_ENROLLMENT,
-      audience: AUDIENCES[`${termId}:${code}`] ?? null,
-      reservedSeats: RESERVED[`${termId}:${code}`] ?? [],
-      labGroups: (LABS[`${termId}:${code}`] ?? []).map(([labCode, day, start, end, room, labCapacity, labEnrolled]) => ({
-        id: `${termId}-${code}-${labCode}`.toLowerCase().replace(/\./g, "-"),
+      audience: AUDIENCES[`${termKey}:${code}`] ?? null,
+      reservedSeats: RESERVED[`${termKey}:${code}`] ?? [],
+      labGroups: (LABS[`${termKey}:${code}`] ?? []).map(([labCode, day, start, end, room, labCapacity, labEnrolled]) => ({
+        id: mockId(`lab:${termKey}:${code}.${labCode}`),
         code: `${code}.${labCode}`,
         meeting: { dayOfWeek: day, startPeriod: start, endPeriod: end, room },
         capacity: labCapacity,
@@ -218,7 +224,8 @@ const STUDENT_POOL_SIZE = 600;
 const MAJOR_COUNT = 6;
 
 export function rosterIndices(sectionId: string, size: number, preferMajor: number) {
-  const random = createRandom([...sectionId].reduce((sum, char) => (sum * 31 + char.charCodeAt(0)) >>> 0, 7));
+  const seedKey = SECTION_ROSTER_KEY.get(sectionId) ?? sectionId;
+  const random = createRandom([...seedKey].reduce((sum, char) => (sum * 31 + char.charCodeAt(0)) >>> 0, 7));
   const preferred = Array.from({ length: STUDENT_POOL_SIZE / MAJOR_COUNT }, (_, index) => index * MAJOR_COUNT + preferMajor);
   const others = Array.from({ length: STUDENT_POOL_SIZE }, (_, index) => index).filter((index) => index % MAJOR_COUNT !== preferMajor);
   const shuffle = (values: number[]) =>

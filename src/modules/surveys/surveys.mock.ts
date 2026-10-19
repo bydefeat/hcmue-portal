@@ -1,9 +1,9 @@
-import { createRandom, mockDate, mockLecturerIdentity } from "@/shared/libs/mock.lib";
+import { createRandom, mockDate, mockLecturerIdentity, mockSectionId, mockTermId } from "@/shared/libs/mock.lib";
 import type { SectionSurveyResult, Survey } from "@/modules/surveys/surveys.type";
 
 export const SURVEY: Survey = {
   id: "ks-hk1-2026",
-  termId: "hk1-2026",
+  termId: mockTermId("hk1-2026"),
   title: "Khảo sát ý kiến người học về hoạt động giảng dạy, học kỳ 1, năm học 2026-2027",
   opensAt: mockDate(-5, "08:00"),
   closesAt: mockDate(30, "23:59"),
@@ -22,19 +22,19 @@ export const SURVEY: Survey = {
 type Seed = [sectionId: string, code: string, name: string, lecturerIndex: number | null, faculty: string, enrolled: number, quality: number];
 
 const SEEDS: Seed[] = [
-  ["hk1-2026-comp1020-01", "COMP1020.01", "Cấu trúc dữ liệu và giải thuật", 0, "Khoa Công nghệ Thông tin", 42, 4.4],
-  ["hk1-2026-comp1020-02", "COMP1020.02", "Cấu trúc dữ liệu và giải thuật", 0, "Khoa Công nghệ Thông tin", 38, 4.2],
-  ["hk1-2026-comp1070-01", "COMP1070.01", "Phát triển ứng dụng web", 0, "Khoa Công nghệ Thông tin", 40, 4.6],
-  ["hk1-2026-comp1080-01", "COMP1080.01", "Trí tuệ nhân tạo", 0, "Khoa Công nghệ Thông tin", 47, 4.1],
-  ["hk1-2026-comp1010-01", "COMP1010.01", "Lập trình cơ bản", 6, "Khoa Công nghệ Thông tin", 49, 3.9],
-  ["hk1-2026-comp1031-01", "COMP1031.01", "Lập trình hướng đối tượng", 18, "Khoa Công nghệ Thông tin", 45, 4.3],
-  ["hk1-2026-comp1060-01", "COMP1060.01", "Hệ điều hành", 12, "Khoa Công nghệ Thông tin", 36, 3.4],
-  ["hk1-2026-math1011-01", "MATH1011.01", "Giải tích 1", 1, "Khoa Toán - Tin học", 58, 4.0],
-  ["hk1-2026-math1013-01", "MATH1013.01", "Xác suất thống kê", 7, "Khoa Toán - Tin học", 52, 3.2],
-  ["hk1-2026-litr1010-01", "LITR1010.01", "Văn học Việt Nam hiện đại", 2, "Khoa Ngữ văn", 47, 4.5],
-  ["hk1-2026-engl1002-01", "ENGL1002.01", "Tiếng Anh 2", 3, "Khoa Tiếng Anh", 35, 4.7],
-  ["hk1-2026-phys1010-01", "PHYS1010.01", "Điện và từ", 4, "Khoa Vật lý", 34, 3.8],
-  ["hk1-2026-psyc1001-01", "PSYC1001.01", "Tâm lý học giáo dục", 5, "Khoa Tâm lý học", 76, 4.2],
+  [mockSectionId("hk1-2026", "COMP1020.01"), "COMP1020.01", "Cấu trúc dữ liệu và giải thuật", 0, "Khoa Công nghệ Thông tin", 42, 4.4],
+  [mockSectionId("hk1-2026", "COMP1020.02"), "COMP1020.02", "Cấu trúc dữ liệu và giải thuật", 0, "Khoa Công nghệ Thông tin", 38, 4.2],
+  [mockSectionId("hk1-2026", "COMP1070.01"), "COMP1070.01", "Phát triển ứng dụng web", 0, "Khoa Công nghệ Thông tin", 40, 4.6],
+  [mockSectionId("hk1-2026", "COMP1080.01"), "COMP1080.01", "Trí tuệ nhân tạo", 0, "Khoa Công nghệ Thông tin", 47, 4.1],
+  [mockSectionId("hk1-2026", "COMP1010.01"), "COMP1010.01", "Lập trình cơ bản", 6, "Khoa Công nghệ Thông tin", 49, 3.9],
+  [mockSectionId("hk1-2026", "COMP1031.01"), "COMP1031.01", "Lập trình hướng đối tượng", 18, "Khoa Công nghệ Thông tin", 45, 4.3],
+  [mockSectionId("hk1-2026", "COMP1060.01"), "COMP1060.01", "Hệ điều hành", 12, "Khoa Công nghệ Thông tin", 36, 3.4],
+  [mockSectionId("hk1-2026", "MATH1011.01"), "MATH1011.01", "Giải tích 1", 1, "Khoa Toán - Tin học", 58, 4.0],
+  [mockSectionId("hk1-2026", "MATH1013.01"), "MATH1013.01", "Xác suất thống kê", 7, "Khoa Toán - Tin học", 52, 3.2],
+  [mockSectionId("hk1-2026", "LITR1010.01"), "LITR1010.01", "Văn học Việt Nam hiện đại", 2, "Khoa Ngữ văn", 47, 4.5],
+  [mockSectionId("hk1-2026", "ENGL1002.01"), "ENGL1002.01", "Tiếng Anh 2", 3, "Khoa Tiếng Anh", 35, 4.7],
+  [mockSectionId("hk1-2026", "PHYS1010.01"), "PHYS1010.01", "Điện và từ", 4, "Khoa Vật lý", 34, 3.8],
+  [mockSectionId("hk1-2026", "PSYC1001.01"), "PSYC1001.01", "Tâm lý học giáo dục", 5, "Khoa Tâm lý học", 76, 4.2],
 ];
 
 const COMMENTS_GOOD = [

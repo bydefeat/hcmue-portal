@@ -1,4 +1,4 @@
-import { mockDate, mockLecturerIdentity, mockStudentIdentity } from "@/shared/libs/mock.lib";
+import { mockDate, mockId, mockLecturerIdentity, mockStudentIdentity } from "@/shared/libs/mock.lib";
 import type { Appointment, AppointmentStudent, MeetingNote } from "@/modules/advising/advising.type";
 
 const ADVISOR = mockLecturerIdentity(0);
@@ -24,8 +24,8 @@ export const APPOINTMENTS: Appointment[] = [
 ];
 
 export const MEETING_NOTES: MeetingNote[] = [
-  { id: "gc-01", studentId: "sv-60", at: mockDate(-3, "10:30"), author: ADVISOR.displayName, topic: "Bảo lưu", content: "Sinh viên điều trị dài ngày, đề nghị bảo lưu 1 học kỳ. Đã kiểm tra học phí đã đóng đủ.", followUp: "Theo dõi đơn bảo lưu tại khoa" },
-  { id: "gc-02", studentId: "sv-6", at: mockDate(-9, "15:30"), author: ADVISOR.displayName, topic: "Cảnh báo học vụ", content: "Sinh viên vắng buổi hẹn. CPA 1,87, nợ môn Xác suất thống kê.", followUp: "Hẹn lại trong tuần" },
-  { id: "gc-03", studentId: "sv-156", at: mockDate(-14, "09:15"), author: ADVISOR.displayName, topic: "Thực tập", content: "Sinh viên muốn thực tập mảng phát triển web. Đã giới thiệu doanh nghiệp đối tác của khoa.", followUp: null },
-  { id: "gc-04", studentId: "sv-12", at: mockDate(-30, "16:00"), author: ADVISOR.displayName, topic: "Học vượt", content: "Sinh viên học lực xuất sắc, muốn đăng ký 28 tín chỉ học kỳ 2. Đồng ý hướng dẫn làm đơn.", followUp: null },
+  { id: "gc-01", studentId: mockId("student:60"), at: mockDate(-3, "10:30"), author: ADVISOR.displayName, topic: "Bảo lưu", content: "Sinh viên điều trị dài ngày, đề nghị bảo lưu 1 học kỳ. Đã kiểm tra học phí đã đóng đủ.", followUp: "Theo dõi đơn bảo lưu tại khoa" },
+  { id: "gc-02", studentId: mockId("student:6"), at: mockDate(-9, "15:30"), author: ADVISOR.displayName, topic: "Cảnh báo học vụ", content: "Sinh viên vắng buổi hẹn. CPA 1,87, nợ môn Xác suất thống kê.", followUp: "Hẹn lại trong tuần" },
+  { id: "gc-03", studentId: mockId("student:156"), at: mockDate(-14, "09:15"), author: ADVISOR.displayName, topic: "Thực tập", content: "Sinh viên muốn thực tập mảng phát triển web. Đã giới thiệu doanh nghiệp đối tác của khoa.", followUp: null },
+  { id: "gc-04", studentId: mockId("student:12"), at: mockDate(-30, "16:00"), author: ADVISOR.displayName, topic: "Học vượt", content: "Sinh viên học lực xuất sắc, muốn đăng ký 28 tín chỉ học kỳ 2. Đồng ý hướng dẫn làm đơn.", followUp: null },
 ];

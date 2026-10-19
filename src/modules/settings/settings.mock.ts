@@ -1,5 +1,5 @@
 import { dayjs } from "@/shared/libs/date.lib";
-import { mockDate } from "@/shared/libs/mock.lib";
+import { mockDate, mockTermId } from "@/shared/libs/mock.lib";
 import type { CalendarEvent, RegulationSettings, RegulationVersion } from "@/modules/settings/settings.type";
 
 export const REGULATION: RegulationSettings = {
@@ -40,20 +40,20 @@ function range(termId: string, kind: CalendarEvent["kind"], title: string, start
 const DAY = (offset: number) => dayjs().startOf("day").add(offset, "day").format("YYYY-MM-DD");
 
 export const CALENDAR_EVENTS: CalendarEvent[] = [
-  range("hk1-2026", "registration", "Đăng ký học phần đợt 1, khóa 48 và 49", "2026-08-03", "2026-08-09", "Khóa 48, 49"),
-  range("hk1-2026", "registration", "Đăng ký học phần đợt 2, khóa 50 và 51", "2026-08-12", "2026-08-18", "Khóa 50, 51"),
-  range("hk1-2026", "teaching", "Tuần học 1 đến 15", "2026-09-07", "2026-12-20"),
-  range("hk1-2026", "registration", "Điều chỉnh đăng ký", "2026-09-07", "2026-09-13"),
-  range("hk1-2026", "holiday", "Nghỉ Quốc khánh", "2026-09-01", "2026-09-02"),
-  range("hk1-2026", "exam", "Thi giữa kỳ", DAY(-4), DAY(13)),
-  range("hk1-2026", "event", "Hội thảo nghiên cứu khoa học sinh viên", "2026-11-20", "2026-11-20"),
-  range("hk1-2026", "exam", "Thi cuối kỳ", "2027-01-04", "2027-01-16"),
-  range("hk1-2026", "grading", "Nhập điểm và chốt điểm", "2027-01-04", "2027-01-26", "Giảng viên"),
-  range("hk1-2026", "grading", "Công bố điểm học kỳ 1", "2027-01-30", "2027-01-30"),
-  range("hk2-2026", "registration", "Đăng ký học phần đợt 1, khóa 48 và 49", DAY(-4), DAY(1), "Khóa 48, 49"),
-  range("hk2-2026", "registration", "Đăng ký học phần đợt 2, khóa 50 và 51", DAY(5), DAY(11), "Khóa 50, 51"),
-  range("hk2-2026", "holiday", "Nghỉ Tết Nguyên đán", "2027-02-01", "2027-02-14"),
-  range("hk2-2026", "teaching", "Tuần học 1 đến 15", "2027-02-22", "2027-06-06"),
-  range("hk2-2026", "holiday", "Nghỉ lễ 30/4 và 1/5", "2027-04-30", "2027-05-03"),
-  range("hk2-2026", "exam", "Thi cuối kỳ", "2027-06-07", "2027-06-26"),
+  range(mockTermId("hk1-2026"), "registration", "Đăng ký học phần đợt 1, khóa 48 và 49", "2026-08-03", "2026-08-09", "Khóa 48, 49"),
+  range(mockTermId("hk1-2026"), "registration", "Đăng ký học phần đợt 2, khóa 50 và 51", "2026-08-12", "2026-08-18", "Khóa 50, 51"),
+  range(mockTermId("hk1-2026"), "teaching", "Tuần học 1 đến 15", "2026-09-07", "2026-12-20"),
+  range(mockTermId("hk1-2026"), "registration", "Điều chỉnh đăng ký", "2026-09-07", "2026-09-13"),
+  range(mockTermId("hk1-2026"), "holiday", "Nghỉ Quốc khánh", "2026-09-01", "2026-09-02"),
+  range(mockTermId("hk1-2026"), "exam", "Thi giữa kỳ", DAY(-4), DAY(13)),
+  range(mockTermId("hk1-2026"), "event", "Hội thảo nghiên cứu khoa học sinh viên", "2026-11-20", "2026-11-20"),
+  range(mockTermId("hk1-2026"), "exam", "Thi cuối kỳ", "2027-01-04", "2027-01-16"),
+  range(mockTermId("hk1-2026"), "grading", "Nhập điểm và chốt điểm", "2027-01-04", "2027-01-26", "Giảng viên"),
+  range(mockTermId("hk1-2026"), "grading", "Công bố điểm học kỳ 1", "2027-01-30", "2027-01-30"),
+  range(mockTermId("hk2-2026"), "registration", "Đăng ký học phần đợt 1, khóa 48 và 49", DAY(-4), DAY(1), "Khóa 48, 49"),
+  range(mockTermId("hk2-2026"), "registration", "Đăng ký học phần đợt 2, khóa 50 và 51", DAY(5), DAY(11), "Khóa 50, 51"),
+  range(mockTermId("hk2-2026"), "holiday", "Nghỉ Tết Nguyên đán", "2027-02-01", "2027-02-14"),
+  range(mockTermId("hk2-2026"), "teaching", "Tuần học 1 đến 15", "2027-02-22", "2027-06-06"),
+  range(mockTermId("hk2-2026"), "holiday", "Nghỉ lễ 30/4 và 1/5", "2027-04-30", "2027-05-03"),
+  range(mockTermId("hk2-2026"), "exam", "Thi cuối kỳ", "2027-06-07", "2027-06-26"),
 ];

@@ -12,6 +12,42 @@ export function createRandom(seed: number) {
   };
 }
 
+// Băm chuỗi ra 128 bit (cyrb128), thuần JS để dùng được cả ở client.
+function hash128(value: string) {
+  let h1 = 1779033703;
+  let h2 = 3144134277;
+  let h3 = 1013904242;
+  let h4 = 2773480762;
+  for (let index = 0; index < value.length; index += 1) {
+    const char = value.charCodeAt(index);
+    h1 = h2 ^ Math.imul(h1 ^ char, 597399067);
+    h2 = h3 ^ Math.imul(h2 ^ char, 2869860233);
+    h3 = h4 ^ Math.imul(h3 ^ char, 951274213);
+    h4 = h1 ^ Math.imul(h4 ^ char, 2716044179);
+  }
+  h1 = Math.imul(h3 ^ (h1 >>> 18), 597399067);
+  h2 = Math.imul(h4 ^ (h2 >>> 22), 2869860233);
+  h3 = Math.imul(h1 ^ (h3 >>> 17), 951274213);
+  h4 = Math.imul(h2 ^ (h4 >>> 19), 2716044179);
+  return [(h1 ^ h2 ^ h3 ^ h4) >>> 0, (h2 ^ h1) >>> 0, (h3 ^ h1) >>> 0, (h4 ^ h1) >>> 0];
+}
+
+const MOCK_ID_TIME = "01940000-0000"; // 2025-01: phần thời gian cố định của uuidv7
+
+// Id tất định cho dữ liệu mẫu: cùng một khóa ("student:12", "term:hk1-2026") luôn ra cùng một uuid dạng v7.
+// Seed ghi đúng id này vào Postgres nên module đã đọc DB và module còn đọc mock trỏ về cùng một bản ghi.
+export function mockId(key: string) {
+  const hex = hash128(key)
+    .map((part) => part.toString(16).padStart(8, "0"))
+    .join("");
+  const variant = ((parseInt(hex[4], 16) & 0x3) | 0x8).toString(16);
+  return `${MOCK_ID_TIME.slice(0, 8)}-${MOCK_ID_TIME.slice(9)}-7${hex.slice(0, 3)}-${variant}${hex.slice(5, 8)}-${hex.slice(8, 20)}`;
+}
+
+export const mockTermId = (termKey: string) => mockId(`term:${termKey}`);
+
+export const mockSectionId = (termKey: string, code: string) => mockId(`section:${termKey}:${code}`);
+
 export function pickOne<T>(random: () => number, values: readonly T[]) {
   return values[Math.floor(random() * values.length)];
 }
@@ -72,7 +108,7 @@ export function mockStudentIdentity(index: number): MockStudentIdentity {
   const sequence = Math.floor(index / (MOCK_MAJORS.length * MOCK_COHORTS.length)) + 1;
   const { fullName, gender } = mockPersonName(index + 1000);
   return {
-    id: `sv-${index}`,
+    id: mockId(`student:${index}`),
     index,
     code: formatStudentCode(`${cohort}01${major.code}${String(sequence * 7 + (index % 5)).padStart(3, "0")}`),
     fullName,
@@ -103,7 +139,7 @@ export function mockLecturerIdentity(index: number): MockLecturerIdentity {
   const { fullName, gender } = mockPersonName(index + 50);
   const title = LECTURER_TITLES[index % LECTURER_TITLES.length];
   return {
-    id: `gv-${index}`,
+    id: mockId(`lecturer:${index}`),
     index,
     code: `GV${major.code}${String(index + 11).padStart(3, "0")}`,
     fullName,
@@ -112,4 +148,16 @@ export function mockLecturerIdentity(index: number): MockLecturerIdentity {
     gender,
     faculty: major.faculty,
   };
+}
+
+const STUDENT_INDEX = new Map(Array.from({ length: 1000 }, (_, index) => [mockId(`student:${index}`), index]));
+const LECTURER_INDEX = new Map(Array.from({ length: 100 }, (_, index) => [mockId(`lecturer:${index}`), index]));
+
+// Ngược lại của mockStudentIdentity(index).id, -1 nếu không phải sinh viên mẫu.
+export function mockStudentIndex(id: string) {
+  return STUDENT_INDEX.get(id) ?? -1;
+}
+
+export function mockLecturerIndex(id: string) {
+  return LECTURER_INDEX.get(id) ?? -1;
 }

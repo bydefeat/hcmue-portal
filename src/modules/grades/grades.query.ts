@@ -1,5 +1,5 @@
 import { daysUntil, dayjs } from "@/shared/libs/date.lib";
-import { createRandom, mockDate, mockStudentIdentity } from "@/shared/libs/mock.lib";
+import { createRandom, mockDate, mockId, mockStudentIdentity, mockStudentIndex } from "@/shared/libs/mock.lib";
 import { mockDelay } from "@/shared/libs/mock-request.lib";
 import { DUE_SOON_DAYS, STANDING_SCALE, toStanding } from "@/modules/grades/grades.constant";
 import { abilityOf, DEFAULT_COMPONENTS, GRADE_SHEET_SEEDS, mockTranscriptTerms } from "@/modules/grades/grades.mock";
@@ -18,7 +18,7 @@ import type {
 const STUDENT_TOTAL = 600;
 
 function indexOf(studentId: string) {
-  return Number(studentId.replace("sv-", ""));
+  return mockStudentIndex(studentId);
 }
 
 function average(courses: TranscriptCourse[], key: "point4" | "score10") {
@@ -56,7 +56,7 @@ function standingOf(index: number): StudentStanding {
   const lastTermGpa4 = lastTerm?.gpa4 ?? 0;
   const warningLevel = courses.length === 0 ? 0 : cpa4 < 1 ? 3 : cpa4 < 1.5 || failedCredits >= 12 ? 2 : (lastTerm && lastTermGpa4 < 1) || failedCredits >= 6 ? 1 : 0;
   return {
-    studentId: `sv-${index}`,
+    studentId: mockId(`student:${index}`),
     cpa4,
     cpa10,
     earnedCredits: completed.reduce((sum, term) => sum + term.earnedCredits, 0),

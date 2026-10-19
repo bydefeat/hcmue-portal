@@ -1,20 +1,20 @@
-import { createRandom, mockDate, mockStudentIdentity } from "@/shared/libs/mock.lib";
+import { createRandom, mockDate, mockSectionId, mockStudentIdentity, mockTermId } from "@/shared/libs/mock.lib";
 import { COURSES_IN_CURRENT_TERM, COURSES_PER_PAST_TERM, mockCourseSequence, TERMS_DONE_BY_COHORT } from "@/shared/libs/mock-course.lib";
 import { toLetter } from "@/modules/grades/grades.constant";
 import type { GradeComponent, GradeSheetStatus, TranscriptCourse } from "@/modules/grades/grades.type";
 
 export const PAST_TERMS = [
-  { id: "hk1-2022", name: "Học kỳ 1, năm học 2022-2023" },
-  { id: "hk2-2022", name: "Học kỳ 2, năm học 2022-2023" },
-  { id: "hk1-2023", name: "Học kỳ 1, năm học 2023-2024" },
-  { id: "hk2-2023", name: "Học kỳ 2, năm học 2023-2024" },
-  { id: "hk1-2024", name: "Học kỳ 1, năm học 2024-2025" },
-  { id: "hk2-2024", name: "Học kỳ 2, năm học 2024-2025" },
-  { id: "hk1-2025", name: "Học kỳ 1, năm học 2025-2026" },
-  { id: "hk2-2025", name: "Học kỳ 2, năm học 2025-2026" },
+  { id: mockTermId("hk1-2022"), name: "Học kỳ 1, năm học 2022-2023" },
+  { id: mockTermId("hk2-2022"), name: "Học kỳ 2, năm học 2022-2023" },
+  { id: mockTermId("hk1-2023"), name: "Học kỳ 1, năm học 2023-2024" },
+  { id: mockTermId("hk2-2023"), name: "Học kỳ 2, năm học 2023-2024" },
+  { id: mockTermId("hk1-2024"), name: "Học kỳ 1, năm học 2024-2025" },
+  { id: mockTermId("hk2-2024"), name: "Học kỳ 2, năm học 2024-2025" },
+  { id: mockTermId("hk1-2025"), name: "Học kỳ 1, năm học 2025-2026" },
+  { id: mockTermId("hk2-2025"), name: "Học kỳ 2, năm học 2025-2026" },
 ];
 
-export const CURRENT_TERM = { id: "hk1-2026", name: "Học kỳ 1, năm học 2026-2027" };
+export const CURRENT_TERM = { id: mockTermId("hk1-2026"), name: "Học kỳ 1, năm học 2026-2027" };
 
 
 function clamp(value: number) {
@@ -90,15 +90,15 @@ export const GRADE_SHEET_SEEDS: Record<
   string,
   { components: GradeComponent[]; status: GradeSheetStatus; deadline: string; fill: Record<string, number> }
 > = {
-  "hk1-2026-comp1020-01": { components: DEFAULT_COMPONENTS, status: "draft", deadline: mockDate(3, "23:59"), fill: { attendance: 1, midterm: 0.7, final: 0 } },
-  "hk1-2026-comp1020-02": { components: DEFAULT_COMPONENTS, status: "draft", deadline: mockDate(12, "23:59"), fill: { attendance: 1, midterm: 0.1, final: 0 } },
-  "hk1-2026-comp1070-01": { components: PROJECT_COMPONENTS, status: "locked", deadline: mockDate(-6, "23:59"), fill: { attendance: 1, project: 1, final: 1 } },
-  "hk1-2026-comp1080-01": { components: DEFAULT_COMPONENTS, status: "draft", deadline: mockDate(-1, "23:59"), fill: { attendance: 1, midterm: 0.9, final: 0 } },
-  "hk1-2026-comp1010-01": { components: DEFAULT_COMPONENTS, status: "approved", deadline: mockDate(-5, "23:59"), fill: FULL },
-  "hk1-2026-comp1040-01": { components: DEFAULT_COMPONENTS, status: "approved", deadline: mockDate(-4, "23:59"), fill: FULL },
-  "hk1-2026-comp1031-01": { components: PROJECT_COMPONENTS, status: "locked", deadline: mockDate(-2, "23:59"), fill: FULL_PROJECT },
-  "hk1-2026-math1011-01": { components: DEFAULT_COMPONENTS, status: "published", deadline: mockDate(-12, "23:59"), fill: FULL },
-  "hk1-2026-litr1010-01": { components: DEFAULT_COMPONENTS, status: "locked", deadline: mockDate(-1, "23:59"), fill: FULL },
-  "hk1-2026-psyc1001-01": { components: DEFAULT_COMPONENTS, status: "returned", deadline: mockDate(2, "23:59"), fill: FULL },
-  "hk1-2026-engl1002-01": { components: DEFAULT_COMPONENTS, status: "draft", deadline: mockDate(-3, "23:59"), fill: { attendance: 1, midterm: 0.5, final: 0 } },
+  [mockSectionId("hk1-2026", "COMP1020.01")]: { components: DEFAULT_COMPONENTS, status: "draft", deadline: mockDate(3, "23:59"), fill: { attendance: 1, midterm: 0.7, final: 0 } },
+  [mockSectionId("hk1-2026", "COMP1020.02")]: { components: DEFAULT_COMPONENTS, status: "draft", deadline: mockDate(12, "23:59"), fill: { attendance: 1, midterm: 0.1, final: 0 } },
+  [mockSectionId("hk1-2026", "COMP1070.01")]: { components: PROJECT_COMPONENTS, status: "locked", deadline: mockDate(-6, "23:59"), fill: { attendance: 1, project: 1, final: 1 } },
+  [mockSectionId("hk1-2026", "COMP1080.01")]: { components: DEFAULT_COMPONENTS, status: "draft", deadline: mockDate(-1, "23:59"), fill: { attendance: 1, midterm: 0.9, final: 0 } },
+  [mockSectionId("hk1-2026", "COMP1010.01")]: { components: DEFAULT_COMPONENTS, status: "approved", deadline: mockDate(-5, "23:59"), fill: FULL },
+  [mockSectionId("hk1-2026", "COMP1040.01")]: { components: DEFAULT_COMPONENTS, status: "approved", deadline: mockDate(-4, "23:59"), fill: FULL },
+  [mockSectionId("hk1-2026", "COMP1031.01")]: { components: PROJECT_COMPONENTS, status: "locked", deadline: mockDate(-2, "23:59"), fill: FULL_PROJECT },
+  [mockSectionId("hk1-2026", "MATH1011.01")]: { components: DEFAULT_COMPONENTS, status: "published", deadline: mockDate(-12, "23:59"), fill: FULL },
+  [mockSectionId("hk1-2026", "LITR1010.01")]: { components: DEFAULT_COMPONENTS, status: "locked", deadline: mockDate(-1, "23:59"), fill: FULL },
+  [mockSectionId("hk1-2026", "PSYC1001.01")]: { components: DEFAULT_COMPONENTS, status: "returned", deadline: mockDate(2, "23:59"), fill: FULL },
+  [mockSectionId("hk1-2026", "ENGL1002.01")]: { components: DEFAULT_COMPONENTS, status: "draft", deadline: mockDate(-3, "23:59"), fill: { attendance: 1, midterm: 0.5, final: 0 } },
 };

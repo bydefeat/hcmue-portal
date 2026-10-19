@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Button, DatePicker, Drawer, Form, Input, message, Modal, Segmented, Select, Table, Tooltip, type TableColumnsType } from "antd";
 import type { Dayjs } from "dayjs";
-import { CalendarCheck, Magnifier, Pen } from "defeat-icons-react";
+import { Magnifier, Pen } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { PageHeader } from "@/shared/components/ui/page-header";
 import { StatusTag } from "@/shared/components/ui/status-tag";
@@ -244,7 +244,7 @@ export function AdminExamSchedule({ sessions, rooms, proctors, header }: AdminEx
           dataSource={visible}
           scroll={{ x: "max-content" }}
           pagination={{ itemRender: paginationItemRender, pageSize: 25, hideOnSinglePage: true }}
-          locale={{ emptyText: <EmptyState icon={CalendarCheck} title="Không có ca thi khớp bộ lọc" /> }}
+          locale={{ emptyText: <EmptyState illustration="search" title="Không có ca thi khớp bộ lọc" /> }}
         />
         <Drawer
           open={editing !== null}

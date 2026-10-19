@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Alert, Button, Drawer, Input, message, Modal, Select, Table, type TableColumnsType } from "antd";
-import { ClipboardCheck, Magnifier } from "defeat-icons-react";
+import { Magnifier } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { MeterBar } from "@/shared/components/ui/meter-bar";
 import { StatusTag } from "@/shared/components/ui/status-tag";
@@ -209,7 +209,7 @@ export function GradePublishingTable({ rows: initialRows, canApprove, canPublish
         }}
         scroll={{ x: "max-content" }}
         pagination={{ itemRender: paginationItemRender, pageSize: 25, hideOnSinglePage: true }}
-        locale={{ emptyText: <EmptyState icon={ClipboardCheck} title="Không có bảng điểm ở trạng thái này" /> }}
+        locale={{ emptyText: <EmptyState illustration="done" title="Không có bảng điểm ở trạng thái này" /> }}
       />
 
       <Drawer open={preview !== null} onClose={() => setPreviewId(null)} size={480} destroyOnHidden title={preview ? `Bảng điểm ${preview.code}` : ""}>

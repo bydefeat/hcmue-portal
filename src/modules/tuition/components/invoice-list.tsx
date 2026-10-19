@@ -1,7 +1,7 @@
 "use client";
 
 import { Alert, Button, Collapse, Descriptions, message } from "antd";
-import { Copy, Receipt } from "defeat-icons-react";
+import { Copy } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { SectionCard } from "@/shared/components/ui/section-card";
 import { StatusTag } from "@/shared/components/ui/status-tag";
@@ -68,7 +68,7 @@ export function InvoiceList({ invoices, studentCode }: { invoices: TuitionInvoic
   if (invoices.length === 0) {
     return (
       <SectionCard flush>
-        <EmptyState icon={Receipt} title="Chưa có khoản phải nộp" description="Học phí được tính sau khi kết thúc đợt điều chỉnh đăng ký." />
+        <EmptyState title="Chưa có khoản phải nộp" description="Học phí được tính sau khi kết thúc đợt điều chỉnh đăng ký." />
       </SectionCard>
     );
   }

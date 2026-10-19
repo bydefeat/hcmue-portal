@@ -1,19 +1,18 @@
-import type { ComponentType } from "react";
 import { Empty } from "antd";
-import { Inbox, type IconProps } from "defeat-icons-react";
+import { Illustration, type IllustrationName } from "./illustration";
 
 type EmptyStateProps = {
   title: string;
   description?: React.ReactNode;
-  icon?: ComponentType<IconProps>;
+  illustration?: IllustrationName;
   action?: React.ReactNode;
 };
 
-export function EmptyState({ title, description, icon: Icon = Inbox, action }: EmptyStateProps) {
+export function EmptyState({ title, description, illustration = "inbox", action }: EmptyStateProps) {
   return (
     <Empty
-      image={<Icon size={28} aria-hidden className="text-muted" />}
-      classNames={{ root: "px-4 py-8", image: "h-auto" }}
+      image={<Illustration name={illustration} className="mx-auto w-32" />}
+      classNames={{ root: "px-4 py-8", image: "h-auto mb-3" }}
       description={
         <span className="flex flex-col items-center gap-1">
           <span className="text-base font-medium text-foreground">{title}</span>

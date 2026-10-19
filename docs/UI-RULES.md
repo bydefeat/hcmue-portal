@@ -124,8 +124,8 @@ Nguồn màu duy nhất: `src/shared/constants/theme.constant.ts` (sinh CSS vari
 | Thẻ trong danh sách | antd `Card size="small"` | |
 | Số liệu tổng quan | `StatTile` (antd `Card` + `Statistic`) | |
 | Thanh tiến độ | `MeterBar` (antd `Progress`) | |
-| Trạng thái rỗng | `EmptyState` (antd `Empty`) | |
-| Lỗi, 404, 403 | antd `Result` với icon xám qua `ErrorState` (kèm mã lỗi `digest`), `NotFoundState`, `forbidden.tsx` | Mỗi cổng có `error.tsx`, `not-found.tsx` và `[...missing]/page.tsx` để 404 nằm trong khung cổng; trang công khai, đăng nhập có `error.tsx`; lỗi layout gốc dùng `app/global-error.tsx` |
+| Trạng thái rỗng | `EmptyState` (antd `Empty`) với `illustration`: `inbox` (chưa có gì), `search` (lọc không ra), `calendar`, `done` (đã xử lý hết), `document` (chưa có hồ sơ, lịch sử), `chart`, `board` (lớp, phòng), `seats` (lớp chưa có sinh viên) | Hình ở `shared/components/ui/illustration.tsx`: nét `currentColor` xám, mặt phẳng `zinc-100`, đúng một chi tiết màu primary, không gradient, không trang trí. Hình mới phải theo cùng `viewBox 0 0 160 112` và đường nền |
+| Lỗi, 404, 403 | antd `Result` với hình `not-found`, `forbidden`, `error` qua `ErrorState` (kèm mã lỗi `digest`), `NotFoundState`, `forbidden.tsx` | Mỗi cổng có `error.tsx`, `not-found.tsx` và `[...missing]/page.tsx` để 404 nằm trong khung cổng; trang công khai, đăng nhập có `error.tsx`; lỗi layout gốc dùng `app/global-error.tsx` |
 | Nút, nút dạng chữ | antd `Button` (`type="link"` hoặc `"text"` cho nút dạng chữ) | Điều hướng thuần dùng `Link` của Next |
 | Icon trong nút, icon menu chưa chọn | Thêm `className="text-zinc-500"` cho icon | Nút `primary`, `danger`, `link` và mục menu đang chọn giữ màu của nút |
 | Nhãn + ô nhập | antd `Form` + `Form.Item` | Không tự viết `<label>` bọc control |

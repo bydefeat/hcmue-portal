@@ -4,7 +4,6 @@ import { useState } from "react";
 import type { Dayjs } from "dayjs";
 import Link from "next/link";
 import { Select } from "antd";
-import { CalendarDays } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { BREAKS, PERIODS, periodLabel, periodTimeRange, WEEKDAYS } from "@/shared/constants/period.constant";
 import { dayjs, formatShortDate, weekdayOf } from "@/shared/libs/date.lib";
@@ -95,7 +94,7 @@ export function WeekSchedule({ events, termStart, termEnd }: WeekScheduleProps) 
       {visibleEvents.length === 0 ? (
         <SectionCard flush>
           <EmptyState
-            icon={CalendarDays}
+            illustration="calendar"
             title="Tuần đã chọn không có lịch"
             description={isInTerm ? "Chưa có lớp học phần nào xếp lịch trong tuần." : "Tuần đang xem nằm ngoài thời gian học kỳ."}
           />

@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { Alert, Button, Card, Checkbox, Form, Input, message, Modal, Select } from "antd";
-import { CircleCheck, CircleXmark, ClipboardCheck, Magnifier, Plus, Trash } from "defeat-icons-react";
+import { CircleCheck, CircleXmark, Magnifier, Plus, Trash } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { MeterBar } from "@/shared/components/ui/meter-bar";
 import { SectionCard } from "@/shared/components/ui/section-card";
@@ -325,7 +325,7 @@ export function StudentRegistration({
 
           {rows.length === 0 ? (
             <SectionCard flush>
-              <EmptyState title="Không có lớp khớp bộ lọc" description="Bỏ bớt điều kiện lọc để xem toàn bộ lớp đang mở." />
+              <EmptyState illustration="search" title="Không có lớp khớp bộ lọc" description="Bỏ bớt điều kiện lọc để xem toàn bộ lớp đang mở." />
             </SectionCard>
           ) : (
             <ul className="flex flex-col gap-2">
@@ -411,7 +411,7 @@ export function StudentRegistration({
         <aside className="flex flex-col gap-3 lg:sticky lg:top-20">
           <SectionCard title="Lớp đã chọn" extra={period && state ? <StatusTag status={REGISTRATION_PERIOD_STATE[state]} /> : undefined} flush>
             {basket.length === 0 ? (
-              <EmptyState icon={ClipboardCheck} title="Chưa chọn lớp nào" description="Bấm Chọn lớp ở lớp muốn học, lớp đã chọn hiện ở đây." />
+              <EmptyState illustration="done" title="Chưa chọn lớp nào" description="Bấm Chọn lớp ở lớp muốn học, lớp đã chọn hiện ở đây." />
             ) : (
               <ul className="flex flex-col divide-y divide-border-strong">
                 {registered.map((section) => (

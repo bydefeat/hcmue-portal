@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Button, Card, Drawer, Form, message, Radio, Select, Table, type TableColumnsType } from "antd";
-import { AlertWarning, ChartColumn, ClipboardCheck, Download, FileExport, GraduationCap, PresentationScreenChartCols, TableDownload, Users, type IconProps } from "defeat-icons-react";
+import { AlertWarning, ChartColumn, ClipboardCheck, Download, FileExport, GraduationCap, PresentationScreenChartCols, Users, type IconProps } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { SectionCard } from "@/shared/components/ui/section-card";
 import { StatusTag } from "@/shared/components/ui/status-tag";
@@ -149,7 +149,7 @@ export function ReportExportCenter({ reports, terms, faculties, defaultTermId, u
           dataSource={jobs}
           scroll={{ x: "max-content" }}
           pagination={false}
-          locale={{ emptyText: <EmptyState icon={TableDownload} title="Chưa xuất báo cáo nào" /> }}
+          locale={{ emptyText: <EmptyState illustration="document" title="Chưa xuất báo cáo nào" /> }}
         />
       </SectionCard>
       <Drawer

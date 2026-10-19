@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { Checkbox, Input, message, Select, Table, type TableColumnsType } from "antd";
-import { Magnifier, UsersLink } from "defeat-icons-react";
+import { Magnifier } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { StatusTag } from "@/shared/components/ui/status-tag";
 import { COHORT_OPTIONS, FACULTY_OPTIONS } from "../users.constant";
@@ -139,7 +139,7 @@ export function AdvisorAssignmentTable({ assignments, lecturers }: AdvisorAssign
         locale={{
           emptyText: (
             <EmptyState
-              icon={UsersLink}
+              illustration="search"
               title={onlyUnassigned ? "Mọi lớp đã có cố vấn" : "Không có lớp khớp bộ lọc"}
               description={onlyUnassigned ? "Không còn lớp sinh hoạt nào cần phân công." : "Thử bỏ bớt điều kiện lọc."}
             />

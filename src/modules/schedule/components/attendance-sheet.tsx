@@ -2,7 +2,6 @@
 
 import { useMemo, useState } from "react";
 import { Alert, Button, Card, message, Radio, Select, Table, type TableColumnsType } from "antd";
-import { CalendarClock } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { SectionCard } from "@/shared/components/ui/section-card";
 import { periodLabel, weekdayLabel } from "@/shared/constants/period.constant";
@@ -65,7 +64,7 @@ export function AttendanceSheet({ book, students, absenceLimitPercent = ABSENCE_
   if (book.sessions.length === 0 || !session) {
     return (
       <SectionCard flush>
-        <EmptyState icon={CalendarClock} title="Chưa có buổi học" description="Lớp chưa có buổi học nào được xếp lịch trong học kỳ." />
+        <EmptyState illustration="calendar" title="Chưa có buổi học" description="Lớp chưa có buổi học nào được xếp lịch trong học kỳ." />
       </SectionCard>
     );
   }
@@ -191,7 +190,7 @@ export function AttendanceSheet({ book, students, absenceLimitPercent = ABSENCE_
 
       {students.length === 0 ? (
         <SectionCard flush>
-          <EmptyState title="Lớp chưa có sinh viên" description="Danh sách sẽ có sau khi sinh viên đăng ký học phần." />
+          <EmptyState illustration="seats" title="Lớp chưa có sinh viên" description="Danh sách sẽ có sau khi sinh viên đăng ký học phần." />
         </SectionCard>
       ) : (
         <>

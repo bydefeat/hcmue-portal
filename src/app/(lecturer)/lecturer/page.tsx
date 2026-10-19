@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { CalendarCheck, CalendarUser, CircleCheck, Inbox } from "defeat-icons-react";
 import { APPOINTMENT_MODE_LABEL } from "@/modules/advising/advising.constant";
 import { getAppointments } from "@/modules/advising/advising.query";
 import { EXAM_KIND_LABEL } from "@/modules/exams/exams.constant";
@@ -97,7 +96,7 @@ export default async function Page() {
             <SectionCard flush title="Lịch dạy hôm nay" extra={<Link href="/lecturer/schedule" className="text-sm">Cả tuần</Link>} className="h-full">
               {todaySlots.length === 0 ? (
                 <EmptyState
-                  icon={CalendarCheck}
+                  illustration="calendar"
                   title="Hôm nay không có buổi dạy"
                   description={
                     upcoming
@@ -137,7 +136,7 @@ export default async function Page() {
 
         <SectionCard flush title="Bảng điểm cần xử lý" extra={<Link href="/lecturer/classes" className="text-sm">Tất cả lớp</Link>}>
           {urgentSheets.length === 0 ? (
-            <EmptyState icon={CircleCheck} title="Không có bảng điểm sắp hết hạn" description="Các lớp còn trên 5 ngày để nhập điểm hoặc đã chốt." />
+            <EmptyState illustration="done" title="Không có bảng điểm sắp hết hạn" description="Các lớp còn trên 5 ngày để nhập điểm hoặc đã chốt." />
           ) : (
             <ul className="flex flex-col divide-y divide-border-strong">
               {urgentSheets.map((summary) => {
@@ -185,7 +184,7 @@ export default async function Page() {
             }
           >
             {waitingRequests.length === 0 ? (
-              <EmptyState icon={Inbox} title="Không có đơn chờ bạn" />
+              <EmptyState title="Không có đơn chờ bạn" />
             ) : (
               <div className="flex flex-col gap-3 p-4 sm:p-5">
                 <p className="flex items-baseline gap-2">
@@ -215,7 +214,7 @@ export default async function Page() {
             }
           >
             {upcomingProctoring.length === 0 ? (
-              <EmptyState icon={CalendarCheck} title="Không có ca coi thi sắp tới" />
+              <EmptyState illustration="calendar" title="Không có ca coi thi sắp tới" />
             ) : (
               <ul className="flex flex-col divide-y divide-border-strong">
                 {upcomingProctoring.map((exam) => (
@@ -241,7 +240,7 @@ export default async function Page() {
               }
             >
               {todayAppointments.length === 0 ? (
-                <EmptyState icon={CalendarUser} title="Hôm nay không có lịch hẹn" />
+                <EmptyState illustration="calendar" title="Hôm nay không có lịch hẹn" />
               ) : (
                 <ul className="flex flex-col divide-y divide-border-strong">
                   {todayAppointments.map((appointment) => (

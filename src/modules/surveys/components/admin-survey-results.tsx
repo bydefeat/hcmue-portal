@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { Button, Drawer, Input, Segmented, Select, Table, type TableColumnsType } from "antd";
-import { Magnifier, StarList } from "defeat-icons-react";
+import { Magnifier } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { MeterBar } from "@/shared/components/ui/meter-bar";
 import { StatusTag } from "@/shared/components/ui/status-tag";
@@ -144,7 +144,7 @@ export function AdminSurveyResults({ results, questions }: { results: SectionSur
           dataSource={filtered}
           scroll={{ x: "max-content" }}
           pagination={{ itemRender: paginationItemRender, pageSize: 25, hideOnSinglePage: true }}
-          locale={{ emptyText: <EmptyState icon={StarList} title="Chưa có kết quả khảo sát" /> }}
+          locale={{ emptyText: <EmptyState illustration="document" title="Chưa có kết quả khảo sát" /> }}
         />
       ) : (
         <Table
@@ -154,7 +154,7 @@ export function AdminSurveyResults({ results, questions }: { results: SectionSur
           dataSource={groups}
           scroll={{ x: "max-content" }}
           pagination={false}
-          locale={{ emptyText: <EmptyState icon={StarList} title="Chưa có kết quả khảo sát" /> }}
+          locale={{ emptyText: <EmptyState illustration="document" title="Chưa có kết quả khảo sát" /> }}
         />
       )}
       <Drawer open={opened !== null} onClose={() => setOpenId(null)} size={560} destroyOnHidden title={opened ? `Khảo sát lớp ${opened.classCode}` : ""}>

@@ -221,7 +221,7 @@ export function RegistrationHoldTable({ holds, students, actorName, studentHrefB
           locale={{
             emptyText: (
               <EmptyState
-                icon={LockOpen}
+                illustration={view === "active" ? "done" : "document"}
                 title={view === "active" ? "Không có sinh viên nào bị khóa" : "Chưa gỡ khóa nào"}
                 description={view === "active" ? "Sinh viên nợ học phí quá hạn được khóa tự động theo dữ liệu của Phòng Kế hoạch - Tài chính." : undefined}
               />

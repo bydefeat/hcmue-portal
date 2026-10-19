@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { Alert, Button, Card, Checkbox, Drawer, Form, Input, message, Modal, Select } from "antd";
-import { CircleXmark, ClipboardCheck, Plus } from "defeat-icons-react";
+import { CircleXmark, Plus } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { dayjs } from "@/shared/libs/date.lib";
 import { HOLD_KIND_LABEL, keepCurrencyTogether, meetingText } from "../course-registration.constant";
@@ -148,7 +148,7 @@ export function AdminStudentRegistration({
           {credits.note && <Alert type="warning" showIcon title={credits.note} />}
 
           {registered.length === 0 ? (
-            <EmptyState icon={ClipboardCheck} title="Chưa đăng ký lớp nào" description="Sinh viên chưa đăng ký hoặc đợt của khóa chưa mở." />
+            <EmptyState illustration="done" title="Chưa đăng ký lớp nào" description="Sinh viên chưa đăng ký hoặc đợt của khóa chưa mở." />
           ) : (
             <Card size="small" classNames={{ body: "p-0" }}>
               <ul className="flex flex-col divide-y divide-border-strong">

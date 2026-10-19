@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { Alert, Button, Card, Descriptions, Drawer, Input, message, Modal, Segmented, Select, Table, type TableColumnsType } from "antd";
-import { CircleCheck, FileContent, Inbox, Magnifier } from "defeat-icons-react";
+import { FileContent, Magnifier } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { StatusTag } from "@/shared/components/ui/status-tag";
 import { dayjs, formatDate, formatDateTime } from "@/shared/libs/date.lib";
@@ -105,11 +105,11 @@ export function RequestInbox({
 
   const emptyText =
     rows.length === 0 ? (
-      <EmptyState icon={Inbox} title="Chưa có đơn nào" description={mode === "own" ? "Đơn bạn gửi sẽ hiện ở đây cùng tiến độ xử lý." : undefined} />
+      <EmptyState title="Chưa có đơn nào" description={mode === "own" ? "Đơn bạn gửi sẽ hiện ở đây cùng tiến độ xử lý." : undefined} />
     ) : scope === "mine" && actionable.length === 0 ? (
-      <EmptyState icon={CircleCheck} title="Không còn đơn chờ bạn xử lý" description="Chuyển sang Tất cả để xem đơn đã xử lý." />
+      <EmptyState illustration="done" title="Không còn đơn chờ bạn xử lý" description="Chuyển sang Tất cả để xem đơn đã xử lý." />
     ) : (
-      <EmptyState title="Không có đơn khớp bộ lọc" description="Thử bỏ bớt điều kiện lọc." />
+      <EmptyState illustration="search" title="Không có đơn khớp bộ lọc" description="Thử bỏ bớt điều kiện lọc." />
     );
 
   const columns: TableColumnsType<RequestView> = [

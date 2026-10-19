@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { Badge, Button, Popover } from "antd";
-import { Bell, BellSlash } from "defeat-icons-react";
+import { Bell } from "defeat-icons-react";
 import { formatRelative } from "@/shared/libs/date.lib";
 import { EmptyState } from "./empty-state";
 
@@ -41,7 +41,7 @@ export function NotificationBell({ items, viewAllHref }: NotificationBellProps) 
         )}
       </div>
       {items.length === 0 ? (
-        <EmptyState icon={BellSlash} title="Chưa có thông báo" />
+        <EmptyState title="Chưa có thông báo" />
       ) : (
         <ul className="flex max-h-96 flex-col gap-1 overflow-y-auto py-2">
           {items.slice(0, VISIBLE).map((item) => (

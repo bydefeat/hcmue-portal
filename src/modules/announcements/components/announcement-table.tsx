@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { Button, Input, message, Modal, Select, Table, type TableColumnsType } from "antd";
-import { Magnifier, Megaphone, Pen, Pin, Plus, Trash } from "defeat-icons-react";
+import { Magnifier, Pen, Pin, Plus, Trash } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { PageHeader } from "@/shared/components/ui/page-header";
 import { StatusTag } from "@/shared/components/ui/status-tag";
@@ -232,7 +232,7 @@ export function AnnouncementTable({ announcements, header }: { announcements: An
           locale={{
             emptyText: (
               <EmptyState
-                icon={Megaphone}
+                illustration="search"
                 title={rows.length === 0 ? "Chưa có thông báo" : "Không có thông báo khớp bộ lọc"}
                 description={rows.length === 0 ? "Thông báo đăng ở đây sẽ hiện trên trang chủ cho sinh viên." : "Thử bỏ bớt điều kiện lọc."}
               />

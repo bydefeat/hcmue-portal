@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Alert, Button, Form, Input, message, Modal, Select, Table, Upload, type TableColumnsType } from "antd";
-import { ArrowsTransaction, CalendarCheck, FileArrowIn, PresentationScreen } from "defeat-icons-react";
+import { ArrowsTransaction, FileArrowIn } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { SectionCard } from "@/shared/components/ui/section-card";
 import { StatusTag } from "@/shared/components/ui/status-tag";
@@ -149,8 +149,8 @@ export function LecturerExamBoard({ lecturerId, teaching, proctoring, teachingSl
       </Button>
     ) : null;
 
-  const teachingEmpty = <EmptyState icon={PresentationScreen} title="Chưa có lịch thi cho lớp bạn dạy" description="Phòng Khảo thí sẽ công bố lịch thi trước kỳ thi 2 tuần." />;
-  const proctorEmpty = <EmptyState icon={CalendarCheck} title="Không có ca coi thi" description="Bạn chưa được phân công coi thi trong học kỳ này." />;
+  const teachingEmpty = <EmptyState illustration="board" title="Chưa có lịch thi cho lớp bạn dạy" description="Phòng Khảo thí sẽ công bố lịch thi trước kỳ thi 2 tuần." />;
+  const proctorEmpty = <EmptyState illustration="calendar" title="Không có ca coi thi" description="Bạn chưa được phân công coi thi trong học kỳ này." />;
 
   const teachingColumns: TableColumnsType<ExamSession> = [
     { title: "Lớp học phần", key: "class", width: 240, render: (_, exam) => <ClassCell exam={exam} /> },

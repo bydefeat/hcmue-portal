@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Button, Drawer, Form, Input, message, Modal, Select, Table, type TableColumnsType } from "antd";
-import { Magnifier, Plus, ShieldUser } from "defeat-icons-react";
+import { Magnifier, Plus } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { dayjs, formatDate } from "@/shared/libs/date.lib";
 import type { Role, RoleAssignment } from "../access.type";
@@ -167,7 +167,7 @@ export function RoleAssignmentTable({ assignments, roles, faculties, currentUser
         dataSource={filtered}
         scroll={{ x: 900 }}
         pagination={{ itemRender: paginationItemRender, pageSize: 20, hideOnSinglePage: true }}
-        locale={{ emptyText: <EmptyState icon={ShieldUser} title="Không có cán bộ khớp bộ lọc" /> }}
+        locale={{ emptyText: <EmptyState illustration="search" title="Không có cán bộ khớp bộ lọc" /> }}
       />
       <Drawer
         open={open}

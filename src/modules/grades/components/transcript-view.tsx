@@ -35,7 +35,7 @@ const COLUMNS: TableColumnsType<TranscriptCourse> = [
 ];
 
 function CourseList({ courses }: { courses: TranscriptCourse[] }) {
-  if (courses.length === 0) return <div className="md:hidden"><EmptyState title="Không có học phần" /></div>;
+  if (courses.length === 0) return <div className="md:hidden"><EmptyState illustration="document" title="Không có học phần" /></div>;
   return (
     <ul className="flex flex-col divide-y divide-border md:hidden">
       {courses.map((course) => (
@@ -81,7 +81,7 @@ function TermSummary({ term }: { term: TranscriptTerm }) {
 
 export function TranscriptView({ terms, inCard = false }: { terms: TranscriptTerm[]; inCard?: boolean }) {
   if (terms.length === 0) {
-    return <EmptyState title="Chưa có kết quả học tập" description="Sinh viên chưa hoàn thành học kỳ nào." />;
+    return <EmptyState illustration="document" title="Chưa có kết quả học tập" description="Sinh viên chưa hoàn thành học kỳ nào." />;
   }
   const ordered = [...terms].reverse();
   const defaultOpen = ordered.find((term) => !term.isInProgress)?.termId;
@@ -110,7 +110,7 @@ export function TranscriptView({ terms, inCard = false }: { terms: TranscriptTer
             dataSource={term.courses}
             pagination={false}
             scroll={{ x: 560 }}
-            locale={{ emptyText: <EmptyState title="Không có học phần" /> }}
+            locale={{ emptyText: <EmptyState illustration="document" title="Không có học phần" /> }}
           />
           </>
         ),

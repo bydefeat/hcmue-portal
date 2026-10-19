@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Alert } from "antd";
-import { BellSlash, CalendarCheck, CalendarClock, Inbox } from "defeat-icons-react";
 import { PeriodCountdown } from "@/modules/course-registration/components/student-period-countdown";
 import { REGISTRATION_PERIOD_STATE } from "@/modules/course-registration/course-registration.constant";
 import {
@@ -121,7 +120,7 @@ export default async function Page() {
             <SectionCard title="Lịch học hôm nay" extra={<Link href="/application/schedule" className="text-sm">Cả tuần</Link>} flush>
               {todaySlots.length === 0 ? (
                 <EmptyState
-                  icon={CalendarCheck}
+                  illustration="calendar"
                   title="Hôm nay không có buổi học"
                   description={
                     nextSlot
@@ -151,7 +150,7 @@ export default async function Page() {
 
             <SectionCard title="Lịch thi sắp tới" extra={<Link href="/application/exams" className="text-sm">Tất cả</Link>} flush>
               {upcomingExams.length === 0 ? (
-                <EmptyState icon={CalendarClock} title="Chưa có lịch thi sắp tới" />
+                <EmptyState illustration="calendar" title="Chưa có lịch thi sắp tới" />
               ) : (
                 <ul className="flex flex-col divide-y divide-border-strong">
                   {upcomingExams.map((exam) => {
@@ -205,7 +204,7 @@ export default async function Page() {
 
             <SectionCard title="Đơn của tôi" extra={<Link href="/application/requests" className="text-sm">Tất cả</Link>} flush>
               {openRequests.length === 0 ? (
-                <EmptyState icon={Inbox} title="Không có đơn đang xử lý" />
+                <EmptyState title="Không có đơn đang xử lý" />
               ) : (
                 <ul className="flex flex-col divide-y divide-border-strong">
                   {openRequests.slice(0, 3).map((request) => (
@@ -223,7 +222,7 @@ export default async function Page() {
 
             <SectionCard title="Thông báo mới" extra={<Link href="/application/notifications" className="text-sm">Tất cả</Link>} flush>
               {unread.length === 0 ? (
-                <EmptyState icon={BellSlash} title="Đã đọc hết thông báo" />
+                <EmptyState title="Đã đọc hết thông báo" />
               ) : (
                 <ul className="flex flex-col divide-y divide-border-strong">
                   {unread.slice(0, 3).map((notification) => (

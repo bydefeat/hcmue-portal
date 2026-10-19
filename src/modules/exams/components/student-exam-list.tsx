@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { Alert, Card, Segmented } from "antd";
-import { CalendarCheck, CircleWarning } from "defeat-icons-react";
+import { CircleWarning } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { StatusTag } from "@/shared/components/ui/status-tag";
 import { daysUntil, dayjs } from "@/shared/libs/date.lib";
@@ -70,7 +70,7 @@ export function StudentExamList({ items, absenceLimitPercent }: { items: Student
       />
       {visible.length === 0 ? (
         <SectionCard flush>
-          <EmptyState icon={CalendarCheck} title="Không có lịch thi sắp tới" description="Lịch thi cuối kỳ được Phòng Khảo thí công bố trước kỳ thi 2 tuần." />
+          <EmptyState illustration="calendar" title="Không có lịch thi sắp tới" description="Lịch thi cuối kỳ được Phòng Khảo thí công bố trước kỳ thi 2 tuần." />
         </SectionCard>
       ) : (
         <ul className="flex flex-col gap-2">

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Button, Input, message, Modal, Select, Table, type TableColumnsType } from "antd";
-import { AwardCertificate, CircleCheck, CircleXmark, Magnifier, TableDownload } from "defeat-icons-react";
+import { CircleCheck, CircleXmark, Magnifier, TableDownload } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { StatusTag } from "@/shared/components/ui/status-tag";
 import { GRADUATION_STATUS } from "../graduation.constant";
@@ -132,7 +132,7 @@ export function GraduationReview({ candidates }: { candidates: GraduationCandida
         }}
         scroll={{ x: "max-content" }}
         pagination={{ itemRender: paginationItemRender, pageSize: 25, hideOnSinglePage: true, showTotal: (total) => `${total} sinh viên` }}
-        locale={{ emptyText: <EmptyState icon={AwardCertificate} title="Không có sinh viên ở trạng thái này" /> }}
+        locale={{ emptyText: <EmptyState illustration="document" title="Không có sinh viên ở trạng thái này" /> }}
       />
     </div>
   );

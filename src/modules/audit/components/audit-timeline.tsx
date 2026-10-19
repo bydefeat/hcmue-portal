@@ -1,7 +1,6 @@
 "use client";
 
 import { Timeline } from "antd";
-import { History } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { StatusTag } from "@/shared/components/ui/status-tag";
 import { formatDateTime } from "@/shared/libs/date.lib";
@@ -10,7 +9,7 @@ import type { AuditEntry } from "../audit.type";
 import { AuditChanges } from "./audit-changes";
 
 export function AuditTimeline({ entries, emptyText = "Chưa có thay đổi nào được ghi nhận." }: { entries: AuditEntry[]; emptyText?: string }) {
-  if (entries.length === 0) return <EmptyState icon={History} title="Chưa có lịch sử" description={emptyText} />;
+  if (entries.length === 0) return <EmptyState illustration="document" title="Chưa có lịch sử" description={emptyText} />;
   return (
     <Timeline
       items={entries.map((entry) => ({

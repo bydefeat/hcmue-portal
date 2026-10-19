@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { Button, Card, message, Modal, Segmented, Table, type TableColumnsType } from "antd";
-import { CircleCheck } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { MeterBar } from "@/shared/components/ui/meter-bar";
 import { StatusTag } from "@/shared/components/ui/status-tag";
@@ -172,7 +171,7 @@ export function RegistrationMonitorSections({ sections }: { sections: ClassSecti
         rowSelection={{ selectedRowKeys: selected, onChange: (keys) => setSelected(keys as string[]) }}
         scroll={{ x: "max-content" }}
         pagination={false}
-        locale={{ emptyText: <EmptyState icon={CircleCheck} title="Không có lớp trong nhóm này" /> }}
+        locale={{ emptyText: <EmptyState illustration="done" title="Không có lớp trong nhóm này" /> }}
       />
       <Modal
         open={outcomes.length > 0}

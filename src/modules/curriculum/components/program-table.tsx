@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { Button, Input, message, Select, Table, type TableColumnsType } from "antd";
-import { BookOpen, Magnifier, Pen, Plus } from "defeat-icons-react";
+import { Magnifier, Pen, Plus } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { PageHeader } from "@/shared/components/ui/page-header";
 import { StatusTag } from "@/shared/components/ui/status-tag";
@@ -170,7 +170,7 @@ export function ProgramTable({ programs, header }: { programs: ProgramSummary[];
           locale={{
             emptyText: (
               <EmptyState
-                icon={BookOpen}
+                illustration="search"
                 title={rows.length === 0 ? "Chưa có chương trình đào tạo" : "Không có chương trình khớp bộ lọc"}
                 description={rows.length === 0 ? "Thêm chương trình đầu tiên để mở lớp học phần theo khung." : "Thử bỏ bớt điều kiện lọc."}
               />

@@ -1,5 +1,5 @@
 import { Button, Card, Result } from "antd";
-import { FileSearch } from "defeat-icons-react";
+import { Illustration } from "./illustration";
 
 type NotFoundStateProps = {
   title?: string;
@@ -17,7 +17,7 @@ export function NotFoundState({
   return (
     <Card>
       <Result
-        icon={<FileSearch size={56} aria-hidden className="mx-auto text-zinc-500" />}
+        icon={<Illustration name="not-found" className="mx-auto w-44" />}
         title={<h1 className="text-xl font-semibold">{title}</h1>}
         subTitle={description}
         extra={

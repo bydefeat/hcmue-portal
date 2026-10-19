@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Button, Input, message, Select, Table, Tag, type TableColumnsType } from "antd";
-import { Books, Magnifier, Pen, Plus } from "defeat-icons-react";
+import { Magnifier, Pen, Plus } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { PageHeader } from "@/shared/components/ui/page-header";
 import { COURSE_TYPE_LABEL, COURSE_TYPE_OPTIONS, KNOWLEDGE_BLOCK_LABEL, KNOWLEDGE_BLOCK_OPTIONS } from "../curriculum.constant";
@@ -209,7 +209,7 @@ export function CourseTable({
           locale={{
             emptyText: (
               <EmptyState
-                icon={Books}
+                illustration="search"
                 title={rows.length === 0 ? "Danh mục học phần trống" : "Không có học phần khớp bộ lọc"}
                 description={rows.length === 0 ? "Thêm học phần để xây dựng khung chương trình." : "Thử từ khóa khác hoặc bỏ bớt điều kiện lọc."}
               />

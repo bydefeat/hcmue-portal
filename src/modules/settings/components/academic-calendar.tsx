@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { Button, DatePicker, Drawer, Form, Input, message, Segmented, Select } from "antd";
 import type { Dayjs } from "dayjs";
-import { CalendarGrid, Plus } from "defeat-icons-react";
+import { Plus } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { PageHeader } from "@/shared/components/ui/page-header";
 import { StatusTag } from "@/shared/components/ui/status-tag";
@@ -102,7 +102,7 @@ export function AcademicCalendar({
         </div>
         {visible.length === 0 ? (
           <SectionCard flush>
-            <EmptyState icon={CalendarGrid} title="Chưa có mốc nào" description="Thêm thời gian học, thi, đăng ký và nghỉ lễ để giảng viên và sinh viên cùng theo dõi." />
+            <EmptyState illustration="calendar" title="Chưa có mốc nào" description="Thêm thời gian học, thi, đăng ký và nghỉ lễ để giảng viên và sinh viên cùng theo dõi." />
           </SectionCard>
         ) : (
           months.map((month) => (

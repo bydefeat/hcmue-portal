@@ -3,7 +3,6 @@
 import { useState } from "react";
 import Link from "next/link";
 import { Button, Segmented, Select } from "antd";
-import { BellSlash } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { formatDateTime, formatRelative } from "@/shared/libs/date.lib";
 import { NOTIFICATION_KIND_LABEL } from "../notifications.constant";
@@ -50,7 +49,6 @@ export function NotificationList({ notifications }: { notifications: AppNotifica
       <SectionCard flush>
         {visible.length === 0 ? (
           <EmptyState
-            icon={BellSlash}
             title={view === "unread" ? "Đã đọc hết thông báo" : "Chưa có thông báo"}
             description={view === "unread" ? "Thông báo mới về hạn chót, đơn từ và điểm sẽ hiện ở đây." : undefined}
           />

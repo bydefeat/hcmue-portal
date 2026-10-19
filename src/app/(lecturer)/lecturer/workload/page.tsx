@@ -45,7 +45,7 @@ function TermLoad({ title, workload, sections }: { title: string; workload: Lect
           </span>
         </div>
         {sections.length === 0 ? (
-          <EmptyState title="Chưa được phân công lớp" description="Khoa sẽ phân công trước khi mở đăng ký học phần." />
+          <EmptyState illustration="board" title="Chưa được phân công lớp" description="Khoa sẽ phân công trước khi mở đăng ký học phần." />
         ) : (
           <ul className="flex flex-col divide-y divide-border-strong">
             {sections.map((section) => {

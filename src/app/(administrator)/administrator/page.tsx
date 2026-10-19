@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Alert } from "antd";
-import { CircleCheck } from "defeat-icons-react";
 import { getAnnouncements } from "@/modules/announcements/announcements.query";
 import { ANNOUNCEMENT_CATEGORY_LABEL, ANNOUNCEMENT_STATUS } from "@/modules/announcements/announcements.constant";
 import {
@@ -142,7 +141,7 @@ export default async function Page() {
               extra={<Link href={`/administrator/class-sections?term=${targetTerm.id}`} className="text-sm">Tất cả lớp</Link>}
             >
               {issues.length === 0 ? (
-                <EmptyState icon={CircleCheck} title="Không có lớp cần xử lý" description="Mọi lớp đã có giảng viên, không trùng phòng hay trùng giờ." />
+                <EmptyState illustration="done" title="Không có lớp cần xử lý" description="Mọi lớp đã có giảng viên, không trùng phòng hay trùng giờ." />
               ) : (
                 <ul className="flex flex-col divide-y divide-border-strong">
                   {issues.map(({ section, reason, tone }) => (

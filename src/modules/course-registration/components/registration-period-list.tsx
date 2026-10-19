@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Button, message, Modal, Table, type TableColumnsType } from "antd";
-import { CalendarClock, Plus } from "defeat-icons-react";
+import { Plus } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { SectionCard } from "@/shared/components/ui/section-card";
 import { MeterBar } from "@/shared/components/ui/meter-bar";
@@ -217,7 +217,7 @@ export function RegistrationPeriodList({ terms, periods }: RegistrationPeriodLis
               locale={{
                 emptyText: (
                   <EmptyState
-                    icon={CalendarClock}
+                    illustration="calendar"
                     title="Chưa có đợt đăng ký"
                     description={canAdd ? "Tạo đợt để sinh viên đăng ký lớp của học kỳ này." : "Học kỳ này không tổ chức đăng ký trên cổng."}
                   />

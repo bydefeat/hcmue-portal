@@ -51,7 +51,7 @@ export default async function Page() {
           </SectionCard>
           <SectionCard title="Lớp giảng dạy theo học kỳ">
             {withSections.length === 0 ? (
-              <EmptyState title="Chưa có lớp học phần" />
+              <EmptyState illustration="board" title="Chưa có lớp học phần" />
             ) : (
               <div className="flex flex-col gap-4">
                 {withSections.map(({ term, sections }) => (

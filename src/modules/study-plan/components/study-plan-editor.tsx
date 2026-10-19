@@ -14,7 +14,7 @@ import {
   type DragEndEvent,
 } from "@dnd-kit/core";
 import { Alert, Button, Card, Dropdown, Form, Input, message, type MenuProps } from "antd";
-import { Books, DotsVertical, GripDotsVertical } from "defeat-icons-react";
+import { DotsVertical, GripDotsVertical } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { MeterBar } from "@/shared/components/ui/meter-bar";
 import { StatusTag } from "@/shared/components/ui/status-tag";
@@ -300,7 +300,7 @@ export function StudyPlanEditor({ plan, termNames, pool, passedGrades, prerequis
             }
           >
             {poolCodes.length === 0 ? (
-              <EmptyState icon={Books} title="Đã xếp hết học phần" />
+              <EmptyState illustration="document" title="Đã xếp hết học phần" />
             ) : (
               poolCodes.map((code) => {
                 const course = catalog.get(code)!;

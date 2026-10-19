@@ -1,7 +1,6 @@
 "use client";
 
 import { Table, Tooltip, type TableColumnsType } from "antd";
-import { ChartPie } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { formatPoint, STANDING_SCALE } from "../grades.constant";
 import type { AcademicStanding, FacultyStandingSummary } from "../grades.type";
@@ -93,7 +92,7 @@ export function StandingReport({ summaries }: { summaries: FacultyStandingSummar
         dataSource={summaries}
         pagination={false}
         scroll={{ x: "max-content" }}
-        locale={{ emptyText: <EmptyState icon={ChartPie} title="Chưa có dữ liệu xếp loại" description="Kết quả học tập sẽ được tổng hợp khi học kỳ đầu tiên kết thúc." /> }}
+        locale={{ emptyText: <EmptyState illustration="chart" title="Chưa có dữ liệu xếp loại" description="Kết quả học tập sẽ được tổng hợp khi học kỳ đầu tiên kết thúc." /> }}
       />
     </div>
   );

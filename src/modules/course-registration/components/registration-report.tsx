@@ -1,7 +1,6 @@
 "use client";
 
 import { Table, type TableColumnsType } from "antd";
-import { ChartColumn } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { MeterBar } from "@/shared/components/ui/meter-bar";
 import type { FacultyRegistrationSummary } from "../course-registration.type";
@@ -60,7 +59,7 @@ export function RegistrationReport({ summaries }: { summaries: FacultyRegistrati
       pagination={false}
       scroll={{ x: "max-content" }}
       locale={{
-        emptyText: <EmptyState icon={ChartColumn} title="Chưa có lớp mở đăng ký" description="Số liệu hiện khi Phòng Đào tạo mở lớp học phần cho học kỳ này." />,
+        emptyText: <EmptyState illustration="chart" title="Chưa có lớp mở đăng ký" description="Số liệu hiện khi Phòng Đào tạo mở lớp học phần cho học kỳ này." />,
       }}
     />
   );

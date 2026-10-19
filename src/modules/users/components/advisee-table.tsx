@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { Card, Checkbox, Input, Select, Table, type TableColumnsType } from "antd";
-import { Magnifier, Users } from "defeat-icons-react";
+import { Magnifier } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { StatusTag } from "@/shared/components/ui/status-tag";
 import type { StatusMeta } from "@/shared/constants/status.constant";
@@ -44,7 +44,7 @@ export function AdviseeTable({ rows, studentHrefBase }: AdviseeTableProps) {
 
   const emptyText = (
     <EmptyState
-      icon={Users}
+      illustration="search"
       title={rows.length === 0 ? "Chưa được phân công lớp cố vấn" : "Không có sinh viên khớp bộ lọc"}
       description={rows.length === 0 ? "Phòng Đào tạo chưa giao lớp sinh hoạt nào cho bạn." : "Thử bỏ bớt điều kiện lọc."}
     />

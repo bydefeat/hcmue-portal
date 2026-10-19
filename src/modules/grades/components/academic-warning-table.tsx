@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { Button, Card, Input, message, Select, Table, type TableColumnsType } from "antd";
-import { Magnifier, ShieldCheck } from "defeat-icons-react";
+import { Magnifier } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { StatusTag } from "@/shared/components/ui/status-tag";
 import { formatDate } from "@/shared/libs/date.lib";
@@ -57,7 +57,7 @@ export function AcademicWarningTable({ warnings, studentHrefBase, showFaculty = 
 
   const emptyText = (
     <EmptyState
-      icon={ShieldCheck}
+      illustration="search"
       title={warnings.length === 0 ? "Không có sinh viên bị cảnh báo" : "Không có sinh viên khớp bộ lọc"}
       description={warnings.length === 0 ? "Học kỳ gần nhất không có sinh viên dưới ngưỡng học vụ." : "Thử bỏ bớt điều kiện lọc."}
     />

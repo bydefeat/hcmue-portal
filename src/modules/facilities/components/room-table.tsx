@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Button, Checkbox, Drawer, Form, Input, InputNumber, message, Select, Table, type TableColumnsType } from "antd";
-import { ApartmentBuilding, Magnifier } from "defeat-icons-react";
+import { Magnifier } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { MeterBar } from "@/shared/components/ui/meter-bar";
 import { StatusTag } from "@/shared/components/ui/status-tag";
@@ -156,7 +156,7 @@ export function RoomTable({ rooms, campuses, bookings, termName }: RoomTableProp
         dataSource={filtered}
         scroll={{ x: "max-content" }}
         pagination={false}
-        locale={{ emptyText: <EmptyState icon={ApartmentBuilding} title="Không có phòng khớp bộ lọc" /> }}
+        locale={{ emptyText: <EmptyState illustration="search" title="Không có phòng khớp bộ lọc" /> }}
       />
       <Drawer
         open={opened !== null}

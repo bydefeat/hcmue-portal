@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { Alert, Button, Card, Drawer, Form, Input, message, Modal, Select, Table, type TableColumnsType } from "antd";
-import { Magnifier, Route } from "defeat-icons-react";
+import { Magnifier } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { StatusTag } from "@/shared/components/ui/status-tag";
 import { dayjs, formatDateTime } from "@/shared/libs/date.lib";
@@ -81,7 +81,7 @@ export function StudyPlanReview({ plans }: { plans: StudyPlan[] }) {
 
   const emptyText = (
     <EmptyState
-      icon={Route}
+      illustration="search"
       title={plans.length === 0 ? "Chưa có kế hoạch học tập" : "Không có kế hoạch khớp bộ lọc"}
       description={plans.length === 0 ? "Sinh viên được cố vấn chưa nộp kế hoạch nào." : "Thử bỏ bớt điều kiện lọc."}
     />

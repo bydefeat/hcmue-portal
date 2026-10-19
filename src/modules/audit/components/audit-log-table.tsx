@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { DatePicker, Input, Select, Table, type TableColumnsType } from "antd";
 import type { Dayjs } from "dayjs";
-import { History, Magnifier } from "defeat-icons-react";
+import { Magnifier } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { StatusTag } from "@/shared/components/ui/status-tag";
 import { dayjs, formatDateTime } from "@/shared/libs/date.lib";
@@ -110,7 +110,7 @@ export function AuditLogTable({ entries }: { entries: AuditEntry[] }) {
         dataSource={filtered}
         scroll={{ x: "max-content" }}
         pagination={{ itemRender: paginationItemRender, pageSize: 20, hideOnSinglePage: true, showTotal: (total) => `${total} bản ghi` }}
-        locale={{ emptyText: <EmptyState icon={History} title="Không có bản ghi khớp bộ lọc" description="Thử mở rộng khoảng thời gian hoặc bỏ bớt điều kiện." /> }}
+        locale={{ emptyText: <EmptyState illustration="search" title="Không có bản ghi khớp bộ lọc" description="Thử mở rộng khoảng thời gian hoặc bỏ bớt điều kiện." /> }}
       />
     </div>
   );

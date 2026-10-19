@@ -1,7 +1,6 @@
 "use client";
 
 import { Table, type TableColumnsType } from "antd";
-import { BookOpen } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { MeterBar } from "@/shared/components/ui/meter-bar";
 import { COURSE_TYPE_LABEL, KNOWLEDGE_BLOCK_LABEL } from "../curriculum.constant";
@@ -40,7 +39,7 @@ export function ProgramFramework({ program }: { program: ProgramDetail }) {
     return (
       <SectionCard flush>
         <EmptyState
-          icon={BookOpen}
+          illustration="document"
           title="Chưa có khung chương trình"
           description="Chương trình này chưa được gán học phần theo học kỳ. Sinh viên các khóa áp dụng sẽ chưa thấy tiến độ đào tạo."
         />

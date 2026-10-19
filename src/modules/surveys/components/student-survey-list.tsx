@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Button, Card, message } from "antd";
-import { CircleCheck, StarList } from "defeat-icons-react";
+import { CircleCheck } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { MeterBar } from "@/shared/components/ui/meter-bar";
 import { dayjs, formatDateTime } from "@/shared/libs/date.lib";
@@ -35,7 +35,7 @@ export function StudentSurveyList({ survey, tasks }: { survey: Survey; tasks: St
       </SectionCard>
       {rows.length === 0 ? (
         <SectionCard flush>
-          <EmptyState icon={StarList} title="Không có lớp cần đánh giá" description="Học kỳ này bạn chưa có lớp học phần nào." />
+          <EmptyState illustration="document" title="Không có lớp cần đánh giá" description="Học kỳ này bạn chưa có lớp học phần nào." />
         </SectionCard>
       ) : (
         <ul className="flex flex-col gap-2">

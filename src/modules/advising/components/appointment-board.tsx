@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Alert, AutoComplete, Button, Card, DatePicker, Drawer, Form, Input, message, Modal, Radio, Segmented, Select, TimePicker } from "antd";
-import { CalendarUser, Notes, Plus } from "defeat-icons-react";
+import { Notes, Plus } from "defeat-icons-react";
 import type { Dayjs } from "dayjs";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { SectionCard } from "@/shared/components/ui/section-card";
@@ -166,7 +166,7 @@ export function AppointmentBoard({ appointments, advisees, notes: initialNotes, 
         {visible.length === 0 ? (
           <SectionCard flush>
             <EmptyState
-              icon={CalendarUser}
+              illustration="calendar"
               title={view === "upcoming" ? "Không có lịch hẹn sắp tới" : "Chưa có buổi hẹn nào đã qua"}
               description={view === "upcoming" ? "Đặt lịch gặp sinh viên bị cảnh báo hoặc cần tư vấn kế hoạch học tập." : undefined}
             />

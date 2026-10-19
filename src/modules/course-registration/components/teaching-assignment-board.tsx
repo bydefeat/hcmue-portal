@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "@bprogress/next/app";
 import { Input, message, Segmented, Select, Table, Tabs, type TableColumnsType } from "antd";
-import { Magnifier, Suitcase } from "defeat-icons-react";
+import { Magnifier } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { MeterBar } from "@/shared/components/ui/meter-bar";
 import { StatusTag } from "@/shared/components/ui/status-tag";
@@ -204,7 +204,7 @@ export function TeachingAssignmentBoard({ sections, lecturers, terms, termId }: 
                   dataSource={visibleWorkloads}
                   scroll={{ x: "max-content" }}
                   pagination={{ itemRender: paginationItemRender, pageSize: 25, hideOnSinglePage: true }}
-                  locale={{ emptyText: <EmptyState icon={Suitcase} title="Không có giảng viên khớp bộ lọc" /> }}
+                  locale={{ emptyText: <EmptyState illustration="search" title="Không có giảng viên khớp bộ lọc" /> }}
                 />
               </div>
             ),
@@ -230,7 +230,7 @@ export function TeachingAssignmentBoard({ sections, lecturers, terms, termId }: 
                   dataSource={visibleSections}
                   scroll={{ x: "max-content" }}
                   pagination={{ itemRender: paginationItemRender, pageSize: 25, hideOnSinglePage: true }}
-                  locale={{ emptyText: <EmptyState icon={Suitcase} title={onlyUnassigned ? "Mọi lớp đã có giảng viên" : "Không có lớp khớp bộ lọc"} /> }}
+                  locale={{ emptyText: <EmptyState illustration="search" title={onlyUnassigned ? "Mọi lớp đã có giảng viên" : "Không có lớp khớp bộ lọc"} /> }}
                 />
               </div>
             ),

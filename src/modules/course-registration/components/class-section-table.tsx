@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "@bprogress/next/app";
 import { Button, Checkbox, Input, message, Select, Table, Tooltip, type TableColumnsType } from "antd";
-import { AlertWarning, Magnifier, Pen, Plus, PresentationScreen } from "defeat-icons-react";
+import { AlertWarning, Magnifier, Pen, Plus } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { PageHeader } from "@/shared/components/ui/page-header";
 import { MeterBar } from "@/shared/components/ui/meter-bar";
@@ -336,7 +336,7 @@ export function ClassSectionTable({ sections, terms, termId, initialQuery = "", 
           locale={{
             emptyText: (
               <EmptyState
-                icon={PresentationScreen}
+                illustration="search"
                 title={rows.length === 0 ? "Học kỳ này chưa mở lớp nào" : "Không có lớp khớp bộ lọc"}
                 description={rows.length === 0 ? "Mở lớp đầu tiên để sinh viên có lớp đăng ký." : "Thử bỏ bớt điều kiện lọc."}
               />

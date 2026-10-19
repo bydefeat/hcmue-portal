@@ -1,7 +1,7 @@
 "use client";
 
 import { Button, Card, Result } from "antd";
-import { CloudSlash } from "defeat-icons-react";
+import { Illustration } from "./illustration";
 
 export function errorDigest(error: unknown) {
   return typeof error === "object" && error !== null && "digest" in error && error.digest ? String(error.digest) : undefined;
@@ -27,7 +27,7 @@ export function ErrorState({
   return (
     <Card role="alert">
       <Result
-        icon={<CloudSlash size={56} aria-hidden className="mx-auto text-zinc-500" />}
+        icon={<Illustration name="error" className="mx-auto w-44" />}
         title={<h1 className="text-xl font-semibold">{title}</h1>}
         subTitle={
           <span className="flex flex-col items-center gap-1">

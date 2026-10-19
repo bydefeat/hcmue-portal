@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { Button, DatePicker, Drawer, Form, Input, message, Modal, Select, Table, type TableColumnsType } from "antd";
 import type { Dayjs } from "dayjs";
-import { Magnifier, Plus, ScrollText } from "defeat-icons-react";
+import { Magnifier, Plus } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { PageHeader } from "@/shared/components/ui/page-header";
 import { StatusTag } from "@/shared/components/ui/status-tag";
@@ -200,7 +200,7 @@ export function DecisionTable({ decisions, students, signerName, header }: Decis
           dataSource={visible}
           scroll={{ x: "max-content" }}
           pagination={{ itemRender: paginationItemRender, pageSize: 20, hideOnSinglePage: true }}
-          locale={{ emptyText: <EmptyState icon={ScrollText} title="Không có quyết định khớp bộ lọc" /> }}
+          locale={{ emptyText: <EmptyState illustration="search" title="Không có quyết định khớp bộ lọc" /> }}
         />
         <Drawer
           open={creating}

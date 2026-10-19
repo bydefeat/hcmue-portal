@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Input, message, Modal, Select, Table, Button, type TableColumnsType } from "antd";
-import { Magnifier, UsersCheck } from "defeat-icons-react";
+import { Magnifier } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { StatusTag } from "@/shared/components/ui/status-tag";
 import { paginationItemRender } from "@/shared/constants/antd.constant";
@@ -134,7 +134,7 @@ export function AdminExamEligibility({ rows: initialRows, limitPercent }: { rows
         dataSource={visible}
         scroll={{ x: "max-content" }}
         pagination={{ itemRender: paginationItemRender, pageSize: 25, hideOnSinglePage: true, showTotal: (total) => `${total} trường hợp` }}
-        locale={{ emptyText: <EmptyState icon={UsersCheck} title="Không có sinh viên bị cấm thi" description={`Không sinh viên nào vắng từ ${limitPercent}% số buổi trở lên.`} /> }}
+        locale={{ emptyText: <EmptyState illustration="done" title="Không có sinh viên bị cấm thi" description={`Không sinh viên nào vắng từ ${limitPercent}% số buổi trở lên.`} /> }}
       />
       <Modal
         open={target !== null}

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Button, Input, message, Table, type TableColumnsType } from "antd";
-import { Download, Envelope, Magnifier, Users } from "defeat-icons-react";
+import { Download, Envelope, Magnifier } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { formatDate } from "@/shared/libs/date.lib";
 import type { RosterEntry } from "../course-registration.type";
@@ -82,7 +82,7 @@ export function ClassRosterTable({ roster, classCode }: { roster: RosterEntry[];
         locale={{
           emptyText: (
             <EmptyState
-              icon={Users}
+              illustration="search"
               title={roster.length === 0 ? "Lớp chưa có sinh viên" : "Không tìm thấy sinh viên"}
               description={roster.length === 0 ? "Danh sách sẽ có sau khi sinh viên đăng ký học phần." : `Không có sinh viên nào khớp “${query}”.`}
             />

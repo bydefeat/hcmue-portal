@@ -265,7 +265,7 @@ export function GradingTable({ sheet, students, classCode, classId, returnReason
 
       {students.length === 0 ? (
         <Card size="small">
-          <EmptyState title="Lớp chưa có sinh viên" description="Bảng điểm sẽ có sau khi sinh viên đăng ký học phần." />
+          <EmptyState illustration="seats" title="Lớp chưa có sinh viên" description="Bảng điểm sẽ có sau khi sinh viên đăng ký học phần." />
         </Card>
       ) : (
         <>

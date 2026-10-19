@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { Button, Card, Dropdown, Input, message, Select, Table, type TableColumnsType } from "antd";
-import { FileArrowIn, Magnifier, Pen, Plus, UserSearch } from "defeat-icons-react";
+import { FileArrowIn, Magnifier, Pen, Plus } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { PageHeader } from "@/shared/components/ui/page-header";
 import { StatusTag } from "@/shared/components/ui/status-tag";
@@ -223,7 +223,7 @@ export function StudentTable({ students, header }: { students: StudentRow[]; hea
           locale={{
             emptyText: (
               <EmptyState
-                icon={UserSearch}
+                illustration="search"
                 title="Không có sinh viên khớp bộ lọc"
                 description="Thử tìm theo mã sinh viên hoặc bỏ bớt điều kiện lọc."
               />

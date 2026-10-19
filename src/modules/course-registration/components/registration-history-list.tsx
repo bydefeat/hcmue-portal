@@ -1,4 +1,3 @@
-import { History } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { StatusTag } from "@/shared/components/ui/status-tag";
 import { formatDateTime } from "@/shared/libs/date.lib";
@@ -7,7 +6,7 @@ import type { RegistrationEvent } from "../course-registration.type";
 
 export function RegistrationHistoryList({ events }: { events: RegistrationEvent[] }) {
   if (events.length === 0) {
-    return <EmptyState icon={History} title="Chưa có thao tác đăng ký" description="Mỗi lần đăng ký, hủy, đổi lớp hay được xếp từ danh sách chờ sẽ ghi lại ở đây." />;
+    return <EmptyState illustration="document" title="Chưa có thao tác đăng ký" description="Mỗi lần đăng ký, hủy, đổi lớp hay được xếp từ danh sách chờ sẽ ghi lại ở đây." />;
   }
   return (
     <ol className="flex flex-col divide-y divide-border-strong">

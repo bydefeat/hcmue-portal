@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Button, Card, Checkbox, DatePicker, Drawer, Form, Input, message, Modal, Switch } from "antd";
-import { Envelope, Megaphone, Pin, Plus } from "defeat-icons-react";
+import { Envelope, Pin, Plus } from "defeat-icons-react";
 import type { Dayjs } from "dayjs";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { SectionCard } from "@/shared/components/ui/section-card";
@@ -110,7 +110,6 @@ export function ClassAnnouncementBoard({ announcements, classSectionId, classCod
       {ordered.length === 0 ? (
         <SectionCard flush>
           <EmptyState
-            icon={Megaphone}
             title="Lớp chưa có thông báo"
             description="Thông báo lịch nghỉ, bài tập hay tài liệu cho riêng lớp này. Có thể gửi kèm email."
           />

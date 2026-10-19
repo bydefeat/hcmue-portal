@@ -1,4 +1,3 @@
-import { StarList } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { MeterBar } from "@/shared/components/ui/meter-bar";
 import { SectionCard } from "@/shared/components/ui/section-card";
@@ -24,7 +23,7 @@ export function LecturerSurveyResults({ results, questions, facultyAverage }: Le
   if (results.length === 0) {
     return (
       <SectionCard flush>
-        <EmptyState icon={StarList} title="Chưa có kết quả khảo sát" description="Kết quả hiện sau khi đợt khảo sát đóng và có ít nhất 5 sinh viên trả lời." />
+        <EmptyState illustration="document" title="Chưa có kết quả khảo sát" description="Kết quả hiện sau khi đợt khảo sát đóng và có ít nhất 5 sinh viên trả lời." />
       </SectionCard>
     );
   }

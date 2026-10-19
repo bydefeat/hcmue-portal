@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Alert, Button, Card, Form, Input, InputNumber, message, Modal, Select, Table, type TableColumnsType } from "antd";
-import { ArrowsTransaction, BookOpen, Pen, Plus, Trash } from "defeat-icons-react";
+import { ArrowsTransaction, Pen, Plus, Trash } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { SectionCard } from "@/shared/components/ui/section-card";
 import { StatusTag } from "@/shared/components/ui/status-tag";
@@ -268,7 +268,7 @@ export function SyllabusEditor({ syllabus: initial, gradeComponents, classCode }
     );
   }
 
-  const assessmentEmpty = <EmptyState title="Chưa có hình thức đánh giá" description="Bấm Sửa đề cương, chọn Lấy theo bảng điểm để điền nhanh." />;
+  const assessmentEmpty = <EmptyState illustration="document" title="Chưa có hình thức đánh giá" description="Bấm Sửa đề cương, chọn Lấy theo bảng điểm để điền nhanh." />;
 
   const assessmentColumns: TableColumnsType<SyllabusAssessment> = [
     { title: "Hình thức", dataIndex: "label", width: 160, render: (value: string) => <span className="font-medium">{value}</span> },
@@ -345,7 +345,7 @@ export function SyllabusEditor({ syllabus: initial, gradeComponents, classCode }
       ) : (
         <SectionCard flush>
           <EmptyState
-            icon={BookOpen}
+            illustration="document"
             title="Lớp chưa có đề cương"
             description="Soạn mô tả, chuẩn đầu ra, cách đánh giá và kế hoạch 15 tuần rồi công bố cho sinh viên."
             action={

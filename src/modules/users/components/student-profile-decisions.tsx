@@ -1,4 +1,3 @@
-import { ScrollText } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { SectionCard } from "@/shared/components/ui/section-card";
 import { StatusTag } from "@/shared/components/ui/status-tag";
@@ -11,7 +10,7 @@ export function StudentProfileDecisions({ decisions }: { decisions: StudentDecis
   return (
     <SectionCard title="Quyết định liên quan" flush>
       {visible.length === 0 ? (
-        <EmptyState icon={ScrollText} title="Chưa có quyết định nào" description="Quyết định khen thưởng, bảo lưu, chuyển ngành sẽ hiện ở đây sau khi được ký." />
+        <EmptyState illustration="document" title="Chưa có quyết định nào" description="Quyết định khen thưởng, bảo lưu, chuyển ngành sẽ hiện ở đây sau khi được ký." />
       ) : (
         <ul className="flex flex-col divide-y divide-border-strong">
           {visible.map((decision) => (

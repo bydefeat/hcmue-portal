@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Input, Segmented } from "antd";
-import { Magnifier, Megaphone } from "defeat-icons-react";
+import { Magnifier } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { SectionCard } from "@/shared/components/ui/section-card";
 import { ANNOUNCEMENT_CATEGORY_LABEL } from "../announcements.constant";
@@ -52,7 +52,6 @@ export function PublicAnnouncementBrowser({ announcements }: { announcements: An
       <SectionCard flush>
         {visible.length === 0 ? (
           <EmptyState
-            icon={Megaphone}
             title="Không có thông báo phù hợp"
             description={announcements.length === 0 ? "Phòng Đào tạo chưa đăng thông báo nào." : "Thử chọn nhóm khác hoặc bỏ từ khóa tìm kiếm."}
           />

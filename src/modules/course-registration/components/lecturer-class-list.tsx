@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ChevronRight, PresentationScreen } from "defeat-icons-react";
+import { ChevronRight } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { SectionCard } from "@/shared/components/ui/section-card";
 import { StatusTag } from "@/shared/components/ui/status-tag";
@@ -36,7 +36,7 @@ export function LecturerClassList({ items }: { items: LecturerClassItem[] }) {
   if (rows.length === 0) {
     return (
       <SectionCard flush>
-        <EmptyState icon={PresentationScreen} title="Chưa được phân công lớp" description="Học kỳ này bạn chưa có lớp học phần nào. Liên hệ khoa nếu thấy thiếu lớp." />
+        <EmptyState illustration="board" title="Chưa được phân công lớp" description="Học kỳ này bạn chưa có lớp học phần nào. Liên hệ khoa nếu thấy thiếu lớp." />
       </SectionCard>
     );
   }

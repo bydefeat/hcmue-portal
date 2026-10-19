@@ -34,7 +34,7 @@ export function StudentCurriculumProgress({ program, progress, earnedCredits }: 
   if (!program || program.semesters.length === 0) {
     return (
       <SectionCard flush>
-        <EmptyState title="Chưa có khung chương trình" description="Khoa chưa công bố khung chương trình cho khóa của bạn. Liên hệ cố vấn học tập để được hướng dẫn." />
+        <EmptyState illustration="document" title="Chưa có khung chương trình" description="Khoa chưa công bố khung chương trình cho khóa của bạn. Liên hệ cố vấn học tập để được hướng dẫn." />
       </SectionCard>
     );
   }

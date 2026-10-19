@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { CalendarClock } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { MeterBar } from "@/shared/components/ui/meter-bar";
 import { PageHeader } from "@/shared/components/ui/page-header";
@@ -73,7 +72,7 @@ export default async function Page() {
       <div className="flex flex-col gap-4 sm:gap-6">
         {active.length === 0 ? (
           <SectionCard flush>
-            <EmptyState icon={CalendarClock} title="Không có đợt đăng ký đang mở" description="Số liệu dưới đây là kết quả của các đợt đã đóng." />
+            <EmptyState illustration="calendar" title="Không có đợt đăng ký đang mở" description="Số liệu dưới đây là kết quả của các đợt đã đóng." />
           </SectionCard>
         ) : (
           <div className={`grid gap-3 ${active.length > 1 ? "md:grid-cols-2" : ""}`}>

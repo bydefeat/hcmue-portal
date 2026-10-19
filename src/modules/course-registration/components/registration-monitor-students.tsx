@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Button, Input, message, Select, Table, type TableColumnsType } from "antd";
-import { Magnifier, UsersCheck } from "defeat-icons-react";
+import { Magnifier } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { paginationItemRender } from "@/shared/constants/antd.constant";
 
@@ -86,7 +86,7 @@ export function RegistrationMonitorStudents({ students }: { students: PendingStu
         rowSelection={{ selectedRowKeys: selected, onChange: (keys) => setSelected(keys as string[]) }}
         scroll={{ x: "max-content" }}
         pagination={{ itemRender: paginationItemRender, pageSize: 20, hideOnSinglePage: true, showTotal: (total) => `${total} sinh viên` }}
-        locale={{ emptyText: <EmptyState icon={UsersCheck} title="Mọi sinh viên trong đợt đã đăng ký" /> }}
+        locale={{ emptyText: <EmptyState illustration="done" title="Mọi sinh viên trong đợt đã đăng ký" /> }}
       />
     </div>
   );

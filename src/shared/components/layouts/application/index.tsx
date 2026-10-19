@@ -38,7 +38,7 @@ export function ApplicationLayout({ user, termLabel, notifications, children }: 
     <Layout hasSider className="min-h-dvh">
       <ApplicationSidebar user={user} />
       <Layout>
-        <Layout.Header className="sticky top-0 z-10 flex items-center gap-3 border-b border-border-strong px-4 sm:px-6">
+        <Layout.Header className="sticky top-0 z-10 flex print:!hidden items-center gap-3 border-b border-border-strong px-4 sm:px-6">
           <Logo href="/application/dashboard" className="lg:hidden" />
           <h1 className="hidden min-w-0 truncate text-base font-semibold lg:block">{title}</h1>
           <span className="ml-auto hidden shrink-0 text-sm text-muted sm:block">{termLabel}</span>
@@ -50,7 +50,7 @@ export function ApplicationLayout({ user, termLabel, notifications, children }: 
           </div>
         </Layout.Header>
         <Layout.Content className="p-4 pb-28 sm:p-6 sm:pb-28 lg:pb-6">
-          <h1 className="mb-4 text-xl font-semibold lg:hidden">{title}</h1>
+          <h1 className="mb-4 text-xl font-semibold lg:hidden print:hidden">{title}</h1>
           {children}
         </Layout.Content>
       </Layout>

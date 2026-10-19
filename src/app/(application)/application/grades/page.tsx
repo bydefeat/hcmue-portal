@@ -2,12 +2,14 @@ import type { Metadata } from "next";
 import { getCurrentTerm, getStudentEnrollments } from "@/modules/course-registration/course-registration.query";
 import { bestGrades, pickTimetable } from "@/modules/course-registration/course-registration.rule";
 import { getCourses, getPrograms } from "@/modules/curriculum/curriculum.query";
+import { PrintableTranscript } from "@/modules/grades/components/printable-transcript";
 import { TranscriptView } from "@/modules/grades/components/transcript-view";
 import { formatPoint, STANDING_LABEL, WARNING_LEVEL } from "@/modules/grades/grades.constant";
 import { getStudentStandings, getTranscript } from "@/modules/grades/grades.query";
 import type { TranscriptTerm } from "@/modules/grades/grades.type";
 import { getCurrentStudent } from "@/modules/users/users.query";
 import { MeterBar } from "@/shared/components/ui/meter-bar";
+import { PrintButton } from "@/shared/components/ui/print-button";
 import { StatTile } from "@/shared/components/ui/stat-tile";
 
 export const metadata: Metadata = { title: "Kết quả học tập" };
@@ -49,38 +51,44 @@ export default async function Page() {
   const percent = Math.round((standing.earnedCredits / totalCredits) * 100);
 
   return (
-    <div className="flex flex-col gap-4">
-      <p className="text-sm text-muted">
-        Điểm quy đổi theo thang 4 của quy chế đào tạo tín chỉ. Điểm học kỳ hiện tại hiện sau khi Phòng Đào tạo công bố.
-      </p>
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <StatTile label="Điểm trung bình tích lũy" value={formatPoint(standing.cpa4)} hint={`Xếp loại ${STANDING_LABEL[standing.standing]}`} />
-        <StatTile
-          label="Học kỳ gần nhất"
-          value={formatPoint(lastTerm?.gpa4 ?? null)}
-          hint={lastTerm ? lastTerm.termName.replace("Học kỳ", "HK").replace(", năm học", "") : "Chưa có"}
-        />
-        <StatTile label="Tín chỉ tích lũy" value={`${standing.earnedCredits}/${totalCredits}`} hint={`Đạt ${percent}% chương trình`} />
-        <StatTile
-          label="Tín chỉ nợ"
-          value={standing.failedCredits}
-          hint={standing.warningLevel > 0 ? `Đang bị cảnh báo ${WARNING_LEVEL[standing.warningLevel as 1 | 2 | 3].label.toLowerCase()}` : "Không bị cảnh báo học vụ"}
-          tone={standing.warningLevel > 0 ? "danger" : standing.failedCredits > 0 ? "warning" : undefined}
-        />
-      </div>
-      <section className="flex flex-col gap-2 rounded-xl border border-border-strong bg-surface p-4 sm:p-5">
-        <div className="flex items-baseline justify-between gap-3">
-          <h2 className="text-base font-semibold">Tiến độ tốt nghiệp</h2>
-          <span className="text-xs text-muted tabular-nums">
-            Còn {Math.max(0, totalCredits - standing.earnedCredits)} tín chỉ
-          </span>
+    <>
+      <PrintableTranscript student={student} terms={transcript} standing={standing} />
+      <div className="flex flex-col gap-4 print:hidden">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm text-muted">
+            Điểm quy đổi theo thang 4 của quy chế đào tạo tín chỉ. Điểm học kỳ hiện tại hiện sau khi Phòng Đào tạo công bố.
+          </p>
+          <PrintButton label="In bảng điểm" />
         </div>
-        <MeterBar value={standing.earnedCredits} max={totalCredits} label="Tín chỉ đã tích lũy" />
-        <p className="text-xs text-pretty text-muted">
-          {program ? `${program.name}, ${program.degree.toLowerCase()} ${program.totalCredits} tín chỉ.` : ""} Xem chi tiết từng học phần ở mục Chương trình đào tạo.
-        </p>
-      </section>
-      <TranscriptView terms={terms} />
-    </div>
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <StatTile label="Điểm trung bình tích lũy" value={formatPoint(standing.cpa4)} hint={`Xếp loại ${STANDING_LABEL[standing.standing]}`} />
+          <StatTile
+            label="Học kỳ gần nhất"
+            value={formatPoint(lastTerm?.gpa4 ?? null)}
+            hint={lastTerm ? lastTerm.termName.replace("Học kỳ", "HK").replace(", năm học", "") : "Chưa có"}
+          />
+          <StatTile label="Tín chỉ tích lũy" value={`${standing.earnedCredits}/${totalCredits}`} hint={`Đạt ${percent}% chương trình`} />
+          <StatTile
+            label="Tín chỉ nợ"
+            value={standing.failedCredits}
+            hint={standing.warningLevel > 0 ? `Đang bị cảnh báo ${WARNING_LEVEL[standing.warningLevel as 1 | 2 | 3].label.toLowerCase()}` : "Không bị cảnh báo học vụ"}
+            tone={standing.warningLevel > 0 ? "danger" : standing.failedCredits > 0 ? "warning" : undefined}
+          />
+        </div>
+        <section className="flex flex-col gap-2 rounded-xl border border-border-strong bg-surface p-4 sm:p-5">
+          <div className="flex items-baseline justify-between gap-3">
+            <h2 className="text-base font-semibold">Tiến độ tốt nghiệp</h2>
+            <span className="text-xs text-muted tabular-nums">
+              Còn {Math.max(0, totalCredits - standing.earnedCredits)} tín chỉ
+            </span>
+          </div>
+          <MeterBar value={standing.earnedCredits} max={totalCredits} label="Tín chỉ đã tích lũy" />
+          <p className="text-xs text-pretty text-muted">
+            {program ? `${program.name}, ${program.degree.toLowerCase()} ${program.totalCredits} tín chỉ.` : ""} Xem chi tiết từng học phần ở mục Chương trình đào tạo.
+          </p>
+        </section>
+        <TranscriptView terms={terms} />
+      </div>
+    </>
   );
 }

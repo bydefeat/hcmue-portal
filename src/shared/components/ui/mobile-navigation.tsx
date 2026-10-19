@@ -116,7 +116,7 @@ export function MobileNavigation({ dockItems, sections, homeHref, hideFrom, acti
         transition={HIDE_TRANSITION}
         style={{ pointerEvents: isDockHidden ? "none" : "auto" }}
         className={classes(
-          "fixed inset-x-3 bottom-[calc(12px+env(safe-area-inset-bottom))] z-40 mx-auto max-w-[420px] touch-manipulation select-none",
+          "fixed inset-x-3 bottom-[calc(12px+env(safe-area-inset-bottom))] z-40 mx-auto max-w-[420px] touch-manipulation select-none print:hidden",
           HIDE_CLASS[hideFrom],
         )}
       >

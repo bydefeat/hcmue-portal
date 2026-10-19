@@ -55,7 +55,7 @@ export function LecturerHeader({ user, isAdvisor, notifications }: LecturerHeade
   if (LECTURER_ADVISING_GROUP.items.some((item) => isActiveItem(pathname, item))) selectedKeys.push(ADVISING_KEY);
 
   return (
-    <Layout.Header className="sticky top-0 z-20 border-b border-border-strong">
+    <Layout.Header className="sticky top-0 z-20 border-b border-border-strong print:!hidden">
       <div className="mx-auto flex h-full w-full max-w-7xl items-center gap-2 px-4 sm:px-6">
         <Logo href={LECTURER_HOME_HREF} subtitle="Cổng giảng viên" className="mr-4 shrink-0" />
         <Menu

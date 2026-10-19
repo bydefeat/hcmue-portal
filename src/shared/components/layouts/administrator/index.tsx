@@ -66,7 +66,7 @@ export function AdministratorLayout({
     <Layout hasSider className="min-h-dvh">
       <AdministratorSidebar user={user} groups={groups} switcher={switcher} />
       <Layout className="min-w-0">
-        <Layout.Header className="sticky top-0 z-10 flex h-16 items-center gap-3 border-b border-border-strong px-4 sm:px-6">
+        <Layout.Header className="sticky top-0 z-10 flex print:!hidden h-16 items-center gap-3 border-b border-border-strong px-4 sm:px-6">
           <Logo href={ADMINISTRATOR_HOME_HREF} className="shrink-0 lg:hidden" />
           <Breadcrumb items={breadcrumbItems(groups, pathname)} className="hidden min-w-0 shrink lg:block" />
           <div className="hidden min-w-0 flex-1 justify-end leading-normal md:flex">
@@ -81,7 +81,7 @@ export function AdministratorLayout({
           </div>
         </Layout.Header>
         <Layout.Content className="min-w-0 p-4 pb-28 sm:p-6 sm:pb-28 lg:pb-6">
-          <div className="mb-4 md:hidden">
+          <div className="mb-4 md:hidden print:hidden">
             <GlobalSearch entries={searchEntries} />
           </div>
           {children}

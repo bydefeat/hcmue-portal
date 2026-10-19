@@ -54,6 +54,11 @@ const FIELDS: Record<RequestKind, FieldSpec[]> = {
     { name: "language", label: "Ngôn ngữ", kind: "select", options: ["Tiếng Việt", "Tiếng Anh", "Cả hai"] },
     { name: "delivery", label: "Hình thức nhận", kind: "select", options: ["Nhận tại Phòng Đào tạo", "Bản điện tử qua email"] },
   ],
+  "credit-transfer": [
+    { name: "source", label: "Học phần đã học (mã, tên, số tín chỉ, điểm)", kind: "text" },
+    { name: "school", label: "Nơi học", kind: "text" },
+    { name: "target", label: "Học phần xin công nhận", kind: "text" },
+  ],
   "grade-change": [],
   "teaching-leave": [],
 };

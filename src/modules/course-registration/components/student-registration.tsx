@@ -38,6 +38,10 @@ const SIMULATION_OPTIONS: { value: Simulation; label: string }[] = [
   { value: "closed", label: "Đợt đã đóng" },
 ];
 
+function waitlistPosition(code: string) {
+  return 1 + ([...code].reduce((sum, char) => sum + char.charCodeAt(0), 0) % 6);
+}
+
 function normalize(value: string) {
   return value.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/đ/gi, "d").toLowerCase();
 }
@@ -123,6 +127,7 @@ export function StudentRegistration({
   const [modal, modalContextHolder] = Modal.useModal();
   const [plannedIds, setPlannedIds] = useState(initialPlannedIds);
   const [registeredIds, setRegisteredIds] = useState<string[]>([]);
+  const [waitlistIds, setWaitlistIds] = useState<string[]>([]);
   const [simulation, setSimulation] = useState<Simulation>("actual");
   const [query, setQuery] = useState("");
   const [faculty, setFaculty] = useState<string>();
@@ -244,6 +249,8 @@ export function StudentRegistration({
                 const isPlanned = plannedIds.includes(section.id);
                 const isRegistered = registeredIds.includes(section.id);
                 const blocked = issues.some((issue) => issue.blocking);
+                const onlyFull = blocked && issues.filter((issue) => issue.blocking).every((issue) => issue.kind === "full");
+                const isWaiting = waitlistIds.includes(section.id);
                 return (
                   <li key={section.id} className="flex flex-col gap-3 rounded-xl border border-border-strong bg-surface p-4 md:flex-row md:items-start">
                     <div className="flex min-w-0 flex-1 flex-col gap-1">
@@ -277,6 +284,30 @@ export function StudentRegistration({
                       ) : isPlanned ? (
                         <Button onClick={() => removePlanned(section)} icon={<Trash size={16} aria-hidden />}>
                           Bỏ khỏi giỏ
+                        </Button>
+                      ) : isWaiting ? (
+                        <span className="flex flex-col items-start gap-1 md:items-stretch">
+                          <span className="text-xs text-amber-700 tabular-nums">Đang chờ, vị trí {waitlistPosition(section.code)}</span>
+                          <Button
+                            size="small"
+                            onClick={() => {
+                              setWaitlistIds((current) => current.filter((id) => id !== section.id));
+                              messageApi.info(`Đã rời danh sách chờ lớp ${section.code}`);
+                            }}
+                          >
+                            Rời danh sách chờ
+                          </Button>
+                        </span>
+                      ) : onlyFull ? (
+                        <Button
+                          onClick={() => {
+                            setWaitlistIds((current) => [...current, section.id]);
+                            messageApi.success(
+                              `Đã vào danh sách chờ lớp ${section.code}, vị trí ${waitlistPosition(section.code)}. Khi có chỗ trống hệ thống tự đăng ký nếu không trùng lịch và báo cho bạn.`,
+                            );
+                          }}
+                        >
+                          Vào danh sách chờ
                         </Button>
                       ) : (
                         <Button onClick={() => add(section)} disabled={blocked} icon={<Plus size={16} aria-hidden />}>

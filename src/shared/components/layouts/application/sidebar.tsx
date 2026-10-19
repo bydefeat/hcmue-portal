@@ -10,7 +10,7 @@ const PROFILE_LINKS = [APPLICATION_PROFILE];
 
 export function ApplicationSidebar({ user }: { user: MenuUser }) {
   return (
-    <Layout.Sider width={256} theme="light" className="sticky top-0 hidden h-dvh border-r border-border-strong lg:block">
+    <Layout.Sider width={256} theme="light" className="sticky top-0 hidden h-dvh border-r border-border-strong lg:block print:!hidden">
       <div className="flex h-full flex-col select-none">
         <div className="flex h-16 shrink-0 items-center border-b border-border-strong px-4">
           <Logo href="/application/dashboard" subtitle="Cổng sinh viên" />

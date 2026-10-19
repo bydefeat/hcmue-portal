@@ -4,6 +4,7 @@ import { useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "@bprogress/next/app";
 import { Button, Divider, Form, Input } from "antd";
+import { DEMO_ACCOUNTS, demoRolesOf, landingOf } from "@/shared/constants/role.constant";
 import { AuthHeading } from "./auth-heading";
 
 type SignInValues = {
@@ -29,7 +30,7 @@ export function SignInForm({ defaultUsername }: { defaultUsername?: string }) {
         size="large"
         requiredMark={false}
         initialValues={{ username: defaultUsername }}
-        onFinish={() => startTransition(() => router.push("/application/dashboard"))}
+        onFinish={(values) => startTransition(() => router.push(landingOf(demoRolesOf(values.username))))}
       >
         <Form.Item
           name="username"
@@ -49,6 +50,16 @@ export function SignInForm({ defaultUsername }: { defaultUsername?: string }) {
       <Link href={forgotHref} className="text-sm text-foreground hover:underline">
         Quên mật khẩu?
       </Link>
+      <div className="mt-6 flex flex-col gap-2">
+        <span className="text-xs text-muted">Tài khoản dùng thử, mật khẩu bất kỳ</span>
+        <div className="flex flex-wrap gap-2">
+          {DEMO_ACCOUNTS.map((account) => (
+            <Button key={account.username} size="small" onClick={() => form.setFieldsValue({ username: account.username })}>
+              {account.label}
+            </Button>
+          ))}
+        </div>
+      </div>
     </>
   );
 }

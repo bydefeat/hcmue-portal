@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { Button, Dropdown, Input, message, Modal, Select, Table, Upload, type TableColumnsType } from "antd";
+import { Button, Dropdown, Input, message, Select, Table, type TableColumnsType } from "antd";
 import { FileArrowIn, Magnifier, Pen, Plus, UserSearch } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { StatusTag } from "@/shared/components/ui/status-tag";
@@ -10,6 +10,7 @@ import { MOCK_MAJORS } from "@/shared/libs/mock.lib";
 import { COHORT_OPTIONS, FACULTY_OPTIONS, STUDENT_STATUS, STUDENT_STATUS_OPTIONS } from "../users.constant";
 import type { Student, StudentFormValues, StudentStatus } from "../users.type";
 import { StudentFormDrawer } from "./student-form-drawer";
+import { StudentImportModal } from "./student-import-modal";
 
 export type StudentRow = Student & {
   cpa4: number | null;
@@ -213,33 +214,15 @@ export function StudentTable({ students }: { students: StudentRow[] }) {
 
       <StudentFormDrawer open={isDrawerOpen} student={editing} onClose={() => setIsDrawerOpen(false)} onSubmit={handleSubmit} />
 
-      <Modal
+      <StudentImportModal
         open={isImportOpen}
-        title="Nhập danh sách sinh viên từ Excel"
-        width={560}
-        onCancel={() => setIsImportOpen(false)}
-        mask={{ closable: false }}
-        footer={<Button onClick={() => setIsImportOpen(false)}>Đóng</Button>}
-      >
-        <p className="mb-4 text-sm text-pretty text-muted">
-          Tệp .xlsx gồm các cột mã sinh viên, họ tên, ngày sinh, ngành, khóa, lớp. Dòng trùng mã sinh viên sẽ được bỏ qua.
-        </p>
-        <Upload.Dragger
-          accept=".xlsx,.xls"
-          maxCount={1}
-          beforeUpload={(file) => {
-            messageApi.success(`Đã nhận tệp ${file.name}, hệ thống đang kiểm tra dữ liệu`);
-            setIsImportOpen(false);
-            return false;
-          }}
-        >
-          <div className="flex flex-col items-center gap-2 py-4">
-            <FileArrowIn size={28} aria-hidden className="text-muted" />
-            <span className="font-medium">Kéo tệp vào đây hoặc chọn tệp</span>
-            <span className="text-xs text-muted">Tối đa 5 MB</span>
-          </div>
-        </Upload.Dragger>
-      </Modal>
+        existingCodes={rows.map((row) => row.code)}
+        onClose={() => setIsImportOpen(false)}
+        onImport={(values) => {
+          setRows((current) => [...values.map((value) => toStudent(value)), ...current]);
+          messageApi.success(`Đã nhập ${values.length} sinh viên mới`);
+        }}
+      />
     </div>
   );
 }

@@ -34,7 +34,7 @@ src/
 │   │   ├── layout.tsx               # → <PublicLayout>
 │   │   ├── page.tsx                 # /                trang chủ
 │   │   ├── announcements/           # /announcements   thông báo đào tạo
-│   │   │   └── [slug]/
+│   │   │   └── [slug]/              # chi tiết thông báo
 │   │   └── about/                   # /about
 │   │
 │   ├── (authentication)/
@@ -248,3 +248,15 @@ Mỗi folder chỉ export `index.tsx`; các file con là chi tiết nội bộ c
 | Nhật ký thao tác | `modules/audit` | Mỗi thao tác ghi ai, lúc nào, đối tượng, giá trị trước và sau |
 | Quy chế, lịch năm học | `modules/settings` | Thang điểm, hạn mức tín chỉ, ngưỡng cảnh báo, tỉ lệ vắng, hạn xử lý quy trình. Hiện các module khác vẫn dùng hằng số mặc định trùng với giá trị này; khi có DB sẽ đọc từ đây |
 | Khảo thí, phòng học, khảo sát | `modules/exams`, `modules/facilities`, `modules/surveys` | Dữ liệu dùng chung cho cả 3 cổng |
+
+## 7. Danh sách màn hình
+
+Sinh tự động từ `src/app/**/page.tsx` (đường dẫn redirect như `/application`, `/administrator/users`, `/lecturer/advising` cũng nằm trong danh sách). Mỗi cổng có `loading.tsx`, `error.tsx`, `not-found.tsx`; trang 403 ở `app/forbidden.tsx`.
+
+| Cổng | Số trang | Đường dẫn |
+|---|---|---|
+| Công khai | 4 | `/`, `/about`, `/announcements`, `/announcements/[slug]` |
+| Xác thực | 4 | `/authentication`, `/authentication/forgot-password`, `/authentication/sign-in`, `/authentication/verify` |
+| Sinh viên | 13 | `/application`, `/application/curriculum`, `/application/dashboard`, `/application/exams`, `/application/grades`, `/application/notifications`, `/application/profile`, `/application/registration`, `/application/requests`, `/application/schedule`, `/application/study-plan`, `/application/surveys`, `/application/tuition` |
+| Giảng viên | 19 | `/lecturer`, `/lecturer/advising`, `/lecturer/advising/academic-warnings`, `/lecturer/advising/appointments`, `/lecturer/advising/students`, `/lecturer/advising/students/[studentId]`, `/lecturer/advising/study-plans`, `/lecturer/classes`, `/lecturer/classes/[classId]`, `/lecturer/classes/[classId]/announcements`, `/lecturer/classes/[classId]/attendance`, `/lecturer/classes/[classId]/grading`, `/lecturer/classes/[classId]/syllabus`, `/lecturer/exams`, `/lecturer/notifications`, `/lecturer/profile`, `/lecturer/requests`, `/lecturer/schedule`, `/lecturer/workload` |
+| Phòng Đào tạo | 31 | `/administrator`, `/administrator/announcements`, `/administrator/class-sections`, `/administrator/courses`, `/administrator/decisions`, `/administrator/exams`, `/administrator/exams/eligibility`, `/administrator/grade-publishing`, `/administrator/graduation`, `/administrator/notifications`, `/administrator/profile`, `/administrator/programs`, `/administrator/programs/[programId]`, `/administrator/registration-monitor`, `/administrator/reports`, `/administrator/reports/academic-warnings`, `/administrator/reports/exports`, `/administrator/reports/surveys`, `/administrator/requests`, `/administrator/rooms`, `/administrator/settings`, `/administrator/settings/access`, `/administrator/settings/audit-log`, `/administrator/settings/calendar`, `/administrator/teaching-assignments`, `/administrator/terms`, `/administrator/users`, `/administrator/users/advisors`, `/administrator/users/lecturers`, `/administrator/users/students`, `/administrator/users/students/[studentId]` |

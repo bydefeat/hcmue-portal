@@ -12,6 +12,14 @@ export async function getAnnouncements() {
 }
 
 export async function getPublishedAnnouncements(limit?: number) {
-  const published = ANNOUNCEMENTS.filter((announcement) => announcement.status === "published").sort(byNewest);
+  await mockDelay();
+  const published = ANNOUNCEMENTS.filter((announcement) => announcement.status === "published").sort(
+    (a, b) => Number(b.isPinned) - Number(a.isPinned) || byNewest(a, b),
+  );
   return limit ? published.slice(0, limit) : published;
+}
+
+export async function getPublishedAnnouncement(slug: string) {
+  await mockDelay();
+  return ANNOUNCEMENTS.find((announcement) => announcement.slug === slug && announcement.status === "published") ?? null;
 }

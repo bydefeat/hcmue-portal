@@ -74,6 +74,15 @@ export const REQUEST_KINDS: Record<RequestKind, RequestKindConfig> = {
     description: "Bảng điểm có đóng dấu, nhận tại Phòng Đào tạo hoặc gửi bản điện tử.",
     steps: [{ role: "academic-office", label: "Phòng Đào tạo cấp", slaDays: 3 }],
   },
+  "credit-transfer": {
+    label: "Công nhận, chuyển điểm",
+    requesterType: "student",
+    description: "Công nhận học phần đã học ở trường khác hoặc ngành khác. Khoa đối chiếu đề cương, học phần tương đương từ 80% nội dung và cùng số tín chỉ trở lên.",
+    steps: [
+      { role: "faculty", label: "Khoa đối chiếu đề cương", slaDays: 7 },
+      { role: "academic-office", label: "Phòng Đào tạo công nhận và cập nhật điểm", slaDays: 5 },
+    ],
+  },
   "grade-change": {
     label: "Sửa điểm sau khi chốt",
     requesterType: "lecturer",

@@ -6,6 +6,7 @@ export type RequestKind =
   | "exam-postpone"
   | "reserve"
   | "transcript"
+  | "credit-transfer"
   | "grade-change"
   | "teaching-leave";
 

@@ -22,6 +22,20 @@
       "when": 1792394718948,
       "tag": "0002_billing_exports_constraint_names",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1792395058880,
+      "tag": "0003_composite_integrity",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1792395060017,
+      "tag": "0004_cross_table_guards",
+      "breakpoints": true
     }
   ]
 }

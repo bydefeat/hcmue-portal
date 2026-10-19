@@ -76,6 +76,8 @@ export function formatPoint(value: number | null, digits = 2) {
 
 export const GRADES_CONSTRAINT_MESSAGE: Partial<Record<string, string>> = {
   grade_scores_range: "Điểm phải từ 0 đến 10.",
+  grade_scores_same_section: "Sinh viên không thuộc lớp của bảng điểm.",
+  course_results_enrollment_fk: "Kết quả học phần không khớp với đăng ký của sinh viên.",
   grade_components_weight_range: "Trọng số mỗi thành phần phải từ 1 đến 100%.",
   grade_components_grade_sheet_id_key_unique: "Thành phần điểm này đã có trong bảng điểm.",
   grade_sheets_class_section_id_unique: "Lớp học phần đã có bảng điểm.",

@@ -302,6 +302,16 @@ Giờ tiết học ở `shared/constants/period.constant.ts`: 12 tiết, mỗi t
 |---|---|
 | `enrollments_sync_counts` | Thêm, hủy, đổi nhóm đăng ký thì tự cộng trừ `enrolled_count` của lớp, nhóm thực hành và `taken_count` của chỗ dành riêng. Vượt sức chứa thì `CHECK` chặn và hủy cả giao dịch; hai người tranh chỗ cuối thì `UPDATE` khóa dòng lớp nên chỉ một người được |
 | `grade_components_weights_total_100`, `syllabus_assessments_weights_total_100` | Tổng trọng số phải bằng 100, kiểm tra lúc commit (`DEFERRABLE INITIALLY DEFERRED`) để sửa nhiều thành phần trong một giao dịch |
+| `enrollments_guard` (`0004`) | Không đăng ký vào lớp đã hủy; lớp có nhóm thực hành thì phải chọn nhóm |
+| `grade_scores_same_section`, `attendance_records_same_section` | Điểm và điểm danh chỉ ghi cho sinh viên của chính lớp đó |
+| `survey_submissions_enrolled` | Chỉ sinh viên đang học lớp mới nộp khảo sát lớp đó |
+| `reserved_seats_within_capacity` | Tổng chỗ dành riêng không vượt sĩ số, kể cả khi giảm sĩ số lớp (kiểm tra lúc commit) |
+| `terms_no_overlap` (`EXCLUDE USING gist`) | Hai học kỳ không chồng khoảng ngày |
+
+Trigger báo lỗi bằng `RAISE ... USING CONSTRAINT = '<tên>'` nên `pgErrorMessage()` tra được câu tiếng Việt như ràng buộc thường.
+
+- **Kiểu dữ liệu khớp frontend:** `tests/schema-types.check.ts` so từng `pgEnum` với kiểu union tương ứng trong `*.type.ts` (35 cặp); lệch một giá trị là `tsc` báo lỗi.
+- **Lưu ý drizzle-kit:** khi thêm khóa ngoại kép cùng ràng buộc unique mà nó trỏ tới, drizzle-kit có thể sinh câu `ADD FOREIGN KEY` trước `ADD UNIQUE`; kiểm migration bằng cách chạy trên DB trắng trước khi commit.
 
 - **Ràng buộc đặt ở DB**, không chỉ ở code: sĩ số trong sức chứa, một đăng ký hiệu lực mỗi lớp và một lớp mỗi học phần trong học kỳ (unique index có điều kiện), nhóm thực hành thuộc đúng lớp và học kỳ, học phần trên đăng ký khớp lớp (khóa ngoại kép), tiết 1..12, thứ 2..8, điểm 0..10, một học kỳ hiện tại, một kế hoạch học tập hiệu lực mỗi SV, đơn từ có đúng một người gửi.
 - **Khảo sát ẩn danh:** `survey_submissions` ghi ai đã nộp (để nhắc), `survey_responses` + `survey_answers` giữ câu trả lời không có khóa tới sinh viên; ngày nộp chỉ lưu ngày, không lưu giờ.
@@ -313,7 +323,7 @@ Chạy cục bộ:
 cp .env.example .env              # sửa DEFEAT_POSTGRES_PRIMARY_DATABASE_CONNECTION_URL nếu cần
 npm run db:migrate                # tạo bảng trên DB trắng
 npm run db:seed                   # dữ liệu mẫu + 3 tài khoản (mật khẩu mặc định Hcmue@2026)
-npm run test:db                   # 16 test: ràng buộc (tranh chỗ cuối, trùng đăng ký, trọng số 100) và pg-error.lib
+npm run test:db                   # 23 test: ràng buộc (tranh chỗ cuối, trùng đăng ký, trọng số 100) và pg-error.lib
 npm run db:check                  # migration nhất quán
 npm run db:studio                 # xem dữ liệu
 ```

@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { check, index, numeric, pgEnum, pgTable, primaryKey, smallint, text, timestamp, unique, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import { check, foreignKey, index, numeric, pgEnum, pgTable, primaryKey, smallint, text, timestamp, unique, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 import { createdAt, primaryId, timestamps, updatedAt } from "../../shared/libs/db-column.lib";
 import { user } from "../authentication/authentication.schema";
 import { classSections, enrollments, terms } from "../course-registration/course-registration.schema";
@@ -92,9 +92,7 @@ export const courseResults = pgTable(
     termId: uuid()
       .notNull()
       .references(() => terms.id, { onDelete: "restrict" }),
-    enrollmentId: uuid()
-      .unique("course_results_enrollment_id_unique")
-      .references(() => enrollments.id, { onDelete: "set null" }),
+    enrollmentId: uuid().unique("course_results_enrollment_id_unique"),
     source: courseResultSourceEnum().notNull().default("class"),
     score10: numeric({ precision: 4, scale: 2, mode: "number" }),
     letter: text(),
@@ -104,6 +102,11 @@ export const courseResults = pgTable(
   },
   (table) => [
     uniqueIndex().on(table.studentId, table.courseId, table.termId),
+    foreignKey({
+      name: "course_results_enrollment_fk",
+      columns: [table.enrollmentId, table.studentId, table.courseId, table.termId],
+      foreignColumns: [enrollments.id, enrollments.studentId, enrollments.courseId, enrollments.termId],
+    }).onDelete("restrict"),
     index().on(table.courseId),
     index().on(table.termId),
     check("course_results_score_range", sql`${table.score10} IS NULL OR ${table.score10} BETWEEN 0 AND 10`),

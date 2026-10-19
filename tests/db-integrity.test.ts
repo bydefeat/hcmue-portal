@@ -4,10 +4,12 @@ import { and, eq, inArray } from "drizzle-orm";
 import { db } from "@/shared/libs/db.lib";
 import { pgErrorMessage } from "@/shared/libs/pg-error.lib";
 import { REGISTRATION_CONSTRAINT_MESSAGE } from "@/modules/course-registration/course-registration.constant";
-import { classSections, enrollments, labGroups, terms } from "@/modules/course-registration/course-registration.schema";
+import { classSections, enrollments, labGroups, registrationHolds, reservedSeats, terms } from "@/modules/course-registration/course-registration.schema";
+import { attendanceRecords, classSessions } from "@/modules/schedule/schedule.schema";
+import { surveys, surveySubmissions } from "@/modules/surveys/surveys.schema";
 import { courseRelations, courses, majors } from "@/modules/curriculum/curriculum.schema";
 import { rooms } from "@/modules/facilities/facilities.schema";
-import { gradeComponents, gradeScores, gradeSheets } from "@/modules/grades/grades.schema";
+import { courseResults, gradeComponents, gradeScores, gradeSheets } from "@/modules/grades/grades.schema";
 import { administrativeClasses, students } from "@/modules/users/users.schema";
 
 type Ids = { termId: string; courseId: string; otherCourseId: string; coursePool: string[]; roomId: string; classId: string; studentIds: string[]; sectionIds: string[] };
@@ -32,7 +34,7 @@ async function makeSection(capacity: number, sectionNumber: number, courseId = i
   return row;
 }
 
-function enroll(studentId: string, section: { id: string; termId: string; courseId: string }, extra: { labGroupId?: string } = {}) {
+function enroll(studentId: string, section: { id: string; termId: string; courseId: string }, extra: { labGroupId?: string; reservedSeatId?: string } = {}) {
   return db.insert(enrollments).values({ studentId, classSectionId: section.id, termId: section.termId, courseId: section.courseId, ...extra }).returning();
 }
 
@@ -87,6 +89,10 @@ before(async () => {
 
 after(async () => {
   if (ids.sectionIds.length) {
+    await db.delete(surveys).where(eq(surveys.termId, ids.termId));
+    await db.delete(classSessions).where(inArray(classSessions.classSectionId, ids.sectionIds));
+    await db.delete(registrationHolds).where(inArray(registrationHolds.studentId, ids.studentIds));
+    await db.delete(courseResults).where(inArray(courseResults.studentId, ids.studentIds));
     await db.delete(gradeSheets).where(inArray(gradeSheets.classSectionId, ids.sectionIds));
     await db.delete(enrollments).where(inArray(enrollments.classSectionId, ids.sectionIds));
     await db.delete(classSections).where(inArray(classSections.id, ids.sectionIds));
@@ -213,5 +219,83 @@ describe("chương trình đào tạo", () => {
       .innerJoin(courses, eq(courses.id, courseRelations.relatedCourseId))
       .where(and(eq(courseRelations.courseId, ids.courseId), eq(courseRelations.kind, "prerequisite")));
     assert.deepEqual(rows.map((row) => row.code).sort(), ["COMP1031", "COMP1040"]);
+  });
+});
+
+describe("ràng buộc chéo bảng", () => {
+  test("không đăng ký vào lớp đã hủy", async () => {
+    const section = await makeSection(10, 20, ids.coursePool[3]);
+    await db.update(classSections).set({ status: "cancelled" }).where(eq(classSections.id, section.id));
+    await rejects(enroll(ids.studentIds[0], section), /không đăng ký được/);
+  });
+
+  test("lớp có nhóm thực hành thì phải chọn nhóm", async () => {
+    const section = await makeSection(10, 21, ids.coursePool[4]);
+    await db.insert(labGroups).values({ classSectionId: section.id, code: `${PREFIX}TH21`, dayOfWeek: 3, startPeriod: 1, endPeriod: 3, roomId: ids.roomId, capacity: 5 });
+    await rejects(enroll(ids.studentIds[0], section), /phải chọn một nhóm/);
+  });
+
+  test("chỗ dành riêng phải thuộc đúng lớp, tổng chỗ dành riêng không vượt sĩ số", async () => {
+    const sectionA = await makeSection(10, 22, ids.coursePool[5]);
+    const sectionB = await makeSection(10, 23, ids.coursePool[5]);
+    const [seat] = await db.insert(reservedSeats).values({ classSectionId: sectionA.id, label: "Khóa 99", seats: 6 }).returning();
+    await rejects(enroll(ids.studentIds[1], sectionB, { reservedSeatId: seat.id }), /enrollments_reserved_seat_fk/);
+    await rejects(
+      db.transaction((tx) => tx.insert(reservedSeats).values({ classSectionId: sectionA.id, label: "Khóa 98", seats: 5 })),
+      /vượt sĩ số lớp/,
+    );
+    await rejects(
+      db.transaction((tx) => tx.update(classSections).set({ capacity: 5 }).where(eq(classSections.id, sectionA.id))),
+      /vượt sĩ số lớp/,
+    );
+  });
+
+  test("điểm và điểm danh chỉ cho sinh viên của chính lớp đó", async () => {
+    const sectionA = await makeSection(10, 24, ids.otherCourseId);
+    const sectionB = await makeSection(10, 25, ids.coursePool[0]);
+    const [outsider] = await enroll(ids.studentIds[1], sectionB);
+    const [sheet] = await db.insert(gradeSheets).values({ classSectionId: sectionA.id, deadline: new Date("2030-05-10") }).returning();
+    const [component] = await db.insert(gradeComponents).values({ gradeSheetId: sheet.id, key: "final", label: "Cuối kỳ", weight: 100, position: 1 }).returning();
+    await rejects(db.insert(gradeScores).values({ gradeComponentId: component.id, enrollmentId: outsider.id, score: 8 }), /không thuộc lớp của bảng điểm/);
+    const [session] = await db.insert(classSessions).values({ classSectionId: sectionA.id, date: "2030-01-07", startPeriod: 1, endPeriod: 3, roomId: ids.roomId }).returning();
+    await rejects(db.insert(attendanceRecords).values({ classSessionId: session.id, enrollmentId: outsider.id, status: "present" }), /không thuộc lớp của buổi học/);
+  });
+
+  test("chỉ sinh viên đang học lớp mới nộp khảo sát lớp đó", async () => {
+    const section = await makeSection(10, 26, ids.coursePool[1]);
+    const [survey] = await db.insert(surveys).values({ termId: ids.termId, title: "Khảo sát kiểm thử", opensAt: new Date("2030-04-01"), closesAt: new Date("2030-04-20") }).returning();
+    await rejects(db.insert(surveySubmissions).values({ surveyId: survey.id, classSectionId: section.id, studentId: ids.studentIds[2] }), /Chỉ sinh viên đang học lớp/);
+    await enroll(ids.studentIds[2], section);
+    await db.insert(surveySubmissions).values({ surveyId: survey.id, classSectionId: section.id, studentId: ids.studentIds[2] });
+  });
+
+  test("kết quả học phần phải khớp sinh viên, học phần, học kỳ của đăng ký", async () => {
+    const section = await makeSection(10, 27, ids.coursePool[3]);
+    const [row] = await enroll(ids.studentIds[1], section);
+    await rejects(
+      db.insert(courseResults).values({ studentId: ids.studentIds[2], courseId: section.courseId, termId: section.termId, enrollmentId: row.id }),
+      /course_results_enrollment_fk/,
+    );
+  });
+
+  test("học kỳ không chồng thời gian, gỡ khóa không trước lúc khóa", async () => {
+    await rejects(
+      db.insert(terms).values({ code: `${PREFIX}overlap`, name: "Chồng", shortName: "Chồng", academicYear: 2030, semester: 2, startDate: "2030-04-01", endDate: "2030-08-01" }),
+      /terms_no_overlap/,
+    );
+    await rejects(
+      db.insert(registrationHolds).values({
+        studentId: ids.studentIds[0],
+        kind: "documents",
+        blocking: false,
+        reason: "Thiếu hồ sơ",
+        resolveHint: "Nộp bổ sung",
+        createdByLabel: "Phòng Đào tạo",
+        createdAt: new Date("2030-02-01"),
+        releasedAt: new Date("2030-01-01"),
+        releasedByLabel: "Phòng Đào tạo",
+      }),
+      /registration_holds_release_after_create/,
+    );
   });
 });

@@ -141,4 +141,10 @@ export const REGISTRATION_CONSTRAINT_MESSAGE: Partial<Record<string, string>> = 
   terms_single_registration_target: "Đã có học kỳ khác đang nhận đăng ký.",
   registration_periods_time_order: "Thời điểm đóng đợt phải sau thời điểm mở.",
   registration_periods_credit_range: "Số tín chỉ tối thiểu không được lớn hơn tối đa.",
+  enrollments_section_not_cancelled: "Lớp học phần đã hủy, không đăng ký được.",
+  enrollments_lab_group_required: "Lớp có nhóm thực hành, chọn một nhóm trước khi đăng ký.",
+  enrollments_reserved_seat_fk: "Chỗ dành riêng không thuộc lớp đã chọn.",
+  reserved_seats_within_capacity: "Tổng chỗ dành riêng vượt sĩ số tối đa của lớp.",
+  terms_no_overlap: "Thời gian học kỳ bị chồng lên một học kỳ khác.",
+  registration_holds_release_after_create: "Thời điểm gỡ khóa phải sau thời điểm khóa.",
 };

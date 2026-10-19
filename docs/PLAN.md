@@ -141,7 +141,7 @@ PostgreSQL 18.4, khoá chính `uuid` mặc định `uuidv7()`. Ràng buộc đ�
 | `access`, `audit`, `settings` | `roles`, `role_permissions`, `role_assignments`, `audit_logs`, `regulations`, `calendar_events`, `report_exports` |
 | `tuition`, `surveys`, `graduation`, `notifications`, `announcements` | `tuition_rates`, `tuition_fees`, `tuition_invoices`, `invoice_lines`, `payments`, `surveys`, `survey_questions`, `survey_submissions`, `survey_responses`, `survey_answers`, `graduation_records`, `notifications`, `announcements` |
 
-- Kiểm (đã qua): `npm run db:migrate` trên DB trắng; `npm run db:seed` (chương trình CNTT 2023 với 33 học phần, 3 học kỳ, 7 lớp, đợt đăng ký đang mở, 3 tài khoản SV / GV kiêm cố vấn / admin); `npm run test:db` 16/16 test; `drizzle-kit generate` không còn khác biệt giữa schema và DB.
+- Kiểm (đã qua): `npm run db:migrate` trên DB trắng; `npm run db:seed` (chương trình CNTT 2023 với 33 học phần, 3 học kỳ, 7 lớp, đợt đăng ký đang mở, 3 tài khoản SV / GV kiêm cố vấn / admin); `npm run test:db` 23/23 test; `tsc` kiểm 35 enum khớp kiểu frontend; `drizzle-kit generate` không còn khác biệt giữa schema và DB.
 - Bàn giao cho Giai đoạn 3: better-auth phải đặt `advanced.database.generateId: false` để DB tự sinh `uuidv7()` cho cột `uuid`; mật khẩu seed đã băm bằng `better-auth/crypto` và xác minh được.
 
 Định danh trên URL khi nối dữ liệu thật:

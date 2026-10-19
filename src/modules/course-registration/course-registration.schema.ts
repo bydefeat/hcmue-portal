@@ -186,6 +186,7 @@ export const reservedSeats = pgTable(
   },
   (table) => [
     index().on(table.classSectionId),
+    unique("reserved_seats_identity").on(table.id, table.classSectionId),
     check("reserved_seats_seats_positive", sql`${table.seats} > 0`),
     check("reserved_seats_taken_within_seats", sql`${table.takenCount} >= 0 AND ${table.takenCount} <= ${table.seats}`),
   ],
@@ -215,7 +216,7 @@ export const enrollments = pgTable(
     termId: uuid().notNull(),
     courseId: uuid().notNull(),
     labGroupId: uuid(),
-    reservedSeatId: uuid().references(() => reservedSeats.id, { onDelete: "set null" }),
+    reservedSeatId: uuid(),
     status: enrollmentStatusEnum().notNull().default("enrolled"),
     registeredAt: createdAt(),
     droppedAt: timestamp({ withTimezone: true }),
@@ -231,6 +232,13 @@ export const enrollments = pgTable(
       columns: [table.labGroupId, table.classSectionId],
       foreignColumns: [labGroups.id, labGroups.classSectionId],
     }).onDelete("restrict"),
+    foreignKey({
+      name: "enrollments_reserved_seat_fk",
+      columns: [table.reservedSeatId, table.classSectionId],
+      foreignColumns: [reservedSeats.id, reservedSeats.classSectionId],
+    }).onDelete("restrict"),
+    unique("enrollments_identity").on(table.id, table.studentId, table.courseId, table.termId),
+    index().on(table.reservedSeatId),
     uniqueIndex("enrollments_active_per_section").on(table.studentId, table.classSectionId).where(sql`${table.status} = 'enrolled'`),
     uniqueIndex("enrollments_active_per_course_term").on(table.studentId, table.termId, table.courseId).where(sql`${table.status} = 'enrolled'`),
     index().on(table.classSectionId, table.status),
@@ -284,6 +292,7 @@ export const registrationHolds = pgTable(
     index().on(table.createdByUserId),
     index().on(table.releasedByUserId),
     check("registration_holds_release_fields", sql`(${table.releasedAt} IS NULL) = (${table.releasedByLabel} IS NULL)`),
+    check("registration_holds_release_after_create", sql`${table.releasedAt} IS NULL OR ${table.releasedAt} >= ${table.createdAt}`),
   ],
 );
 

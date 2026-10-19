@@ -27,7 +27,7 @@ async function searchEntries(viewer: Viewer): Promise<SearchEntry[]> {
             label: student.fullName,
             description: `${student.code} · ${student.className}`,
             keywords: student.code,
-            href: `/administrator/users/students/${student.id}`,
+            href: `/administrator/users/students/${student.code}`,
           }))
       : []),
     ...(can(viewer, "lecturers.manage")

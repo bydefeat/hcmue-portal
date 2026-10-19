@@ -138,6 +138,14 @@
     },
     {
       "files": [
+        "scripts/**"
+      ],
+      "rules": {
+        "no-restricted-imports": "off"
+      }
+    },
+    {
+      "files": [
         "src/shared/components/antd-registry.tsx"
       ],
       "rules": {

@@ -102,7 +102,7 @@ export function StudentTable({ students, header }: { students: StudentRow[]; hea
       key: "name",
       width: 240,
       render: (_, row) => (
-        <Link href={`/administrator/users/students/${row.id}`} className="flex min-w-0 flex-col">
+        <Link href={`/administrator/users/students/${row.code}`} className="flex min-w-0 flex-col">
           <span className="truncate font-medium">{row.fullName}</span>
           <span className="truncate text-xs text-muted">{row.email}</span>
           <span className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted md:hidden">

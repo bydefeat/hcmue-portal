@@ -114,7 +114,7 @@ export function RegistrationHoldTable({ holds, students, actorName, studentHrefB
       width: 220,
       render: (_, row) => (
         <span className="flex min-w-0 flex-col gap-1">
-          <Link href={`${studentHrefBase}${row.studentId}`} className="flex min-w-0 flex-col">
+          <Link href={`${studentHrefBase}${row.studentCode}`} className="flex min-w-0 flex-col">
             <span className="truncate font-medium">{row.studentName}</span>
             <span className="text-xs text-muted">
               {row.studentCode} · {row.className}

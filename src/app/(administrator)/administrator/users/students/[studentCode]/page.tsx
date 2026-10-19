@@ -12,7 +12,7 @@ import { getStudentStandings, getTranscript } from "@/modules/grades/grades.quer
 import { STUDY_PLAN_STATUS } from "@/modules/study-plan/study-plan.constant";
 import { getStudyPlanOfStudent } from "@/modules/study-plan/study-plan.query";
 import { StudentProfileCard } from "@/modules/users/components/student-profile-card";
-import { getAdvisorAssignments, getDecisions, getStudent } from "@/modules/users/users.query";
+import { getAdvisorAssignments, getDecisions, getStudentByCode } from "@/modules/users/users.query";
 import { DECISION_KIND_LABEL, DECISION_STATUS } from "@/modules/users/users.constant";
 import { AuditTimeline } from "@/modules/audit/components/audit-timeline";
 import { getAuditLog } from "@/modules/audit/audit.query";
@@ -31,18 +31,18 @@ import { getCourses } from "@/modules/curriculum/curriculum.query";
 import { getRegulation } from "@/modules/settings/settings.query";
 import { SectionCard } from "@/shared/components/ui/section-card";
 
-type PageProps = { params: Promise<{ studentId: string }> };
+type PageProps = { params: Promise<{ studentCode: string }> };
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
-  const { studentId } = await params;
-  const student = await getStudent(studentId);
+  const { studentCode } = await params;
+  const student = await getStudentByCode(studentCode);
   return { title: student ? student.fullName : "Không tìm thấy sinh viên" };
 }
 
 export default async function Page({ params }: PageProps) {
   const viewer = await requirePermission("students.view");
-  const { studentId } = await params;
-  const student = await getStudent(studentId);
+  const { studentCode } = await params;
+  const student = await getStudentByCode(studentCode);
   if (!student) notFound();
   if (!inScope(viewer, student.faculty)) forbidden();
 

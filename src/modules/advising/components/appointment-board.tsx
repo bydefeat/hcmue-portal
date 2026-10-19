@@ -195,7 +195,7 @@ export function AppointmentBoard({ appointments, advisees, notes: initialNotes, 
                         </span>
                         <span className="flex flex-wrap gap-x-3 gap-y-1 text-sm">
                           {appointment.students.map((student) => (
-                            <Link key={student.id} href={`/lecturer/advising/students/${student.id}`}>
+                            <Link key={student.id} href={`/lecturer/advising/students/${student.code}`}>
                               {student.fullName}
                             </Link>
                           ))}
@@ -247,9 +247,13 @@ export function AppointmentBoard({ appointments, advisees, notes: initialNotes, 
               return (
                 <li key={note.id} className="flex flex-col gap-1 py-3">
                   <span className="flex items-baseline justify-between gap-2">
-                    <Link href={`/lecturer/advising/students/${note.studentId}`} className="truncate font-medium">
-                      {student?.fullName ?? note.studentId}
-                    </Link>
+                    {student ? (
+                      <Link href={`/lecturer/advising/students/${student.code}`} className="truncate font-medium">
+                        {student.fullName}
+                      </Link>
+                    ) : (
+                      <span className="truncate font-medium">Sinh viên không còn trong danh sách cố vấn</span>
+                    )}
                     <span className="shrink-0 text-xs text-muted tabular-nums">{formatDate(note.at)}</span>
                   </span>
                   <span className="text-xs text-muted">{note.topic}</span>

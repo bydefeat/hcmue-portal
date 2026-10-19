@@ -55,7 +55,7 @@ export function AdviseeTable({ rows, studentHrefBase }: AdviseeTableProps) {
       fixed: "left",
       sorter: (a, b) => a.student.fullName.split(" ").at(-1)!.localeCompare(b.student.fullName.split(" ").at(-1)!, "vi"),
       render: (_, row) => (
-        <Link href={`${studentHrefBase}${row.student.id}`} className="flex min-w-0 flex-col">
+        <Link href={`${studentHrefBase}${row.student.code}`} className="flex min-w-0 flex-col">
           <span className="truncate font-medium">{row.student.fullName}</span>
           <span className="text-xs text-muted">{row.student.code}</span>
         </Link>
@@ -148,7 +148,7 @@ export function AdviseeTable({ rows, studentHrefBase }: AdviseeTableProps) {
             <li key={row.student.id}>
               <Card size="small" classNames={{ body: "flex flex-col gap-2" }}>
                 <span className="flex items-start justify-between gap-2">
-                  <Link href={`${studentHrefBase}${row.student.id}`} className="flex min-w-0 flex-col">
+                  <Link href={`${studentHrefBase}${row.student.code}`} className="flex min-w-0 flex-col">
                     <span className="truncate font-medium">{row.student.fullName}</span>
                     <span className="text-xs text-muted">
                       {row.student.code} · {row.student.className}

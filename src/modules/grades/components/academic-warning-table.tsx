@@ -67,7 +67,7 @@ export function AcademicWarningTable({ warnings, studentHrefBase, showFaculty = 
       fixed: "left",
       width: 220,
       render: (_, row) => (
-        <Link href={`${studentHrefBase}${row.studentId}`} className="flex min-w-0 flex-col">
+        <Link href={`${studentHrefBase}${row.studentCode}`} className="flex min-w-0 flex-col">
           <span className="truncate font-medium">{row.fullName}</span>
           <span className="text-xs text-muted">{row.studentCode}</span>
         </Link>
@@ -207,7 +207,7 @@ export function AcademicWarningTable({ warnings, studentHrefBase, showFaculty = 
               <li key={row.id}>
                 <Card size="small" classNames={{ body: "flex flex-col gap-2" }}>
                   <span className="flex items-start justify-between gap-2">
-                    <Link href={`${studentHrefBase}${row.studentId}`} className="flex min-w-0 flex-col">
+                    <Link href={`${studentHrefBase}${row.studentCode}`} className="flex min-w-0 flex-col">
                       <span className="truncate font-medium">{row.fullName}</span>
                       <span className="text-xs text-muted">
                         {row.studentCode} · {row.className}

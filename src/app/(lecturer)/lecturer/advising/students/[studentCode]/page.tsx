@@ -13,14 +13,16 @@ import { STUDY_PLAN_STATUS } from "@/modules/study-plan/study-plan.constant";
 import { getStudyPlanOfStudent } from "@/modules/study-plan/study-plan.query";
 import { StudentProfileCard } from "@/modules/users/components/student-profile-card";
 import { getAdvisees, getCurrentLecturer } from "@/modules/users/users.query";
+import { normalizeStudentCode } from "@/shared/libs/student-code.lib";
 
 export const metadata: Metadata = { title: "Hồ sơ sinh viên" };
 
-export default async function Page({ params }: { params: Promise<{ studentId: string }> }) {
-  const { studentId } = await params;
+export default async function Page({ params }: { params: Promise<{ studentCode: string }> }) {
+  const { studentCode } = await params;
   const lecturer = await getCurrentLecturer();
   const advisees = await getAdvisees(lecturer.id);
-  const student = advisees.find((entry) => entry.id === studentId);
+  const code = normalizeStudentCode(decodeURIComponent(studentCode));
+  const student = advisees.find((entry) => normalizeStudentCode(entry.code) === code);
   if (!student) notFound();
   const [[standing], transcript, plan] = await Promise.all([
     getStudentStandings([student.id]),

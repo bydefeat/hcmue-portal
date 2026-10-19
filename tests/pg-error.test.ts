@@ -35,7 +35,7 @@ describe("pg-error.lib", () => {
     const error = await db
       .update(terms)
       .set({ isCurrent: true })
-      .where(eq(terms.code, "hk2-2026"))
+      .where(eq(terms.code, "2026-2027.2"))
       .then(() => null)
       .catch((caught: unknown) => caught);
     assert.equal(getPgError(error)?.code, PG_ERROR.UNIQUE_VIOLATION);

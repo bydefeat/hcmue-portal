@@ -11,7 +11,7 @@ import { landingAfterSignIn, parseRoles } from "@/shared/constants/role.constant
 import { formatStudentCode, isStudentCode, normalizeStudentCode, studentEmailOf } from "@/shared/libs/student-code.lib";
 
 const PASSWORD = process.env.DEFEAT_SEED_ACCOUNT_PASSWORD || "Hcmue@2026";
-const STUDENT_CODE = "5001104001";
+const STUDENT_CODE = "5001104009";
 const BASE_URL = env.DEFEAT_BETTER_AUTH_PUBLIC_APPLICATION_BASE_URL;
 
 // Mỗi request một IP riêng để rate limit đăng nhập (5 lần/phút) không làm test chạy sau bị 429.

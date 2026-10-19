@@ -15,16 +15,16 @@ export const lecturers = pgTable(
   {
     id: primaryId(),
     userId: uuid()
-      .unique()
+      .unique("lecturers_user_id_unique")
       .references(() => user.id, { onDelete: "set null" }),
-    code: text().notNull().unique(),
+    code: text().notNull().unique("lecturers_code_unique"),
     fullName: text().notNull(),
     title: text().notNull(),
     gender: genderEnum().notNull(),
     facultyId: uuid()
       .notNull()
       .references(() => faculties.id, { onDelete: "restrict" }),
-    email: text().notNull().unique(),
+    email: text().notNull().unique("lecturers_email_unique"),
     phone: text().notNull().default(""),
     status: lecturerStatusEnum().notNull().default("active"),
     ...timestamps(),
@@ -35,12 +35,12 @@ export const lecturers = pgTable(
 export const staffMembers = pgTable("staff_members", {
   id: primaryId(),
   userId: uuid()
-    .unique()
+    .unique("staff_members_user_id_unique")
     .references(() => user.id, { onDelete: "set null" }),
-  code: text().notNull().unique(),
+  code: text().notNull().unique("staff_members_code_unique"),
   fullName: text().notNull(),
   unit: text().notNull(),
-  email: text().notNull().unique(),
+  email: text().notNull().unique("staff_members_email_unique"),
   ...timestamps(),
 });
 
@@ -48,7 +48,7 @@ export const administrativeClasses = pgTable(
   "administrative_classes",
   {
     id: primaryId(),
-    code: text().notNull().unique(),
+    code: text().notNull().unique("administrative_classes_code_unique"),
     majorId: uuid()
       .notNull()
       .references(() => majors.id, { onDelete: "restrict" }),
@@ -64,13 +64,13 @@ export const students = pgTable(
   {
     id: primaryId(),
     userId: uuid()
-      .unique()
+      .unique("students_user_id_unique")
       .references(() => user.id, { onDelete: "set null" }),
-    code: text().notNull().unique(),
+    code: text().notNull().unique("students_code_unique"),
     fullName: text().notNull(),
     gender: genderEnum().notNull(),
     dateOfBirth: date({ mode: "string" }).notNull(),
-    email: text().notNull().unique(),
+    email: text().notNull().unique("students_email_unique"),
     phone: text().notNull().default(""),
     hometown: text().notNull().default(""),
     administrativeClassId: uuid()
@@ -104,4 +104,15 @@ export const studentDecisions = pgTable(
     index().on(table.studentId),
     check("student_decisions_signed_fields", sql`(${table.status} IN ('signed', 'revoked')) = (${table.number} IS NOT NULL AND ${table.signedAt} IS NOT NULL)`),
   ],
+);
+
+export const lecturerLoadNorms = pgTable(
+  "lecturer_load_norms",
+  {
+    id: primaryId(),
+    title: text().notNull().unique("lecturer_load_norms_title_unique"),
+    normHours: smallint().notNull(),
+    ...timestamps(),
+  },
+  (table) => [check("lecturer_load_norms_hours_positive", sql`${table.normHours} > 0`)],
 );

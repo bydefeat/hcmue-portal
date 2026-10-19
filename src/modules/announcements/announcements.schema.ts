@@ -10,7 +10,7 @@ export const announcements = pgTable(
   "announcements",
   {
     id: primaryId(),
-    slug: text().notNull().unique(),
+    slug: text().notNull().unique("announcements_slug_unique"),
     title: text().notNull(),
     category: announcementCategoryEnum().notNull(),
     audiences: text().array().notNull().default(sql`'{}'::text[]`),

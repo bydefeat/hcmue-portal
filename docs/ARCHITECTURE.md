@@ -290,8 +290,12 @@ Giờ tiết học ở `shared/constants/period.constant.ts`: 12 tiết, mỗi t
 
 ## 10. Cơ sở dữ liệu
 
-- **PostgreSQL 18.4.** Khóa chính `uuid` mặc định `uuidv7()` (hàm có sẵn từ Postgres 18): id tăng theo thời gian nên chỉ mục B-tree chèn tuần tự, không phân mảnh như UUID v4.
+- **PostgreSQL 18** (đang chạy 18.4; Postgres 19 mới ở RC, dự kiến GA 19/11/2026, chưa dùng). Khóa chính `uuid` mặc định `uuidv7()` (hàm có sẵn từ Postgres 18): id tăng theo thời gian nên chỉ mục B-tree chèn tuần tự, không phân mảnh như UUID v4.
 - **Drizzle** `0.45` (bản ổn định mới nhất; 1.0 còn beta), `casing: "snake_case"`: tên cột trong code là camelCase, trong DB là snake_case.
+- **Đặt tên ràng buộc unique tường minh** (`.unique("bang_cot_unique")`, `unique("bang_a_b_unique").on(...)`). Drizzle 0.45 với `casing` vẫn sinh tên unique theo camelCase (`students_userId_unique`), phải tự đặt; kiểm tra bằng `SELECT conname FROM pg_constraint WHERE conname ~ '[A-Z]'` phải rỗng.
+- **`drizzle.config.ts`:** gom `src/modules/*/*.schema.ts`, `strict`, `verbose`, `breakpoints`, chỉ quản lý schema `public`, bảng lịch sử migration ở `drizzle.__drizzle_migrations`. `npm run db:check` kiểm tra migration nhất quán.
+- **`db.lib.ts`** (chỉ chạy phía server, có `import "server-only"`): pool `postgres-js` giữ một bản qua HMR của Next dev; mỗi kết nối đặt `application_name=hcmue-portal`, `TimeZone=UTC`, `statement_timeout` (mặc định 15 s), `idle_in_transaction_session_timeout` 30 s để giao dịch treo không giữ khóa dòng. Biến tùy chọn: `DEFEAT_POSTGRES_POOL_MAX`, `DEFEAT_POSTGRES_STATEMENT_TIMEOUT_MS`, `DEFEAT_DATABASE_LOG_QUERIES`. Script và test chạy với `tsx --conditions=react-server` để qua được `server-only`.
+- **`pg-error.lib.ts`:** `PG_ERROR` (bảng mã SQLSTATE: `UNIQUE_VIOLATION` 23505, `FOREIGN_KEY_VIOLATION` 23503, `CHECK_VIOLATION` 23514, `SERIALIZATION_FAILURE` 40001, `DEADLOCK_DETECTED` 40P01…), `getPgError()` bóc lỗi gốc khỏi `DrizzleQueryError`, `isPgError()`, `isRetryablePgError()`, `withRetry()` thử lại có lùi thời gian cho xung đột đồng thời và mất kết nối, `pgErrorMessage(error, messages)` đổi lỗi thành câu tiếng Việt: tra theo tên ràng buộc trong bảng của module (`REGISTRATION_CONSTRAINT_MESSAGE`, `GRADES_CONSTRAINT_MESSAGE`), không có thì câu chung theo mã.
 - **Migration** ở `drizzle/`: `0000_initial_schema.sql` do `npm run db:generate` sinh từ các `*.schema.ts`; `0001_integrity_triggers.sql` viết tay cho các ràng buộc nhiều dòng:
 
 | Trigger | Việc |
@@ -309,6 +313,7 @@ Chạy cục bộ:
 cp .env.example .env              # sửa DEFEAT_POSTGRES_PRIMARY_DATABASE_CONNECTION_URL nếu cần
 npm run db:migrate                # tạo bảng trên DB trắng
 npm run db:seed                   # dữ liệu mẫu + 3 tài khoản (mật khẩu mặc định Hcmue@2026)
-npm run test:db                   # 12 test ràng buộc: tranh chỗ cuối, trùng đăng ký, trọng số 100...
+npm run test:db                   # 16 test: ràng buộc (tranh chỗ cuối, trùng đăng ký, trọng số 100) và pg-error.lib
+npm run db:check                  # migration nhất quán
 npm run db:studio                 # xem dữ liệu
 ```

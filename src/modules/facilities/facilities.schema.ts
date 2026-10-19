@@ -7,7 +7,7 @@ export const roomStatusEnum = pgEnum("room_status", ["active", "maintenance"]);
 
 export const campuses = pgTable("campuses", {
   id: primaryId(),
-  name: text().notNull().unique(),
+  name: text().notNull().unique("campuses_name_unique"),
   address: text().notNull(),
   ...timestamps(),
 });
@@ -31,7 +31,7 @@ export const rooms = pgTable(
     ...timestamps(),
   },
   (table) => [
-    unique().on(table.campusId, table.code),
+    unique("rooms_campus_id_code_unique").on(table.campusId, table.code),
     index().on(table.campusId),
     check("rooms_capacity_positive", sql`${table.capacity} > 0`),
     check("rooms_exam_capacity_range", sql`${table.examCapacity} > 0 AND ${table.examCapacity} <= ${table.capacity}`),

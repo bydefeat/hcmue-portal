@@ -15,6 +15,13 @@
       "when": 1792394050445,
       "tag": "0001_integrity_triggers",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1792394718948,
+      "tag": "0002_billing_exports_constraint_names",
+      "breakpoints": true
     }
   ]
 }

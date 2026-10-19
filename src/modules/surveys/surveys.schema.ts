@@ -30,7 +30,7 @@ export const surveyQuestions = pgTable(
     group: text().notNull(),
     text: text().notNull(),
   },
-  (table) => [unique().on(table.surveyId, table.position)],
+  (table) => [unique("survey_questions_survey_id_position_unique").on(table.surveyId, table.position)],
 );
 
 export const surveySubmissions = pgTable(

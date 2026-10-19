@@ -73,3 +73,13 @@ export const WARNING_RULES = [
 export function formatPoint(value: number | null, digits = 2) {
   return value === null ? "" : value.toFixed(digits).replace(".", ",");
 }
+
+export const GRADES_CONSTRAINT_MESSAGE: Partial<Record<string, string>> = {
+  grade_scores_range: "Điểm phải từ 0 đến 10.",
+  grade_components_weight_range: "Trọng số mỗi thành phần phải từ 1 đến 100%.",
+  grade_components_grade_sheet_id_key_unique: "Thành phần điểm này đã có trong bảng điểm.",
+  grade_sheets_class_section_id_unique: "Lớp học phần đã có bảng điểm.",
+  grade_sheets_return_reason: "Ghi lý do khi trả lại bảng điểm.",
+  course_results_student_id_course_id_term_id_index: "Sinh viên đã có kết quả học phần này trong học kỳ.",
+  academic_warnings_student_id_term_id_unique: "Sinh viên đã có cảnh báo học vụ trong học kỳ này.",
+};

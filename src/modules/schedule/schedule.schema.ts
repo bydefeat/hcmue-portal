@@ -22,7 +22,7 @@ export const classSessions = pgTable(
     takenAt: timestamp({ withTimezone: true }),
   },
   (table) => [
-    unique().on(table.classSectionId, table.date, table.startPeriod),
+    unique("class_sessions_class_section_id_date_start_period_unique").on(table.classSectionId, table.date, table.startPeriod),
     index().on(table.roomId, table.date),
     check("class_sessions_period_range", sql`${table.startPeriod} >= 1 AND ${table.endPeriod} <= 12 AND ${table.startPeriod} <= ${table.endPeriod}`),
   ],

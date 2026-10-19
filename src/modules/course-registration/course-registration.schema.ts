@@ -28,7 +28,7 @@ export const terms = pgTable(
   "terms",
   {
     id: primaryId(),
-    code: text().notNull().unique(),
+    code: text().notNull().unique("terms_code_unique"),
     name: text().notNull(),
     shortName: text().notNull(),
     academicYear: smallint().notNull(),
@@ -40,7 +40,7 @@ export const terms = pgTable(
     ...timestamps(),
   },
   (table) => [
-    unique().on(table.academicYear, table.semester),
+    unique("terms_academic_year_semester_unique").on(table.academicYear, table.semester),
     uniqueIndex("terms_single_current").on(table.isCurrent).where(sql`${table.isCurrent}`),
     uniqueIndex("terms_single_registration_target").on(table.isRegistrationTarget).where(sql`${table.isRegistrationTarget}`),
     check("terms_semester_range", sql`${table.semester} BETWEEN 1 AND 3`),
@@ -95,8 +95,8 @@ export const classSections = pgTable(
     ...timestamps(),
   },
   (table) => [
-    unique().on(table.termId, table.courseId, table.sectionNumber),
-    unique().on(table.termId, table.code),
+    unique("class_sections_term_id_course_id_section_number_unique").on(table.termId, table.courseId, table.sectionNumber),
+    unique("class_sections_term_id_code_unique").on(table.termId, table.code),
     unique("class_sections_identity").on(table.id, table.termId, table.courseId),
     index().on(table.courseId),
     index().on(table.lecturerId),
@@ -162,7 +162,7 @@ export const labGroups = pgTable(
     enrolledCount: smallint().notNull().default(0),
   },
   (table) => [
-    unique().on(table.classSectionId, table.code),
+    unique("lab_groups_class_section_id_code_unique").on(table.classSectionId, table.code),
     unique("lab_groups_identity").on(table.id, table.classSectionId),
     index().on(table.roomId, table.dayOfWeek),
     check("lab_groups_day_of_week", DAY_OF_WEEK(table.dayOfWeek)),

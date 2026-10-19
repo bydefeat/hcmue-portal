@@ -12,6 +12,10 @@ export default defineConfig({
   out: "./drizzle",
   casing: "snake_case",
   dbCredentials: { url },
+  schemaFilter: ["public"],
+  migrations: { schema: "drizzle", table: "__drizzle_migrations" },
+  introspect: { casing: "camel" },
+  breakpoints: true,
   strict: true,
   verbose: true,
 });

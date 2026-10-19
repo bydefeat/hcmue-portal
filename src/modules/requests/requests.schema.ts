@@ -26,7 +26,7 @@ export const academicRequests = pgTable(
   "academic_requests",
   {
     id: primaryId(),
-    code: text().notNull().unique(),
+    code: text().notNull().unique("academic_requests_code_unique"),
     kind: requestKindEnum().notNull(),
     requesterStudentId: uuid().references(() => students.id, { onDelete: "restrict" }),
     requesterLecturerId: uuid().references(() => lecturers.id, { onDelete: "restrict" }),
@@ -66,7 +66,7 @@ export const requestSteps = pgTable(
     comment: text(),
   },
   (table) => [
-    unique().on(table.requestId, table.position),
+    unique("request_steps_request_id_position_unique").on(table.requestId, table.position),
     index().on(table.assigneeUserId, table.status),
     index().on(table.actorUserId),
     check("request_steps_position_positive", sql`${table.position} >= 1`),
@@ -85,7 +85,7 @@ export const requestAttachments = pgTable(
     fileName: text().notNull(),
     contentType: text().notNull(),
     sizeBytes: integer().notNull(),
-    storageKey: text().notNull().unique(),
+    storageKey: text().notNull().unique("request_attachments_storage_key_unique"),
     uploadedAt: createdAt(),
   },
   (table) => [index().on(table.requestId), check("request_attachments_size_range", sql`${table.sizeBytes} BETWEEN 1 AND 10485760`)],

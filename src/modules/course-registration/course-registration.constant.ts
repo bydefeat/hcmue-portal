@@ -121,3 +121,24 @@ export const REGISTRATION_EVENT: Record<RegistrationEventKind, StatusMeta> = {
 export function keepCurrencyTogether(value: string) {
   return value.replace(/ đ(?=[\s,.)]|$)/g, "\u00a0đ");
 }
+
+export const REGISTRATION_CONSTRAINT_MESSAGE: Partial<Record<string, string>> = {
+  class_sections_enrolled_within_capacity: "Lớp đã đủ chỗ. Chọn lớp khác của học phần hoặc vào danh sách chờ.",
+  lab_groups_enrolled_within_capacity: "Nhóm thực hành đã đủ chỗ, chọn nhóm khác.",
+  reserved_seats_taken_within_seats: "Chỗ dành riêng cho đối tượng của bạn đã hết.",
+  enrollments_active_per_section: "Bạn đã đăng ký lớp này.",
+  enrollments_active_per_course_term: "Bạn đã đăng ký một lớp khác của học phần này trong học kỳ. Hủy lớp đó trước khi đổi lớp.",
+  enrollments_lab_group_fk: "Nhóm thực hành không thuộc lớp đã chọn.",
+  enrollments_class_section_fk: "Lớp học phần không còn tồn tại hoặc không thuộc học kỳ đang đăng ký.",
+  waitlist_entries_single_waiting: "Bạn đã ở trong danh sách chờ của lớp này.",
+  registration_holds_single_active: "Sinh viên đang có một khóa đăng ký cùng loại chưa gỡ.",
+  class_sections_term_id_code_unique: "Mã lớp học phần đã có trong học kỳ.",
+  class_sections_term_id_course_id_section_number_unique: "Số thứ tự lớp đã có cho học phần này trong học kỳ.",
+  class_sections_min_enrollment_range: "Sĩ số tối thiểu phải từ 0 đến sĩ số tối đa.",
+  lab_groups_class_section_id_code_unique: "Mã nhóm thực hành đã có trong lớp.",
+  section_meetings_period_range: "Tiết học phải trong khoảng 1 đến 12, tiết bắt đầu không sau tiết kết thúc.",
+  terms_single_current: "Đã có học kỳ khác được đánh dấu là học kỳ hiện tại.",
+  terms_single_registration_target: "Đã có học kỳ khác đang nhận đăng ký.",
+  registration_periods_time_order: "Thời điểm đóng đợt phải sau thời điểm mở.",
+  registration_periods_credit_range: "Số tín chỉ tối thiểu không được lớn hơn tối đa.",
+};

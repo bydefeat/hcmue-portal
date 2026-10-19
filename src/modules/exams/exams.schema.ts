@@ -32,13 +32,16 @@ export const examSessions = pgTable(
     status: examSessionStatusEnum().notNull().default("draft"),
     paperStatus: examPaperStatusEnum().notNull().default("not-submitted"),
     paperDeadline: timestamp({ withTimezone: true }).notNull(),
+    paperStorageKey: text().unique("exam_sessions_paper_storage_key_unique"),
+    paperSubmittedAt: timestamp({ withTimezone: true }),
     ...timestamps(),
   },
   (table) => [
-    unique().on(table.classSectionId, table.kind),
+    unique("exam_sessions_class_section_id_kind_unique").on(table.classSectionId, table.kind),
     index().on(table.termId, table.date),
     index().on(table.roomId, table.date),
     check("exam_sessions_duration_range", sql`${table.durationMinutes} BETWEEN 15 AND 240`),
+    check("exam_sessions_paper_fields", sql`(${table.paperStatus} = 'not-submitted') = (${table.paperStorageKey} IS NULL AND ${table.paperSubmittedAt} IS NULL)`),
   ],
 );
 
@@ -61,7 +64,7 @@ export const examEligibilityOverrides = pgTable(
     id: primaryId(),
     enrollmentId: uuid()
       .notNull()
-      .unique()
+      .unique("exam_eligibility_overrides_enrollment_id_unique")
       .references(() => enrollments.id, { onDelete: "cascade" }),
     reason: text().notNull(),
     decidedByUserId: uuid().references(() => user.id, { onDelete: "set null" }),

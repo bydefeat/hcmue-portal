@@ -12,7 +12,7 @@ export const graduationRecords = pgTable(
     id: primaryId(),
     studentId: uuid()
       .notNull()
-      .unique()
+      .unique("graduation_records_student_id_unique")
       .references(() => students.id, { onDelete: "cascade" }),
     languageCertificate: text(),
     itCertificate: text(),
@@ -20,7 +20,7 @@ export const graduationRecords = pgTable(
     decidedAt: timestamp({ withTimezone: true }),
     decidedByUserId: uuid().references(() => user.id, { onDelete: "set null" }),
     decisionId: uuid()
-      .unique()
+      .unique("graduation_records_decision_id_unique")
       .references(() => studentDecisions.id, { onDelete: "set null" }),
     ...timestamps(),
   },

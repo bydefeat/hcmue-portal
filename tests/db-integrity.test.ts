@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { after, before, describe, test } from "node:test";
 import { and, eq, inArray } from "drizzle-orm";
 import { db } from "@/shared/libs/db.lib";
+import { pgErrorMessage } from "@/shared/libs/pg-error.lib";
+import { REGISTRATION_CONSTRAINT_MESSAGE } from "@/modules/course-registration/course-registration.constant";
 import { classSections, enrollments, labGroups, terms } from "@/modules/course-registration/course-registration.schema";
 import { courseRelations, courses, majors } from "@/modules/curriculum/curriculum.schema";
 import { rooms } from "@/modules/facilities/facilities.schema";
@@ -110,6 +112,8 @@ describe("đăng ký học phần", () => {
       ids.studentIds.slice(0, 2).map((studentId) => db.transaction((tx) => tx.insert(enrollments).values({ studentId, classSectionId: section.id, termId: section.termId, courseId: section.courseId }))),
     );
     assert.equal(results.filter((result) => result.status === "fulfilled").length, 1);
+    const loser = results.find((result) => result.status === "rejected");
+    assert.match(pgErrorMessage(loser?.reason, REGISTRATION_CONSTRAINT_MESSAGE), /^Lớp đã đủ chỗ/);
     assert.equal(await enrolledCount(section.id), 1);
   });
 

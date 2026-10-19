@@ -13,7 +13,7 @@ export const syllabi = pgTable(
     id: primaryId(),
     classSectionId: uuid()
       .notNull()
-      .unique()
+      .unique("syllabi_class_section_id_unique")
       .references(() => classSections.id, { onDelete: "cascade" }),
     status: syllabusStatusEnum().notNull().default("draft"),
     description: text().notNull().default(""),
@@ -35,7 +35,7 @@ export const syllabusOutcomes = pgTable(
     text: text().notNull(),
     position: smallint().notNull(),
   },
-  (table) => [unique().on(table.syllabusId, table.code), unique().on(table.syllabusId, table.position)],
+  (table) => [unique("syllabus_outcomes_syllabus_id_code_unique").on(table.syllabusId, table.code), unique("syllabus_outcomes_syllabus_id_position_unique").on(table.syllabusId, table.position)],
 );
 
 export const syllabusWeeks = pgTable(
@@ -67,8 +67,8 @@ export const syllabusAssessments = pgTable(
     position: smallint().notNull(),
   },
   (table) => [
-    unique().on(table.syllabusId, table.key),
-    unique().on(table.syllabusId, table.position),
+    unique("syllabus_assessments_syllabus_id_key_unique").on(table.syllabusId, table.key),
+    unique("syllabus_assessments_syllabus_id_position_unique").on(table.syllabusId, table.position),
     check("syllabus_assessments_weight_range", sql`${table.weight} BETWEEN 1 AND 100`),
   ],
 );

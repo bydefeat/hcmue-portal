@@ -122,13 +122,13 @@ Mỗi giai đoạn có **cách kiểm** riêng; chưa qua kiểm thì không san
 ### Giai đoạn 2 — Schema dữ liệu ✅
 PostgreSQL 18.4, khoá chính `uuid` mặc định `uuidv7()`. Ràng buộc đặt ở DB thay vì ở code. Chi tiết ở `docs/ARCHITECTURE.md` mục 10.
 
-Đã làm (gồm phần DB còn thiếu của Giai đoạn 1: `env.lib.ts`, `db.lib.ts`, `drizzle.config.ts`, script `db:*`): 71 bảng trên 20 module, phủ đủ kiểu dữ liệu frontend đang dùng chứ không chỉ 7 module ban đầu.
+Đã làm (gồm phần DB còn thiếu của Giai đoạn 1: `env.lib.ts`, `db.lib.ts`, `drizzle.config.ts`, script `db:*`, cùng `pg-error.lib.ts`): 76 bảng trên 20 module, phủ đủ kiểu dữ liệu frontend đang dùng chứ không chỉ 7 module ban đầu.
 
 | Module | Bảng |
 |---|---|
-| `authentication` | `user`, `session`, `account`, `verification` (better-auth + cột plugin `admin`) |
+| `authentication` | `user`, `session`, `account`, `verification`, `rate_limit` (better-auth + cột plugin `admin`) |
 | `curriculum` | `faculties`, `majors`, `courses`, `course_relations` (tiên quyết, song hành, tương đương), `programs`, `program_cohorts`, `program_courses` |
-| `users` | `lecturers`, `staff_members`, `administrative_classes` (kèm cố vấn), `students`, `student_decisions` |
+| `users` | `lecturers`, `staff_members`, `administrative_classes` (kèm cố vấn), `students`, `student_decisions`, `lecturer_load_norms` |
 | `facilities` | `campuses`, `rooms` |
 | `course-registration` | `terms`, `registration_periods`, `class_sections`, `class_section_audience_majors`, `section_meetings`, `lab_groups`, `reserved_seats`, `reserved_seat_majors`, `enrollments`, `waitlist_entries`, `registration_holds`, `registration_events` |
 | `grades` | `grade_sheets`, `grade_components`, `grade_scores`, `course_results`, `academic_warnings` |
@@ -138,10 +138,10 @@ PostgreSQL 18.4, khoá chính `uuid` mặc định `uuidv7()`. Ràng buộc đ�
 | `study-plan` | `study_plans`, `study_plan_items` |
 | `advising` | `advising_appointments`, `appointment_students`, `advising_notes` |
 | `requests` | `academic_requests`, `request_steps`, `request_attachments` |
-| `access`, `audit`, `settings` | `roles`, `role_permissions`, `role_assignments`, `audit_logs`, `regulations`, `calendar_events` |
-| `tuition`, `surveys`, `graduation`, `notifications`, `announcements` | `tuition_invoices`, `invoice_lines`, `payments`, `surveys`, `survey_questions`, `survey_submissions`, `survey_responses`, `survey_answers`, `graduation_records`, `notifications`, `announcements` |
+| `access`, `audit`, `settings` | `roles`, `role_permissions`, `role_assignments`, `audit_logs`, `regulations`, `calendar_events`, `report_exports` |
+| `tuition`, `surveys`, `graduation`, `notifications`, `announcements` | `tuition_rates`, `tuition_fees`, `tuition_invoices`, `invoice_lines`, `payments`, `surveys`, `survey_questions`, `survey_submissions`, `survey_responses`, `survey_answers`, `graduation_records`, `notifications`, `announcements` |
 
-- Kiểm (đã qua): `npm run db:migrate` trên DB trắng; `npm run db:seed` (chương trình CNTT 2023 với 33 học phần, 3 học kỳ, 7 lớp, đợt đăng ký đang mở, 3 tài khoản SV / GV kiêm cố vấn / admin); `npm run test:db` 12/12 test ràng buộc; `drizzle-kit generate` không còn khác biệt giữa schema và DB.
+- Kiểm (đã qua): `npm run db:migrate` trên DB trắng; `npm run db:seed` (chương trình CNTT 2023 với 33 học phần, 3 học kỳ, 7 lớp, đợt đăng ký đang mở, 3 tài khoản SV / GV kiêm cố vấn / admin); `npm run test:db` 16/16 test; `drizzle-kit generate` không còn khác biệt giữa schema và DB.
 - Bàn giao cho Giai đoạn 3: better-auth phải đặt `advanced.database.generateId: false` để DB tự sinh `uuidv7()` cho cột `uuid`; mật khẩu seed đã băm bằng `better-auth/crypto` và xác minh được.
 
 Định danh trên URL khi nối dữ liệu thật:

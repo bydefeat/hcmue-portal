@@ -22,7 +22,9 @@ import { courseResults, gradeComponents, gradeSheets } from "@/modules/grades/gr
 import { notifications } from "@/modules/notifications/notifications.schema";
 import { REGULATION } from "@/modules/settings/settings.mock";
 import { calendarEvents, regulations } from "@/modules/settings/settings.schema";
-import { administrativeClasses, lecturers, staffMembers, students } from "@/modules/users/users.schema";
+import { PRICE_PER_CREDIT } from "@/modules/tuition/tuition.constant";
+import { tuitionFees, tuitionRates } from "@/modules/tuition/tuition.schema";
+import { administrativeClasses, lecturerLoadNorms, lecturers, staffMembers, students } from "@/modules/users/users.schema";
 
 if (process.env.NODE_ENV === "production") throw new Error("Không chạy seed trên môi trường production");
 
@@ -179,6 +181,13 @@ async function main() {
       .returning();
     const [hanh, huong, khanhHanh] = lecturerRows;
 
+    await tx.insert(lecturerLoadNorms).values([
+      { title: "ThS.", normHours: 135 },
+      { title: "TS.", normHours: 135 },
+      { title: "PGS.TS.", normHours: 120 },
+      { title: "GS.TS.", normHours: 120 },
+    ]);
+
     await tx.insert(staffMembers).values({ userId: adminUser.id, code: "CB0021", fullName: "Trần Minh Khoa", unit: "Phòng Đào tạo", email: "khoatm@hcmue.edu.vn" });
 
     const [homeClass] = await tx.insert(administrativeClasses).values({ code: "50.01.CNTT.A", majorId: major.id, cohort: 50, advisorId: hanh.id }).returning();
@@ -196,6 +205,9 @@ async function main() {
         administrativeClassId: homeClass.id,
       })
       .returning();
+
+    await tx.insert(tuitionRates).values({ academicYear: 2026, majorId: major.id, pricePerCredit: PRICE_PER_CREDIT[major.code] ?? 0 });
+    await tx.insert(tuitionFees).values({ academicYear: 2026, code: "bhyt", label: "Bảo hiểm y tế 12 tháng", amount: 1_263_600 });
 
     const roleRows = await tx
       .insert(roles)

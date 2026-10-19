@@ -1,7 +1,8 @@
 import { sql } from "drizzle-orm";
-import { check, date, index, numeric, pgTable, smallint, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
+import { boolean, check, date, index, numeric, pgTable, smallint, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
 import { primaryId, timestamps } from "../../shared/libs/db-column.lib";
 import { terms } from "../course-registration/course-registration.schema";
+import { majors } from "../curriculum/curriculum.schema";
 import { students } from "../users/users.schema";
 
 const money = () => numeric({ precision: 14, scale: 0, mode: "number" });
@@ -21,7 +22,7 @@ export const tuitionInvoices = pgTable(
     discount: money().notNull().default(0),
     ...timestamps(),
   },
-  (table) => [unique().on(table.studentId, table.termId), index().on(table.termId, table.dueDate), check("tuition_invoices_discount_non_negative", sql`${table.discount} >= 0`)],
+  (table) => [unique("tuition_invoices_student_id_term_id_unique").on(table.studentId, table.termId), index().on(table.termId, table.dueDate), check("tuition_invoices_discount_non_negative", sql`${table.discount} >= 0`)],
 );
 
 export const invoiceLines = pgTable(
@@ -40,7 +41,7 @@ export const invoiceLines = pgTable(
       .generatedAlwaysAs(sql`quantity * unit_price`),
   },
   (table) => [
-    unique().on(table.invoiceId, table.position),
+    unique("invoice_lines_invoice_id_position_unique").on(table.invoiceId, table.position),
     check("invoice_lines_quantity_positive", sql`${table.quantity} > 0`),
     check("invoice_lines_unit_price_non_negative", sql`${table.unitPrice} >= 0`),
   ],
@@ -56,7 +57,36 @@ export const payments = pgTable(
     paidAt: timestamp({ withTimezone: true }).notNull(),
     amount: money().notNull(),
     method: text().notNull(),
-    reference: text().notNull().unique(),
+    reference: text().notNull().unique("payments_reference_unique"),
   },
   (table) => [index().on(table.invoiceId, table.paidAt), check("payments_amount_positive", sql`${table.amount} > 0`)],
+);
+
+export const tuitionRates = pgTable(
+  "tuition_rates",
+  {
+    id: primaryId(),
+    academicYear: smallint().notNull(),
+    majorId: uuid()
+      .notNull()
+      .references(() => majors.id, { onDelete: "restrict" }),
+    pricePerCredit: money().notNull(),
+    note: text().notNull().default(""),
+    ...timestamps(),
+  },
+  (table) => [unique("tuition_rates_academic_year_major_id_unique").on(table.academicYear, table.majorId), index().on(table.majorId), check("tuition_rates_price_non_negative", sql`${table.pricePerCredit} >= 0`)],
+);
+
+export const tuitionFees = pgTable(
+  "tuition_fees",
+  {
+    id: primaryId(),
+    academicYear: smallint().notNull(),
+    code: text().notNull(),
+    label: text().notNull(),
+    amount: money().notNull(),
+    isMandatory: boolean().notNull().default(true),
+    ...timestamps(),
+  },
+  (table) => [unique("tuition_fees_academic_year_code_unique").on(table.academicYear, table.code), check("tuition_fees_amount_non_negative", sql`${table.amount} >= 0`)],
 );

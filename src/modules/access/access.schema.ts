@@ -8,7 +8,7 @@ export const roleScopeEnum = pgEnum("role_scope", ["university", "faculty"]);
 
 export const roles = pgTable("roles", {
   id: primaryId(),
-  name: text().notNull().unique(),
+  name: text().notNull().unique("roles_name_unique"),
   description: text().notNull().default(""),
   scope: roleScopeEnum().notNull(),
   isSystem: boolean().notNull().default(false),
@@ -41,7 +41,7 @@ export const roleAssignments = pgTable(
     grantedByUserId: uuid().references(() => user.id, { onDelete: "set null" }),
   },
   (table) => [
-    unique().on(table.userId, table.roleId, table.facultyId).nullsNotDistinct(),
+    unique("role_assignments_user_id_role_id_faculty_id_unique").on(table.userId, table.roleId, table.facultyId).nullsNotDistinct(),
     index().on(table.roleId),
     index().on(table.facultyId),
     index().on(table.grantedByUserId),

@@ -9,8 +9,8 @@ export const programStatusEnum = pgEnum("program_status", ["active", "draft", "a
 
 export const faculties = pgTable("faculties", {
   id: primaryId(),
-  code: text().notNull().unique(),
-  name: text().notNull().unique(),
+  code: text().notNull().unique("faculties_code_unique"),
+  name: text().notNull().unique("faculties_name_unique"),
   ...timestamps(),
 });
 
@@ -18,7 +18,7 @@ export const majors = pgTable(
   "majors",
   {
     id: primaryId(),
-    code: text().notNull().unique(),
+    code: text().notNull().unique("majors_code_unique"),
     name: text().notNull(),
     facultyId: uuid()
       .notNull()
@@ -32,7 +32,7 @@ export const courses = pgTable(
   "courses",
   {
     id: primaryId(),
-    code: text().notNull().unique(),
+    code: text().notNull().unique("courses_code_unique"),
     name: text().notNull(),
     credits: smallint().notNull(),
     theoryCredits: smallint().notNull(),

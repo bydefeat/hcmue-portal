@@ -18,7 +18,7 @@ export const gradeSheets = pgTable(
     id: primaryId(),
     classSectionId: uuid()
       .notNull()
-      .unique()
+      .unique("grade_sheets_class_section_id_unique")
       .references(() => classSections.id, { onDelete: "cascade" }),
     status: gradeSheetStatusEnum().notNull().default("draft"),
     deadline: timestamp({ withTimezone: true }).notNull(),
@@ -54,8 +54,8 @@ export const gradeComponents = pgTable(
     position: smallint().notNull(),
   },
   (table) => [
-    unique().on(table.gradeSheetId, table.key),
-    unique().on(table.gradeSheetId, table.position),
+    unique("grade_components_grade_sheet_id_key_unique").on(table.gradeSheetId, table.key),
+    unique("grade_components_grade_sheet_id_position_unique").on(table.gradeSheetId, table.position),
     check("grade_components_weight_range", sql`${table.weight} BETWEEN 1 AND 100`),
   ],
 );
@@ -93,7 +93,7 @@ export const courseResults = pgTable(
       .notNull()
       .references(() => terms.id, { onDelete: "restrict" }),
     enrollmentId: uuid()
-      .unique()
+      .unique("course_results_enrollment_id_unique")
       .references(() => enrollments.id, { onDelete: "set null" }),
     source: courseResultSourceEnum().notNull().default("class"),
     score10: numeric({ precision: 4, scale: 2, mode: "number" }),
@@ -133,7 +133,7 @@ export const academicWarnings = pgTable(
     createdAt: createdAt(),
   },
   (table) => [
-    unique().on(table.studentId, table.termId),
+    unique("academic_warnings_student_id_term_id_unique").on(table.studentId, table.termId),
     index().on(table.termId, table.level),
     check("academic_warnings_level_range", sql`${table.level} BETWEEN 1 AND 3`),
     check("academic_warnings_has_reason", sql`cardinality(${table.reasons}) > 0`),

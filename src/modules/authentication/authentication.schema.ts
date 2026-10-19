@@ -1,10 +1,10 @@
-import { boolean, index, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { bigint, boolean, index, integer, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 import { primaryId, timestamps } from "../../shared/libs/db-column.lib";
 
 export const user = pgTable("user", {
   id: primaryId(),
   name: text().notNull(),
-  email: text().notNull().unique(),
+  email: text().notNull().unique("user_email_unique"),
   emailVerified: boolean().notNull().default(false),
   image: text(),
   role: text(),
@@ -21,7 +21,7 @@ export const session = pgTable(
     userId: uuid()
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
-    token: text().notNull().unique(),
+    token: text().notNull().unique("session_token_unique"),
     expiresAt: timestamp({ withTimezone: true }).notNull(),
     ipAddress: text(),
     userAgent: text(),
@@ -63,3 +63,10 @@ export const verification = pgTable(
   },
   (table) => [index().on(table.identifier)],
 );
+
+export const rateLimit = pgTable("rate_limit", {
+  id: primaryId(),
+  key: text().notNull().unique("rate_limit_key_unique"),
+  count: integer().notNull(),
+  lastRequest: bigint({ mode: "number" }).notNull(),
+});

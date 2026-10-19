@@ -1,5 +1,5 @@
 import type { StatusMeta } from "@/shared/constants/status.constant";
-import type { ClassRef, DecisionKind, DecisionStatus, LecturerStatus, MajorRef, StudentStatus } from "@/modules/users/users.type";
+import type { AccountState, AccountStatus, ClassRef, DecisionKind, DecisionStatus, LecturerStatus, MajorRef, StudentStatus } from "@/modules/users/users.type";
 
 export const STUDENT_STATUS: Record<StudentStatus, StatusMeta> = {
   studying: { label: "Đang học", tone: "neutral" },
@@ -12,6 +12,17 @@ export const LECTURER_STATUS: Record<LecturerStatus, StatusMeta> = {
   active: { label: "Đang giảng dạy", tone: "neutral" },
   "on-leave": { label: "Nghỉ phép", tone: "warning" },
 };
+
+export const ACCOUNT_STATUS: Record<AccountStatus, StatusMeta> = {
+  none: { label: "Chưa cấp", tone: "neutral" },
+  pending: { label: "Chưa kích hoạt", tone: "warning" },
+  active: { label: "Đang dùng", tone: "success" },
+  locked: { label: "Đã khóa", tone: "danger" },
+};
+
+export const NO_ACCOUNT: AccountState = { status: "none", lastSignInAt: null };
+
+export const ACCOUNT_STATUS_OPTIONS = Object.entries(ACCOUNT_STATUS).map(([value, meta]) => ({ value: value as AccountStatus, label: meta.label }));
 
 export const LECTURER_TITLES = ["ThS.", "TS.", "PGS.TS.", "GS.TS."];
 
@@ -89,6 +100,12 @@ export const USERS_CONSTRAINT_MESSAGE: Partial<Record<string, string>> = {
   students_email_unique: "Email đã được dùng cho sinh viên khác.",
   students_user_id_unique: "Tài khoản đăng nhập đã gắn với sinh viên khác.",
   lecturers_code_unique: "Mã giảng viên đã có.",
+  lecturers_user_id_unique: "Tài khoản đăng nhập đã gắn với giảng viên khác.",
+  staff_members_code_unique: "Mã cán bộ đã có.",
+  staff_members_email_unique: "Email công vụ đã được dùng cho cán bộ khác.",
+  staff_members_user_id_unique: "Tài khoản đăng nhập đã gắn với cán bộ khác.",
+  user_email_unique: "Email này đã là tên đăng nhập của một tài khoản khác. Kiểm tra lại email hoặc liên hệ quản trị hệ thống.",
+  user_username_unique: "Mã số sinh viên đã là tên đăng nhập của một tài khoản khác.",
   lecturers_email_unique: "Email công vụ đã được dùng cho giảng viên khác.",
   administrative_classes_code_unique: "Mã lớp sinh hoạt đã có.",
   student_decisions_number_index: "Số quyết định đã được dùng, thử lại.",

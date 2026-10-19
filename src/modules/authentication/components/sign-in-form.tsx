@@ -33,6 +33,7 @@ export function SignInForm({ defaultUsername, next }: { defaultUsername?: string
   const forgotHref = recoveryEmail
     ? `/authentication/forgot-password?email=${encodeURIComponent(recoveryEmail)}`
     : "/authentication/forgot-password";
+  const activateHref = `${forgotHref}${recoveryEmail ? "&" : "?"}activate=1`;
 
   return (
     <>
@@ -81,9 +82,18 @@ export function SignInForm({ defaultUsername, next }: { defaultUsername?: string
         </Button>
       </Form>
       <Divider className="my-6" />
-      <Link href={forgotHref} className="text-sm text-primary hover:underline">
-        Quên mật khẩu?
-      </Link>
+      <div className="flex flex-col gap-2 text-sm">
+        <Link href={forgotHref} className="w-fit text-primary hover:underline">
+          Quên mật khẩu?
+        </Link>
+        <p className="text-pretty text-muted">
+          Lần đầu đăng nhập?{" "}
+          <Link href={activateHref} className="text-primary hover:underline">
+            Kích hoạt tài khoản
+          </Link>{" "}
+          bằng mã gửi tới email trường để tự đặt mật khẩu.
+        </p>
+      </div>
     </>
   );
 }

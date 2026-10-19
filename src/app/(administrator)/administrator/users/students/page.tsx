@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import { STANDING_LABEL } from "@/modules/grades/grades.constant";
 import { getStudentStandings } from "@/modules/grades/grades.query";
 import { StudentTable } from "@/modules/users/components/student-table";
-import { getCohorts, getStudents } from "@/modules/users/users.query";
+import { getAccountStates, getCohorts, getStudents } from "@/modules/users/users.query";
+import { NO_ACCOUNT } from "@/modules/users/users.constant";
 import { getMajors } from "@/modules/curriculum/curriculum.query";
 import { inScope } from "@/modules/access/access.constant";
 import { requirePermission } from "@/modules/access/access.query";
@@ -11,7 +12,7 @@ export const metadata: Metadata = { title: "Quản lý sinh viên" };
 
 export default async function Page() {
   const viewer = await requirePermission("students.view");
-  const [allStudents, allMajors, cohorts] = await Promise.all([getStudents(), getMajors(), getCohorts()]);
+  const [allStudents, allMajors, cohorts, accounts] = await Promise.all([getStudents(), getMajors(), getCohorts(), getAccountStates("student")]);
   const students = allStudents.filter((student) => inScope(viewer, student.faculty));
   const majors = allMajors.filter((major) => inScope(viewer, major.faculty));
   const standings = await getStudentStandings(students.map((student) => student.id));
@@ -22,6 +23,7 @@ export default async function Page() {
       ...student,
       cpa4: standing && standing.earnedCredits > 0 ? standing.cpa4 : null,
       standingLabel: standing ? STANDING_LABEL[standing.standing] : null,
+      account: accounts[student.id] ?? NO_ACCOUNT,
     };
   });
 

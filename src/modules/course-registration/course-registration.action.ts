@@ -8,6 +8,9 @@ import { db, type Transaction } from "@/shared/libs/db.lib";
 import { actionError, actionFailure, actionOk, parseInput, type ActionResult } from "@/shared/libs/action.lib";
 import { daysUntil } from "@/shared/libs/date.lib";
 import { isUuid } from "@/shared/libs/id.lib";
+import { env } from "@/shared/libs/env.lib";
+import { sendMailEach } from "@/shared/libs/mail.lib";
+import { studentEmailOf } from "@/shared/libs/student-code.lib";
 import {
   ADMIN_REGISTER_SCHEMA,
   basketProblems,
@@ -59,7 +62,7 @@ import { academicWarnings, courseResults } from "@/modules/grades/grades.schema"
 import { regulations } from "@/modules/settings/settings.schema";
 import { notifyStudents } from "@/modules/notifications/notifications.lib";
 import { invoiceLines, payments, tuitionInvoices } from "@/modules/tuition/tuition.schema";
-import { getCurrentStudent, getStudent } from "@/modules/users/users.query";
+import { getCurrentStudent, getStudent, requireActiveStudent } from "@/modules/users/users.query";
 import type { ClassSectionView, RegistrationHold, RegistrationPeriodView } from "@/modules/course-registration/course-registration.type";
 import type { Student } from "@/modules/users/users.type";
 
@@ -120,7 +123,10 @@ async function eligibilityOf({ student, termId, registered }: Registration, plan
 }
 
 async function loadRegistration(): Promise<Registration | string> {
-  const [student, term, currentTerm] = await Promise.all([getCurrentStudent(), getRegistrationTargetTerm(), getCurrentTerm()]);
+  const [active, term, currentTerm] = await Promise.all([requireActiveStudent(), getRegistrationTargetTerm(), getCurrentTerm()]);
+  // Bảo lưu, tạm ngừng học, đã tốt nghiệp: không đăng ký, hủy, đổi nhóm được.
+  if (!active.student) return active.message;
+  const { student } = active;
   const now = new Date();
   const [[period], [hold], [invoice], sections, rows] = await Promise.all([
     db
@@ -778,7 +784,9 @@ export async function adminDrop(studentId: string, sectionId: string, reason: st
 
 // Nhắc sinh viên chưa đăng ký trong đợt đang mở: gửi thông báo trên cổng sinh viên. Chỉ nhắc được sinh viên trong phạm vi khoa
 // của người gửi và vẫn còn chưa đăng ký lúc gửi; sinh viên chưa kích hoạt tài khoản cổng thì không nhận được thông báo.
-export async function remindUnregisteredStudents(studentIds: string[]): Promise<ActionResult<{ remindedIds: string[]; remindedAt: string; withoutAccount: number }>> {
+export async function remindUnregisteredStudents(
+  studentIds: string[],
+): Promise<ActionResult<{ remindedIds: string[]; remindedAt: string; withoutAccount: number; mailed: number; mailFailed: number }>> {
   const viewer = await requirePermission("registration.manage");
   const parsed = parseInput(z.object({ studentIds: z.array(z.uuid()).min(1, "Chưa chọn sinh viên").max(2000) }), { studentIds });
   if (!parsed.ok) return parsed;
@@ -803,7 +811,26 @@ export async function remindUnregisteredStudents(studentIds: string[]): Promise<
   } catch (error) {
     return actionFailure(error, REGISTRATION_CONSTRAINT_MESSAGE);
   }
-  if (remindedIds.length === 0) return actionError("Các sinh viên đã chọn chưa kích hoạt tài khoản cổng nên chưa nhận được thông báo.");
+  // Thư tới email trường của mọi sinh viên được nhắc, kể cả chưa có tài khoản cổng (kênh duy nhất tới các bạn này).
+  const mail = await sendMailEach(
+    pending.map((student) => studentEmailOf(student.code)),
+    {
+      subject: `Nhắc đăng ký học phần ${term.name}`,
+      text: [
+        "Chào bạn,",
+        `${term.name} đang trong đợt đăng ký học phần của khóa bạn và hệ thống chưa ghi nhận bạn đăng ký lớp nào. Đăng ký trước khi đợt đóng để không bị thiếu tín chỉ tối thiểu.`,
+        `Đăng ký tại: ${env.DEFEAT_BETTER_AUTH_PUBLIC_APPLICATION_BASE_URL.replace(/\/+$/, "")}${REGISTRATION_REMINDER_HREF}`,
+        "Chưa đăng nhập được HCMUE Portal thì liên hệ Phòng Đào tạo để được cấp hoặc kích hoạt tài khoản.",
+      ].join("\n\n"),
+    },
+  );
+  if (remindedIds.length === 0 && mail.sent === 0) return actionError("Chưa gửi được thông báo hay thư nhắc nào. Thử lại sau ít phút.");
   revalidatePath("/administrator/registration-monitor");
-  return actionOk({ remindedIds, remindedAt: remindedAt.toISOString(), withoutAccount: pending.length - remindedIds.length });
+  return actionOk({
+    remindedIds,
+    remindedAt: remindedAt.toISOString(),
+    withoutAccount: pending.length - remindedIds.length,
+    mailed: mail.sent,
+    mailFailed: mail.failed,
+  });
 }

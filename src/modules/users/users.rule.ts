@@ -1,6 +1,6 @@
 import { z } from "zod";
-import type { StudentFormValues } from "@/modules/users/users.type";
-import { formatStudentCode, isStudentCode, normalizeStudentCode, studentEmailOf } from "@/shared/libs/student-code.lib";
+import type { AccountStatus, StudentFormValues } from "@/modules/users/users.type";
+import { formatStudentCode, isStudentCode, isStudentEmail, normalizeStudentCode, studentEmailOf } from "@/shared/libs/student-code.lib";
 
 export const IMPORT_COLUMNS = ["Mã sinh viên", "Họ và tên", "Giới tính", "Ngày sinh", "Email", "Điện thoại", "Mã ngành", "Khóa", "Lớp"] as const;
 
@@ -141,3 +141,80 @@ export const DECISION_SCHEMA = z.object({
 });
 
 export type DecisionInput = z.input<typeof DECISION_SCHEMA>;
+
+// Tài khoản sinh viên: đăng nhập bằng MSSV 10 chữ số, hiển thị dạng có dấu chấm, email trường nhận mã kích hoạt.
+export function studentAccountIdentity(code: string) {
+  const username = normalizeStudentCode(code);
+  return { username, displayUsername: formatStudentCode(username), email: studentEmailOf(username) };
+}
+
+export function accountStatusOf(account: { userId: string | null; banned: boolean | null; lastSignInAt: Date | string | null }): AccountStatus {
+  if (!account.userId) return "none";
+  if (account.banned) return "locked";
+  return account.lastSignInAt ? "active" : "pending";
+}
+
+// Đường dẫn trong thư kích hoạt: trang quên mật khẩu điền sẵn email, người nhận lấy mã OTP rồi tự đặt mật khẩu.
+export function activationLink(baseUrl: string, email: string) {
+  return `${baseUrl.replace(/\/+$/, "")}/authentication/forgot-password?email=${encodeURIComponent(email)}&activate=1`;
+}
+
+export function activationMail(account: { name: string; loginName: string; isStudent: boolean; link: string }) {
+  const loginHint = account.isStudent ? `Tên đăng nhập là mã số sinh viên: ${account.loginName}` : `Tên đăng nhập là email công vụ: ${account.loginName}`;
+  return {
+    subject: "Kích hoạt tài khoản HCMUE Portal",
+    text: [
+      `Chào ${account.name},`,
+      `Phòng Đào tạo đã cấp cho bạn tài khoản HCMUE Portal. ${loginHint}.`,
+      `Để kích hoạt, mở đường dẫn dưới đây, bấm Gửi mã, nhập mã gồm 6 số được gửi tới email này rồi đặt mật khẩu của bạn:\n${account.link}`,
+      "Nếu bạn không phải người nhận thư này, bỏ qua thư; tài khoản chưa dùng được khi chưa đặt mật khẩu.",
+    ].join("\n\n"),
+  };
+}
+
+export const ACCOUNT_BATCH_SCHEMA = z.object({
+  kind: z.enum(["student", "lecturer"]),
+  ids: z
+    .array(z.uuid())
+    .min(1, "Chưa chọn hồ sơ")
+    .max(1000, "Mỗi lần tối đa 1000 hồ sơ")
+    .transform((ids) => [...new Set(ids)]),
+});
+
+export type AccountBatchInput = z.input<typeof ACCOUNT_BATCH_SCHEMA>;
+
+// Cán bộ do quản trị hệ thống tạo ở trang Phân quyền; tạm đăng nhập bằng email công vụ.
+export const STAFF_SCHEMA = z.object({
+  code: z.string().trim().toUpperCase().min(1, "Chưa nhập mã cán bộ").max(20),
+  fullName: z.string().trim().min(1, "Chưa nhập họ và tên").max(120),
+  unit: z.string().trim().min(1, "Chưa nhập đơn vị").max(120),
+  email: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .pipe(z.email("Email không hợp lệ"))
+    .refine((value) => value.endsWith("@hcmue.edu.vn") && !isStudentEmail(value), "Dùng email công vụ có đuôi @hcmue.edu.vn"),
+  provisionAccount: z.boolean().default(true),
+});
+
+export type StaffInput = z.input<typeof STAFF_SCHEMA>;
+
+export type AccountBatchAction = "provision" | "resend" | "lock" | "unlock";
+
+// Câu báo sau thao tác hàng loạt: số đã làm, số thư gửi được, số dòng bỏ qua gom theo lý do.
+export function accountBatchSummary(action: AccountBatchAction, result: { changed: number; mailed: number; mailFailed: number; skipped: { reason: string }[] }) {
+  const head = {
+    provision: `Đã cấp ${result.changed} tài khoản, gửi thư kích hoạt tới ${result.mailed} người`,
+    resend: `Đã gửi lại thư kích hoạt tới ${result.mailed} người`,
+    lock: `Đã khóa ${result.changed} tài khoản và đăng xuất khỏi mọi thiết bị`,
+    unlock: `Đã mở khóa ${result.changed} tài khoản`,
+  }[action];
+  const parts = [head];
+  if (result.mailFailed > 0) parts.push(`${result.mailFailed} thư chưa gửi được, thử "Gửi lại thư kích hoạt" sau ít phút`);
+  if (result.skipped.length > 0) {
+    const byReason = new Map<string, number>();
+    for (const entry of result.skipped) byReason.set(entry.reason, (byReason.get(entry.reason) ?? 0) + 1);
+    parts.push(`bỏ qua ${[...byReason].map(([reason, total]) => `${total} hồ sơ ${reason.charAt(0).toLowerCase()}${reason.slice(1)}`).join(", ")}`);
+  }
+  return `${parts.join("; ")}.`;
+}

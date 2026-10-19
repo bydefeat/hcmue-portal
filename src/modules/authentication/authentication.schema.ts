@@ -14,6 +14,8 @@ export const user = pgTable("user", {
   banned: boolean().notNull().default(false),
   banReason: text(),
   banExpires: timestamp({ withTimezone: true }),
+  // Lần tạo phiên gần nhất; trống nghĩa là tài khoản được cấp nhưng chưa từng đăng nhập (chưa kích hoạt).
+  lastSignInAt: timestamp({ withTimezone: true }),
   ...timestamps(),
 });
 

@@ -20,7 +20,9 @@ function ErrorAlert({ message }: { message: string | null }) {
   return message ? <Alert type="error" showIcon title={message} className="mb-6" /> : null;
 }
 
-export function ForgotPasswordForm({ defaultEmail }: { defaultEmail?: string }) {
+// Một luồng cho cả "Quên mật khẩu" và "Kích hoạt tài khoản" lần đầu: tài khoản do trường cấp có mật khẩu ngẫu nhiên không ai biết,
+// người dùng nhận mã qua email trường rồi tự đặt mật khẩu.
+export function ForgotPasswordForm({ defaultEmail, isActivation = false }: { defaultEmail?: string; isActivation?: boolean }) {
   const router = useRouter();
   const [step, setStep] = useState<Step>("email");
   const [email, setEmail] = useState(defaultEmail ?? "");
@@ -38,8 +40,12 @@ export function ForgotPasswordForm({ defaultEmail }: { defaultEmail?: string }) 
     return (
       <>
         <AuthHeading
-          title="Quên mật khẩu"
-          description="Nhập email trường cấp, mã đặt lại mật khẩu sẽ được gửi tới đó. Email sinh viên có dạng 5001104013@student.hcmue.edu.vn."
+          title={isActivation ? "Kích hoạt tài khoản" : "Quên mật khẩu"}
+          description={
+            isActivation
+              ? "Lần đầu dùng HCMUE Portal: nhập email trường cấp, mã gồm 6 số sẽ được gửi tới đó để bạn đặt mật khẩu. Email sinh viên có dạng 5001104013@student.hcmue.edu.vn."
+              : "Nhập email trường cấp, mã đặt lại mật khẩu sẽ được gửi tới đó. Email sinh viên có dạng 5001104013@student.hcmue.edu.vn."
+          }
         />
         <ErrorAlert message={error} />
         <Form
@@ -116,7 +122,7 @@ export function ForgotPasswordForm({ defaultEmail }: { defaultEmail?: string }) 
             })
           }
         >
-          <Form.Item name="code" label="Mã đặt lại" rules={OTP_RULES}>
+          <Form.Item name="code" label={isActivation ? "Mã kích hoạt" : "Mã đặt lại"} rules={OTP_RULES}>
             <Input.OTP length={6} autoFocus />
           </Form.Item>
           <Button type="primary" htmlType="submit" block loading={isPending} className="mt-2">
@@ -150,11 +156,17 @@ export function ForgotPasswordForm({ defaultEmail }: { defaultEmail?: string }) 
     return (
       <>
         <AuthHeading
-          title="Đặt mật khẩu mới"
+          title={isActivation ? "Đặt mật khẩu" : "Đặt mật khẩu mới"}
           description={
-            <>
-              Cho tài khoản <EmailText email={email} />. Các thiết bị khác đang đăng nhập sẽ bị đăng xuất.
-            </>
+            isActivation ? (
+              <>
+                Cho tài khoản <EmailText email={email} />. Dùng mật khẩu này cho các lần đăng nhập sau.
+              </>
+            ) : (
+              <>
+                Cho tài khoản <EmailText email={email} />. Các thiết bị khác đang đăng nhập sẽ bị đăng xuất.
+              </>
+            )
           }
         />
         <ErrorAlert message={error} />
@@ -189,7 +201,10 @@ export function ForgotPasswordForm({ defaultEmail }: { defaultEmail?: string }) 
   const studentCode = isStudentEmail(email) ? formatStudentCode(email.split("@")[0]) : undefined;
   return (
     <>
-      <AuthHeading title="Đã đổi mật khẩu" description="Dùng mật khẩu mới để đăng nhập." />
+      <AuthHeading
+        title={isActivation ? "Đã kích hoạt tài khoản" : "Đã đổi mật khẩu"}
+        description={studentCode ? `Đăng nhập bằng mã số sinh viên ${studentCode} và mật khẩu vừa đặt.` : "Dùng mật khẩu vừa đặt để đăng nhập."}
+      />
       <Button
         type="primary"
         size="large"

@@ -18,6 +18,8 @@ export async function seedPeople(tx: Transaction, context: SeedContext) {
   const currentLecturer = LECTURERS.find((lecturer) => lecturer.id === CURRENT_LECTURER_ID)!;
   const studentCode = normalizeStudentCode(currentStudent.code);
 
+  // Tài khoản seed coi như đã kích hoạt (đã đăng nhập) để bảng tài khoản hiện "Đang dùng"; hồ sơ khác để "Chưa cấp".
+  const lastSignInAt = new Date();
   const userRows = await tx
     .insert(user)
     .values([
@@ -28,9 +30,10 @@ export async function seedPeople(tx: Transaction, context: SeedContext) {
         displayUsername: formatStudentCode(studentCode),
         emailVerified: true,
         role: "student",
+        lastSignInAt,
       },
-      { name: currentLecturer.displayName, email: currentLecturer.email, emailVerified: true, role: "lecturer" },
-      { name: ADMIN.name, email: ADMIN.email, emailVerified: true, role: "admin" },
+      { name: currentLecturer.displayName, email: currentLecturer.email, emailVerified: true, role: "lecturer", lastSignInAt },
+      { name: ADMIN.name, email: ADMIN.email, emailVerified: true, role: "admin", lastSignInAt },
     ])
     .returning();
   const [studentUser, lecturerUser, adminUser] = userRows;

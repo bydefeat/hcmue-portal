@@ -3,7 +3,7 @@ import { ForgotPasswordForm } from "@/modules/authentication/components/forgot-p
 
 export const metadata: Metadata = { title: "Quên mật khẩu" };
 
-export default async function Page({ searchParams }: { searchParams: Promise<{ email?: string }> }) {
-  const { email } = await searchParams;
-  return <ForgotPasswordForm defaultEmail={email} />;
+export default async function Page({ searchParams }: { searchParams: Promise<{ email?: string; activate?: string }> }) {
+  const { email, activate } = await searchParams;
+  return <ForgotPasswordForm defaultEmail={typeof email === "string" ? email : undefined} isActivation={activate === "1"} />;
 }

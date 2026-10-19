@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useTransition } from "react";
-import { Button, Drawer, Form, Input, Radio, Select } from "antd";
+import { Button, Checkbox, Drawer, Form, Input, Radio, Select } from "antd";
 import { facultyOptions, LECTURER_STATUS, LECTURER_TITLES } from "@/modules/users/users.constant";
 import type { Lecturer, LecturerFormValues, LecturerStatus } from "@/modules/users/users.type";
 import { toFormFields } from "@/shared/libs/form.lib";
@@ -12,13 +12,13 @@ type LecturerFormDrawerProps = {
   faculties: string[];
   onClose: () => void;
   // Trả lỗi theo ô khi server từ chối, để drawer gắn vào đúng ô.
-  onSubmit: (values: LecturerFormValues) => Promise<Record<string, string> | undefined>;
+  onSubmit: (values: LecturerFormValues, options: { provisionAccount: boolean }) => Promise<Record<string, string> | undefined>;
 };
 
 const STATUS_OPTIONS = (Object.keys(LECTURER_STATUS) as LecturerStatus[]).map((value) => ({ value, label: LECTURER_STATUS[value].label }));
 
 export function LecturerFormDrawer({ open, lecturer, faculties, onClose, onSubmit }: LecturerFormDrawerProps) {
-  const [form] = Form.useForm<LecturerFormValues>();
+  const [form] = Form.useForm<LecturerFormValues & { provisionAccount?: boolean }>();
   const [isPending, startTransition] = useTransition();
   const isEdit = lecturer !== null;
 
@@ -48,10 +48,10 @@ export function LecturerFormDrawer({ open, lecturer, faculties, onClose, onSubmi
       <Form
         form={form}
         layout="vertical"
-        initialValues={{ status: "active" }}
-        onFinish={(values) =>
+        initialValues={{ status: "active", provisionAccount: true }}
+        onFinish={({ provisionAccount, ...values }) =>
           startTransition(async () => {
-            const fieldErrors = await onSubmit(values);
+            const fieldErrors = await onSubmit({ ...values, phone: values.phone ?? "" }, { provisionAccount: !isEdit && provisionAccount === true });
             if (fieldErrors) form.setFields(toFormFields(fieldErrors));
           })
         }
@@ -98,6 +98,11 @@ export function LecturerFormDrawer({ open, lecturer, faculties, onClose, onSubmi
         <Form.Item name="status" label="Tình trạng">
           <Select options={STATUS_OPTIONS} />
         </Form.Item>
+        {!isEdit && (
+          <Form.Item name="provisionAccount" valuePropName="checked" extra="Giảng viên đăng nhập bằng email công vụ, tự đặt mật khẩu qua đường dẫn trong thư.">
+            <Checkbox>Cấp tài khoản và gửi thư kích hoạt</Checkbox>
+          </Form.Item>
+        )}
       </Form>
     </Drawer>
   );

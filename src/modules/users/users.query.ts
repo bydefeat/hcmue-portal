@@ -8,7 +8,9 @@ import { formatStudentCode, normalizeStudentCode } from "@/shared/libs/student-c
 import { requireRole, requireSession } from "@/modules/authentication/authentication.query";
 import { faculties, majors } from "@/modules/curriculum/curriculum.schema";
 import { administrativeClasses, lecturers, studentDecisions, students } from "@/modules/users/users.schema";
-import type { AdvisorAssignment, Lecturer, Student, StudentDecision } from "@/modules/users/users.type";
+import { readAccountStates } from "@/modules/users/users.account";
+import { STUDENT_STATUS } from "@/modules/users/users.constant";
+import type { AccountKind, AdvisorAssignment, Lecturer, Student, StudentDecision } from "@/modules/users/users.type";
 
 // Sinh viên kèm lớp sinh hoạt, ngành, khoa. MSSV trả ra theo dạng hiển thị "50.01.104.013".
 async function studentRows(where?: SQL): Promise<Student[]> {
@@ -140,6 +142,22 @@ export async function getMyStudentContact() {
     .from(students)
     .where(eq(students.id, student.id));
   return row;
+}
+
+// Dùng cho action ghi của sinh viên: bảo lưu, tạm ngừng học, đã tốt nghiệp thì chỉ xem, không thao tác được.
+export async function requireActiveStudent() {
+  const student = await getCurrentStudent();
+  if (student.status !== "studying") {
+    const label = STUDENT_STATUS[student.status].label.toLowerCase();
+    return { student: null, message: `Bạn đang ở tình trạng "${label}" nên chưa thực hiện được thao tác này. Liên hệ Phòng Đào tạo nếu cần hỗ trợ.` } as const;
+  }
+  return { student, message: null } as const;
+}
+
+// Trạng thái tài khoản đăng nhập theo id hồ sơ, cho bảng sinh viên, giảng viên của cổng quản trị.
+export async function getAccountStates(kind: AccountKind) {
+  await requireRole("admin");
+  return readAccountStates(db, kind);
 }
 
 export const getCurrentLecturer = cache(async () => {

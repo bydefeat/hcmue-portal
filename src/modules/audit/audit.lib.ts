@@ -1,6 +1,6 @@
 import "server-only";
-import { isIP } from "node:net";
 import { headers } from "next/headers";
+import { clientIpFrom } from "@/shared/libs/client-ip.lib";
 import type { db, Transaction } from "@/shared/libs/db.lib";
 import { auditLogs } from "@/modules/audit/audit.schema";
 import type { AuditAction, AuditChange, AuditEntityType } from "@/modules/audit/audit.type";
@@ -15,7 +15,7 @@ export type AuditRecord = {
   entityLabel: string;
   summary: string;
   changes?: AuditChange[];
-  // Bỏ trống thì lấy IP của request hiện tại (x-forwarded-for do reverse proxy ghi đè).
+  // Bỏ trống thì lấy IP của request hiện tại, cùng header tin cậy với rate limit đăng nhập (client-ip.lib).
   ip?: string | null;
 };
 
@@ -26,8 +26,7 @@ export function auditActorOf(viewer: { id: string; name: string; roleName: strin
 
 async function requestIp() {
   try {
-    const forwarded = (await headers()).get("x-forwarded-for")?.split(",")[0]?.trim();
-    return forwarded && isIP(forwarded) ? forwarded : null;
+    return clientIpFrom(await headers());
   } catch {
     // Ngoài request (script, test) không có headers.
     return null;

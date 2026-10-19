@@ -1,26 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import { Input, message, Modal, Select, Table, Button, type TableColumnsType } from "antd";
 import { Magnifier } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { StatusTag } from "@/shared/components/ui/status-tag";
 import { paginationItemRender } from "@/shared/constants/antd.constant";
 import { normalizeSearch } from "@/shared/libs/search.lib";
-
-export type EligibilityRow = {
-  key: string;
-  studentId: string;
-  studentCode: string;
-  fullName: string;
-  className: string;
-  sectionCode: string;
-  courseName: string;
-  absences: number;
-  sessions: number;
-  ratio: number;
-  overrideReason: string | null;
-};
+import { allowExamDespiteAbsence } from "@/modules/exams/exams.action";
+import type { ExamEligibilityRow as EligibilityRow } from "@/modules/exams/exams.type";
 
 export function AdminExamEligibility({ rows: initialRows, limitPercent }: { rows: EligibilityRow[]; limitPercent: number }) {
   const [messageApi, contextHolder] = message.useMessage();
@@ -29,6 +17,7 @@ export function AdminExamEligibility({ rows: initialRows, limitPercent }: { rows
   const [section, setSection] = useState<string>();
   const [target, setTarget] = useState<EligibilityRow | null>(null);
   const [reason, setReason] = useState("");
+  const [isSaving, startSaving] = useTransition();
   const sections = [...new Set(rows.map((row) => row.sectionCode))].toSorted();
   const visible = rows.filter(
     (row) => (!section || row.sectionCode === section) && (!query.trim() || normalizeSearch(`${row.fullName} ${row.studentCode} ${row.sectionCode}`).includes(normalizeSearch(query.trim()))),
@@ -40,10 +29,22 @@ export function AdminExamEligibility({ rows: initialRows, limitPercent }: { rows
       messageApi.warning("Ghi lý do cho dự thi, ví dụ số hiệu giấy xác nhận nằm viện");
       return;
     }
-    setRows((current) => current.map((row) => (row.key === target.key ? { ...row, overrideReason: reason.trim() } : row)));
-    messageApi.success(`Đã cho ${target.fullName} dự thi ${target.sectionCode}, giảng viên và sinh viên nhận thông báo`);
-    setTarget(null);
-    setReason("");
+    startSaving(async () => {
+      const result = await allowExamDespiteAbsence({ enrollmentId: target.enrollmentId, reason }).catch(() => null);
+      if (!result) {
+        messageApi.error("Chưa lưu được, kiểm tra kết nối rồi thử lại.");
+        return;
+      }
+      if (!result.ok) {
+        messageApi.error(result.fieldErrors?.reason ?? result.message);
+        return;
+      }
+      const { enrollmentId, reason: saved } = result.data;
+      setRows((current) => current.map((row) => (row.enrollmentId === enrollmentId ? { ...row, overrideReason: saved } : row)));
+      messageApi.success(`Đã cho ${target.fullName} dự thi ${target.sectionCode}`);
+      setTarget(null);
+      setReason("");
+    });
   };
 
   const columns: TableColumnsType<EligibilityRow> = [
@@ -140,11 +141,12 @@ export function AdminExamEligibility({ rows: initialRows, limitPercent }: { rows
         okText="Cho dự thi"
         cancelText="Hủy"
         onOk={allow}
+        confirmLoading={isSaving}
         mask={{ closable: false }}
         destroyOnHidden
         width={480}
       >
-        <p className="mb-3 text-sm text-pretty text-muted">Chỉ áp dụng khi có minh chứng vắng hợp lệ. Lý do được lưu vào nhật ký thao tác.</p>
+        <p className="mb-3 text-sm text-pretty text-muted">Chỉ áp dụng khi có minh chứng vắng hợp lệ. Lý do được lưu cùng người quyết định.</p>
         <Input.TextArea value={reason} onChange={(event) => setReason(event.target.value)} autoSize={{ minRows: 3, maxRows: 6 }} maxLength={300} showCount aria-label="Lý do" className="mb-6" />
       </Modal>
     </div>

@@ -9,8 +9,7 @@ import { StatusTag } from "@/shared/components/ui/status-tag";
 import type { SectionSurveyResult, SurveyQuestion } from "@/modules/surveys/surveys.type";
 import { paginationItemRender } from "@/shared/constants/antd.constant";
 import { normalizeSearch } from "@/shared/libs/search.lib";
-
-export const LOW_SCORE = 3.5;
+import { LOW_SCORE } from "@/modules/surveys/surveys.constant";
 
 type View = "section" | "lecturer" | "faculty";
 

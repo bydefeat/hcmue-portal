@@ -3,7 +3,7 @@ import { isUuid } from "@/shared/libs/id.lib";
 
 // Route có tham số là uuid. Sai định dạng thì trả 404 ngay ở đây: kiểm ở page bằng notFound() vẫn ra trang 404
 // nhưng mã HTTP là 200 vì loading.tsx đã bắt đầu stream. Thêm route vào đây khi nối dữ liệu thật cho module đó.
-const UUID_ROUTES = [/^\/administrator\/programs\/([^/]+)/];
+const UUID_ROUTES = [/^\/administrator\/programs\/([^/]+)/, /^\/lecturer\/classes\/([^/]+)/];
 
 export function routeParamProxy(request: NextRequest) {
   const { pathname } = request.nextUrl;

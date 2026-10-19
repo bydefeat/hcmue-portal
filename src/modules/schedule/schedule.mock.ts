@@ -1,5 +1,5 @@
 import { createRandom } from "@/shared/libs/mock.lib";
-import type { AttendanceBook, AttendanceSession, AttendanceStatus } from "@/modules/schedule/schedule.type";
+import type { AttendanceBook, AttendanceStatus } from "@/modules/schedule/schedule.type";
 
 function seedOf(value: string) {
   return [...value].reduce((sum, char) => (sum * 33 + char.charCodeAt(0)) >>> 0, 5381);
@@ -13,7 +13,12 @@ function mockStatus(random: () => number, reliability: number): AttendanceStatus
   return "absent";
 }
 
-export function mockAttendanceRecords(sessions: AttendanceSession[], studentIds: string[]) {
+// Mã buổi học của dữ liệu mẫu cũ ("<lớp>-YYYYMMDD-<tiết>"), giữ để seed ra đúng trạng thái điểm danh như trước.
+export function mockSessionKey(classSectionId: string, date: string, startPeriod: number) {
+  return `${classSectionId}-${date.replaceAll("-", "")}-${startPeriod}`;
+}
+
+export function mockAttendanceRecords(sessions: { id: string; isTaken: boolean }[], studentIds: string[]) {
   const records: AttendanceBook["records"] = {};
   for (const session of sessions.filter((entry) => entry.isTaken)) {
     records[session.id] = {};

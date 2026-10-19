@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { check, date, index, pgEnum, pgTable, primaryKey, smallint, text, time, timestamp, unique, uuid } from "drizzle-orm/pg-core";
+import { check, date, foreignKey, index, pgEnum, pgTable, primaryKey, smallint, text, time, timestamp, unique, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 import { createdAt, primaryId, timestamps } from "@/shared/libs/db-column.lib";
 import { user } from "@/modules/authentication/authentication.schema";
 import { classSections, enrollments, terms } from "@/modules/course-registration/course-registration.schema";
@@ -71,4 +71,33 @@ export const examEligibilityOverrides = pgTable(
     decidedAt: createdAt(),
   },
   (table) => [index().on(table.decidedByUserId)],
+);
+
+// Đề nghị đổi ca coi thi của giảng viên gửi Phòng Khảo thí. Người gửi phải đang được phân công coi ca đó (khóa ngoại kép
+// tới exam_proctors); Phòng Khảo thí đổi phân công thì đề nghị cũ tự xóa theo.
+export const examProctorSwapRequests = pgTable(
+  "exam_proctor_swap_requests",
+  {
+    id: primaryId(),
+    examSessionId: uuid().notNull(),
+    requesterId: uuid().notNull(),
+    substituteId: uuid()
+      .notNull()
+      .references(() => lecturers.id, { onDelete: "restrict" }),
+    reason: text().notNull(),
+    createdAt: createdAt(),
+    resolvedAt: timestamp({ withTimezone: true }),
+  },
+  (table) => [
+    foreignKey({
+      name: "exam_proctor_swap_requests_proctor_fk",
+      columns: [table.examSessionId, table.requesterId],
+      foreignColumns: [examProctors.examSessionId, examProctors.lecturerId],
+    }).onDelete("cascade"),
+    uniqueIndex("exam_proctor_swap_requests_single_pending").on(table.examSessionId, table.requesterId).where(sql`${table.resolvedAt} IS NULL`),
+    index().on(table.requesterId),
+    index().on(table.substituteId),
+    check("exam_proctor_swap_requests_distinct_people", sql`${table.requesterId} <> ${table.substituteId}`),
+    check("exam_proctor_swap_requests_reason_present", sql`length(btrim(${table.reason})) > 0`),
+  ],
 );

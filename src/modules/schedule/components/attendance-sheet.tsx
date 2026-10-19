@@ -1,12 +1,14 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { Alert, Button, Card, message, Radio, Select, Table, type TableColumnsType } from "antd";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { SectionCard } from "@/shared/components/ui/section-card";
 import { periodLabel, weekdayLabel } from "@/shared/constants/period.constant";
 import { dayjs, formatDate, weekdayOf } from "@/shared/libs/date.lib";
+import { saveAttendance } from "@/modules/schedule/schedule.action";
 import { ABSENCE_LIMIT_RATIO, ATTENDANCE_STATUS } from "@/modules/schedule/schedule.constant";
+import { isAbsence, isNearAbsenceLimit, isOverAbsenceLimit } from "@/modules/schedule/schedule.rule";
 import type { AttendanceBook, AttendanceSession, AttendanceStatus } from "@/modules/schedule/schedule.type";
 
 export type AttendanceStudent = {
@@ -36,30 +38,34 @@ function defaultSessionId(sessions: AttendanceSession[]) {
 }
 
 function sessionLabel(session: AttendanceSession, index: number) {
-  return `Buổi ${index + 1} · ${weekdayLabel(weekdayOf(session.date))}, ${formatDate(session.date)} · ${periodLabel(session.startPeriod, session.endPeriod)}`;
+  const group = session.labGroupCode ? ` · Thực hành ${session.labGroupCode}` : "";
+  return `Buổi ${index + 1} · ${weekdayLabel(weekdayOf(session.date))}, ${formatDate(session.date)} · ${periodLabel(session.startPeriod, session.endPeriod)}${group}`;
 }
 
 export function AttendanceSheet({ book, students, absenceLimitPercent = ABSENCE_LIMIT_RATIO * 100 }: AttendanceSheetProps) {
-  const limitRatio = absenceLimitPercent / 100;
   const [messageApi, contextHolder] = message.useMessage();
   const [records, setRecords] = useState(book.records);
   const [sessionId, setSessionId] = useState(() => defaultSessionId(book.sessions));
+  const [takenIds, setTakenIds] = useState(() => book.sessions.filter((entry) => entry.isTaken).map((entry) => entry.id));
   const [savedIds, setSavedIds] = useState<string[]>([]);
+  const [isSaving, startSaving] = useTransition();
 
   const session = book.sessions.find((entry) => entry.id === sessionId);
   const editable = session ? isEditable(session) : false;
   const current = (sessionId && records[sessionId]) || {};
-  const pastSessions = book.sessions.filter(isEditable);
+  // Buổi thực hành chỉ gồm sinh viên của nhóm; buổi đã học là buổi đã lưu điểm danh.
+  const attends = (entry: AttendanceSession, studentId: string) => entry.labGroupId === null || book.labGroupOf[studentId] === entry.labGroupId;
+  const sessionStudents = session ? students.filter((student) => attends(session, student.studentId)) : [];
 
-  const absences = useMemo(() => {
-    const counts: Record<string, number> = {};
-    for (const entry of pastSessions) {
-      for (const [studentId, status] of Object.entries(records[entry.id] ?? {})) {
-        if (status === "absent" || status === "excused") counts[studentId] = (counts[studentId] ?? 0) + 1;
-      }
+  const tally = useMemo(() => {
+    const result: Record<string, { absences: number; held: number }> = {};
+    const taken = book.sessions.filter((entry) => takenIds.includes(entry.id));
+    for (const student of students) {
+      const held = taken.filter((entry) => entry.labGroupId === null || book.labGroupOf[student.studentId] === entry.labGroupId);
+      result[student.studentId] = { held: held.length, absences: held.filter((entry) => isAbsence(records[entry.id]?.[student.studentId])).length };
     }
-    return counts;
-  }, [pastSessions, records]);
+    return result;
+  }, [book, students, takenIds, records]);
 
   if (book.sessions.length === 0 || !session) {
     return (
@@ -75,21 +81,38 @@ export function AttendanceSheet({ book, students, absenceLimitPercent = ABSENCE_
   const markAllPresent = () =>
     setRecords((value) => ({
       ...value,
-      [session.id]: Object.fromEntries(students.map((student) => [student.studentId, value[session.id]?.[student.studentId] ?? "present"])),
+      [session.id]: Object.fromEntries(sessionStudents.map((student) => [student.studentId, value[session.id]?.[student.studentId] ?? "present"])),
     }));
 
-  const missing = students.filter((student) => !current[student.studentId]).length;
-  const counts = STATUS_KEYS.map((key) => ({ key, count: students.filter((student) => current[student.studentId] === key).length }));
-  const banned = pastSessions.length > 0 ? students.filter((student) => (absences[student.studentId] ?? 0) / pastSessions.length > limitRatio).length : 0;
+  const missing = sessionStudents.filter((student) => !current[student.studentId]).length;
+  const counts = STATUS_KEYS.map((key) => ({ key, count: sessionStudents.filter((student) => current[student.studentId] === key).length }));
+  const banned = students.filter((student) => isOverAbsenceLimit(tally[student.studentId].absences, tally[student.studentId].held, absenceLimitPercent)).length;
 
   const save = () => {
     if (missing > 0) {
       messageApi.error(`Còn ${missing} sinh viên chưa điểm danh. Chọn trạng thái cho từng sinh viên hoặc bấm "Tất cả có mặt" trước khi lưu.`);
       return;
     }
-    setSavedIds((value) => [...new Set([...value, session.id])]);
-    const absent = counts.filter((entry) => entry.key === "absent" || entry.key === "excused").reduce((sum, entry) => sum + entry.count, 0);
-    messageApi.success(`Đã lưu điểm danh ngày ${formatDate(session.date)}: ${students.length - absent} có mặt, ${absent} vắng.`);
+    const target = session;
+    startSaving(async () => {
+      const result = await saveAttendance({
+        classSessionId: target.id,
+        records: sessionStudents.map((student) => ({ studentId: student.studentId, status: current[student.studentId] })),
+      }).catch(() => null);
+      if (!result) {
+        messageApi.error("Chưa lưu được, kiểm tra kết nối rồi thử lại.");
+        return;
+      }
+      if (!result.ok) {
+        messageApi.error(result.message);
+        return;
+      }
+      setRecords((value) => ({ ...value, [result.data.sessionId]: result.data.records }));
+      setTakenIds((value) => [...new Set([...value, result.data.sessionId])]);
+      setSavedIds((value) => [...new Set([...value, result.data.sessionId])]);
+      const absent = Object.values(result.data.records).filter((status) => isAbsence(status)).length;
+      messageApi.success(`Đã lưu điểm danh ngày ${formatDate(target.date)}: ${Object.keys(result.data.records).length - absent} có mặt, ${absent} vắng.`);
+    });
   };
 
   const statusGroup = (row: AttendanceStudent, className?: string) => (
@@ -107,15 +130,15 @@ export function AttendanceSheet({ book, students, absenceLimitPercent = ABSENCE_
   );
 
   const absenceText = (row: AttendanceStudent) => {
-    const count = absences[row.studentId] ?? 0;
-    const isOver = pastSessions.length > 0 && count / pastSessions.length > limitRatio;
-    const isNear = !isOver && pastSessions.length > 0 && (count + 1) / pastSessions.length > limitRatio;
+    const { absences: count, held } = tally[row.studentId];
+    const isOver = isOverAbsenceLimit(count, held, absenceLimitPercent);
+    const isNear = isNearAbsenceLimit(count, held, absenceLimitPercent);
     return (
       <span className="flex flex-col text-xs tabular-nums">
         <span className={isOver ? "font-medium text-rose-700" : "text-muted"}>
-          Đã vắng {count}/{pastSessions.length} buổi
+          Đã vắng {count}/{held} buổi
         </span>
-        {isOver && <span className="text-rose-700">Vượt {absenceLimitPercent}%, cấm thi</span>}
+        {isOver && <span className="text-rose-700">Vắng từ {absenceLimitPercent}%, cấm thi</span>}
         {isNear && <span className="text-amber-700">Vắng thêm 1 buổi sẽ bị cấm thi</span>}
       </span>
     );
@@ -188,15 +211,15 @@ export function AttendanceSheet({ book, students, absenceLimitPercent = ABSENCE_
         </p>
       )}
 
-      {students.length === 0 ? (
+      {sessionStudents.length === 0 ? (
         <SectionCard flush>
           <EmptyState illustration="seats" title="Lớp chưa có sinh viên" description="Danh sách sẽ có sau khi sinh viên đăng ký học phần." />
         </SectionCard>
       ) : (
         <>
-          <Table rowKey="studentId" size="middle" columns={columns} dataSource={students} pagination={false} className="hidden md:block" />
+          <Table rowKey="studentId" size="middle" columns={columns} dataSource={sessionStudents} pagination={false} className="hidden md:block" />
           <ul className="flex flex-col gap-2 md:hidden">
-            {students.map((student, index) => (
+            {sessionStudents.map((student, index) => (
               <li key={student.studentId}>
                 <Card size="small" classNames={{ body: "flex flex-col gap-2" }}>
                   <span className="flex items-start gap-2">
@@ -218,11 +241,11 @@ export function AttendanceSheet({ book, students, absenceLimitPercent = ABSENCE_
       {editable && (
         <Card size="small" className="sticky bottom-[calc(74px+env(safe-area-inset-bottom))] z-10 md:bottom-4" classNames={{ body: "flex flex-wrap items-center gap-2" }}>
           <span className="text-sm text-muted tabular-nums">
-            Chưa điểm danh <span className="font-medium text-foreground">{missing}</span>/{students.length}
+            Chưa điểm danh <span className="font-medium text-foreground">{missing}</span>/{sessionStudents.length}
           </span>
           <div className="ml-auto flex gap-2">
             <Button onClick={markAllPresent}>Tất cả có mặt</Button>
-            <Button type="primary" onClick={save}>
+            <Button type="primary" loading={isSaving} onClick={save}>
               Lưu điểm danh
             </Button>
           </div>

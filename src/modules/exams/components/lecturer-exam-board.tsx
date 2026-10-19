@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import { Alert, Button, Form, Input, message, Modal, Select, Table, Upload, type TableColumnsType } from "antd";
 import { ArrowsTransaction, FileArrowIn } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
@@ -8,6 +8,8 @@ import { SectionCard } from "@/shared/components/ui/section-card";
 import { StatusTag } from "@/shared/components/ui/status-tag";
 import { PERIODS, periodLabel, weekdayLabel } from "@/shared/constants/period.constant";
 import { dayjs, daysUntil, formatDate, formatDateTime, weekdayOf } from "@/shared/libs/date.lib";
+import { toFormFields } from "@/shared/libs/form.lib";
+import { requestProctorSwap, submitExamPaper } from "@/modules/exams/exams.action";
 import { EXAM_FORMAT_LABEL, EXAM_KIND_LABEL, EXAM_PAPER_STATUS, EXAM_STATUS } from "@/modules/exams/exams.constant";
 import type { ExamPaperStatus, ExamSession } from "@/modules/exams/exams.type";
 
@@ -86,8 +88,12 @@ export function LecturerExamBoard({ lecturerId, teaching, proctoring, teachingSl
   const [uploading, setUploading] = useState<ExamSession | null>(null);
   const [files, setFiles] = useState<{ paper: string | null; key: string | null }>({ paper: null, key: null });
   const [swapping, setSwapping] = useState<ExamSession | null>(null);
-  const [swapRequested, setSwapRequested] = useState<string[]>([]);
+  const [swapRequested, setSwapRequested] = useState<string[]>(() =>
+    proctoring.filter((exam) => exam.swapRequests.some((swap) => swap.requesterId === lecturerId)).map((exam) => exam.id),
+  );
   const [swapForm] = Form.useForm<SwapValues>();
+  const [isSubmitting, startSubmitting] = useTransition();
+  const [isSwapping, startSwapping] = useTransition();
 
   const paperOf = (exam: ExamSession) => papers[exam.id] ?? exam.paperStatus;
   const pendingPapers = teaching.filter((exam) => exam.status !== "done" && paperOf(exam) === "not-submitted");
@@ -99,10 +105,43 @@ export function LecturerExamBoard({ lecturerId, teaching, proctoring, teachingSl
       messageApi.error("Cần đủ 2 tệp: đề thi và đáp án, thang điểm. Tệp PDF, tối đa 20 MB.");
       return;
     }
-    setPapers((current) => ({ ...current, [uploading.id]: "submitted" }));
-    messageApi.success(`Đã nộp đề ${EXAM_KIND_LABEL[uploading.kind].toLowerCase()} lớp ${uploading.classCode}. Phòng Khảo thí sẽ duyệt đề.`);
-    setUploading(null);
-    setFiles({ paper: null, key: null });
+    const exam = uploading;
+    startSubmitting(async () => {
+      const result = await submitExamPaper({ examSessionId: exam.id, paperFileName: files.paper ?? "", keyFileName: files.key ?? "" }).catch(() => null);
+      if (!result) {
+        messageApi.error("Chưa nộp được, kiểm tra kết nối rồi thử lại.");
+        return;
+      }
+      if (!result.ok) {
+        messageApi.error(Object.values(result.fieldErrors ?? {})[0] ?? result.message);
+        return;
+      }
+      setPapers((current) => ({ ...current, [result.data.id]: result.data.paperStatus }));
+      messageApi.success(`Đã nộp đề ${EXAM_KIND_LABEL[exam.kind].toLowerCase()} lớp ${exam.classCode}. Phòng Khảo thí sẽ duyệt đề.`);
+      setUploading(null);
+      setFiles({ paper: null, key: null });
+    });
+  };
+
+  const submitSwap = (values: SwapValues) => {
+    if (!swapping) return;
+    const exam = swapping;
+    startSwapping(async () => {
+      const result = await requestProctorSwap({ examSessionId: exam.id, colleagueId: values.colleagueId, reason: values.reason }).catch(() => null);
+      if (!result) {
+        messageApi.error("Chưa gửi được, kiểm tra kết nối rồi thử lại.");
+        return;
+      }
+      if (!result.ok) {
+        swapForm.setFields(toFormFields(result.fieldErrors));
+        messageApi.error(result.message);
+        return;
+      }
+      setSwapRequested((current) => [...new Set([...current, result.data.examSessionId])]);
+      const colleague = colleagues.find((entry) => entry.id === values.colleagueId);
+      messageApi.success(`Đã gửi đề nghị đổi ca với ${colleague?.name ?? "đồng nghiệp"} tới Phòng Khảo thí`);
+      setSwapping(null);
+    });
   };
 
   const paperCell = (exam: ExamSession) => {
@@ -132,13 +171,13 @@ export function LecturerExamBoard({ lecturerId, teaching, proctoring, teachingSl
 
   const noteCell = (exam: ExamSession) => {
     const slot = teachingConflict(exam, teachingSlots);
+    if (swapRequested.includes(exam.id)) return <span className="text-xs text-amber-700">Đã gửi đề nghị đổi ca</span>;
     if (slot)
       return (
         <span className="text-xs text-amber-700">
           Trùng giờ dạy {slot.code} ({periodLabel(slot.startPeriod, slot.endPeriod)})
         </span>
       );
-    if (swapRequested.includes(exam.id)) return <span className="text-xs text-amber-700">Đã gửi đề nghị đổi ca</span>;
     return <span className="text-xs text-muted">{exam.status === "done" ? "Đã coi thi" : "Có mặt trước giờ thi 30 phút"}</span>;
   };
 
@@ -299,6 +338,7 @@ export function LecturerExamBoard({ lecturerId, teaching, proctoring, teachingSl
         okText="Nộp đề"
         cancelText="Hủy"
         onOk={submitPaper}
+        confirmLoading={isSubmitting}
         onCancel={() => {
           setUploading(null);
           setFiles({ paper: null, key: null });
@@ -339,6 +379,7 @@ export function LecturerExamBoard({ lecturerId, teaching, proctoring, teachingSl
         okText="Gửi đề nghị"
         cancelText="Hủy"
         onOk={() => swapForm.submit()}
+        confirmLoading={isSwapping}
         onCancel={() => setSwapping(null)}
         mask={{ closable: false }}
         destroyOnHidden
@@ -347,12 +388,7 @@ export function LecturerExamBoard({ lecturerId, teaching, proctoring, teachingSl
           <Form
             form={swapForm}
             layout="vertical"
-            onFinish={(values: SwapValues) => {
-              setSwapRequested((current) => [...current, swapping.id]);
-              const colleague = colleagues.find((entry) => entry.id === values.colleagueId);
-              messageApi.success(`Đã gửi đề nghị đổi ca với ${colleague?.name ?? "đồng nghiệp"} tới Phòng Khảo thí`);
-              setSwapping(null);
-            }}
+            onFinish={submitSwap}
           >
             <p className="mb-4 text-sm text-muted">
               {swapping.courseName}, {formatDate(swapping.date)} lúc {swapping.startTime}, phòng {swapping.room}

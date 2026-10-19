@@ -1,21 +1,21 @@
-import { createRandom, mockDate, mockLecturerIdentity, mockSectionId, mockTermId } from "@/shared/libs/mock.lib";
+import { createRandom, mockDate, mockId, mockLecturerIdentity, mockSectionId, mockTermId } from "@/shared/libs/mock.lib";
 import type { SectionSurveyResult, Survey } from "@/modules/surveys/surveys.type";
 
 export const SURVEY: Survey = {
-  id: "ks-hk1-2026",
+  id: mockId("survey:ks-hk1-2026"),
   termId: mockTermId("hk1-2026"),
   title: "Khảo sát ý kiến người học về hoạt động giảng dạy, học kỳ 1, năm học 2026-2027",
   opensAt: mockDate(-5, "08:00"),
   closesAt: mockDate(30, "23:59"),
   questions: [
-    { id: "q1", group: "Nội dung học phần", text: "Đề cương và mục tiêu học phần được giới thiệu rõ từ buổi đầu" },
-    { id: "q2", group: "Nội dung học phần", text: "Nội dung cập nhật, gắn với thực tiễn nghề nghiệp" },
-    { id: "q3", group: "Phương pháp giảng dạy", text: "Giảng viên giải thích dễ hiểu, có ví dụ minh họa" },
-    { id: "q4", group: "Phương pháp giảng dạy", text: "Giảng viên khuyến khích sinh viên đặt câu hỏi và thảo luận" },
-    { id: "q5", group: "Kiểm tra đánh giá", text: "Cách tính điểm được công bố và áp dụng công bằng" },
-    { id: "q6", group: "Kiểm tra đánh giá", text: "Bài kiểm tra phản ánh đúng nội dung đã học" },
-    { id: "q7", group: "Tác phong", text: "Giảng viên lên lớp đúng giờ, đủ số buổi" },
-    { id: "q8", group: "Tổng thể", text: "Nhìn chung, tôi hài lòng với học phần này" },
+    { id: mockId("survey-question:ks-hk1-2026:q1"), group: "Nội dung học phần", text: "Đề cương và mục tiêu học phần được giới thiệu rõ từ buổi đầu" },
+    { id: mockId("survey-question:ks-hk1-2026:q2"), group: "Nội dung học phần", text: "Nội dung cập nhật, gắn với thực tiễn nghề nghiệp" },
+    { id: mockId("survey-question:ks-hk1-2026:q3"), group: "Phương pháp giảng dạy", text: "Giảng viên giải thích dễ hiểu, có ví dụ minh họa" },
+    { id: mockId("survey-question:ks-hk1-2026:q4"), group: "Phương pháp giảng dạy", text: "Giảng viên khuyến khích sinh viên đặt câu hỏi và thảo luận" },
+    { id: mockId("survey-question:ks-hk1-2026:q5"), group: "Kiểm tra đánh giá", text: "Cách tính điểm được công bố và áp dụng công bằng" },
+    { id: mockId("survey-question:ks-hk1-2026:q6"), group: "Kiểm tra đánh giá", text: "Bài kiểm tra phản ánh đúng nội dung đã học" },
+    { id: mockId("survey-question:ks-hk1-2026:q7"), group: "Tác phong", text: "Giảng viên lên lớp đúng giờ, đủ số buổi" },
+    { id: mockId("survey-question:ks-hk1-2026:q8"), group: "Tổng thể", text: "Nhìn chung, tôi hài lòng với học phần này" },
   ],
 };
 

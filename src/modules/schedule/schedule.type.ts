@@ -17,6 +17,9 @@ export type AttendanceSession = {
   startPeriod: number;
   endPeriod: number;
   room: string;
+  // Buổi thực hành chỉ điểm danh sinh viên của nhóm đó; null là buổi của cả lớp.
+  labGroupId: string | null;
+  labGroupCode: string | null;
   isTaken: boolean;
 };
 
@@ -24,6 +27,18 @@ export type AttendanceBook = {
   classSectionId: string;
   sessions: AttendanceSession[];
   records: Record<string, Record<string, AttendanceStatus>>;
+  labGroupOf: Record<string, string | null>;
+};
+
+export type Timetable = {
+  events: ScheduleEvent[];
+  sectionCount: number;
+  credits: number;
+};
+
+export type SavedAttendance = {
+  sessionId: string;
+  records: Record<string, AttendanceStatus>;
 };
 
 export type MeetingInput = {

@@ -1,23 +1,33 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Alert, Button, Drawer, Form, Input, Radio } from "antd";
+import { toFormFields } from "@/shared/libs/form.lib";
 import { SURVEY_SCALE } from "@/modules/surveys/surveys.constant";
 import type { Survey, StudentSurveyTask } from "@/modules/surveys/surveys.type";
 
-type SurveyFormValues = Record<string, number | string | undefined>;
+export type SurveyFormValues = Record<string, number | string | undefined>;
 
 type SurveyFormProps = {
   open: boolean;
   survey: Survey;
   task: StudentSurveyTask | null;
   onClose: () => void;
-  onSubmit: (task: StudentSurveyTask) => void;
+  // Trả lỗi theo ô từ server (khóa là id câu hỏi), không có lỗi thì trả undefined.
+  onSubmit: (task: StudentSurveyTask, values: SurveyFormValues) => Promise<Record<string, string> | undefined>;
 };
 
 export function SurveyForm({ open, survey, task, onClose, onSubmit }: SurveyFormProps) {
   const [form] = Form.useForm<SurveyFormValues>();
+  const [isSubmitting, setSubmitting] = useState(false);
   const groups = [...new Set(survey.questions.map((question) => question.group))];
+
+  const finish = async (values: SurveyFormValues) => {
+    if (!task) return;
+    setSubmitting(true);
+    const fieldErrors = await onSubmit(task, values).finally(() => setSubmitting(false));
+    if (fieldErrors) form.setFields(toFormFields(fieldErrors));
+  };
 
   useEffect(() => {
     if (open) form.resetFields();
@@ -34,14 +44,14 @@ export function SurveyForm({ open, survey, task, onClose, onSubmit }: SurveyForm
       footer={
         <div className="flex justify-end gap-2">
           <Button onClick={onClose}>Hủy</Button>
-          <Button type="primary" onClick={() => form.submit()}>
+          <Button type="primary" loading={isSubmitting} onClick={() => form.submit()}>
             Gửi đánh giá
           </Button>
         </div>
       }
     >
       {task && (
-        <Form<SurveyFormValues> form={form} layout="vertical" onFinish={() => onSubmit(task)} scrollToFirstError>
+        <Form<SurveyFormValues> form={form} layout="vertical" onFinish={finish} scrollToFirstError>
           <Alert
             type="info"
             showIcon

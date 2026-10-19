@@ -1,11 +1,8 @@
 import type { Metadata } from "next";
 import { getCurrentTerm, getStudentEnrollments } from "@/modules/course-registration/course-registration.query";
-import { bestGrades, pickTimetable } from "@/modules/course-registration/course-registration.rule";
-import { getCourses } from "@/modules/curriculum/curriculum.query";
 import { StudentExamList, type StudentExamItem } from "@/modules/exams/components/student-exam-list";
-import { getExamsForClassSections } from "@/modules/exams/exams.query";
-import { getTranscript } from "@/modules/grades/grades.query";
-import { getAttendanceBook } from "@/modules/schedule/schedule.query";
+import { getExamsForClassSections, getStudentExamAttendance } from "@/modules/exams/exams.query";
+import { isOverAbsenceLimit } from "@/modules/schedule/schedule.rule";
 import { getRegulation } from "@/modules/settings/settings.query";
 import { getCurrentStudent } from "@/modules/users/users.query";
 import { PageHeader } from "@/shared/components/ui/page-header";
@@ -13,39 +10,20 @@ import { PageHeader } from "@/shared/components/ui/page-header";
 export const metadata: Metadata = { title: "Lịch thi" };
 
 export default async function Page() {
-  const [student, term, courses, regulation] = await Promise.all([getCurrentStudent(), getCurrentTerm(), getCourses(), getRegulation()]);
-  const [enrollments, transcript] = await Promise.all([getStudentEnrollments(student.id, term.id), getTranscript(student.id)]);
-  const timetable = pickTimetable(enrollments, bestGrades(transcript), {
-    faculty: student.faculty,
-    prerequisites: Object.fromEntries(courses.map((course) => [course.code, course.prerequisiteCodes])),
-  });
-  const exams = await getExamsForClassSections(timetable.map(({ section }) => section.id));
-  const books = await Promise.all(
-    timetable.map(({ section }) => getAttendanceBook(section.id, [student.id], section.meetings, section.startDate)),
-  );
+  const [student, term, regulation] = await Promise.all([getCurrentStudent(), getCurrentTerm(), getRegulation()]);
+  const [enrollments, attendance] = await Promise.all([getStudentEnrollments(student.id, term.id), getStudentExamAttendance(term.id)]);
+  const exams = await getExamsForClassSections(enrollments.map(({ section }) => section.id));
   const limit = regulation.attendance.absenceLimitPercent;
-  const absenceBySection = new Map(
-    books.map((book) => {
-      const held = book.sessions.filter((session) => session.isTaken);
-      const absences = held.filter((session) => {
-        const status = book.records[session.id]?.[student.id];
-        return status === "absent" || status === "excused";
-      }).length;
-      return [book.classSectionId, { absences, sessionsHeld: held.length }];
-    }),
-  );
+  const attendanceOf = new Map(attendance.map((entry) => [entry.classSectionId, entry]));
   const items: StudentExamItem[] = exams.map((exam) => {
-    const attendance = absenceBySection.get(exam.classSectionId) ?? { absences: 0, sessionsHeld: 0 };
-    return {
-      exam,
-      ...attendance,
-      isBanned: attendance.sessionsHeld > 0 && (attendance.absences / attendance.sessionsHeld) * 100 >= limit,
-    };
+    const { absences = 0, sessionsHeld = 0, overrideReason = null } = attendanceOf.get(exam.classSectionId) ?? {};
+    // Phòng Khảo thí đã cho dự thi (có minh chứng) thì không còn cấm thi.
+    return { exam, absences, sessionsHeld, isBanned: overrideReason === null && isOverAbsenceLimit(absences, sessionsHeld, limit) };
   });
 
   return (
     <>
-      <PageHeader title="Lịch thi" description={`${term.name} · ${exams.length} ca thi của ${timetable.length} học phần`} />
+      <PageHeader title="Lịch thi" description={`${term.name} · ${exams.length} ca thi của ${enrollments.length} học phần`} />
       <StudentExamList items={items} absenceLimitPercent={limit} />
     </>
   );

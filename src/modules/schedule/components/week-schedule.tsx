@@ -50,6 +50,32 @@ function EventBlock({ event, compact = false }: { event: ScheduleEvent; compact?
 }
 
 
+// Lớp trùng giờ cùng ngày (đăng ký trùng lịch, nhiều nhóm thực hành) xếp cạnh nhau thay vì đè lên nhau.
+function laneLayout(events: ScheduleEvent[]) {
+  const layout = new Map<string, { lane: number; lanes: number }>();
+  for (const day of WEEKDAYS) {
+    const sorted = events.filter((event) => event.dayOfWeek === day.value).toSorted((a, b) => a.startPeriod - b.startPeriod || a.endPeriod - b.endPeriod);
+    let cluster: { id: string; lane: number }[] = [];
+    let laneEnds: number[] = [];
+    let clusterEnd = 0;
+    const close = () => {
+      for (const entry of cluster) layout.set(entry.id, { lane: entry.lane, lanes: laneEnds.length });
+      cluster = [];
+      laneEnds = [];
+    };
+    for (const event of sorted) {
+      if (event.startPeriod > clusterEnd) close();
+      const free = laneEnds.findIndex((end) => end < event.startPeriod);
+      const lane = free === -1 ? laneEnds.length : free;
+      laneEnds[lane] = event.endPeriod;
+      cluster.push({ id: event.id, lane });
+      clusterEnd = Math.max(clusterEnd, event.endPeriod);
+    }
+    close();
+  }
+  return layout;
+}
+
 function rowOf(period: number) {
   return period + 1 + BREAKS.filter((entry) => entry.afterPeriod < period).length;
 }
@@ -74,6 +100,7 @@ export function WeekSchedule({ events, termStart, termEnd }: WeekScheduleProps) 
   const isInTerm = !weekStart.add(6, "day").isBefore(termStart) && !weekStart.isAfter(termEnd);
   const visibleEvents = isInTerm ? events : [];
   const days = WEEKDAYS.map((day, index) => ({ ...day, date: weekStart.add(index, "day") }));
+  const lanes = laneLayout(visibleEvents);
 
   return (
     <div className="flex flex-col gap-3">
@@ -152,10 +179,16 @@ export function WeekSchedule({ events, termStart, termEnd }: WeekScheduleProps) 
                 ))}
                 {visibleEvents.map((event) => {
                   const dayIndex = WEEKDAYS.findIndex((day) => day.value === event.dayOfWeek);
+                  const { lane, lanes: laneCount } = lanes.get(event.id) ?? { lane: 0, lanes: 1 };
                   return (
                     <div
                       key={event.id}
-                      style={{ gridColumn: dayIndex + 2, gridRow: `${rowOf(event.startPeriod)} / ${rowOf(event.endPeriod) + 1}` }}
+                      style={{
+                        gridColumn: dayIndex + 2,
+                        gridRow: `${rowOf(event.startPeriod)} / ${rowOf(event.endPeriod) + 1}`,
+                        width: `${100 / laneCount}%`,
+                        marginLeft: `${(lane * 100) / laneCount}%`,
+                      }}
                       className="z-10 p-1"
                     >
                       <EventBlock event={event} />

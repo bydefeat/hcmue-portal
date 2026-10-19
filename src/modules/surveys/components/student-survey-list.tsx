@@ -5,9 +5,10 @@ import { Button, Card, message } from "antd";
 import { CircleCheck } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { MeterBar } from "@/shared/components/ui/meter-bar";
-import { dayjs, formatDateTime } from "@/shared/libs/date.lib";
+import { dayjs, formatDate, formatDateTime } from "@/shared/libs/date.lib";
+import { submitSurvey } from "@/modules/surveys/surveys.action";
 import type { StudentSurveyTask, Survey } from "@/modules/surveys/surveys.type";
-import { SurveyForm } from "@/modules/surveys/components/survey-form";
+import { SurveyForm, type SurveyFormValues } from "@/modules/surveys/components/survey-form";
 import { SectionCard } from "@/shared/components/ui/section-card";
 
 export function StudentSurveyList({ survey, tasks }: { survey: Survey; tasks: StudentSurveyTask[] }) {
@@ -51,7 +52,7 @@ export function StudentSurveyList({ survey, tasks }: { survey: Survey; tasks: St
                 {task.submittedAt ? (
                   <span className="flex items-center gap-1 text-sm text-green-700">
                     <CircleCheck size={16} aria-hidden />
-                    Đã gửi {formatDateTime(task.submittedAt)}
+                    Đã gửi ngày {formatDate(task.submittedAt)}
                   </span>
                 ) : (
                   <Button onClick={() => setOpenId(task.classSectionId)} disabled={isClosed}>
@@ -68,10 +69,23 @@ export function StudentSurveyList({ survey, tasks }: { survey: Survey; tasks: St
         survey={survey}
         task={opened}
         onClose={() => setOpenId(null)}
-        onSubmit={(task) => {
-          setRows((current) => current.map((row) => (row.classSectionId === task.classSectionId ? { ...row, submittedAt: dayjs().toISOString() } : row)));
+        onSubmit={async (task, values: SurveyFormValues) => {
+          const { comment, ...scores } = values;
+          const answers = Object.fromEntries(Object.entries(scores).map(([questionId, score]) => [questionId, Number(score)]));
+          const result = await submitSurvey({ surveyId: survey.id, classSectionId: task.classSectionId, answers, comment: typeof comment === "string" ? comment : undefined }).catch(() => null);
+          if (!result) {
+            messageApi.error("Chưa gửi được, kiểm tra kết nối rồi thử lại.");
+            return undefined;
+          }
+          if (!result.ok) {
+            messageApi.error(result.message);
+            return result.fieldErrors;
+          }
+          const { classSectionId, submittedAt } = result.data;
+          setRows((current) => current.map((row) => (row.classSectionId === classSectionId ? { ...row, submittedAt } : row)));
           setOpenId(null);
           messageApi.success(`Đã gửi đánh giá lớp ${task.classCode}. Cảm ơn bạn đã góp ý.`);
+          return undefined;
         }}
       />
     </div>

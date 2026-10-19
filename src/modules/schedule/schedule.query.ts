@@ -1,35 +1,144 @@
-import { dayjs, weekdayOf } from "@/shared/libs/date.lib";
-import { mockDelay } from "@/shared/libs/mock-request.lib";
-import { mockAttendanceRecords } from "@/modules/schedule/schedule.mock";
-import type { AttendanceBook, AttendanceSession, MeetingInput } from "@/modules/schedule/schedule.type";
+import "server-only";
+import { and, asc, eq, inArray, ne } from "drizzle-orm";
+import { db } from "@/shared/libs/db.lib";
+import { isUuid } from "@/shared/libs/id.lib";
+import { classSections, enrollments, labGroups, sectionMeetings } from "@/modules/course-registration/course-registration.schema";
+import { courses } from "@/modules/curriculum/curriculum.schema";
+import { rooms } from "@/modules/facilities/facilities.schema";
+import { attendanceRecords, classSessions } from "@/modules/schedule/schedule.schema";
+import { getCurrentLecturer, getCurrentStudent } from "@/modules/users/users.query";
+import type { AttendanceBook, ScheduleEvent, Timetable } from "@/modules/schedule/schedule.type";
 
-export function buildSessions(classSectionId: string, meetings: MeetingInput[], startDate: string, weeksAhead = 1): AttendanceSession[] {
-  const today = dayjs().startOf("day");
-  const until = today.add(weeksAhead, "week");
-  const sessions: AttendanceSession[] = [];
-  for (let date = dayjs(startDate).startOf("day"); !date.isAfter(until); date = date.add(1, "day")) {
-    for (const meeting of meetings) {
-      if (weekdayOf(date) !== meeting.dayOfWeek) continue;
-      sessions.push({
-        id: `${classSectionId}-${date.format("YYYYMMDD")}-${meeting.startPeriod}`,
-        date: date.format("YYYY-MM-DD"),
-        startPeriod: meeting.startPeriod,
-        endPeriod: meeting.endPeriod,
-        room: meeting.room,
-        isTaken: date.isBefore(today),
-      });
-    }
-  }
-  return sessions;
+type TimetableSection = { id: string; code: string; courseName: string; credits: number };
+
+// Lịch tuần của các lớp: buổi lý thuyết của lớp và buổi thực hành của nhóm (labGroupIds null là mọi nhóm của lớp).
+async function weeklyEvents(sections: TimetableSection[], labGroupIds: string[] | null, href?: (sectionId: string) => string): Promise<Timetable> {
+  if (sections.length === 0) return { events: [], sectionCount: 0, credits: 0 };
+  const sectionIds = sections.map((section) => section.id);
+  const [meetings, labs] = await Promise.all([
+    db
+      .select({ sectionId: sectionMeetings.classSectionId, dayOfWeek: sectionMeetings.dayOfWeek, startPeriod: sectionMeetings.startPeriod, endPeriod: sectionMeetings.endPeriod, room: rooms.code })
+      .from(sectionMeetings)
+      .innerJoin(rooms, eq(rooms.id, sectionMeetings.roomId))
+      .where(inArray(sectionMeetings.classSectionId, sectionIds))
+      .orderBy(asc(sectionMeetings.dayOfWeek), asc(sectionMeetings.startPeriod)),
+    labGroupIds !== null && labGroupIds.length === 0
+      ? []
+      : db
+          .select({ id: labGroups.id, sectionId: labGroups.classSectionId, code: labGroups.code, dayOfWeek: labGroups.dayOfWeek, startPeriod: labGroups.startPeriod, endPeriod: labGroups.endPeriod, room: rooms.code })
+          .from(labGroups)
+          .innerJoin(rooms, eq(rooms.id, labGroups.roomId))
+          .where(labGroupIds === null ? inArray(labGroups.classSectionId, sectionIds) : inArray(labGroups.id, labGroupIds))
+          .orderBy(asc(labGroups.code)),
+  ]);
+  const sectionOf = new Map(sections.map((section) => [section.id, section]));
+  const events: ScheduleEvent[] = [
+    ...sections.flatMap((section) =>
+      meetings
+        .filter((meeting) => meeting.sectionId === section.id)
+        .map((meeting, index) => ({
+          id: `${section.id}-${index}`,
+          title: section.courseName,
+          code: section.code,
+          dayOfWeek: meeting.dayOfWeek,
+          startPeriod: meeting.startPeriod,
+          endPeriod: meeting.endPeriod,
+          room: meeting.room,
+          href: href?.(section.id),
+        })),
+    ),
+    ...labs.map((lab) => {
+      const section = sectionOf.get(lab.sectionId)!;
+      return {
+        id: `${section.id}-${lab.id}`,
+        title: `${section.courseName} (thực hành)`,
+        code: lab.code,
+        dayOfWeek: lab.dayOfWeek,
+        startPeriod: lab.startPeriod,
+        endPeriod: lab.endPeriod,
+        room: lab.room,
+        href: href?.(section.id),
+      };
+    }),
+  ];
+  return { events, sectionCount: sections.length, credits: sections.reduce((sum, section) => sum + section.credits, 0) };
 }
 
-export async function getAttendanceBook(
-  classSectionId: string,
-  studentIds: string[],
-  meetings: MeetingInput[],
-  startDate: string,
-): Promise<AttendanceBook> {
-  await mockDelay();
-  const sessions = buildSessions(classSectionId, meetings, startDate);
-  return { classSectionId, sessions, records: mockAttendanceRecords(sessions, studentIds) };
+const sectionColumns = { id: classSections.id, code: classSections.code, courseName: courses.name, credits: courses.credits };
+
+// Thời khóa biểu của sinh viên đang đăng nhập: các lớp đang đăng ký trong học kỳ, kèm nhóm thực hành đã chọn.
+export async function getStudentTimetable(termId: string): Promise<Timetable> {
+  const student = await getCurrentStudent();
+  if (!isUuid(termId)) return { events: [], sectionCount: 0, credits: 0 };
+  const rows = await db
+    .select({ ...sectionColumns, labGroupId: enrollments.labGroupId })
+    .from(enrollments)
+    .innerJoin(classSections, eq(classSections.id, enrollments.classSectionId))
+    .innerJoin(courses, eq(courses.id, classSections.courseId))
+    .where(and(eq(enrollments.studentId, student.id), eq(enrollments.termId, termId), eq(enrollments.status, "enrolled"), ne(classSections.status, "cancelled")))
+    .orderBy(asc(classSections.code));
+  return weeklyEvents(
+    rows.map(({ labGroupId: _labGroupId, ...section }) => section),
+    rows.flatMap((row) => (row.labGroupId ? [row.labGroupId] : [])),
+  );
+}
+
+// Lịch dạy của giảng viên đang đăng nhập: mọi buổi lý thuyết và thực hành của lớp được phân công.
+export async function getLecturerTimetable(termId: string): Promise<Timetable> {
+  const lecturer = await getCurrentLecturer();
+  if (!isUuid(termId)) return { events: [], sectionCount: 0, credits: 0 };
+  const sections = await db
+    .select(sectionColumns)
+    .from(classSections)
+    .innerJoin(courses, eq(courses.id, classSections.courseId))
+    .where(and(eq(classSections.lecturerId, lecturer.id), eq(classSections.termId, termId), ne(classSections.status, "cancelled")))
+    .orderBy(asc(classSections.code));
+  return weeklyEvents(sections, null, (sectionId) => `/lecturer/classes/${sectionId}`);
+}
+
+// Sổ điểm danh của một lớp, chỉ giảng viên dạy lớp đó xem được. Buổi "đã học" là buổi giảng viên đã lưu điểm danh.
+export async function getAttendanceBook(classSectionId: string): Promise<AttendanceBook | null> {
+  const lecturer = await getCurrentLecturer();
+  if (!isUuid(classSectionId)) return null;
+  const [section] = await db
+    .select({ id: classSections.id })
+    .from(classSections)
+    .where(and(eq(classSections.id, classSectionId), eq(classSections.lecturerId, lecturer.id)));
+  if (!section) return null;
+  const [sessions, records, roster] = await Promise.all([
+    db
+      .select({
+        id: classSessions.id,
+        date: classSessions.date,
+        startPeriod: classSessions.startPeriod,
+        endPeriod: classSessions.endPeriod,
+        room: rooms.code,
+        labGroupId: classSessions.labGroupId,
+        labGroupCode: labGroups.code,
+        takenAt: classSessions.takenAt,
+      })
+      .from(classSessions)
+      .innerJoin(rooms, eq(rooms.id, classSessions.roomId))
+      .leftJoin(labGroups, eq(labGroups.id, classSessions.labGroupId))
+      .where(eq(classSessions.classSectionId, classSectionId))
+      .orderBy(asc(classSessions.date), asc(classSessions.startPeriod), asc(labGroups.code)),
+    db
+      .select({ sessionId: attendanceRecords.classSessionId, studentId: enrollments.studentId, status: attendanceRecords.status })
+      .from(attendanceRecords)
+      .innerJoin(classSessions, eq(classSessions.id, attendanceRecords.classSessionId))
+      .innerJoin(enrollments, eq(enrollments.id, attendanceRecords.enrollmentId))
+      .where(eq(classSessions.classSectionId, classSectionId)),
+    db
+      .select({ studentId: enrollments.studentId, labGroupId: enrollments.labGroupId })
+      .from(enrollments)
+      .where(and(eq(enrollments.classSectionId, classSectionId), eq(enrollments.status, "enrolled"))),
+  ]);
+  const book: AttendanceBook["records"] = {};
+  for (const record of records) (book[record.sessionId] ??= {})[record.studentId] = record.status;
+  return {
+    classSectionId,
+    sessions: sessions.map(({ takenAt, ...session }) => ({ ...session, isTaken: takenAt !== null })),
+    records: book,
+    labGroupOf: Object.fromEntries(roster.map((entry) => [entry.studentId, entry.labGroupId])),
+  };
 }

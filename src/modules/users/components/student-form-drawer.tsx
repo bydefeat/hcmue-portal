@@ -3,15 +3,17 @@
 import { useEffect, useTransition } from "react";
 import { AutoComplete, Button, DatePicker, Drawer, Form, Input, Radio, Select } from "antd";
 import { dayjs } from "@/shared/libs/date.lib";
-import { MOCK_MAJORS } from "@/shared/libs/mock.lib";
-import { COHORT_OPTIONS, MAJOR_OPTIONS, STUDENT_STATUS_OPTIONS } from "@/modules/users/users.constant";
-import type { Student, StudentFormValues } from "@/modules/users/users.type";
+import { classSuggestions, cohortOptions, majorOptions, STUDENT_STATUS_OPTIONS } from "@/modules/users/users.constant";
+import type { ClassRef, MajorRef, Student, StudentFormValues } from "@/modules/users/users.type";
 import { formatStudentCode, isStudentCode } from "@/shared/libs/student-code.lib";
 import { toFormFields } from "@/shared/libs/form.lib";
 
 type StudentFormDrawerProps = {
   open: boolean;
   student: Student | null;
+  majors: MajorRef[];
+  cohorts: number[];
+  classes: ClassRef[];
   onClose: () => void;
   // Trả lỗi theo ô khi server từ chối, để drawer gắn vào đúng ô.
   onSubmit: (values: StudentFormValues) => Promise<Record<string, string> | undefined>;
@@ -19,13 +21,7 @@ type StudentFormDrawerProps = {
 
 type FormShape = Omit<StudentFormValues, "dateOfBirth"> & { dateOfBirth?: dayjs.Dayjs };
 
-function classSuggestions(cohort?: number, majorCode?: string) {
-  const major = MOCK_MAJORS.find((entry) => entry.code === majorCode);
-  if (!cohort || !major) return [];
-  return ["A", "B", "C"].map((section) => ({ value: `${cohort}.01.${major.short}.${section}` }));
-}
-
-export function StudentFormDrawer({ open, student, onClose, onSubmit }: StudentFormDrawerProps) {
+export function StudentFormDrawer({ open, student, majors, cohorts, classes, onClose, onSubmit }: StudentFormDrawerProps) {
   const [form] = Form.useForm<FormShape>();
   const cohort = Form.useWatch("cohort", form);
   const majorCode = Form.useWatch("majorCode", form);
@@ -95,10 +91,10 @@ export function StudentFormDrawer({ open, student, onClose, onSubmit }: StudentF
             <DatePicker format="DD/MM/YYYY" placeholder="Chọn ngày" className="w-full" />
           </Form.Item>
           <Form.Item name="majorCode" label="Ngành" rules={[{ required: true, message: "Chưa chọn ngành" }]}>
-            <Select options={MAJOR_OPTIONS} showSearch={{ optionFilterProp: "label" }} />
+            <Select options={majorOptions(majors)} showSearch={{ optionFilterProp: "label" }} />
           </Form.Item>
           <Form.Item name="cohort" label="Khóa" rules={[{ required: true, message: "Chưa chọn khóa" }]}>
-            <Select options={COHORT_OPTIONS} />
+            <Select options={cohortOptions(cohorts)} />
           </Form.Item>
           <Form.Item
             name="className"
@@ -106,7 +102,7 @@ export function StudentFormDrawer({ open, student, onClose, onSubmit }: StudentF
             extra="Gợi ý theo khóa và ngành đã chọn"
             rules={[{ required: true, message: "Chưa nhập lớp sinh hoạt" }]}
           >
-            <AutoComplete options={classSuggestions(cohort, majorCode)} />
+            <AutoComplete options={classSuggestions(classes, cohort, majorCode)} />
           </Form.Item>
           <Form.Item name="status" label="Tình trạng">
             <Select options={STUDENT_STATUS_OPTIONS} />

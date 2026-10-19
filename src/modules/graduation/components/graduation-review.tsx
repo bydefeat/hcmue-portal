@@ -9,7 +9,29 @@ import { approveGraduation } from "@/modules/graduation/graduation.action";
 import { GRADUATION_STATUS } from "@/modules/graduation/graduation.constant";
 import type { GraduationCandidate, GraduationStatus } from "@/modules/graduation/graduation.type";
 import { paginationItemRender } from "@/shared/constants/antd.constant";
+import { downloadFile, toCsv } from "@/shared/libs/download.lib";
 import { normalizeSearch } from "@/shared/libs/search.lib";
+
+// Danh sách đang lọc, mỗi điều kiện một cột "Đạt"/"Chưa đạt" kèm chi tiết, để khoa đối chiếu trước khi trình hội đồng.
+function candidatesCsv(rows: GraduationCandidate[]) {
+  const checkLabels = rows[0]?.checks.map((check) => check.label) ?? [];
+  const header = ["MSSV", "Họ và tên", "Lớp", "Khoa", "Ngành", "Tín chỉ tích lũy", "Điểm TBTL hệ 4", "Xếp loại", "Trạng thái", ...checkLabels];
+  return toCsv([
+    header,
+    ...rows.map((row) => [
+      row.code,
+      row.fullName,
+      row.className,
+      row.faculty,
+      row.majorName,
+      row.earnedCredits,
+      row.cpa4.toFixed(2).replace(".", ","),
+      row.classification,
+      GRADUATION_STATUS[row.status].label,
+      ...row.checks.map((check) => `${check.passed ? "Đạt" : "Chưa đạt"}: ${check.detail}`),
+    ]),
+  ]);
+}
 
 export function GraduationReview({ candidates }: { candidates: GraduationCandidate[] }) {
   const [messageApi, contextHolder] = message.useMessage();
@@ -104,7 +126,7 @@ export function GraduationReview({ candidates }: { candidates: GraduationCandida
         <Select allowClear value={status} onChange={setStatus} placeholder="Mọi trạng thái" aria-label="Trạng thái" options={Object.entries(GRADUATION_STATUS).map(([value, meta]) => ({ value, label: meta.label }))} className="min-w-0 sm:w-52" />
         <Select allowClear value={faculty} onChange={setFaculty} placeholder="Mọi khoa" aria-label="Khoa" options={faculties.map((value) => ({ value, label: value }))} className="min-w-0 sm:w-56" />
         <div className="col-span-2 flex flex-wrap gap-2 sm:ml-auto">
-          <Button icon={<TableDownload size={16} aria-hidden className="text-zinc-500" />} onClick={() => messageApi.success(`Đã xuất ${visible.length} dòng ra tệp Excel theo mẫu của Bộ`)}>
+          <Button icon={<TableDownload size={16} aria-hidden className="text-zinc-500" />} disabled={visible.length === 0} onClick={() => downloadFile("xet-tot-nghiep.csv", candidatesCsv(visible))}>
             Xuất danh sách
           </Button>
           <Button type="primary" disabled={chosen.length === 0} onClick={approve}>

@@ -4,7 +4,6 @@ import { useEffect, useTransition } from "react";
 import type { Dayjs } from "dayjs";
 import { DatePicker, Form, Input, InputNumber, Modal, Select } from "antd";
 import { dayjs } from "@/shared/libs/date.lib";
-import { MOCK_COHORTS } from "@/shared/libs/mock.lib";
 import type { RegistrationPeriod } from "@/modules/course-registration/course-registration.type";
 import { toFormFields } from "@/shared/libs/form.lib";
 
@@ -29,14 +28,18 @@ type RegistrationPeriodFormModalProps = {
   open: boolean;
   period: RegistrationPeriod | null;
   termName: string;
+  // Các khóa đang có lớp sinh hoạt, đọc từ DB.
+  cohorts: number[];
   onClose: () => void;
   // Trả lỗi theo ô khi server từ chối, để modal gắn vào đúng ô.
   onSubmit: (values: PeriodFormResult) => Promise<Record<string, string> | undefined>;
 };
 
-const COHORT_OPTIONS = MOCK_COHORTS.map((cohort) => ({ value: cohort, label: `Khóa ${cohort}` }));
-
-export function RegistrationPeriodFormModal({ open, period, termName, onClose, onSubmit }: RegistrationPeriodFormModalProps) {
+export function RegistrationPeriodFormModal({ open, period, termName, cohorts, onClose, onSubmit }: RegistrationPeriodFormModalProps) {
+  // Giữ cả khóa đợt đang lưu để ô chọn vẫn hiện nhãn khi khóa đó không còn lớp.
+  const cohortOptions = [...new Set([...cohorts, ...(period?.cohorts ?? [])])]
+    .toSorted((a, b) => a - b)
+    .map((cohort) => ({ value: cohort, label: `Khóa ${cohort}` }));
   const [form] = Form.useForm<FormShape>();
   const [isPending, startTransition] = useTransition();
 
@@ -85,7 +88,7 @@ export function RegistrationPeriodFormModal({ open, period, termName, onClose, o
           <Input />
         </Form.Item>
         <Form.Item name="cohorts" label="Khóa được đăng ký" rules={[{ required: true, type: "array", min: 1, message: "Chọn ít nhất một khóa" }]}>
-          <Select mode="multiple" placeholder="Chọn khóa" options={COHORT_OPTIONS} />
+          <Select mode="multiple" placeholder="Chọn khóa" options={cohortOptions} />
         </Form.Item>
         <Form.Item
           name="range"

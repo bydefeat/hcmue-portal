@@ -62,6 +62,8 @@ export type ClassSection = {
 
 export type SectionAudience = {
   majorCodes: string[];
+  // Tên ngành cùng thứ tự với majorCodes, query join sẵn để hiện "Chỉ ngành ...".
+  majorNames: string[];
   cohorts: number[];
   note: string;
 };
@@ -190,4 +192,17 @@ export type RegistrationQueueStatus = {
   admittedPerMinute: number;
   averageWaitSeconds: number;
   peakWaitingToday: number;
+};
+
+export type UnregisteredStudent = {
+  id: string;
+  code: string;
+  fullName: string;
+  className: string;
+  cohort: number;
+  faculty: string;
+  email: string;
+  hasAccount: boolean;
+  // Lần nhắc gần nhất kể từ khi đợt của khóa mở.
+  remindedAt: string | null;
 };

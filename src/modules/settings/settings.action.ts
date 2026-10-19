@@ -1,20 +1,19 @@
 "use server";
 
-import { and, count, desc, eq, type SQL } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { db, type Transaction } from "@/shared/libs/db.lib";
+import { db } from "@/shared/libs/db.lib";
 import { actionError, actionFailure, actionOk, parseInput, type ActionResult } from "@/shared/libs/action.lib";
 import { dayjs, formatDate } from "@/shared/libs/date.lib";
+import { toCsv } from "@/shared/libs/download.lib";
 import { isUuid } from "@/shared/libs/id.lib";
 import { requirePermission } from "@/modules/access/access.query";
 import { auditActorOf, recordAudit } from "@/modules/audit/audit.lib";
 import { auditChanges } from "@/modules/audit/audit.rule";
-import { classSections, terms } from "@/modules/course-registration/course-registration.schema";
-import { courses, faculties, majors } from "@/modules/curriculum/curriculum.schema";
-import { academicWarnings } from "@/modules/grades/grades.schema";
-import { graduationRecords } from "@/modules/graduation/graduation.schema";
+import { terms } from "@/modules/course-registration/course-registration.schema";
+import { faculties } from "@/modules/curriculum/curriculum.schema";
 import { CALENDAR_EVENT_LABEL, REPORT_DEFINITIONS, SETTINGS_CONSTRAINT_MESSAGE } from "@/modules/settings/settings.constant";
-import { CALENDAR_EVENT_COLUMNS, getLatestRegulation, getRegulationVersions, getReportExports } from "@/modules/settings/settings.query";
+import { CALENDAR_EVENT_COLUMNS, getLatestRegulation, getRegulationVersions, getReportExports, getReportTable, type ReportParams } from "@/modules/settings/settings.query";
 import {
   CALENDAR_EVENT_SCHEMA,
   nextRegulationVersion,
@@ -27,8 +26,6 @@ import {
 } from "@/modules/settings/settings.rule";
 import { calendarEvents, regulations, reportExports } from "@/modules/settings/settings.schema";
 import type { CalendarEvent, RegulationSettings, RegulationVersion, ReportExportJob } from "@/modules/settings/settings.type";
-import { surveyResponses, surveys } from "@/modules/surveys/surveys.schema";
-import { administrativeClasses, students } from "@/modules/users/users.schema";
 
 // Mỗi lần lưu tạo một phiên bản quy chế mới có ngày áp dụng; bản cũ giữ nguyên để tra cứu điểm, cảnh báo đã xét theo bản cũ.
 export async function saveRegulation(input: RegulationSaveInput): Promise<ActionResult<{ regulation: RegulationSettings; versions: RegulationVersion[] }>> {
@@ -120,60 +117,8 @@ export async function saveCalendarEvent(id: string | null, input: CalendarEventI
   return actionOk(saved);
 }
 
-// Số dòng của từng báo cáo, đếm trên dữ liệu thật theo học kỳ và khoa đã chọn.
-async function countReportRows(tx: Transaction, reportKey: string, termId: string, faculty: string) {
-  const byFaculty = faculty === "all" ? undefined : eq(faculties.name, faculty);
-  const studentCount = (where?: SQL) =>
-    tx
-      .select({ total: count() })
-      .from(students)
-      .innerJoin(administrativeClasses, eq(administrativeClasses.id, students.administrativeClassId))
-      .innerJoin(majors, eq(majors.id, administrativeClasses.majorId))
-      .innerJoin(faculties, eq(faculties.id, majors.facultyId))
-      .where(and(byFaculty, where));
-  const sectionCount = () =>
-    tx
-      .select({ total: count() })
-      .from(classSections)
-      .innerJoin(courses, eq(courses.id, classSections.courseId))
-      .innerJoin(faculties, eq(faculties.id, courses.facultyId))
-      .where(and(eq(classSections.termId, termId), byFaculty));
-  const [row] = await {
-    moet: () => studentCount(),
-    standing: () => studentCount(eq(students.status, "studying")),
-    warnings: () =>
-      tx
-        .select({ total: count() })
-        .from(academicWarnings)
-        .innerJoin(students, eq(students.id, academicWarnings.studentId))
-        .innerJoin(administrativeClasses, eq(administrativeClasses.id, students.administrativeClassId))
-        .innerJoin(majors, eq(majors.id, administrativeClasses.majorId))
-        .innerJoin(faculties, eq(faculties.id, majors.facultyId))
-        .where(and(eq(academicWarnings.termId, termId), byFaculty)),
-    registration: sectionCount,
-    surveys: () =>
-      tx
-        .select({ total: count() })
-        .from(surveyResponses)
-        .innerJoin(surveys, eq(surveys.id, surveyResponses.surveyId))
-        .innerJoin(classSections, eq(classSections.id, surveyResponses.classSectionId))
-        .innerJoin(courses, eq(courses.id, classSections.courseId))
-        .innerJoin(faculties, eq(faculties.id, courses.facultyId))
-        .where(and(eq(surveys.termId, termId), byFaculty)),
-    graduation: () =>
-      tx
-        .select({ total: count() })
-        .from(graduationRecords)
-        .innerJoin(students, eq(students.id, graduationRecords.studentId))
-        .innerJoin(administrativeClasses, eq(administrativeClasses.id, students.administrativeClassId))
-        .innerJoin(majors, eq(majors.id, administrativeClasses.majorId))
-        .innerJoin(faculties, eq(faculties.id, majors.facultyId))
-        .where(byFaculty),
-  }[reportKey]!();
-  return row?.total ?? 0;
-}
-
-// Tạo báo cáo ngay trong request (dữ liệu còn nhỏ); khi có hàng đợi tác vụ nền thì chỉ ghi dòng queued ở đây.
+// Tạo báo cáo ngay trong request (dữ liệu còn nhỏ): đếm số dòng và ghi lịch sử xuất; tệp tạo lại khi tải về (downloadReportExport).
+// Khi có hàng đợi tác vụ nền và kho lưu tệp thì chỉ ghi dòng queued ở đây.
 export async function requestReportExport(input: ReportExportInput): Promise<ActionResult<ReportExportJob>> {
   const viewer = await requirePermission("reports.view");
   const parsed = parseInput(REPORT_EXPORT_SCHEMA, input);
@@ -182,6 +127,9 @@ export async function requestReportExport(input: ReportExportInput): Promise<Act
   // Cán bộ theo khoa chỉ xuất được dữ liệu khoa mình.
   if (viewer.faculty && faculty !== viewer.faculty) return actionError("Bạn chỉ xuất được báo cáo của khoa mình.", { faculty: `Chỉ chọn được ${viewer.faculty}` });
   const report = REPORT_DEFINITIONS.find((entry) => entry.id === reportKey)!;
+  const table = await getReportTable(reportKey, termId, faculty);
+  if (!table) return actionError("Học kỳ không còn trong danh mục, tải lại trang.");
+  const rowCount = table.rows.length;
   let jobId: string | undefined;
   try {
     jobId = await db.transaction(async (tx) => {
@@ -191,7 +139,6 @@ export async function requestReportExport(input: ReportExportInput): Promise<Act
         const [found] = await tx.select({ id: faculties.id }).from(faculties).where(eq(faculties.name, faculty));
         if (!found) return undefined;
       }
-      const rowCount = await countReportRows(tx, reportKey, termId, faculty);
       const [job] = await tx
         .insert(reportExports)
         .values({ reportKey, params: { termId, faculty, format }, status: "running", requestedByUserId: viewer.id })
@@ -217,4 +164,22 @@ export async function requestReportExport(input: ReportExportInput): Promise<Act
   revalidatePath("/administrator/reports/exports");
   const [job] = await getReportExports(jobId);
   return job ? actionOk(job) : actionError("Đã tạo báo cáo nhưng chưa đọc lại được, tải lại trang.");
+}
+
+// Tải báo cáo đã xuất: đọc lại dữ liệu theo đúng tham số lúc xuất và trả nội dung CSV để trình duyệt lưu thành tệp.
+export async function downloadReportExport(id: string): Promise<ActionResult<{ fileName: string; content: string }>> {
+  const viewer = await requirePermission("reports.view");
+  if (!isUuid(id)) return actionError("Không tìm thấy báo cáo.");
+  const [job] = await db
+    .select({ reportKey: reportExports.reportKey, params: reportExports.params, status: reportExports.status })
+    .from(reportExports)
+    .where(eq(reportExports.id, id));
+  if (!job || job.status !== "done") return actionError("Báo cáo chưa sẵn sàng hoặc đã bị xóa, tải lại trang.");
+  const params = job.params as Partial<ReportParams>;
+  const faculty = params.faculty ?? "all";
+  if (viewer.faculty && faculty !== viewer.faculty) return actionError("Bạn chỉ tải được báo cáo của khoa mình.");
+  const table = params.termId ? await getReportTable(job.reportKey, params.termId, faculty) : null;
+  if (!table) return actionError("Học kỳ của báo cáo không còn trong danh mục.");
+  const [term] = await db.select({ code: terms.code }).from(terms).where(eq(terms.id, params.termId!));
+  return actionOk({ fileName: `${job.reportKey}-${term?.code ?? "hoc-ky"}.csv`, content: toCsv([table.header, ...table.rows]) });
 }

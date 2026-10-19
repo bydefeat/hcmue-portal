@@ -42,7 +42,8 @@ export const REPORT_DEFINITIONS: ReportDefinition[] = [
   { id: "graduation", name: "Danh sách xét tốt nghiệp", description: "Sinh viên đủ và chưa đủ điều kiện tốt nghiệp, kèm lý do chưa đạt.", audience: "Hội đồng xét tốt nghiệp" },
 ];
 
-export const REPORT_FORMATS = ["xlsx", "pdf", "csv"] as const;
+// Báo cáo xuất ra CSV (UTF-8 có BOM) để mở thẳng bằng Excel; chưa có thư viện tạo xlsx, pdf phía server.
+export const REPORT_FORMATS = ["csv"] as const;
 
 export const SETTINGS_CONSTRAINT_MESSAGE: Partial<Record<string, string>> = {
   regulations_version_unique: "Đã có phiên bản quy chế cùng số hiệu, tải lại trang để xem phiên bản mới nhất.",

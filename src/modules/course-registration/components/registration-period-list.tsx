@@ -16,6 +16,7 @@ import { closePeriod, savePeriod } from "@/modules/course-registration/course-re
 type RegistrationPeriodListProps = {
   terms: Term[];
   periods: RegistrationPeriodView[];
+  cohorts: number[];
 };
 
 function timeHint(period: RegistrationPeriodView) {
@@ -39,7 +40,7 @@ function termOrder(term: Term) {
 
 const NETWORK_ERROR = "Chưa thực hiện được, kiểm tra kết nối rồi thử lại.";
 
-export function RegistrationPeriodList({ terms, periods }: RegistrationPeriodListProps) {
+export function RegistrationPeriodList({ terms, periods, cohorts }: RegistrationPeriodListProps) {
   const [messageApi, messageHolder] = message.useMessage();
   const [modal, modalHolder] = Modal.useModal();
   const [rows, setRows] = useState(periods);
@@ -235,6 +236,7 @@ export function RegistrationPeriodList({ terms, periods }: RegistrationPeriodLis
         open={editing !== null}
         period={editing?.period ?? null}
         termName={editingTerm?.name ?? ""}
+        cohorts={cohorts}
         onClose={() => setEditing(null)}
         onSubmit={submit}
       />

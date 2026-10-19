@@ -11,6 +11,8 @@ export default async function Page() {
   const viewer = await requirePermission("advisors.assign");
   const [allAssignments, lecturers] = await Promise.all([getAdvisorAssignments(), getLecturers()]);
   const assignments = allAssignments.filter((assignment) => inScope(viewer, assignment.faculty));
+  const faculties = [...new Set(assignments.map((assignment) => assignment.faculty))].toSorted((a, b) => a.localeCompare(b, "vi"));
+  const cohorts = [...new Set(assignments.map((assignment) => assignment.cohort))].toSorted((a, b) => a - b);
   const unassigned = assignments.filter((assignment) => !assignment.advisorId).length;
 
   return (
@@ -26,6 +28,8 @@ export default async function Page() {
       <AdvisorAssignmentTable
         assignments={assignments}
         lecturers={lecturers.map(({ id, displayName, faculty, status }) => ({ id, displayName, faculty, status }))}
+        faculties={faculties}
+        cohorts={cohorts}
       />
     </>
   );

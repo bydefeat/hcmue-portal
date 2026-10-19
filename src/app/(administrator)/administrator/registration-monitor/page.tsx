@@ -9,18 +9,17 @@ import { formatDateTime } from "@/shared/libs/date.lib";
 import { inScope } from "@/modules/access/access.constant";
 import { requirePermission } from "@/modules/access/access.query";
 import { RegistrationMonitorSections } from "@/modules/course-registration/components/registration-monitor-sections";
-import { RegistrationMonitorStudents, type PendingStudent } from "@/modules/course-registration/components/registration-monitor-students";
+import { RegistrationMonitorStudents } from "@/modules/course-registration/components/registration-monitor-students";
 import { RegistrationReport } from "@/modules/course-registration/components/registration-report";
 import { REGISTRATION_PERIOD_STATE } from "@/modules/course-registration/course-registration.constant";
 import {
-  getClassRoster,
   getClassSections,
   getRegistrationPeriods,
   getRegistrationQueueStatus,
   getRegistrationSummary,
   getRegistrationTargetTerm,
+  getUnregisteredStudents,
 } from "@/modules/course-registration/course-registration.query";
-import { getStudents } from "@/modules/users/users.query";
 import { SectionCard } from "@/shared/components/ui/section-card";
 
 export const metadata: Metadata = { title: "Theo dõi đăng ký" };
@@ -34,25 +33,16 @@ function hoursText(hours: number) {
 export default async function Page() {
   const viewer = await requirePermission("registration.manage");
   const term = await getRegistrationTargetTerm();
-  const [periods, allSections, summary, students, queue] = await Promise.all([
+  const [periods, allSections, summary, unregistered, queue] = await Promise.all([
     getRegistrationPeriods(term.id),
     getClassSections(term.id),
     getRegistrationSummary(term.id),
-    getStudents(),
+    getUnregisteredStudents(term.id),
     getRegistrationQueueStatus(),
   ]);
   const sections = allSections.filter((section) => inScope(viewer, section.faculty));
   const active = periods.filter((period) => period.state === "open" || period.state === "closing");
-  const rosters = await Promise.all(sections.filter((section) => section.status === "open").map((section) => getClassRoster(section.id)));
-  const registered = new Set(rosters.flat().map((entry) => entry.studentId));
-
-  const pending: PendingStudent[] = active.flatMap((period) => {
-    const missing = period.eligibleStudents - period.registeredStudents;
-    return students
-      .filter((student) => student.status === "studying" && period.cohorts.includes(student.cohort) && !registered.has(student.id) && inScope(viewer, student.faculty))
-      .slice(0, missing)
-      .map(({ id, code, fullName, className, cohort, faculty, email }) => ({ id, code, fullName, className, cohort, faculty, email }));
-  });
+  const pending = unregistered.filter((student) => inScope(viewer, student.faculty));
 
   const open = sections.filter((section) => section.status === "open");
   const capacity = open.reduce((sum, section) => sum + section.capacity, 0);

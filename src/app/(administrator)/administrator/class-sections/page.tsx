@@ -3,7 +3,7 @@ import { ClassSectionTable } from "@/modules/course-registration/components/clas
 import { getClassSections, getRegistrationTargetTerm, getTerms } from "@/modules/course-registration/course-registration.query";
 import { getCourses, getMajors } from "@/modules/curriculum/curriculum.query";
 import { getRooms } from "@/modules/facilities/facilities.query";
-import { getLecturers } from "@/modules/users/users.query";
+import { getCohorts, getLecturers } from "@/modules/users/users.query";
 import { inScope } from "@/modules/access/access.constant";
 import { requirePermission } from "@/modules/access/access.query";
 
@@ -11,7 +11,7 @@ export const metadata: Metadata = { title: "Lớp học phần" };
 
 export default async function Page({ searchParams }: { searchParams: Promise<{ term?: string; q?: string }> }) {
   const viewer = await requirePermission("class-sections.manage");
-  const [{ term, q }, terms, targetTerm, courses, lecturers, rooms, majors] = await Promise.all([
+  const [{ term, q }, terms, targetTerm, courses, lecturers, rooms, majors, cohorts] = await Promise.all([
     searchParams,
     getTerms(),
     getRegistrationTargetTerm(),
@@ -19,6 +19,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ t
     getLecturers(),
     getRooms(),
     getMajors(),
+    getCohorts(),
   ]);
   const termId = terms.some((entry) => entry.id === term) ? term! : targetTerm.id;
   const sections = (await getClassSections(termId)).filter((section) => inScope(viewer, section.faculty));
@@ -38,6 +39,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ t
       courses={courses.filter((course) => course.isActive).map(({ code, name, credits, faculty }) => ({ code, name, credits, faculty }))}
       rooms={rooms.filter((room) => room.status === "active").map((room) => room.code)}
       majors={majors.map(({ code, name }) => ({ code, name }))}
+      cohorts={cohorts}
       lecturers={lecturers
         .filter((lecturer) => lecturer.status === "active")
         .map(({ id, displayName, faculty }) => ({ id, displayName, faculty }))}

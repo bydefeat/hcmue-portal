@@ -6,7 +6,7 @@ import { Magnifier, Pen, Plus } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { PageHeader } from "@/shared/components/ui/page-header";
 import { StatusTag } from "@/shared/components/ui/status-tag";
-import { FACULTY_OPTIONS, LECTURER_STATUS, USER_ROLES } from "@/modules/users/users.constant";
+import { facultyOptions, LECTURER_STATUS, USER_ROLES } from "@/modules/users/users.constant";
 import type { Lecturer, LecturerFormValues } from "@/modules/users/users.type";
 import { LecturerFormDrawer } from "@/modules/users/components/lecturer-form-drawer";
 import { paginationItemRender } from "@/shared/constants/antd.constant";
@@ -17,10 +17,13 @@ const ROLE_LABEL = Object.fromEntries(USER_ROLES.map((role) => [role.value, role
 
 export function LecturerTable({
   lecturers,
+  faculties,
   initialQuery = "",
   header,
 }: {
   lecturers: Lecturer[];
+  // Danh sách khoa đọc từ DB.
+  faculties: string[];
   initialQuery?: string;
   header: { title: string; description?: React.ReactNode };
 }) {
@@ -31,6 +34,7 @@ export function LecturerTable({
   const [role, setRole] = useState<string>();
   const [editing, setEditing] = useState<Lecturer | null>(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const facultyFilterOptions = useMemo(() => facultyOptions(faculties), [faculties]);
 
   const filtered = useMemo(() => {
     const needle = normalizeSearch(query.trim());
@@ -144,7 +148,7 @@ export function LecturerTable({
             aria-label="Tìm giảng viên"
             className="w-full sm:w-72"
           />
-          <Select allowClear value={faculty} onChange={setFaculty} placeholder="Mọi khoa" aria-label="Khoa" options={FACULTY_OPTIONS} className="w-full sm:w-60" />
+          <Select allowClear value={faculty} onChange={setFaculty} placeholder="Mọi khoa" aria-label="Khoa" options={facultyFilterOptions} className="w-full sm:w-60" />
           <Select allowClear value={role} onChange={setRole} placeholder="Mọi vai trò" aria-label="Vai trò" options={USER_ROLES} className="w-full sm:w-48" />
         </div>
         <Table
@@ -156,7 +160,7 @@ export function LecturerTable({
           pagination={{ itemRender: paginationItemRender, pageSize: 20, hideOnSinglePage: true, showTotal: (total) => `${total} giảng viên` }}
           locale={{ emptyText: <EmptyState illustration="search" title="Không có giảng viên khớp bộ lọc" description="Thử tìm theo mã giảng viên hoặc bỏ bớt điều kiện lọc." /> }}
         />
-        <LecturerFormDrawer open={isDrawerOpen} lecturer={editing} onClose={() => setIsDrawerOpen(false)} onSubmit={handleSubmit} />
+        <LecturerFormDrawer open={isDrawerOpen} lecturer={editing} faculties={faculties} onClose={() => setIsDrawerOpen(false)} onSubmit={handleSubmit} />
       </div>
     </>
   );

@@ -2,7 +2,6 @@
 
 import { useEffect, useTransition } from "react";
 import { Button, Drawer, Form, Input, InputNumber, Select } from "antd";
-import { MOCK_COHORTS } from "@/shared/libs/mock.lib";
 import { toFormFields } from "@/shared/libs/form.lib";
 import { DEGREE_OPTIONS, PROGRAM_STATUS_OPTIONS } from "@/modules/curriculum/curriculum.constant";
 import type { Major, Program, ProgramFormValues } from "@/modules/curriculum/curriculum.type";
@@ -11,16 +10,22 @@ type ProgramFormDrawerProps = {
   open: boolean;
   program: Program | null;
   majors: Major[];
+  // Các khóa đang có lớp sinh hoạt, đọc từ DB.
+  cohorts: number[];
   onClose: () => void;
   // Trả lỗi theo ô khi server từ chối, để drawer gắn vào đúng ô.
   onSubmit: (values: ProgramFormValues) => Promise<Record<string, string> | undefined>;
 };
 
-const COHORT_OPTIONS = [...MOCK_COHORTS, 52].map((cohort) => ({ value: cohort, label: `Khóa ${cohort}` }));
-
 const EMPTY_VALUES: Partial<ProgramFormValues> = { degree: "Cử nhân", totalCredits: 130, durationYears: 4, cohorts: [], status: "draft" };
 
-export function ProgramFormDrawer({ open, program, majors, onClose, onSubmit }: ProgramFormDrawerProps) {
+export function ProgramFormDrawer({ open, program, majors, cohorts, onClose, onSubmit }: ProgramFormDrawerProps) {
+  // Khóa đang có lớp, thêm khóa kế tiếp (khung chương trình thường ban hành trước khi tân sinh viên nhập học)
+  // và các khóa chương trình đang áp dụng.
+  const nextCohort = cohorts.length > 0 ? [Math.max(...cohorts) + 1] : [];
+  const cohortOptions = [...new Set([...cohorts, ...nextCohort, ...(program?.cohorts ?? [])])]
+    .toSorted((a, b) => a - b)
+    .map((cohort) => ({ value: cohort, label: `Khóa ${cohort}` }));
   const [form] = Form.useForm<ProgramFormValues>();
   const [isPending, startTransition] = useTransition();
 
@@ -87,7 +92,7 @@ export function ProgramFormDrawer({ open, program, majors, onClose, onSubmit }: 
           </Form.Item>
         </div>
         <Form.Item name="cohorts" label="Khóa áp dụng" rules={[{ required: true, type: "array", min: 1, message: "Chọn ít nhất một khóa" }]}>
-          <Select mode="multiple" options={COHORT_OPTIONS} />
+          <Select mode="multiple" options={cohortOptions} />
         </Form.Item>
         <Form.Item name="status" label="Trạng thái" rules={[{ required: true, message: "Chưa chọn trạng thái" }]}>
           <Select options={PROGRAM_STATUS_OPTIONS} />

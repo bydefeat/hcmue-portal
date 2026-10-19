@@ -4,7 +4,6 @@ import { useEffect, useTransition } from "react";
 import { Button, Card, Divider, Drawer, Form, Input, InputNumber, Select } from "antd";
 import { Plus, Trash } from "defeat-icons-react";
 import { PERIODS, WEEKDAYS } from "@/shared/constants/period.constant";
-import { MOCK_COHORTS } from "@/shared/libs/mock.lib";
 import { toFormFields } from "@/shared/libs/form.lib";
 import { CLASS_SECTION_STATUS_OPTIONS } from "@/modules/course-registration/course-registration.constant";
 import type { ClassSectionFormValues, ClassSectionView } from "@/modules/course-registration/course-registration.type";
@@ -20,6 +19,8 @@ type ClassSectionFormDrawerProps = {
   lecturers: SectionLecturerOption[];
   rooms: string[];
   majors: { code: string; name: string }[];
+  // Các khóa đang có lớp sinh hoạt, đọc từ DB.
+  cohorts: number[];
   onClose: () => void;
   // Trả lỗi theo ô khi server từ chối, để drawer gắn vào đúng ô.
   onSubmit: (values: ClassSectionFormValues) => Promise<Record<string, string> | undefined>;
@@ -27,7 +28,6 @@ type ClassSectionFormDrawerProps = {
 
 const DAY_OPTIONS = WEEKDAYS.map((day) => ({ value: day.value, label: day.label }));
 const PERIOD_OPTIONS = PERIODS.map((item) => ({ value: item.period, label: `Tiết ${item.period} (${item.start})` }));
-const COHORT_OPTIONS = MOCK_COHORTS.map((cohort) => ({ value: cohort, label: `Khóa ${cohort}` }));
 
 const EMPTY_VALUES: Partial<ClassSectionFormValues> = {
   sectionNumber: 1,
@@ -65,11 +65,16 @@ function toValues(section: ClassSectionView): ClassSectionFormValues {
   };
 }
 
-export function ClassSectionFormDrawer({ open, section, termName, courses, lecturers, rooms, majors, onClose, onSubmit }: ClassSectionFormDrawerProps) {
+export function ClassSectionFormDrawer({ open, section, termName, courses, lecturers, rooms, majors, cohorts, onClose, onSubmit }: ClassSectionFormDrawerProps) {
   const [form] = Form.useForm<ClassSectionFormValues>();
   const [isPending, startTransition] = useTransition();
   const roomOptions = rooms.map((room) => ({ value: room, label: room }));
   const majorOptions = majors.map((major) => ({ value: major.code, label: major.name }));
+  // Giữ cả khóa lớp đang lưu (có thể khóa đó không còn lớp sinh hoạt) để ô chọn vẫn hiện nhãn.
+  const savedCohorts = section ? [...(section.audience?.cohorts ?? []), ...section.reservedSeats.flatMap((seat) => seat.cohorts)] : [];
+  const cohortOptions = [...new Set([...cohorts, ...savedCohorts])]
+    .toSorted((a, b) => a - b)
+    .map((cohort) => ({ value: cohort, label: `Khóa ${cohort}` }));
   const courseCode = Form.useWatch("courseCode", form);
   const faculty = courses.find((course) => course.code === courseCode)?.faculty;
 
@@ -150,7 +155,7 @@ export function ClassSectionFormDrawer({ open, section, termName, courses, lectu
             <Select mode="multiple" allowClear options={majorOptions} />
           </Form.Item>
           <Form.Item name="audienceCohorts" label="Chỉ các khóa">
-            <Select mode="multiple" allowClear options={COHORT_OPTIONS} />
+            <Select mode="multiple" allowClear options={cohortOptions} />
           </Form.Item>
         </div>
         <Form.Item name="audienceNote" label="Ghi chú hiện cho sinh viên">
@@ -175,7 +180,7 @@ export function ClassSectionFormDrawer({ open, section, termName, courses, lectu
                     <Select mode="multiple" allowClear options={majorOptions} />
                   </Form.Item>
                   <Form.Item name={[field.name, "cohorts"]} label="Khóa" className="col-span-2">
-                    <Select mode="multiple" allowClear options={COHORT_OPTIONS} />
+                    <Select mode="multiple" allowClear options={cohortOptions} />
                   </Form.Item>
                 </Card>
               ))}

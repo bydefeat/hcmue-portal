@@ -43,6 +43,16 @@ export const getStudents = cache(async () => {
   return studentRows();
 });
 
+// Các khóa đang có lớp sinh hoạt, tăng dần (48, 49, ...). Dùng cho ô lọc và ô chọn khóa.
+export const getCohorts = cache(async (): Promise<number[]> => {
+  await requireSession();
+  const rows = await db
+    .selectDistinct({ cohort: administrativeClasses.cohort })
+    .from(administrativeClasses)
+    .orderBy(asc(administrativeClasses.cohort));
+  return rows.map((row) => row.cohort);
+});
+
 export async function getStudent(id: string) {
   await requireSession();
   if (!isUuid(id)) return null;

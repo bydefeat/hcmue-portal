@@ -1,6 +1,5 @@
 import type { StatusMeta } from "@/shared/constants/status.constant";
-import { MOCK_COHORTS, MOCK_MAJORS } from "@/shared/libs/mock.lib";
-import type { DecisionKind, DecisionStatus, LecturerStatus, StudentStatus } from "@/modules/users/users.type";
+import type { ClassRef, DecisionKind, DecisionStatus, LecturerStatus, MajorRef, StudentStatus } from "@/modules/users/users.type";
 
 export const STUDENT_STATUS: Record<StudentStatus, StatusMeta> = {
   studying: { label: "Đang học", tone: "neutral" },
@@ -22,14 +21,41 @@ export const USER_ROLES = [
   { value: "admin", label: "Quản trị" },
 ];
 
-export const MAJOR_OPTIONS = MOCK_MAJORS.map((major) => ({ value: major.code, label: major.name, faculty: major.faculty }));
+// Các hàm dựng options cho Select: danh mục ngành, khoa, khóa đọc từ DB ở page rồi truyền xuống.
+export function majorOptions(majors: MajorRef[]) {
+  return majors.map((major) => ({ value: major.code, label: major.name, faculty: major.faculty }));
+}
 
-export const FACULTY_OPTIONS = [...new Set(MOCK_MAJORS.map((major) => major.faculty))].map((faculty) => ({
-  value: faculty,
-  label: faculty,
-}));
+export function facultiesOf(majors: Pick<MajorRef, "faculty">[]) {
+  return [...new Set(majors.map((major) => major.faculty))].toSorted((a, b) => a.localeCompare(b, "vi"));
+}
 
-export const COHORT_OPTIONS = MOCK_COHORTS.map((cohort) => ({ value: cohort, label: `Khóa ${cohort}` }));
+export function facultyOptions(faculties: string[]) {
+  return faculties.map((faculty) => ({ value: faculty, label: faculty }));
+}
+
+export function cohortOptions(cohorts: number[]) {
+  return cohorts.map((cohort) => ({ value: cohort, label: `Khóa ${cohort}` }));
+}
+
+// Khóa đang có lớp sinh hoạt cộng thêm khóa kế tiếp (tân sinh viên chưa có lớp nào).
+export function withNextCohort(cohorts: number[]) {
+  if (cohorts.length === 0) return [];
+  return [...new Set([...cohorts, Math.max(...cohorts) + 1])].toSorted((a, b) => a - b);
+}
+
+// Gợi ý lớp sinh hoạt: lớp đã có của ngành và khóa; chưa có thì mượn mẫu tên lớp cùng ngành ở khóa khác
+// ("49.01.CNTT.A" → "52.01.CNTT.A/B/C").
+export function classSuggestions(classes: ClassRef[], cohort?: number, majorCode?: string) {
+  if (!cohort || !majorCode) return [];
+  const sameMajor = classes.filter((entry) => entry.majorCode === majorCode);
+  const existing = [...new Set(sameMajor.filter((entry) => entry.cohort === cohort).map((entry) => entry.code))].toSorted();
+  if (existing.length > 0) return existing.map((value) => ({ value }));
+  const sample = sameMajor.find((entry) => /^\d+\..+\.[^.]+$/.test(entry.code));
+  if (!sample) return [];
+  const stem = sample.code.replace(/^\d+/, String(cohort)).replace(/\.[^.]+$/, "");
+  return ["A", "B", "C"].map((section) => ({ value: `${stem}.${section}` }));
+}
 
 export const STUDENT_STATUS_OPTIONS = Object.entries(STUDENT_STATUS).map(([value, meta]) => ({
   value: value as StudentStatus,

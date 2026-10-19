@@ -1,4 +1,4 @@
-import { createRandom, mockDate, mockId, mockLecturerIdentity, mockSectionId, mockStudentIdentity, mockTermId } from "@/shared/libs/mock.lib";
+import { createRandom, MOCK_MAJORS, mockDate, mockId, mockLecturerIdentity, mockSectionId, mockStudentIdentity, mockTermId } from "@/shared/libs/mock.lib";
 import type { ClassMeeting, ClassSection, ClassSectionStatus, RegistrationHold, RegistrationPeriod, ReservedSeat, SectionAudience, Term } from "@/modules/course-registration/course-registration.type";
 
 export const TERMS: Term[] = [
@@ -108,11 +108,18 @@ const TARGET_TERM_SECTIONS: SectionSeed[] = [
 
 export const MIN_ENROLLMENT = 15;
 
+const audience = (majorCodes: string[], cohorts: number[], note: string): SectionAudience => ({
+  majorCodes,
+  majorNames: majorCodes.map((code) => MOCK_MAJORS.find((major) => major.code === code)?.name ?? code),
+  cohorts,
+  note,
+});
+
 const AUDIENCES: Record<string, SectionAudience> = {
-  "hk2-2026:LITR1020.01": { majorCodes: ["601"], cohorts: [], note: "Lớp dành cho sinh viên ngành Sư phạm Ngữ văn" },
-  "hk2-2026:ENGL2001.01": { majorCodes: [], cohorts: [48, 49], note: "Lớp dành cho khóa 48 và 49 cần hoàn thành chuẩn đầu ra" },
-  "hk2-2026:MATH2020.01": { majorCodes: ["101"], cohorts: [], note: "Lớp dành cho sinh viên ngành Sư phạm Toán học" },
-  "hk2-2026:PSYC2001.02": { majorCodes: ["611", "101", "601", "102"], cohorts: [], note: "Ưu tiên ngành sư phạm và Tâm lý học" },
+  "hk2-2026:LITR1020.01": audience(["601"], [], "Lớp dành cho sinh viên ngành Sư phạm Ngữ văn"),
+  "hk2-2026:ENGL2001.01": audience([], [48, 49], "Lớp dành cho khóa 48 và 49 cần hoàn thành chuẩn đầu ra"),
+  "hk2-2026:MATH2020.01": audience(["101"], [], "Lớp dành cho sinh viên ngành Sư phạm Toán học"),
+  "hk2-2026:PSYC2001.02": audience(["611", "101", "601", "102"], [], "Ưu tiên ngành sư phạm và Tâm lý học"),
 };
 
 const RESERVED: Record<string, ReservedSeat[]> = {

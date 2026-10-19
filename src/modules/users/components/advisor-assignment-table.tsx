@@ -5,7 +5,7 @@ import { Checkbox, Input, message, Select, Table, type TableColumnsType } from "
 import { Magnifier } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { StatusTag } from "@/shared/components/ui/status-tag";
-import { COHORT_OPTIONS, FACULTY_OPTIONS } from "@/modules/users/users.constant";
+import { cohortOptions, facultyOptions } from "@/modules/users/users.constant";
 import type { AdvisorAssignment, Lecturer } from "@/modules/users/users.type";
 import { paginationItemRender } from "@/shared/constants/antd.constant";
 import { assignAdvisor } from "@/modules/users/users.action";
@@ -15,9 +15,12 @@ const UNASSIGNED = { label: "Chưa có cố vấn", tone: "warning" } as const;
 type AdvisorAssignmentTableProps = {
   assignments: AdvisorAssignment[];
   lecturers: Pick<Lecturer, "id" | "displayName" | "faculty" | "status">[];
+  // Khoa và khóa cho ô lọc, page lấy từ các lớp sinh hoạt trong phạm vi.
+  faculties: string[];
+  cohorts: number[];
 };
 
-export function AdvisorAssignmentTable({ assignments, lecturers }: AdvisorAssignmentTableProps) {
+export function AdvisorAssignmentTable({ assignments, lecturers, faculties, cohorts }: AdvisorAssignmentTableProps) {
   const [messageApi, contextHolder] = message.useMessage();
   const [rows, setRows] = useState(assignments);
   const [isSaving, startSaving] = useTransition();
@@ -132,8 +135,8 @@ export function AdvisorAssignmentTable({ assignments, lecturers }: AdvisorAssign
           aria-label="Tìm lớp"
           className="col-span-2 w-full sm:w-64"
         />
-        <Select allowClear value={faculty} onChange={setFaculty} placeholder="Mọi khoa" aria-label="Khoa" options={FACULTY_OPTIONS} className="min-w-0 sm:w-60" />
-        <Select allowClear value={cohort} onChange={setCohort} placeholder="Mọi khóa" aria-label="Khóa" options={COHORT_OPTIONS} className="min-w-0 sm:w-36" />
+        <Select allowClear value={faculty} onChange={setFaculty} placeholder="Mọi khoa" aria-label="Khoa" options={facultyOptions(faculties)} className="min-w-0 sm:w-60" />
+        <Select allowClear value={cohort} onChange={setCohort} placeholder="Mọi khóa" aria-label="Khóa" options={cohortOptions(cohorts)} className="min-w-0 sm:w-36" />
         <Checkbox className="col-span-2" checked={onlyUnassigned} onChange={(event) => setOnlyUnassigned(event.target.checked)}>
           Chỉ lớp chưa có cố vấn <span className="tabular-nums">({unassignedCount})</span>
         </Checkbox>

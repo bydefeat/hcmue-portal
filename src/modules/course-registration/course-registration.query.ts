@@ -1,6 +1,6 @@
 import "server-only";
 import { cache } from "react";
-import { and, asc, countDistinct, desc, eq, inArray, sql, type SQL } from "drizzle-orm";
+import { and, asc, countDistinct, desc, eq, gt, inArray, lte, max, notExists, sql, type SQL } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { db } from "@/shared/libs/db.lib";
 import { isUuid } from "@/shared/libs/id.lib";
@@ -23,8 +23,10 @@ import {
 } from "@/modules/course-registration/course-registration.schema";
 import { courses, faculties, majors } from "@/modules/curriculum/curriculum.schema";
 import { rooms } from "@/modules/facilities/facilities.schema";
+import { notifications } from "@/modules/notifications/notifications.schema";
 import { administrativeClasses, lecturerLoadNorms, lecturers, students } from "@/modules/users/users.schema";
 import type {
+  UnregisteredStudent,
   ClassSection,
   ClassSectionView,
   FacultyRegistrationSummary,
@@ -182,19 +184,21 @@ async function loadTermSections(termId: string): Promise<ClassSectionView[]> {
       .innerJoin(majors, eq(majors.id, reservedSeatMajors.majorId))
       .where(inArray(reservedSeats.classSectionId, sectionIds)),
     db
-      .select({ sectionId: classSectionAudienceMajors.classSectionId, code: majors.code })
+      .select({ sectionId: classSectionAudienceMajors.classSectionId, code: majors.code, name: majors.name })
       .from(classSectionAudienceMajors)
       .innerJoin(majors, eq(majors.id, classSectionAudienceMajors.majorId))
-      .where(inArray(classSectionAudienceMajors.classSectionId, sectionIds)),
+      .where(inArray(classSectionAudienceMajors.classSectionId, sectionIds))
+      .orderBy(asc(majors.code)),
   ]);
   const sections: ClassSection[] = rows.map(({ lecturerTitle, lecturerName, audienceCohorts, audienceNote, ...row }) => {
-    const audienceCodes = audienceMajors.filter((entry) => entry.sectionId === row.id).map((entry) => entry.code);
+    const audienceOf = audienceMajors.filter((entry) => entry.sectionId === row.id);
+    const audienceCodes = audienceOf.map((entry) => entry.code);
     const hasAudience = audienceCodes.length > 0 || (audienceCohorts?.length ?? 0) > 0 || Boolean(audienceNote);
     return {
       ...row,
       lecturerName: lecturerName ? `${lecturerTitle} ${lecturerName}` : null,
       meetings: meetings.filter((meeting) => meeting.sectionId === row.id).map(({ sectionId: _sectionId, ...meeting }) => meeting),
-      audience: hasAudience ? { majorCodes: audienceCodes, cohorts: audienceCohorts ?? [], note: audienceNote ?? "" } : null,
+      audience: hasAudience ? { majorCodes: audienceCodes, majorNames: audienceOf.map((entry) => entry.name), cohorts: audienceCohorts ?? [], note: audienceNote ?? "" } : null,
       reservedSeats: seats
         .filter((seat) => seat.classSectionId === row.id)
         .map((seat) => ({
@@ -457,4 +461,72 @@ export async function getRegistrationQueueStatus(): Promise<RegistrationQueueSta
   const active = await getActiveRegistrationPeriods();
   if (active.length === 0) return null;
   return { waiting: 342, activeSessions: 500, sessionLimit: 500, admittedPerMinute: 2400, averageWaitSeconds: 9, peakWaitingToday: 3870 };
+}
+
+export const REGISTRATION_REMINDER_HREF = "/application/registration";
+
+// Sinh viên đang học thuộc khóa của một đợt đang mở mà chưa có lớp nào trong học kỳ, kèm lần nhắc gần nhất kể từ khi đợt mở.
+export async function getUnregisteredStudents(termId: string): Promise<UnregisteredStudent[]> {
+  await requireSession();
+  if (!isUuid(termId)) return [];
+  const now = new Date();
+  const periods = await db
+    .select({ cohorts: registrationPeriods.cohorts, opensAt: registrationPeriods.opensAt })
+    .from(registrationPeriods)
+    .where(and(eq(registrationPeriods.termId, termId), lte(registrationPeriods.opensAt, now), gt(registrationPeriods.closesAt, now)));
+  const opensAtOf = new Map<number, Date>();
+  for (const period of periods) {
+    for (const cohort of period.cohorts) {
+      const current = opensAtOf.get(cohort);
+      if (!current || period.opensAt < current) opensAtOf.set(cohort, period.opensAt);
+    }
+  }
+  if (opensAtOf.size === 0) return [];
+  const rows = await db
+    .select({
+      id: students.id,
+      userId: students.userId,
+      code: students.code,
+      fullName: students.fullName,
+      className: administrativeClasses.code,
+      cohort: administrativeClasses.cohort,
+      faculty: faculties.name,
+      email: students.email,
+    })
+    .from(students)
+    .innerJoin(administrativeClasses, eq(administrativeClasses.id, students.administrativeClassId))
+    .innerJoin(majors, eq(majors.id, administrativeClasses.majorId))
+    .innerJoin(faculties, eq(faculties.id, majors.facultyId))
+    .where(
+      and(
+        eq(students.status, "studying"),
+        inArray(administrativeClasses.cohort, [...opensAtOf.keys()]),
+        notExists(
+          db
+            .select({ id: enrollments.id })
+            .from(enrollments)
+            .where(and(eq(enrollments.studentId, students.id), eq(enrollments.termId, termId), eq(enrollments.status, "enrolled"))),
+        ),
+      ),
+    )
+    .orderBy(administrativeClasses.code, students.code);
+  const userIds = rows.flatMap((row) => (row.userId ? [row.userId] : []));
+  const reminders =
+    userIds.length === 0
+      ? []
+      : await db
+          .select({ userId: notifications.recipientUserId, at: max(notifications.createdAt) })
+          .from(notifications)
+          .where(and(inArray(notifications.recipientUserId, userIds), eq(notifications.kind, "deadline"), eq(notifications.href, REGISTRATION_REMINDER_HREF)))
+          .groupBy(notifications.recipientUserId);
+  const remindedAtOf = new Map(reminders.map((reminder) => [reminder.userId, reminder.at]));
+  return rows.map(({ userId, code, ...row }) => {
+    const remindedAt = userId ? remindedAtOf.get(userId) : null;
+    return {
+      ...row,
+      code: formatStudentCode(code),
+      hasAccount: userId !== null,
+      remindedAt: remindedAt && remindedAt >= opensAtOf.get(row.cohort)! ? remindedAt.toISOString() : null,
+    };
+  });
 }

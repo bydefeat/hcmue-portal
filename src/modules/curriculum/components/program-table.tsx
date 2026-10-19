@@ -21,7 +21,15 @@ function cohortText(cohorts: number[]) {
   return sorted.length > 1 ? `K${sorted[0]} đến K${sorted.at(-1)}` : `K${sorted[0]}`;
 }
 
-export function ProgramTable({ programs, majors, header }: { programs: ProgramSummary[]; majors: Major[]; header: { title: string; description?: React.ReactNode } }) {
+type ProgramTableProps = {
+  programs: ProgramSummary[];
+  majors: Major[];
+  // Các khóa đang có lớp sinh hoạt, đọc từ DB.
+  cohorts: number[];
+  header: { title: string; description?: React.ReactNode };
+};
+
+export function ProgramTable({ programs, majors, cohorts, header }: ProgramTableProps) {
   const [messageApi, contextHolder] = message.useMessage();
   const [rows, setRows] = useState(programs);
   const [query, setQuery] = useState("");
@@ -177,7 +185,7 @@ export function ProgramTable({ programs, majors, header }: { programs: ProgramSu
             ),
           }}
         />
-        <ProgramFormDrawer open={isOpen} program={editing} majors={majors} onClose={() => setIsOpen(false)} onSubmit={submit} />
+        <ProgramFormDrawer open={isOpen} program={editing} majors={majors} cohorts={cohorts} onClose={() => setIsOpen(false)} onSubmit={submit} />
       </div>
     </>
   );

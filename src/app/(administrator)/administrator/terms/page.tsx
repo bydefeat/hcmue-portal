@@ -4,13 +4,14 @@ import { SectionCard } from "@/shared/components/ui/section-card";
 import { RegistrationPeriodList } from "@/modules/course-registration/components/registration-period-list";
 import { TermList } from "@/modules/course-registration/components/term-list";
 import { getClassSections, getRegistrationPeriods, getTerms } from "@/modules/course-registration/course-registration.query";
+import { getCohorts } from "@/modules/users/users.query";
 import { requirePermission } from "@/modules/access/access.query";
 
 export const metadata: Metadata = { title: "Học kỳ và đợt đăng ký" };
 
 export default async function Page() {
   await requirePermission("registration.manage");
-  const [terms, periods] = await Promise.all([getTerms(), getRegistrationPeriods()]);
+  const [terms, periods, cohorts] = await Promise.all([getTerms(), getRegistrationPeriods(), getCohorts()]);
   const sectionCounts = await Promise.all(terms.map(async (term) => (await getClassSections(term.id)).length));
   const termRows = terms.map((term, index) => ({
     ...term,
@@ -28,7 +29,7 @@ export default async function Page() {
         <SectionCard title="Học kỳ" flush>
           <TermList terms={termRows} />
         </SectionCard>
-        <RegistrationPeriodList terms={terms.filter((term) => periods.some((period) => period.termId === term.id) || term.isCurrent || term.isRegistrationTarget)} periods={periods} />
+        <RegistrationPeriodList terms={terms.filter((term) => periods.some((period) => period.termId === term.id) || term.isCurrent || term.isRegistrationTarget)} periods={periods} cohorts={cohorts} />
       </div>
     </>
   );

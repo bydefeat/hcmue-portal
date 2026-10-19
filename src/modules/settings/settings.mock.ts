@@ -72,6 +72,6 @@ export const CALENDAR_EVENTS: CalendarEvent[] = [
 
 // Lịch sử xuất báo cáo, do tài khoản Phòng Đào tạo seed tạo.
 export const REPORT_EXPORTS: { id: string; reportKey: string; termId: string; faculty: string; format: ReportFormat; createdAt: string; rowCount: number }[] = [
-  { id: mockId("report-export:job-2"), reportKey: "warnings", termId: mockTermId("hk2-2025"), faculty: "all", format: "xlsx", createdAt: mockDate(-1, "16:00"), rowCount: 27 },
-  { id: mockId("report-export:job-1"), reportKey: "moet", termId: mockTermId("hk1-2026"), faculty: "all", format: "pdf", createdAt: mockDate(-3, "09:00"), rowCount: 600 },
+  { id: mockId("report-export:job-2"), reportKey: "warnings", termId: mockTermId("hk2-2025"), faculty: "all", format: "csv", createdAt: mockDate(-1, "16:00"), rowCount: 27 },
+  { id: mockId("report-export:job-1"), reportKey: "moet", termId: mockTermId("hk1-2026"), faculty: "all", format: "csv", createdAt: mockDate(-3, "09:00"), rowCount: 24 },
 ];

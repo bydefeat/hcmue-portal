@@ -1,12 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
-import { Alert, Button, Card, InputNumber, message, Modal, Table, type TableColumnsType } from "antd";
+import { Alert, Button, Card, InputNumber, message, Modal, Table, Upload as FilePicker, type TableColumnsType } from "antd";
 import { Download, FilePen, LockKey, Upload } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { MeterBar } from "@/shared/components/ui/meter-bar";
 import { StatusTag } from "@/shared/components/ui/status-tag";
 import { dayjs, daysUntil, formatDateTime } from "@/shared/libs/date.lib";
+import { downloadFile, parseCsv, toCsv } from "@/shared/libs/download.lib";
 import { lockGradeSheet, saveGradeScores } from "@/modules/grades/grades.action";
 import { formatPoint, GRADE_SHEET_STATE, toLetter, weightedScore, letterTextClass } from "@/modules/grades/grades.constant";
 import {
@@ -43,6 +44,54 @@ const EDITABLE_STATUSES: GradeSheet["status"][] = ["draft", "returned"];
 const AUTOSAVE_DELAY = 1200;
 
 type ScoreChange = { studentId: string; key: string; score: number | null };
+
+const digitsOf = (code: string) => code.replace(/\D/g, "");
+
+// Tệp CSV mở được bằng Excel: MSSV, họ tên, mỗi cột điểm một cột theo thứ tự của bảng điểm, rồi tổng và điểm chữ.
+function sheetCsv(components: GradeSheet["components"], students: GradingStudent[], scores: Record<string, ScoreRow>) {
+  const header = ["MSSV", "Họ và tên", ...components.map((component) => `${component.label} (${component.weight}%)`), "Tổng", "Điểm chữ"];
+  const rows = students.map((student) => {
+    const row = scores[student.studentId] ?? {};
+    const total = weightedScore(components, row);
+    return [
+      student.studentCode,
+      student.fullName,
+      ...components.map((component) => formatPoint(row[component.key] ?? null, 2)),
+      formatPoint(total, 1),
+      total === null ? "" : toLetter(total).letter,
+    ];
+  });
+  return toCsv([header, ...rows]);
+}
+
+// Đọc lại tệp theo mẫu đã xuất: nhận dòng theo MSSV, cột điểm theo thứ tự; ô trống thì giữ điểm đang có.
+function readSheetCsv(text: string, components: GradeSheet["components"], students: GradingStudent[]) {
+  const [header, ...rows] = parseCsv(text);
+  const errors: string[] = [];
+  const changes: ScoreChange[] = [];
+  const mismatched = components.filter((component, index) => !header?.[index + 2]?.trim().startsWith(component.label));
+  if (!header || mismatched.length > 0) return { changes, errors: ["Tệp không đúng mẫu: dùng tệp xuất từ nút Xuất Excel của chính bảng điểm này."] };
+  const byCode = new Map(students.map((student) => [digitsOf(student.studentCode), student]));
+  rows.forEach((cells, index) => {
+    const line = index + 2;
+    const student = byCode.get(digitsOf(cells[0] ?? ""));
+    if (!student) {
+      errors.push(`Dòng ${line}: MSSV ${cells[0] || "(trống)"} không có trong lớp`);
+      return;
+    }
+    components.forEach((component, column) => {
+      const raw = (cells[column + 2] ?? "").trim();
+      if (!raw) return;
+      const score = Number(raw.replace(",", "."));
+      if (!Number.isFinite(score) || score < 0 || score > 10) {
+        errors.push(`Dòng ${line}: ${component.label} "${raw}" phải là số từ 0 đến 10`);
+        return;
+      }
+      changes.push({ studentId: student.studentId, key: component.key, score: Math.round(score * 100) / 100 });
+    });
+  });
+  return { changes, errors };
+}
 
 function deadlineText(deadline: string) {
   const days = daysUntil(deadline);
@@ -113,6 +162,26 @@ export function GradingTable({ sheet, students, classCode, classId, returnReason
     setScores((current) => ({ ...current, [studentId]: { ...current[studentId], [key]: value } }));
     pending.current.set(`${studentId}:${key}`, { studentId, key, score: value });
     setVersion((current) => current + 1);
+  };
+
+  const importFile = async (file: File) => {
+    const { changes, errors } = readSheetCsv(await file.text(), sheet.components, students);
+    for (const change of changes) updateScore(change.studentId, change.key, change.score);
+    if (errors.length === 0) {
+      messageApi.success(`Đã điền ${changes.length} điểm từ tệp ${file.name}, đang lưu nháp.`);
+      return;
+    }
+    Modal.warning({
+      title: changes.length > 0 ? `Đã điền ${changes.length} điểm, ${errors.length} ô lỗi được bỏ qua` : "Không điền được điểm nào",
+      content: (
+        <ul className="flex max-h-64 flex-col gap-1 overflow-auto text-sm">
+          {errors.slice(0, 50).map((error) => (
+            <li key={error}>{error}</li>
+          ))}
+          {errors.length > 50 && <li className="text-muted">và {errors.length - 50} lỗi khác</li>}
+        </ul>
+      ),
+    });
   };
 
   const focusCell = (rowIndex: number, columnIndex: number) => inputs.current.get(`${rowIndex}:${columnIndex}`)?.focus();
@@ -255,7 +324,7 @@ export function GradingTable({ sheet, students, classCode, classId, returnReason
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button icon={<Download size={16} aria-hidden className="text-zinc-500" />} onClick={() => messageApi.success(`Đã xuất bảng điểm ${classCode} ra tệp Excel.`)}>
+            <Button icon={<Download size={16} aria-hidden className="text-zinc-500" />} onClick={() => downloadFile(`bang-diem-${classCode}.csv`, sheetCsv(sheet.components, students, scores))}>
               Xuất Excel
             </Button>
             {canRequestChange && requestOptions && (
@@ -265,9 +334,19 @@ export function GradingTable({ sheet, students, classCode, classId, returnReason
             )}
             {!isLocked && (
               <>
-                <Button icon={<Upload size={16} aria-hidden className="text-zinc-500" />} onClick={() => messageApi.info("Chọn tệp Excel theo mẫu đã xuất, điểm sẽ được điền vào các ô tương ứng.")}>
-                  Nhập từ Excel
-                </Button>
+                <FilePicker
+                  accept=".csv"
+                  maxCount={1}
+                  showUploadList={false}
+                  beforeUpload={(file) => {
+                    void importFile(file);
+                    return false;
+                  }}
+                >
+                  <Button icon={<Upload size={16} aria-hidden className="text-zinc-500" />} title="Tệp CSV theo mẫu đã xuất (trong Excel chọn Lưu thành CSV UTF-8)">
+                    Nhập từ Excel
+                  </Button>
+                </FilePicker>
               </>
             )}
           </div>

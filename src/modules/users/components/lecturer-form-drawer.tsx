@@ -2,13 +2,14 @@
 
 import { useEffect, useTransition } from "react";
 import { Button, Drawer, Form, Input, Radio, Select } from "antd";
-import { FACULTY_OPTIONS, LECTURER_STATUS, LECTURER_TITLES } from "@/modules/users/users.constant";
+import { facultyOptions, LECTURER_STATUS, LECTURER_TITLES } from "@/modules/users/users.constant";
 import type { Lecturer, LecturerFormValues, LecturerStatus } from "@/modules/users/users.type";
 import { toFormFields } from "@/shared/libs/form.lib";
 
 type LecturerFormDrawerProps = {
   open: boolean;
   lecturer: Lecturer | null;
+  faculties: string[];
   onClose: () => void;
   // Trả lỗi theo ô khi server từ chối, để drawer gắn vào đúng ô.
   onSubmit: (values: LecturerFormValues) => Promise<Record<string, string> | undefined>;
@@ -16,7 +17,7 @@ type LecturerFormDrawerProps = {
 
 const STATUS_OPTIONS = (Object.keys(LECTURER_STATUS) as LecturerStatus[]).map((value) => ({ value, label: LECTURER_STATUS[value].label }));
 
-export function LecturerFormDrawer({ open, lecturer, onClose, onSubmit }: LecturerFormDrawerProps) {
+export function LecturerFormDrawer({ open, lecturer, faculties, onClose, onSubmit }: LecturerFormDrawerProps) {
   const [form] = Form.useForm<LecturerFormValues>();
   const [isPending, startTransition] = useTransition();
   const isEdit = lecturer !== null;
@@ -77,7 +78,7 @@ export function LecturerFormDrawer({ open, lecturer, onClose, onSubmit }: Lectur
           </Form.Item>
         </div>
         <Form.Item name="faculty" label="Khoa" rules={[{ required: true, message: "Chưa chọn khoa" }]}>
-          <Select options={FACULTY_OPTIONS} />
+          <Select options={facultyOptions(faculties)} />
         </Form.Item>
         <div className="grid gap-x-3 sm:grid-cols-2">
           <Form.Item

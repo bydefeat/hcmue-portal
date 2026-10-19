@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import { STANDING_LABEL } from "@/modules/grades/grades.constant";
 import { getStudentStandings } from "@/modules/grades/grades.query";
 import { StudentTable } from "@/modules/users/components/student-table";
-import { getStudents } from "@/modules/users/users.query";
+import { getCohorts, getStudents } from "@/modules/users/users.query";
+import { getMajors } from "@/modules/curriculum/curriculum.query";
 import { inScope } from "@/modules/access/access.constant";
 import { requirePermission } from "@/modules/access/access.query";
 
@@ -10,7 +11,9 @@ export const metadata: Metadata = { title: "Quản lý sinh viên" };
 
 export default async function Page() {
   const viewer = await requirePermission("students.view");
-  const students = (await getStudents()).filter((student) => inScope(viewer, student.faculty));
+  const [allStudents, allMajors, cohorts] = await Promise.all([getStudents(), getMajors(), getCohorts()]);
+  const students = allStudents.filter((student) => inScope(viewer, student.faculty));
+  const majors = allMajors.filter((major) => inScope(viewer, major.faculty));
   const standings = await getStudentStandings(students.map((student) => student.id));
   const standingById = new Map(standings.map((standing) => [standing.studentId, standing]));
   const rows = students.map((student) => {
@@ -29,6 +32,8 @@ export default async function Page() {
         description: `${students.length.toLocaleString("vi-VN")} hồ sơ thuộc ${new Set(students.map((student) => student.className)).size} lớp sinh hoạt. Mở hồ sơ từng sinh viên để xem kết quả học tập và đăng ký học phần.`,
       }}
       students={rows}
+      majors={majors}
+      cohorts={cohorts}
     />
   );
 }

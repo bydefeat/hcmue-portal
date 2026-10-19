@@ -1,14 +1,15 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Button, Card, Drawer, Form, message, Radio, Select, Table, type TableColumnsType } from "antd";
+import { Button, Card, Drawer, Form, Input, message, Select, Table, type TableColumnsType } from "antd";
 import { AlertWarning, ChartColumn, ClipboardCheck, Download, FileExport, GraduationCap, PresentationScreenChartCols, Users, type IconProps } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { SectionCard } from "@/shared/components/ui/section-card";
 import { StatusTag } from "@/shared/components/ui/status-tag";
 import type { StatusMeta } from "@/shared/constants/status.constant";
 import { formatDateTime } from "@/shared/libs/date.lib";
-import { requestReportExport } from "@/modules/settings/settings.action";
+import { downloadFile } from "@/shared/libs/download.lib";
+import { downloadReportExport, requestReportExport } from "@/modules/settings/settings.action";
 import type { ReportDefinition, ReportExportJob as ExportJob, ReportFormat } from "@/modules/settings/settings.type";
 
 const REPORT_ICON: Record<string, React.ComponentType<IconProps>> = {
@@ -42,6 +43,7 @@ export function ReportExportCenter({ reports, terms, faculties, defaultTermId, j
   const [openId, setOpenId] = useState<string | null>(null);
   const [jobs, setJobs] = useState(initialJobs);
   const [isPending, startTransition] = useTransition();
+  const [downloading, setDownloading] = useState<string | null>(null);
   const opened = reports.find((report) => report.id === openId) ?? null;
 
   const create = (values: ExportValues) =>
@@ -62,6 +64,21 @@ export function ReportExportCenter({ reports, terms, faculties, defaultTermId, j
       setOpenId(null);
       messageApi.success(`Đã tạo ${opened.name}, ${job.rows ?? 0} dòng. Tệp có trong mục Lịch sử xuất.`);
     });
+
+  const download = async (job: ExportJob) => {
+    setDownloading(job.id);
+    const result = await downloadReportExport(job.id).catch(() => null);
+    setDownloading(null);
+    if (!result) {
+      messageApi.error("Chưa tải được báo cáo, kiểm tra kết nối rồi thử lại.");
+      return;
+    }
+    if (!result.ok) {
+      messageApi.error(result.message);
+      return;
+    }
+    downloadFile(result.data.fileName, result.data.content);
+  };
 
   const columns: TableColumnsType<ExportJob> = [
     {
@@ -103,7 +120,7 @@ export function ReportExportCenter({ reports, terms, faculties, defaultTermId, j
       align: "right",
       fixed: "right",
       render: (_, job) => (
-        <Button size="small" type="text" icon={<Download size={14} aria-hidden className="text-zinc-500" />} disabled={job.status !== "ready"} onClick={() => messageApi.success(`Đã tải ${job.reportName}.${job.format.toLowerCase()}`)}>
+        <Button size="small" type="text" icon={<Download size={14} aria-hidden className="text-zinc-500" />} disabled={job.status !== "ready"} loading={downloading === job.id} onClick={() => void download(job)}>
           Tải về
         </Button>
       ),
@@ -167,22 +184,17 @@ export function ReportExportCenter({ reports, terms, faculties, defaultTermId, j
           </div>
         }
       >
-        <Form form={form} layout="vertical" onFinish={create} initialValues={{ termId: defaultTermId, faculty: "all", format: "xlsx" }}>
+        <Form form={form} layout="vertical" onFinish={create} initialValues={{ termId: defaultTermId, faculty: "all", format: "csv" }}>
           <Form.Item name="termId" label="Học kỳ">
             <Select options={terms.map((term) => ({ value: term.id, label: term.name }))} />
           </Form.Item>
           <Form.Item name="faculty" label="Phạm vi">
             <Select options={[{ value: "all", label: "Toàn trường" }, ...faculties.map((value) => ({ value, label: value }))]} />
           </Form.Item>
-          <Form.Item name="format" label="Định dạng">
-            <Radio.Group
-              options={[
-                { value: "xlsx", label: "Excel" },
-                { value: "pdf", label: "PDF" },
-                { value: "csv", label: "CSV" },
-              ]}
-            />
+          <Form.Item name="format" hidden>
+            <Input />
           </Form.Item>
+          <p className="text-sm text-muted">Báo cáo xuất ra tệp CSV, mở được bằng Excel.</p>
         </Form>
       </Drawer>
     </div>

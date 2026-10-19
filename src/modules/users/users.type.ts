@@ -19,6 +19,20 @@ export type Student = {
   hometown: string;
 };
 
+// Ngành trong danh mục (đọc từ curriculum), page truyền xuống cho ô chọn ngành.
+export type MajorRef = {
+  code: string;
+  name: string;
+  faculty: string;
+};
+
+// Lớp sinh hoạt đã có, dùng gợi ý tên lớp khi thêm sinh viên.
+export type ClassRef = {
+  code: string;
+  majorCode: string;
+  cohort: number;
+};
+
 export type LecturerStatus = "active" | "on-leave";
 
 export type Lecturer = {

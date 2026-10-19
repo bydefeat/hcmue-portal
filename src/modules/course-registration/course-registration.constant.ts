@@ -1,7 +1,6 @@
 import { periodLabel, weekdayLabel } from "@/shared/constants/period.constant";
 import type { StatusMeta } from "@/shared/constants/status.constant";
 import { dayjs, hoursUntil } from "@/shared/libs/date.lib";
-import { MOCK_MAJORS } from "@/shared/libs/mock.lib";
 import type {
   ClassConflict,
   ClassMeeting,
@@ -80,13 +79,9 @@ export function meetingText(meeting: ClassMeeting) {
   return `${weekdayLabel(meeting.dayOfWeek)}, ${periodLabel(meeting.startPeriod, meeting.endPeriod)} · ${meeting.room}`;
 }
 
-export function majorNames(codes: string[]) {
-  return codes.map((code) => MOCK_MAJORS.find((major) => major.code === code)?.name ?? code);
-}
-
 export function audienceText(audience: SectionAudience) {
   const parts = [
-    audience.majorCodes.length > 0 ? `ngành ${majorNames(audience.majorCodes).join(", ")}` : null,
+    audience.majorCodes.length > 0 ? `ngành ${audience.majorCodes.map((code, index) => audience.majorNames[index] ?? code).join(", ")}` : null,
     audience.cohorts.length > 0 ? `khóa ${audience.cohorts.join(", ")}` : null,
   ].filter(Boolean);
   return `Chỉ ${parts.join(", ")}`;

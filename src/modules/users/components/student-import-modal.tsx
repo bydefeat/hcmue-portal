@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { Alert, Button, Modal, Table, Upload, type TableColumnsType } from "antd";
 import { CircleCheck, CircleWarning, Download, FileArrowIn } from "defeat-icons-react";
-import { IMPORT_COLUMNS, templateCsv, validateImportRow, type ImportResult, type ImportRow } from "@/modules/users/users.rule";
+import { IMPORT_COLUMNS, templateCsv, validateImportRow, type ImportCatalog, type ImportResult, type ImportRow } from "@/modules/users/users.rule";
 import type { StudentFormValues } from "@/modules/users/users.type";
 import { paginationItemRender } from "@/shared/constants/antd.constant";
 import { normalizeStudentCode } from "@/shared/libs/student-code.lib";
@@ -12,6 +12,8 @@ import { downloadFile } from "@/shared/libs/download.lib";
 type StudentImportModalProps = {
   open: boolean;
   existingCodes: string[];
+  // Mã ngành và khóa hợp lệ, đọc từ DB.
+  catalog: ImportCatalog;
   onClose: () => void;
   // Trả true khi server đã ghi xong, modal mới đóng.
   onImport: (values: StudentFormValues[]) => Promise<boolean>;
@@ -63,7 +65,7 @@ const COLUMNS: TableColumnsType<ImportResult> = [
   },
 ];
 
-export function StudentImportModal({ open, existingCodes, onClose, onImport }: StudentImportModalProps) {
+export function StudentImportModal({ open, existingCodes, catalog, onClose, onImport }: StudentImportModalProps) {
   const [isImporting, startImporting] = useTransition();
   const [fileName, setFileName] = useState<string | null>(null);
   const [results, setResults] = useState<ImportResult[]>([]);
@@ -83,7 +85,7 @@ export function StudentImportModal({ open, existingCodes, onClose, onImport }: S
   const check = (rows: ImportRow[]) => {
     const existing = new Set(existingCodes.map(normalizeStudentCode));
     const seen = new Set<string>();
-    setResults(rows.map((row) => validateImportRow(row, existing, seen)));
+    setResults(rows.map((row) => validateImportRow(row, existing, seen, catalog)));
   };
 
   return (

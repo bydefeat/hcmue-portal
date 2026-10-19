@@ -32,6 +32,7 @@ type ClassSectionTableProps = {
   lecturers: SectionLecturerOption[];
   rooms: string[];
   majors: { code: string; name: string }[];
+  cohorts: number[];
   header: { title: string; description?: React.ReactNode };
 };
 
@@ -52,7 +53,7 @@ const statusOf = (row: ClassSectionView) =>
     <StatusTag status={CLASS_SECTION_STATUS[row.status]} />
   );
 
-export function ClassSectionTable({ sections, terms, termId, initialQuery = "", courses, lecturers, rooms, majors, header }: ClassSectionTableProps) {
+export function ClassSectionTable({ sections, terms, termId, initialQuery = "", courses, lecturers, rooms, majors, cohorts, header }: ClassSectionTableProps) {
   const router = useRouter();
   const [messageApi, contextHolder] = message.useMessage();
   const [rows, setRows] = useState(sections);
@@ -305,6 +306,7 @@ export function ClassSectionTable({ sections, terms, termId, initialQuery = "", 
           lecturers={lecturers}
           rooms={rooms}
           majors={majors}
+          cohorts={cohorts}
           onClose={() => setIsOpen(false)}
           onSubmit={submit}
         />

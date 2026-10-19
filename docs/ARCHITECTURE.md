@@ -295,7 +295,6 @@ Giờ tiết học ở `shared/constants/period.constant.ts`: 12 tiết, mỗi t
 | Vấn đề | Cách xử lý |
 | --- | --- |
 | `antd/es/index.js` có code chạy khi import nên Next không tối ưu barrel, mỗi route kéo cả thư viện | `modularizeImports` trong `next.config.ts` đổi `import { Button } from "antd"` thành `antd/es/button` |
-| Mock gọi nối tiếp làm mỗi lần chuyển trang chậm thêm | `mockDelay` mặc định 0ms, đặt `MOCK_DELAY_MS=120` khi cần xem skeleton |
 | ESLint chậm | Bỏ ESLint, chỉ dùng oxlint (khoảng 1 giây cho toàn repo), xem mục 11 |
 
 ## 10. Cơ sở dữ liệu

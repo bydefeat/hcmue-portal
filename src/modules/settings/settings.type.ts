@@ -59,7 +59,7 @@ export type RegulationVersion = {
   summary: string;
 };
 
-export type ReportFormat = "xlsx" | "pdf" | "csv";
+export type ReportFormat = "csv";
 
 export type ReportDefinition = { id: string; name: string; description: string; audience: string };
 

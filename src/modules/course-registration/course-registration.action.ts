@@ -33,7 +33,9 @@ import {
   getRegistrationHolds,
   getRegistrationPeriods,
   getRegistrationTargetTerm,
+  getUnregisteredStudents,
   readClassSectionAfterWrite,
+  REGISTRATION_REMINDER_HREF,
 } from "@/modules/course-registration/course-registration.query";
 import {
   classSectionAudienceMajors,
@@ -55,6 +57,8 @@ import { requirePermission } from "@/modules/access/access.query";
 import { courseRelations, courses, faculties, majors } from "@/modules/curriculum/curriculum.schema";
 import { academicWarnings, courseResults } from "@/modules/grades/grades.schema";
 import { regulations } from "@/modules/settings/settings.schema";
+import { notifications } from "@/modules/notifications/notifications.schema";
+import { students } from "@/modules/users/users.schema";
 import { invoiceLines, payments, tuitionInvoices } from "@/modules/tuition/tuition.schema";
 import { getCurrentStudent, getStudent } from "@/modules/users/users.query";
 import type { ClassSectionView, RegistrationHold, RegistrationPeriodView } from "@/modules/course-registration/course-registration.type";
@@ -732,4 +736,40 @@ export async function adminDrop(studentId: string, sectionId: string, reason: st
   }
   revalidatePath("/administrator/users/students", "layout");
   return actionOk();
+}
+
+// Nhắc sinh viên chưa đăng ký trong đợt đang mở: gửi thông báo trên cổng sinh viên. Chỉ nhắc được sinh viên trong phạm vi khoa
+// của người gửi và vẫn còn chưa đăng ký lúc gửi; sinh viên chưa kích hoạt tài khoản cổng thì không nhận được thông báo.
+export async function remindUnregisteredStudents(studentIds: string[]): Promise<ActionResult<{ remindedIds: string[]; remindedAt: string; withoutAccount: number }>> {
+  const viewer = await requirePermission("registration.manage");
+  const parsed = parseInput(z.object({ studentIds: z.array(z.uuid()).min(1, "Chưa chọn sinh viên").max(2000) }), { studentIds });
+  if (!parsed.ok) return parsed;
+  const term = await getRegistrationTargetTerm();
+  const wanted = new Set(parsed.data.studentIds);
+  const pending = (await getUnregisteredStudents(term.id)).filter((student) => wanted.has(student.id) && inScope(viewer, student.faculty));
+  if (pending.length === 0) return actionError("Các sinh viên đã chọn đã đăng ký hoặc không còn trong đợt đang mở, tải lại trang.");
+  const rows = await db
+    .select({ id: students.id, userId: students.userId })
+    .from(students)
+    .where(inArray(students.id, pending.map((student) => student.id)));
+  const remindedAt = new Date();
+  const recipients = rows.flatMap((row) => (row.userId ? [{ id: row.id, userId: row.userId }] : []));
+  if (recipients.length === 0) return actionError("Các sinh viên đã chọn chưa kích hoạt tài khoản cổng nên chưa nhận được thông báo.");
+  try {
+    await db.insert(notifications).values(
+      recipients.map((recipient) => ({
+        recipientUserId: recipient.userId,
+        audience: "student" as const,
+        kind: "deadline" as const,
+        title: "Bạn chưa đăng ký học phần",
+        body: `${term.name} đang trong đợt đăng ký của khóa bạn. Đăng ký trước khi đợt đóng để không bị thiếu tín chỉ tối thiểu.`,
+        href: REGISTRATION_REMINDER_HREF,
+        createdAt: remindedAt,
+      })),
+    );
+  } catch (error) {
+    return actionFailure(error, REGISTRATION_CONSTRAINT_MESSAGE);
+  }
+  revalidatePath("/administrator/registration-monitor");
+  return actionOk({ remindedIds: recipients.map((recipient) => recipient.id), remindedAt: remindedAt.toISOString(), withoutAccount: pending.length - recipients.length });
 }

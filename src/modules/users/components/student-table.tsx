@@ -7,8 +7,8 @@ import { FileArrowIn, Magnifier, Pen, Plus } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { PageHeader } from "@/shared/components/ui/page-header";
 import { StatusTag } from "@/shared/components/ui/status-tag";
-import { COHORT_OPTIONS, FACULTY_OPTIONS, STUDENT_STATUS, STUDENT_STATUS_OPTIONS } from "@/modules/users/users.constant";
-import type { Student, StudentFormValues, StudentStatus } from "@/modules/users/users.type";
+import { cohortOptions, facultiesOf, facultyOptions, STUDENT_STATUS, STUDENT_STATUS_OPTIONS, withNextCohort } from "@/modules/users/users.constant";
+import type { MajorRef, Student, StudentFormValues, StudentStatus } from "@/modules/users/users.type";
 import { StudentFormDrawer } from "@/modules/users/components/student-form-drawer";
 import { StudentImportModal } from "@/modules/users/components/student-import-modal";
 import { paginationItemRender } from "@/shared/constants/antd.constant";
@@ -22,7 +22,15 @@ export type StudentRow = Student & {
 
 const NETWORK_ERROR = "Chưa lưu được, kiểm tra kết nối rồi thử lại.";
 
-export function StudentTable({ students, header }: { students: StudentRow[]; header: { title: string; description?: React.ReactNode } }) {
+type StudentTableProps = {
+  students: StudentRow[];
+  // Danh mục ngành (trong phạm vi người xem) và các khóa đang có lớp, page đọc từ DB.
+  majors: MajorRef[];
+  cohorts: number[];
+  header: { title: string; description?: React.ReactNode };
+};
+
+export function StudentTable({ students, majors, cohorts, header }: StudentTableProps) {
   const [messageApi, contextHolder] = message.useMessage();
   const [rows, setRows] = useState(students);
   const [query, setQuery] = useState("");
@@ -34,6 +42,15 @@ export function StudentTable({ students, header }: { students: StudentRow[]; hea
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [isSaving, startSaving] = useTransition();
+  const facultyFilterOptions = useMemo(() => facultyOptions(facultiesOf(majors)), [majors]);
+  const cohortFilterOptions = useMemo(() => cohortOptions(cohorts), [cohorts]);
+  // Thêm mới hoặc nhập file được chọn cả khóa kế tiếp (tân sinh viên chưa có lớp).
+  const enrollableCohorts = useMemo(() => withNextCohort(cohorts), [cohorts]);
+  const importCatalog = useMemo(() => ({ majorCodes: majors.map((major) => major.code), cohorts: enrollableCohorts }), [majors, enrollableCohorts]);
+  const classes = useMemo(
+    () => [...new Map(rows.map((row) => [row.className, { code: row.className, majorCode: row.majorCode, cohort: row.cohort }])).values()],
+    [rows],
+  );
 
   const filtered = useMemo(() => {
     const needle = normalizeSearch(query.trim());
@@ -177,8 +194,8 @@ export function StudentTable({ students, header }: { students: StudentRow[]; hea
             aria-label="Tìm sinh viên"
             className="col-span-2 w-full sm:w-72"
           />
-          <Select allowClear value={faculty} onChange={setFaculty} placeholder="Mọi khoa" aria-label="Khoa" options={FACULTY_OPTIONS} className="col-span-2 w-full sm:w-60" />
-          <Select allowClear value={cohort} onChange={setCohort} placeholder="Mọi khóa" aria-label="Khóa" options={COHORT_OPTIONS} className="min-w-0 sm:w-36" />
+          <Select allowClear value={faculty} onChange={setFaculty} placeholder="Mọi khoa" aria-label="Khoa" options={facultyFilterOptions} className="col-span-2 w-full sm:w-60" />
+          <Select allowClear value={cohort} onChange={setCohort} placeholder="Mọi khóa" aria-label="Khóa" options={cohortFilterOptions} className="min-w-0 sm:w-36" />
           <Select
             allowClear
             value={status}
@@ -229,11 +246,20 @@ export function StudentTable({ students, header }: { students: StudentRow[]; hea
           }}
         />
 
-        <StudentFormDrawer open={isDrawerOpen} student={editing} onClose={() => setIsDrawerOpen(false)} onSubmit={handleSubmit} />
+        <StudentFormDrawer
+          open={isDrawerOpen}
+          student={editing}
+          majors={majors}
+          cohorts={enrollableCohorts}
+          classes={classes}
+          onClose={() => setIsDrawerOpen(false)}
+          onSubmit={handleSubmit}
+        />
 
         <StudentImportModal
           open={isImportOpen}
           existingCodes={rows.map((row) => row.code)}
+          catalog={importCatalog}
           onClose={() => setIsImportOpen(false)}
           onImport={async (values) => {
             const result = await importStudents(values).catch(() => null);

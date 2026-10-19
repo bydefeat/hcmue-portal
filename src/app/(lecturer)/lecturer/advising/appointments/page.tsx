@@ -21,8 +21,6 @@ export default async function Page() {
         appointments={appointments}
         advisees={advisees.map(({ id, code, fullName, className }) => ({ id, code, fullName, className }))}
         notes={notes}
-        advisorId={lecturer.id}
-        advisorName={lecturer.displayName}
       />
     </>
   );

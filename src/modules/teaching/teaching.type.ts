@@ -57,3 +57,9 @@ export type ClassAnnouncementFormValues = {
   schedule: boolean;
   publishAt?: string;
 };
+
+export type StudentClassAnnouncement = ClassAnnouncement & {
+  classCode: string;
+  courseName: string;
+  isRead: boolean;
+};

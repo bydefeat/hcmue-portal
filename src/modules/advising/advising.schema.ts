@@ -23,7 +23,11 @@ export const advisingAppointments = pgTable(
     note: text(),
     ...timestamps(),
   },
-  (table) => [index().on(table.advisorId, table.date), check("advising_appointments_duration_range", sql`${table.durationMinutes} BETWEEN 5 AND 240`)],
+  (table) => [
+    index().on(table.advisorId, table.date),
+    check("advising_appointments_duration_range", sql`${table.durationMinutes} BETWEEN 5 AND 240`),
+    check("advising_appointments_done_note", sql`${table.status} <> 'done' OR ${table.note} IS NOT NULL`),
+  ],
 );
 
 export const appointmentStudents = pgTable(

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
 import { Alert, AutoComplete, Button, Card, DatePicker, Drawer, Form, Input, message, Modal, Radio, Segmented, Select, TimePicker } from "antd";
 import { Notes, Plus } from "defeat-icons-react";
@@ -10,6 +10,9 @@ import { SectionCard } from "@/shared/components/ui/section-card";
 import { StatusTag } from "@/shared/components/ui/status-tag";
 import { weekdayLabel } from "@/shared/constants/period.constant";
 import { dayjs, formatDate, formatDateTime, weekdayOf } from "@/shared/libs/date.lib";
+import { toFormFields } from "@/shared/libs/form.lib";
+import { cancelAppointment, completeAppointment, createAppointment, markAppointmentMissed } from "@/modules/advising/advising.action";
+import { appointmentsOverlap } from "@/modules/advising/advising.rule";
 import { APPOINTMENT_DURATIONS, APPOINTMENT_MODE_LABEL, APPOINTMENT_STATUS, APPOINTMENT_TOPICS } from "@/modules/advising/advising.constant";
 import type { Appointment, AppointmentMode, AppointmentStudent, MeetingNote } from "@/modules/advising/advising.type";
 
@@ -17,8 +20,6 @@ type AppointmentBoardProps = {
   appointments: Appointment[];
   advisees: AppointmentStudent[];
   notes: MeetingNote[];
-  advisorId: string;
-  advisorName: string;
 };
 
 type View = "upcoming" | "past";
@@ -44,12 +45,6 @@ function startOf(appointment: Pick<Appointment, "date" | "startTime">) {
   return dayjs(`${appointment.date}T${appointment.startTime}`);
 }
 
-function overlapping(a: Pick<Appointment, "date" | "startTime" | "durationMinutes">, b: Pick<Appointment, "date" | "startTime" | "durationMinutes">) {
-  const aStart = startOf(a);
-  const bStart = startOf(b);
-  return aStart.isBefore(bStart.add(b.durationMinutes, "minute")) && bStart.isBefore(aStart.add(a.durationMinutes, "minute"));
-}
-
 function dayText(date: string) {
   const diff = dayjs(date).startOf("day").diff(dayjs().startOf("day"), "day");
   if (diff === 0) return "Hôm nay";
@@ -57,7 +52,7 @@ function dayText(date: string) {
   return `${weekdayLabel(weekdayOf(date))}, ${formatDate(date)}`;
 }
 
-export function AppointmentBoard({ appointments, advisees, notes: initialNotes, advisorId, advisorName }: AppointmentBoardProps) {
+export function AppointmentBoard({ appointments, advisees, notes: initialNotes }: AppointmentBoardProps) {
   const [messageApi, contextHolder] = message.useMessage();
   const [modal, modalContextHolder] = Modal.useModal();
   const [rows, setRows] = useState(appointments);
@@ -65,6 +60,7 @@ export function AppointmentBoard({ appointments, advisees, notes: initialNotes, 
   const [view, setView] = useState<View>("upcoming");
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [completing, setCompleting] = useState<Appointment | null>(null);
+  const [isSaving, startSaving] = useTransition();
   const [createForm] = Form.useForm<CreateValues>();
   const [doneForm] = Form.useForm<DoneValues>();
   const watched = Form.useWatch([], createForm) as Partial<CreateValues> | undefined;
@@ -86,49 +82,72 @@ export function AppointmentBoard({ appointments, advisees, notes: initialNotes, 
     watched?.date && watched?.time && watched?.durationMinutes
       ? { date: watched.date.format("YYYY-MM-DD"), startTime: watched.time.format("HH:mm"), durationMinutes: watched.durationMinutes }
       : null;
-  const clash = draft ? upcoming.find((row) => row.date === draft.date && overlapping(row, draft)) : undefined;
+  const clash = draft ? upcoming.find((row) => appointmentsOverlap(row, draft)) : undefined;
 
-  const update = (id: string, patch: Partial<Appointment>) => setRows((current) => current.map((row) => (row.id === id ? { ...row, ...patch } : row)));
+  const replace = (appointment: Appointment) => setRows((current) => current.map((row) => (row.id === appointment.id ? appointment : row)));
 
-  const create = (values: CreateValues) => {
-    const students = advisees.filter((student) => values.studentIds.includes(student.id));
-    const appointment: Appointment = {
-      id: `lh-moi-${Date.now()}`,
-      advisorId,
-      students,
-      topic: values.topic.trim(),
-      date: values.date.format("YYYY-MM-DD"),
-      startTime: values.time.format("HH:mm"),
-      durationMinutes: values.durationMinutes,
-      mode: values.mode,
-      location: values.location.trim(),
-      status: "scheduled",
-      note: null,
-    };
-    setRows((current) => [...current, appointment]);
-    setIsCreateOpen(false);
-    setView("upcoming");
-    messageApi.success(`Đã hẹn ${students.length} sinh viên lúc ${appointment.startTime} ${dayText(appointment.date).toLowerCase()}, lời mời đã gửi qua email`);
-  };
+  const create = (values: CreateValues) =>
+    startSaving(async () => {
+      const result = await createAppointment({
+        studentIds: values.studentIds,
+        topic: values.topic,
+        date: values.date.format("YYYY-MM-DD"),
+        startTime: values.time.format("HH:mm"),
+        durationMinutes: values.durationMinutes,
+        mode: values.mode,
+        location: values.location,
+      }).catch(() => null);
+      if (!result) {
+        messageApi.error("Chưa đặt được lịch, kiểm tra kết nối rồi thử lại.");
+        return;
+      }
+      if (!result.ok) {
+        const { startTime, ...fieldErrors } = result.fieldErrors ?? {};
+        createForm.setFields(toFormFields(startTime ? { ...fieldErrors, time: startTime } : fieldErrors));
+        messageApi.error(result.message);
+        return;
+      }
+      const appointment = result.data;
+      setRows((current) => [...current, appointment]);
+      setIsCreateOpen(false);
+      setView("upcoming");
+      messageApi.success(`Đã hẹn ${appointment.students.length} sinh viên lúc ${appointment.startTime} ${dayText(appointment.date).toLowerCase()}, lời mời đã gửi qua email`);
+    });
 
   const complete = (values: DoneValues) => {
     if (!completing) return;
-    update(completing.id, { status: "done", note: values.note.trim() });
-    setNotes((current) => [
-      ...completing.students.map((student, index) => ({
-        id: `gc-moi-${Date.now()}-${index}`,
-        studentId: student.id,
-        at: dayjs().toISOString(),
-        author: advisorName,
-        topic: completing.topic,
-        content: values.note.trim(),
-        followUp: values.followUp?.trim() || null,
-      })),
-      ...current,
-    ]);
-    setCompleting(null);
-    messageApi.success("Đã ghi nhận buổi gặp vào hồ sơ cố vấn của sinh viên");
+    startSaving(async () => {
+      const result = await completeAppointment({ id: completing.id, note: values.note, followUp: values.followUp ?? null }).catch(() => null);
+      if (!result) {
+        messageApi.error("Chưa lưu được, kiểm tra kết nối rồi thử lại.");
+        return;
+      }
+      if (!result.ok) {
+        doneForm.setFields(toFormFields(result.fieldErrors));
+        messageApi.error(result.message);
+        return;
+      }
+      replace(result.data.appointment);
+      setNotes((current) => [...result.data.notes, ...current]);
+      setCompleting(null);
+      messageApi.success("Đã ghi nhận buổi gặp vào hồ sơ cố vấn của sinh viên");
+    });
   };
+
+  const markMissed = (appointment: Appointment) =>
+    startSaving(async () => {
+      const result = await markAppointmentMissed(appointment.id).catch(() => null);
+      if (!result) {
+        messageApi.error("Chưa lưu được, kiểm tra kết nối rồi thử lại.");
+        return;
+      }
+      if (!result.ok) {
+        messageApi.error(result.message);
+        return;
+      }
+      replace(result.data);
+      messageApi.info("Đã ghi nhận sinh viên vắng");
+    });
 
   const cancel = (appointment: Appointment) =>
     modal.confirm({
@@ -138,8 +157,17 @@ export function AppointmentBoard({ appointments, advisees, notes: initialNotes, 
       okButtonProps: { danger: true },
       cancelText: "Giữ lịch",
       mask: { closable: false },
-      onOk: () => {
-        update(appointment.id, { status: "cancelled" });
+      onOk: async () => {
+        const result = await cancelAppointment(appointment.id).catch(() => null);
+        if (!result) {
+          messageApi.error("Chưa hủy được, kiểm tra kết nối rồi thử lại.");
+          return;
+        }
+        if (!result.ok) {
+          messageApi.error(result.message);
+          return;
+        }
+        replace(result.data);
         messageApi.success("Đã hủy lịch hẹn");
       },
     });
@@ -208,13 +236,7 @@ export function AppointmentBoard({ appointments, advisees, notes: initialNotes, 
                         <Button size="small" danger onClick={() => cancel(appointment)}>
                           Hủy hẹn
                         </Button>
-                        <Button
-                          size="small"
-                          onClick={() => {
-                            update(appointment.id, { status: "missed", note: "Sinh viên không đến." });
-                            messageApi.info("Đã ghi nhận sinh viên vắng");
-                          }}
-                        >
+                        <Button size="small" disabled={isSaving} onClick={() => markMissed(appointment)}>
                           Sinh viên vắng
                         </Button>
                         <Button size="small" type="primary" onClick={() => setCompleting(appointment)}>
@@ -275,8 +297,10 @@ export function AppointmentBoard({ appointments, advisees, notes: initialNotes, 
         title="Đặt lịch hẹn"
         footer={
           <div className="flex justify-end gap-2">
-            <Button onClick={() => setIsCreateOpen(false)}>Hủy</Button>
-            <Button type="primary" onClick={() => createForm.submit()}>
+            <Button onClick={() => setIsCreateOpen(false)} disabled={isSaving}>
+              Hủy
+            </Button>
+            <Button type="primary" onClick={() => createForm.submit()} loading={isSaving}>
               Gửi lời mời
             </Button>
           </div>
@@ -352,6 +376,7 @@ export function AppointmentBoard({ appointments, advisees, notes: initialNotes, 
         okText="Lưu ghi chú"
         cancelText="Hủy"
         onOk={() => doneForm.submit()}
+        confirmLoading={isSaving}
         onCancel={() => setCompleting(null)}
         mask={{ closable: false }}
         destroyOnHidden

@@ -7,7 +7,7 @@ import { IMPORT_COLUMNS, templateCsv, validateImportRow, type ImportCatalog, typ
 import type { StudentFormValues } from "@/modules/users/users.type";
 import { paginationItemRender } from "@/shared/constants/antd.constant";
 import { normalizeStudentCode } from "@/shared/libs/student-code.lib";
-import { downloadFile } from "@/shared/libs/download.lib";
+import { downloadFile, parseCsv } from "@/shared/libs/download.lib";
 
 type StudentImportModalProps = {
   open: boolean;
@@ -19,23 +19,11 @@ type StudentImportModalProps = {
   onImport: (values: StudentFormValues[]) => Promise<boolean>;
 };
 
-const XLSX_SAMPLE: string[][] = [
-  ["5101104201", "Nguyễn Văn An", "Nam", "15/03/2007", "", "0901234567", "104", "51", "51.01.CNTT.A"],
-  ["5101101202", "Trần Thị Bình", "Nữ", "02/11/2007", "", "", "101", "51", "51.01.TOAN.B"],
-  ["5101601203", "Lê Minh Châu", "Nữ", "2007-08-21", "", "", "601", "51", "51.01.VAN.A"],
-  ["4901104008", "Dương Nhật Nam", "Nam", "28/07/2005", "", "", "104", "49", "49.01.CNTT.A"],
-  ["5101751204", "Phạm Gia Huy", "Nam", "09/01/2007", "huy@", "", "751", "51", "51.01.ANH.A"],
-  ["5101102205", "", "Nữ", "30/04/2007", "", "", "102", "51", "51.01.LY.B"],
-  ["5101611206", "Võ Thanh Tâm", "Nữ", "12/12/2007", "", "0987654321", "611", "51", "51.01.TLH.A"],
-  ["5101999207", "Hồ Quốc Khánh", "Nam", "05/06/2007", "", "", "999", "51", "51.01.CNTT.B"],
-];
-
-function parseCsv(text: string): ImportRow[] {
-  return text
-    .split(/\r?\n/)
+// Bỏ dòng tiêu đề; số dòng tính theo tệp (dòng 1 là tiêu đề) để người dùng tìm lại trong Excel.
+function importRows(text: string): ImportRow[] {
+  return parseCsv(text)
     .slice(1)
-    .map((line, index) => ({ line: index + 2, cells: line.split(",") }))
-    .filter((row) => row.cells.some((cell) => cell.trim()));
+    .map((cells, index) => ({ line: index + 2, cells }));
 }
 
 
@@ -137,22 +125,18 @@ export function StudentImportModal({ open, existingCodes, catalog, onClose, onIm
             Tải file mẫu
           </Button>
           <Upload.Dragger
-            accept=".csv,.xlsx"
+            accept=".csv"
             maxCount={1}
             showUploadList={false}
             beforeUpload={(file) => {
               setFileName(file.name);
-              if (file.name.toLowerCase().endsWith(".csv")) {
-                file.text().then((text) => check(parseCsv(text)));
-              } else {
-                check(XLSX_SAMPLE.map((cells, index) => ({ line: index + 2, cells })));
-              }
+              file.text().then((text) => check(importRows(text)));
               return false;
             }}
           >
             <div className="flex flex-col items-center gap-2 py-4">
               <FileArrowIn size={28} aria-hidden className="text-muted" />
-              <span className="font-medium">Kéo tệp .csv hoặc .xlsx vào đây, hoặc chọn tệp</span>
+              <span className="font-medium">Kéo tệp .csv vào đây, hoặc chọn tệp (trong Excel chọn Lưu thành CSV UTF-8)</span>
               <span className="text-xs text-muted">Tối đa 5 MB, 2.000 dòng</span>
             </div>
           </Upload.Dragger>

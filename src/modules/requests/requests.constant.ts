@@ -1,5 +1,6 @@
 import type { StatusMeta } from "@/shared/constants/status.constant";
 import { dayjs } from "@/shared/libs/date.lib";
+import { MB, type UploadKind } from "@/shared/libs/upload.lib";
 import type { AcademicRequest, RequesterType, RequestKind, RequestKindConfig, RequestStatus, RequestView, StepRole, StepStatus } from "@/modules/requests/requests.type";
 
 export const STEP_ROLE_LABEL: Record<StepRole, string> = {
@@ -145,13 +146,19 @@ export function requestView(request: AcademicRequest): RequestView {
   return { ...request, status, currentStep, isOverdue };
 }
 
-// Bước của đơn vị quản trị: vai trò nào xử lý bước nào. Vai trò toàn quyền (Trưởng phòng, Quản trị) và vai trò tự tạo có quyền
-// xử lý đơn thì xử lý được mọi bước của khoa, phòng. Bước cố vấn, giảng viên chỉ xử lý ở cổng giảng viên.
+// Bước của đơn vị quản trị: vai trò hệ thống nào xử lý bước nào. Chỉ vai trò toàn quyền (Trưởng phòng Đào tạo, Quản trị hệ thống)
+// xử lý được mọi bước; vai trò tự tạo hoặc khóa lạ không xử lý bước nào dù có quyền requests.process, để không vượt quyền
+// của khoa, phòng. Bước cố vấn, giảng viên chỉ xử lý ở cổng giảng viên.
+const OFFICE_STEP_ROLES: Partial<Record<string, StepRole[]>> = {
+  "system-admin": ["academic-office", "faculty", "exam-office"],
+  "academic-head": ["academic-office", "faculty", "exam-office"],
+  "academic-officer": ["academic-office"],
+  "faculty-secretary": ["faculty"],
+  "exam-office": ["exam-office"],
+};
+
 export function officeStepRoles(roleKey: string | null): StepRole[] {
-  if (roleKey === "faculty-secretary") return ["faculty"];
-  if (roleKey === "exam-office") return ["exam-office"];
-  if (roleKey === "academic-officer") return ["academic-office"];
-  return ["academic-office", "faculty", "exam-office"];
+  return (roleKey ? OFFICE_STEP_ROLES[roleKey] : undefined) ?? [];
 }
 
 export const OFFICE_UNIT_LABEL: Record<Exclude<StepRole, "advisor" | "lecturer" | "faculty">, string> = {
@@ -161,7 +168,14 @@ export const OFFICE_UNIT_LABEL: Record<Exclude<StepRole, "advisor" | "lecturer" 
 
 export const REQUEST_CODE_PREFIX: Record<RequesterType, "DT" | "GV"> = { student: "DT", lecturer: "GV" };
 
-export const ATTACHMENT_LIMIT = { files: 5, bytes: 5 * 1024 * 1024 };
+// Mỗi tệp tối đa 10 MB (DB chặn bằng request_attachments_size_range), cả đơn tối đa 25 MB để vừa giới hạn thân request của server action.
+export const ATTACHMENT_LIMIT = { files: 5, bytes: 10 * MB, totalBytes: 25 * MB, kinds: ["pdf", "png", "jpeg", "docx"] as UploadKind[] };
+
+export function requestAttachmentHref(attachmentId: string) {
+  return `/api/files/requests/${attachmentId}`;
+}
+
+export const ATTACHMENT_HINT = "PDF, ảnh PNG/JPG hoặc Word (.docx), tối đa 5 tệp, mỗi tệp không quá 10 MB, tổng không quá 25 MB";
 
 export type RequestFieldSpec = {
   name: string;
@@ -171,6 +185,8 @@ export type RequestFieldSpec = {
   min?: number;
   max?: number;
   step?: number;
+  // Sinh viên tự khai, hệ thống có giá trị riêng để đối chiếu: chi tiết đơn ghi rõ "sinh viên khai".
+  declared?: boolean;
 };
 
 // Thông tin riêng của từng loại đơn sinh viên: form hiện theo danh sách này, server kiểm lại và ghép thành phần chi tiết của đơn.
@@ -186,11 +202,11 @@ export const STUDENT_REQUEST_FIELDS: Record<RequestKind, RequestFieldSpec[]> = {
   ],
   regrade: [
     { name: "section", label: "Lớp học phần", kind: "section" },
-    { name: "score", label: "Điểm thi hiện tại", kind: "number", min: 0, max: 10, step: 0.25 },
+    { name: "score", label: "Điểm thi hiện tại", kind: "number", min: 0, max: 10, step: 0.25, declared: true },
   ],
   "exam-postpone": [
     { name: "section", label: "Lớp học phần", kind: "section" },
-    { name: "examDate", label: "Ngày thi", kind: "date" },
+    { name: "examDate", label: "Ngày thi", kind: "date", declared: true },
   ],
   reserve: [{ name: "duration", label: "Thời gian bảo lưu", kind: "select", options: ["1 học kỳ", "2 học kỳ"] }],
   transcript: [
@@ -222,6 +238,6 @@ export const REQUESTS_CONSTRAINT_MESSAGE: Partial<Record<string, string>> = {
   request_steps_lecturer_assignee: "Bước của giảng viên phải gán giảng viên dạy lớp, bước khác không gán giảng viên.",
   request_steps_assignee_lecturer_id_lecturers_id_fk: "Giảng viên còn bước đơn từ được giao, không xóa được.",
   request_attachments_size_range: "Mỗi tệp minh chứng từ 1 byte đến 10 MB.",
-  request_attachments_storage_key_unique: "Tệp minh chứng bị trùng khóa lưu trữ.",
+  request_attachments_storage_key_unique: "Tệp minh chứng bị trùng khóa lưu trữ. Gửi lại đơn.",
   request_code_counters_last_value_range: "Đã hết số mã đơn của năm nay (tối đa 99999). Báo quản trị hệ thống.",
 };

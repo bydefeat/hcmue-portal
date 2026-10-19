@@ -6,7 +6,8 @@ import { FileContent, Magnifier } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { StatusTag } from "@/shared/components/ui/status-tag";
 import { dayjs, formatDate, formatDateTime } from "@/shared/libs/date.lib";
-import { REQUEST_KINDS, REQUEST_STATUS } from "@/modules/requests/requests.constant";
+import { formatFileSize } from "@/shared/libs/upload.lib";
+import { REQUEST_KINDS, REQUEST_STATUS, requestAttachmentHref } from "@/modules/requests/requests.constant";
 import { cancelRequest, decideAsLecturer, decideAsOffice } from "@/modules/requests/requests.action";
 import type { RequestKind, RequestStatus, RequestView, StepRole } from "@/modules/requests/requests.type";
 import { ApprovalSteps } from "@/modules/requests/components/approval-steps";
@@ -59,6 +60,9 @@ export function RequestInbox({
     (request.status === "pending" || request.status === "in-review") &&
     actorRoles.includes(request.currentStep.role) &&
     (request.currentStep.assigneeId === null || request.currentStep.assigneeId === actorId || request.currentStep.role === "faculty");
+
+  // Cán bộ chỉ tải minh chứng của đơn có bước thuộc vai trò mình (server kiểm lại ở route tải tệp).
+  const canOpenFiles = (request: RequestView) => mode === "own" || processAs === "lecturer" || request.steps.some((step) => actorRoles.includes(step.role));
 
   const actionable = rows.filter(canAct);
   const [scope, setScope] = useState<Scope>(mode === "process" && actionable.length > 0 && !initialStatus ? "mine" : "all");
@@ -346,11 +350,19 @@ export function RequestInbox({
               <div className="flex flex-col gap-1">
                 <span className="text-xs font-medium text-muted">Minh chứng</span>
                 {opened.attachments.map((file) => (
-                  <span key={file} className="flex items-center gap-2 text-sm">
-                    <FileContent size={16} aria-hidden className="text-muted" />
-                    {file}
+                  <span key={file.id} className="flex min-w-0 items-center gap-2 text-sm">
+                    <FileContent size={16} aria-hidden className="shrink-0 text-muted" />
+                    {canOpenFiles(opened) ? (
+                      <a href={requestAttachmentHref(file.id)} className="truncate text-primary hover:underline">
+                        {file.fileName}
+                      </a>
+                    ) : (
+                      <span className="truncate">{file.fileName}</span>
+                    )}
+                    <span className="shrink-0 text-xs text-muted tabular-nums">{formatFileSize(file.sizeBytes)}</span>
                   </span>
                 ))}
+                {!canOpenFiles(opened) && <span className="text-xs text-muted">Chỉ người gửi và người có bước duyệt đơn này tải được minh chứng.</span>}
               </div>
             )}
             <div className="flex flex-col gap-2">

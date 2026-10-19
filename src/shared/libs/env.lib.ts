@@ -20,6 +20,8 @@ const schema = z.object({
   DEFEAT_MAIL_FROM: blankAsUnset(z.string().default("HCMUE Portal <onboarding@resend.dev>")),
   // Khóa bí mật của bộ hẹn giờ gọi /api/cron/<tác vụ>. Bỏ trống thì endpoint tắt.
   DEFEAT_CRON_SECRET: blankAsUnset(z.string().min(32).optional()),
+  // Thư mục lưu tệp tải lên (minh chứng đơn từ, đề thi), tương đối thì tính từ thư mục chạy app.
+  DEFEAT_STORAGE_DIRECTORY: blankAsUnset(z.string().trim().min(1).default("./storage")),
 });
 
 export const env = schema.parse(process.env);

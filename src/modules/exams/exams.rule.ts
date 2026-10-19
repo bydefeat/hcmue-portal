@@ -1,6 +1,8 @@
 import { z } from "zod";
 import { dayjs } from "@/shared/libs/date.lib";
-import { PROCTORS_PER_ROOM } from "@/modules/exams/exams.constant";
+import { checkUpload } from "@/shared/libs/upload.lib";
+import { EXAM_PAPER_LIMIT, PROCTORS_PER_ROOM } from "@/modules/exams/exams.constant";
+import type { ExamPaperFileKind } from "@/modules/exams/exams.type";
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -40,20 +42,42 @@ export const ELIGIBILITY_OVERRIDE_SCHEMA = z.object({
 
 export type EligibilityOverrideInput = z.input<typeof ELIGIBILITY_OVERRIDE_SCHEMA>;
 
-const PDF_NAME = z
-  .string("Chưa chọn tệp")
-  .trim()
-  .min(1, "Chưa chọn tệp")
-  .max(200, "Tên tệp quá dài")
-  .refine((name) => name.toLowerCase().endsWith(".pdf"), "Chỉ nhận tệp PDF");
-
 export const EXAM_PAPER_SUBMIT_SCHEMA = z.object({
   examSessionId: z.uuid("Ca thi không hợp lệ"),
-  paperFileName: PDF_NAME,
-  keyFileName: PDF_NAME,
 });
 
-export type ExamPaperSubmitInput = z.input<typeof EXAM_PAPER_SUBMIT_SCHEMA>;
+// Form nộp đề đi qua FormData: ô "examSessionId", tệp ở ô "paper" (đề thi) và "answer-key" (đáp án, thang điểm).
+export function readExamPaperForm(formData: FormData) {
+  const fileOf = (name: ExamPaperFileKind) => {
+    const entry = formData.get(name);
+    return entry !== null && typeof entry !== "string" ? entry : null;
+  };
+  return { input: { examSessionId: formData.get("examSessionId") }, files: { paper: fileOf("paper"), "answer-key": fileOf("answer-key") } };
+}
+
+export type ExamPaperUpload = { name: string; size: number; head: Uint8Array };
+
+export type ExamPaperCheck =
+  | { ok: true; files: Record<ExamPaperFileKind, { name: string; contentType: string }> }
+  | { ok: false; fieldErrors: Partial<Record<ExamPaperFileKind, string>> };
+
+// Đủ hai tệp, mỗi tệp là PDF thật (đuôi và chữ ký đầu tệp) không quá 20 MB. Báo lỗi riêng cho từng tệp.
+export function checkExamPaperFiles(files: Record<ExamPaperFileKind, ExamPaperUpload | null>): ExamPaperCheck {
+  const fieldErrors: Partial<Record<ExamPaperFileKind, string>> = {};
+  const checked: Partial<Record<ExamPaperFileKind, { name: string; contentType: string }>> = {};
+  for (const kind of ["paper", "answer-key"] as const) {
+    const file = files[kind];
+    if (!file) {
+      fieldErrors[kind] = kind === "paper" ? "Chưa chọn tệp đề thi" : "Chưa chọn tệp đáp án, thang điểm";
+      continue;
+    }
+    const result = checkUpload(file, { kinds: EXAM_PAPER_LIMIT.kinds, maxBytes: EXAM_PAPER_LIMIT.bytes });
+    if (result.ok) checked[kind] = { name: result.name, contentType: result.contentType };
+    else fieldErrors[kind] = result.message;
+  }
+  if (checked.paper && checked["answer-key"]) return { ok: true, files: { paper: checked.paper, "answer-key": checked["answer-key"] } };
+  return { ok: false, fieldErrors };
+}
 
 export const PROCTOR_SWAP_SCHEMA = z.object({
   examSessionId: z.uuid("Ca thi không hợp lệ"),
@@ -63,7 +87,3 @@ export const PROCTOR_SWAP_SCHEMA = z.object({
 
 export type ProctorSwapInput = z.input<typeof PROCTOR_SWAP_SCHEMA>;
 
-// Khóa lưu đề thi: mỗi lần nộp một khóa mới để bản cũ không bị ghi đè trước khi Phòng Khảo thí duyệt.
-export function examPaperStorageKey(examSessionId: string, submissionId: string) {
-  return `exam-papers/${examSessionId}/${submissionId}`;
-}

@@ -1,15 +1,17 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
-import { Alert, Button, DatePicker, Drawer, Form, Input, InputNumber, message, Select, Upload, type UploadFile } from "antd";
+import { Alert, Button, DatePicker, Drawer, Form, Input, InputNumber, message, Select, Upload } from "antd";
 import { Plus, Upload as UploadIcon } from "defeat-icons-react";
 import { dayjs } from "@/shared/libs/date.lib";
 import { toFormFields } from "@/shared/libs/form.lib";
-import { ATTACHMENT_LIMIT, REQUEST_KINDS, STUDENT_REQUEST_FIELDS, STUDENT_REQUEST_KINDS } from "@/modules/requests/requests.constant";
+import { acceptOf } from "@/shared/libs/upload.lib";
+import { ATTACHMENT_HINT, ATTACHMENT_LIMIT, REQUEST_KINDS, STUDENT_REQUEST_FIELDS, STUDENT_REQUEST_KINDS } from "@/modules/requests/requests.constant";
 import { createStudentRequest } from "@/modules/requests/requests.action";
 import type { StudentRequestInput } from "@/modules/requests/requests.rule";
 import type { RequestKind, RequestView } from "@/modules/requests/requests.type";
 import { RequestInbox } from "@/modules/requests/components/request-inbox";
+import { requestFormData, useAttachmentPicker } from "@/modules/requests/components/attachment-picker";
 import { PageHeader } from "@/shared/components/ui/page-header";
 
 type SectionOption = { value: string; label: string };
@@ -27,19 +29,14 @@ type Requester = {
 
 type FormValues = Record<string, string | number | dayjs.Dayjs | undefined> & { kind: RequestKind; reason: string };
 
-function toInput(values: FormValues, files: UploadFile[]): StudentRequestInput {
+function toInput(values: FormValues): StudentRequestInput {
   const fields = Object.fromEntries(
     STUDENT_REQUEST_FIELDS[values.kind].map((field) => {
       const value = values[field.name];
       return [field.name, field.kind === "date" && dayjs.isDayjs(value) ? value.format("YYYY-MM-DD") : value];
     }),
   );
-  return {
-    ...fields,
-    kind: values.kind,
-    reason: values.reason,
-    attachments: files.map((file) => ({ name: file.name, size: file.size ?? 0, type: file.type ?? "" })),
-  };
+  return { ...fields, kind: values.kind, reason: values.reason };
 }
 
 type NewRequestDrawerProps = {
@@ -54,7 +51,7 @@ type NewRequestDrawerProps = {
 export function NewRequestDrawer({ open, requester, sections, overloadMinCpa, onClose, onSubmit }: NewRequestDrawerProps) {
   const [form] = Form.useForm<FormValues>();
   const [messageApi, contextHolder] = message.useMessage();
-  const [files, setFiles] = useState<UploadFile[]>([]);
+  const picker = useAttachmentPicker((text) => messageApi.error(text));
   const [isPending, startTransition] = useTransition();
   const kind = Form.useWatch("kind", form);
   const config = kind ? REQUEST_KINDS[kind] : null;
@@ -69,7 +66,7 @@ export function NewRequestDrawer({ open, requester, sections, overloadMinCpa, on
   }, [open, form]);
 
   const close = () => {
-    setFiles([]);
+    picker.clear();
     onClose();
   };
 
@@ -95,13 +92,17 @@ export function NewRequestDrawer({ open, requester, sections, overloadMinCpa, on
         layout="vertical"
         onFinish={(values) =>
           startTransition(async () => {
-            const result = await createStudentRequest(toInput(values, files));
+            const result = await createStudentRequest(requestFormData(toInput(values), picker.files)).catch(() => null);
+            if (!result) {
+              messageApi.error("Chưa gửi được, kiểm tra kết nối rồi thử lại.");
+              return;
+            }
             if (!result.ok) {
               form.setFields(toFormFields(result.fieldErrors));
               messageApi.error(result.fieldErrors?.attachments ?? result.message);
               return;
             }
-            setFiles([]);
+            picker.clear();
             onSubmit(result.data);
           })
         }
@@ -148,16 +149,8 @@ export function NewRequestDrawer({ open, requester, sections, overloadMinCpa, on
             <Form.Item name="reason" label="Lý do" rules={[{ required: true, whitespace: true, message: "Chưa nhập lý do" }]}>
               <Input.TextArea autoSize={{ minRows: 3, maxRows: 6 }} maxLength={1000} showCount />
             </Form.Item>
-            <Form.Item label="Minh chứng" extra="PDF hoặc ảnh, tối đa 5 tệp, mỗi tệp không quá 5 MB">
-              <Upload
-                fileList={files}
-                beforeUpload={(file) => {
-                  setFiles((current) => [...current, { uid: file.uid, name: file.name, size: file.size, type: file.type, status: "done" as const }].slice(0, ATTACHMENT_LIMIT.files));
-                  return false;
-                }}
-                onRemove={(file) => setFiles((current) => current.filter((entry) => entry.uid !== file.uid))}
-                accept=".pdf,.png,.jpg,.jpeg"
-              >
+            <Form.Item label="Minh chứng" extra={ATTACHMENT_HINT}>
+              <Upload multiple fileList={picker.fileList} beforeUpload={picker.beforeUpload} onRemove={picker.onRemove} accept={acceptOf(ATTACHMENT_LIMIT.kinds)}>
                 <Button icon={<UploadIcon size={16} aria-hidden className="text-zinc-500" />}>Chọn tệp</Button>
               </Upload>
             </Form.Item>

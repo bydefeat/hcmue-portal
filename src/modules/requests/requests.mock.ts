@@ -2,7 +2,7 @@ import { dayjs } from "@/shared/libs/date.lib";
 import { mockDate, mockId, mockLecturerIdentity, mockStudentIdentity } from "@/shared/libs/mock.lib";
 import { ADVISOR_ASSIGNMENTS } from "@/modules/users/users.mock";
 import { REQUEST_KINDS } from "@/modules/requests/requests.constant";
-import type { AcademicRequest, ApprovalStep, RequestDetail, RequestKind } from "@/modules/requests/requests.type";
+import type { AcademicRequest, ApprovalStep, RequestAttachment, RequestDetail, RequestKind } from "@/modules/requests/requests.type";
 
 const OFFICERS = { faculty: "Võ Thanh Trang", "academic-office": "Nguyễn Thị Thu Hà", "exam-office": "Huỳnh Văn Sơn" } as const;
 
@@ -67,6 +67,16 @@ function buildSteps(seed: Seed, createdAt: string, advisor: { id: string; name: 
   });
 }
 
+// Minh chứng mẫu đều là PDF; seed ghi một tệp PDF nhỏ cho mỗi tệp và lưu kích thước thật của tệp đó.
+function attachmentsOf(seed: Seed, index: number): RequestAttachment[] {
+  return (seed.attachments ?? []).map((fileName, position) => ({
+    id: mockId(`request:${index + 1}:attachment:${position + 1}`),
+    fileName,
+    contentType: "application/pdf",
+    sizeBytes: 0,
+  }));
+}
+
 function build(seed: Seed, index: number): AcademicRequest {
   const createdAt = mockDate(-seed.daysAgo, `${8 + (index % 9)}:${String((index * 7) % 60).padStart(2, "0")}`);
   const year = 2026;
@@ -88,7 +98,7 @@ function build(seed: Seed, index: number): AcademicRequest {
       subject: seed.subject,
       details: seed.details,
       reason: seed.reason,
-      attachments: seed.attachments ?? [],
+      attachments: attachmentsOf(seed, index),
       createdAt,
       cancelledAt: seed.cancelled ? mockDate(-seed.daysAgo + 1, "10:00") : null,
       steps: buildSteps(seed, createdAt, advisor),
@@ -108,7 +118,7 @@ function build(seed: Seed, index: number): AcademicRequest {
     subject: seed.subject,
     details: seed.details,
     reason: seed.reason,
-    attachments: seed.attachments ?? [],
+    attachments: attachmentsOf(seed, index),
     createdAt,
     cancelledAt: seed.cancelled ? mockDate(-seed.daysAgo + 1, "10:00") : null,
     steps: buildSteps(seed, createdAt, null),

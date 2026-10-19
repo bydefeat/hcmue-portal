@@ -1,10 +1,15 @@
 import { timingSafeEqual } from "node:crypto";
 import { env } from "@/shared/libs/env.lib";
+import { sweepOrphanExamFiles } from "@/modules/exams/exams.lib";
+import { sweepOrphanRequestFiles } from "@/modules/requests/requests.lib";
 
 // Tác vụ định kỳ, gọi từ bộ hẹn giờ ngoài (cron của máy chủ, Vercel Cron, ...): POST /api/cron/<tác vụ>
 // với header Authorization: Bearer <DEFEAT_CRON_SECRET>. Mỗi tác vụ phải chạy lặp lại được (gọi hai lần không sinh trùng).
 // Thêm tác vụ: viết hàm trong module (trả số việc đã làm) rồi đăng ký vào JOBS.
-const JOBS: Record<string, () => Promise<Record<string, number>>> = {};
+const JOBS: Record<string, () => Promise<Record<string, number>>> = {
+  // Tệp trong kho không còn dòng DB nào trỏ tới (giao dịch hỏng giữa chừng, bản đề thi cũ chưa xóa được).
+  "orphan-files": async () => ({ ...(await sweepOrphanRequestFiles()), ...(await sweepOrphanExamFiles()) }),
+};
 
 function authorized(request: Request) {
   if (!env.DEFEAT_CRON_SECRET) return false;

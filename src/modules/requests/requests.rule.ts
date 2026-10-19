@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { periodLabel, periodTimeRange, weekdayLabel } from "@/shared/constants/period.constant";
 import { dayjs, formatDate } from "@/shared/libs/date.lib";
+import { checkUpload, formatFileSize } from "@/shared/libs/upload.lib";
 import {
   ATTACHMENT_LIMIT,
   REQUEST_KINDS,
@@ -12,20 +13,39 @@ import type { RequestDetail, RequestKind, StepRole, StepStatus } from "@/modules
 
 const reason = (max: number) => z.string("Chưa nhập lý do").trim().min(1, "Chưa nhập lý do").max(max, `Tối đa ${max} ký tự`);
 
-// Chưa có kho lưu tệp nên chỉ nhận tên, kích thước, kiểu tệp. DB còn chặn kích thước bằng request_attachments_size_range.
-export const ATTACHMENT_SCHEMA = z.object({
-  name: z.string().trim().min(1, "Tệp không có tên").max(255, "Tên tệp tối đa 255 ký tự"),
-  size: z.int().min(1, "Tệp rỗng, chọn tệp khác").max(ATTACHMENT_LIMIT.bytes, "Mỗi tệp không quá 5 MB"),
-  type: z
-    .string()
-    .trim()
-    .max(100)
-    .transform((value) => value || "application/octet-stream"),
-});
+export type AttachmentUpload = { name: string; size: number; head: Uint8Array };
 
-const attachments = z.array(ATTACHMENT_SCHEMA).max(ATTACHMENT_LIMIT.files, `Tối đa ${ATTACHMENT_LIMIT.files} tệp`).default([]);
+export type AttachmentCheck = { ok: true; files: { name: string; contentType: string }[] } | { ok: false; message: string };
 
-export type AttachmentInput = z.input<typeof ATTACHMENT_SCHEMA>;
+// Minh chứng gửi kèm đơn: đúng loại tệp cho phép (đuôi và chữ ký đầu tệp), từng tệp và cả đơn không quá giới hạn.
+// Kiểu tệp lưu xuống lấy theo nội dung tệp, không theo kiểu trình duyệt gửi.
+export function checkAttachments(files: AttachmentUpload[]): AttachmentCheck {
+  if (files.length > ATTACHMENT_LIMIT.files) return { ok: false, message: `Tối đa ${ATTACHMENT_LIMIT.files} tệp minh chứng.` };
+  const total = files.reduce((sum, file) => sum + file.size, 0);
+  if (total > ATTACHMENT_LIMIT.totalBytes) {
+    return { ok: false, message: `Tổng dung lượng minh chứng ${formatFileSize(total)}, tối đa ${formatFileSize(ATTACHMENT_LIMIT.totalBytes)} mỗi đơn.` };
+  }
+  const checked: { name: string; contentType: string }[] = [];
+  for (const file of files) {
+    const result = checkUpload(file, { kinds: ATTACHMENT_LIMIT.kinds, maxBytes: ATTACHMENT_LIMIT.bytes });
+    if (!result.ok) return result;
+    checked.push({ name: result.name, contentType: result.contentType });
+  }
+  return { ok: true, files: checked };
+}
+
+// Form gửi đơn đi qua FormData để mang được tệp: phần dữ liệu là JSON ở ô "input", tệp ở các ô "files".
+export function readRequestForm(formData: FormData): { input: unknown; files: File[] } {
+  const raw = formData.get("input");
+  let input: unknown = null;
+  try {
+    input = typeof raw === "string" ? JSON.parse(raw) : null;
+  } catch {
+    input = null;
+  }
+  const files = formData.getAll("files").filter((entry): entry is File => typeof entry !== "string");
+  return { input, files };
+}
 
 function fieldSchema(field: RequestFieldSpec) {
   const label = field.label.toLowerCase();
@@ -45,7 +65,7 @@ function fieldSchema(field: RequestFieldSpec) {
 }
 
 // Thông tin riêng của từng loại đơn nằm phẳng cùng cấp với kind để lỗi gắn đúng ô của form. Kiểm từng ô trong transform để
-// báo lỗi mọi ô cùng lúc (zod dừng ở object gốc nếu để lý do, tệp ở object ngoài).
+// báo lỗi mọi ô cùng lúc (zod dừng ở object gốc nếu để lý do ở object ngoài). Tệp minh chứng kiểm riêng bằng checkAttachments.
 export const STUDENT_REQUEST_SCHEMA = z
   .looseObject({ kind: z.enum(STUDENT_REQUEST_KINDS as [RequestKind, ...RequestKind[]], "Chưa chọn loại đơn") })
   .transform((input, context) => {
@@ -60,7 +80,7 @@ export const STUDENT_REQUEST_SCHEMA = z
       const value = take<string | number>(fieldSchema(field), field.name);
       if (value !== undefined) fields[field.name] = value;
     }
-    return { kind: input.kind, reason: take(reason(1000), "reason") ?? "", attachments: take(attachments, "attachments") ?? [], fields };
+    return { kind: input.kind, reason: take(reason(1000), "reason") ?? "", fields };
   });
 
 export type StudentRequestInput = z.input<typeof STUDENT_REQUEST_SCHEMA>;
@@ -68,19 +88,22 @@ export type StudentRequestValues = z.output<typeof STUDENT_REQUEST_SCHEMA>;
 
 const score = (message: string) => z.number(message).min(0, "Điểm từ 0 đến 10").max(10, "Điểm từ 0 đến 10");
 
-const GRADE_CHANGE_SCHEMA = z
-  .object({
-    kind: z.literal("grade-change"),
-    classId: z.uuid("Chưa chọn lớp"),
-    studentId: z.uuid("Chưa chọn sinh viên"),
-    componentKey: z.string("Chưa chọn cột điểm").trim().min(1, "Chưa chọn cột điểm").max(50),
-    componentLabel: z.string().trim().min(1, "Chưa chọn cột điểm").max(100),
-    oldScore: score("Điểm hiện tại không hợp lệ").nullable(),
-    newScore: score("Chưa nhập điểm mới").multipleOf(0.01, "Tối đa 2 chữ số thập phân"),
-    reason: reason(500),
-    attachments,
-  })
-  .refine((input) => input.oldScore === null || input.newScore !== input.oldScore, { path: ["newScore"], message: "Điểm mới trùng điểm hiện tại" });
+// Nhãn cột điểm và điểm hiện tại không nhận từ client: server đọc từ bảng điểm của lớp (xem gradeChangeBlockedReason).
+const GRADE_CHANGE_SCHEMA = z.object({
+  kind: z.literal("grade-change"),
+  classId: z.uuid("Chưa chọn lớp"),
+  studentId: z.uuid("Chưa chọn sinh viên"),
+  componentKey: z.string("Chưa chọn cột điểm").trim().min(1, "Chưa chọn cột điểm").max(50),
+  newScore: score("Chưa nhập điểm mới").multipleOf(0.01, "Tối đa 2 chữ số thập phân"),
+  reason: reason(500),
+});
+
+// Đơn sửa điểm: cột điểm phải có trong bảng điểm của lớp, điểm mới khác điểm đang lưu.
+export function gradeChangeBlockedReason(component: { label: string } | null, oldScore: number | null, newScore: number) {
+  if (!component) return { field: "componentKey", message: "Lớp chưa có cột điểm này trong bảng điểm. Tải lại trang." };
+  if (oldScore !== null && oldScore === newScore) return { field: "newScore", message: "Điểm mới trùng điểm hiện tại" };
+  return null;
+}
 
 const period = (message: string) => z.int(message).min(1, message).max(12, message);
 
@@ -94,7 +117,6 @@ const TEACHING_LEAVE_SCHEMA = z
     makeupEnd: period("Chọn tiết"),
     makeupRoom: z.string("Chọn phòng").trim().min(1, "Chọn phòng").max(20),
     reason: reason(500),
-    attachments,
   })
   .refine((input) => input.makeupEnd >= input.makeupStart, { path: ["makeupEnd"], message: "Tiết kết thúc đứng trước tiết bắt đầu" });
 
@@ -124,8 +146,15 @@ function numberText(value: number) {
   return String(value).replace(".", ",");
 }
 
-// Phần chi tiết và nội dung của đơn sinh viên ghép ở server từ giá trị đã kiểm, lớp học phần tra từ DB.
-export function studentRequestContent(values: Pick<StudentRequestValues, "kind" | "fields">, sectionLabel: string | null) {
+// Dữ liệu hệ thống đặt cạnh giá trị sinh viên tự khai để người duyệt đối chiếu (điểm thi, lịch thi của lớp).
+export type StudentRequestFacts = {
+  examScore?: number | null;
+  examDates?: { kind: "midterm" | "final"; date: string }[];
+};
+
+// Phần chi tiết và nội dung của đơn sinh viên ghép ở server từ giá trị đã kiểm, lớp học phần tra từ DB. Ô sinh viên tự khai
+// (điểm thi, ngày thi) ghi rõ nhãn "sinh viên khai", kèm giá trị trên hệ thống ngay sau.
+export function studentRequestContent(values: Pick<StudentRequestValues, "kind" | "fields">, sectionLabel: string | null, facts: StudentRequestFacts = {}) {
   const specs = STUDENT_REQUEST_FIELDS[values.kind];
   const textOf = (field: RequestFieldSpec) => {
     const value = values.fields[field.name];
@@ -134,7 +163,18 @@ export function studentRequestContent(values: Pick<StudentRequestValues, "kind" 
     if (field.kind === "date") return formatDate(String(value));
     return typeof value === "number" ? numberText(value) : value;
   };
-  const details: RequestDetail[] = specs.map((field) => ({ label: field.label, value: textOf(field) })).filter((detail) => detail.value);
+  const details: RequestDetail[] = specs
+    .map((field) => ({ label: field.declared ? `${field.label} (sinh viên khai)` : field.label, value: textOf(field) }))
+    .filter((detail) => detail.value);
+  if (facts.examScore !== undefined) {
+    details.push({ label: "Điểm thi cuối kỳ trên hệ thống", value: facts.examScore === null ? "Chưa có" : numberText(facts.examScore) });
+  }
+  if (facts.examDates !== undefined) {
+    details.push({
+      label: "Lịch thi trên hệ thống",
+      value: facts.examDates.length === 0 ? "Chưa có" : facts.examDates.map((exam) => `${exam.kind === "midterm" ? "Giữa kỳ" : "Cuối kỳ"} ${formatDate(exam.date)}`).join(", "),
+    });
+  }
   const subjectField = specs.find((field) => field.kind === "section" || field.name === "course");
   return { details, subject: subjectField ? textOf(subjectField) : REQUEST_KINDS[values.kind].label };
 }

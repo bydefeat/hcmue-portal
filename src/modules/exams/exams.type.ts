@@ -31,7 +31,18 @@ export type ExamSession = {
   status: ExamSessionStatus;
   paperStatus: ExamPaperStatus;
   paperDeadline: string;
+  paperSubmittedAt: string | null;
+  // Chỉ có với giảng viên dạy lớp và Phòng Khảo thí; sinh viên, cán bộ coi thi nhận mảng rỗng.
+  papers: ExamPaperFile[];
   swapRequests: ExamSwapRequest[];
+};
+
+export type ExamPaperFileKind = "paper" | "answer-key";
+
+export type ExamPaperFile = {
+  kind: ExamPaperFileKind;
+  fileName: string;
+  sizeBytes: number;
 };
 
 // Đề nghị đổi ca coi thi đang chờ Phòng Khảo thí xử lý.

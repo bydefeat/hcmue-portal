@@ -219,6 +219,7 @@ PostgreSQL 18.4, khoá chính `uuid` mặc định `uuidv7()`. Ràng buộc đ�
 ### Giai đoạn 11 — Hoàn thiện
 - Xoá toàn bộ mock (`mock*.lib.ts`, `*.mock.ts`), test end-to-end các luồng chính, cấu hình triển khai.
 - Đã làm: không còn code chạy lúc runtime đọc `*.mock.ts` hay `MOCK_MAJORS`/`MOCK_COHORTS`; ngành, khoa, khóa đọc từ DB. Mock chỉ còn là dữ liệu nguồn cho seed (`scripts/seed`) và test seed. Danh mục học phần thống nhất (201 học phần), khung chương trình mỗi ngành theo đúng thứ tự học phần trong bảng điểm mẫu. Xuất/nhập bảng điểm và xuất danh sách xét tốt nghiệp bằng CSV.
+- Đã làm kho lưu tệp (`storage.lib.ts`, đĩa cục bộ dưới `DEFEAT_STORAGE_DIRECTORY`): minh chứng đơn từ, đề thi và đáp án tải lên thật (kiểm đuôi và chữ ký đầu tệp, 10 MB/tệp minh chứng, 20 MB/tệp đề), tải xuống qua `/api/files/...` theo đúng quyền xem đơn, quyền đề thi; tác vụ `orphan-files` dọn tệp mồ côi. Chưa có: S3/R2, quét virus, Phòng Khảo thí duyệt đề.
 - Còn lại: kho lưu tệp (minh chứng đơn từ, đề thi mới lưu tên tệp), dịch vụ gửi email (OTP đang in ra log server), cổng sinh viên xem thông báo lớp và đề cương, giao diện sửa khung chương trình và sửa cột điểm, khung chương trình 5 ngành ngoài CNTT trong seed chỉ khoảng 105 tín chỉ (dưới mức xét tốt nghiệp), trang 404 trong cổng trả mã 200.
 
 ---

@@ -6,10 +6,12 @@ import { Paperclip } from "defeat-icons-react";
 import { PERIODS, periodLabel, WEEKDAYS, weekdayLabel } from "@/shared/constants/period.constant";
 import { dayjs, formatDate, weekdayOf } from "@/shared/libs/date.lib";
 import { toFormFields } from "@/shared/libs/form.lib";
-import { ATTACHMENT_LIMIT, LECTURER_REQUEST_KINDS, REQUEST_KINDS } from "@/modules/requests/requests.constant";
+import { acceptOf } from "@/shared/libs/upload.lib";
+import { ATTACHMENT_HINT, ATTACHMENT_LIMIT, LECTURER_REQUEST_KINDS, REQUEST_KINDS } from "@/modules/requests/requests.constant";
 import { createLecturerRequest } from "@/modules/requests/requests.action";
 import type { LecturerRequestInput } from "@/modules/requests/requests.rule";
 import type { RequestKind, RequestView } from "@/modules/requests/requests.type";
+import { requestFormData, useAttachmentPicker } from "@/modules/requests/components/attachment-picker";
 
 export type RequestMeeting = {
   dayOfWeek: number;
@@ -100,7 +102,7 @@ export function NewLecturerRequestDrawer({ open, onClose, onCreated, classes, bu
   const [form] = Form.useForm<FormValues>();
   const [kind, setKind] = useState<RequestKind>(prefill?.kind ?? "grade-change");
   const [messageApi, contextHolder] = message.useMessage();
-  const [files, setFiles] = useState<{ uid: string; name: string; size: number; type: string }[]>([]);
+  const picker = useAttachmentPicker((text) => messageApi.error(text));
   const [isPending, startTransition] = useTransition();
   const values = Form.useWatch([], form) ?? {};
 
@@ -114,7 +116,7 @@ export function NewLecturerRequestDrawer({ open, onClose, onCreated, classes, bu
     setWasOpen(open);
     if (open) {
       setKind(prefillKind ?? "grade-change");
-      setFiles([]);
+      picker.clear();
     }
   }
 
@@ -145,7 +147,7 @@ export function NewLecturerRequestDrawer({ open, onClose, onCreated, classes, bu
   };
 
   const submit = (formValues: FormValues) => {
-    const base = { classId: formValues.classId, reason: formValues.reason, attachments: files.map(({ name, size, type }) => ({ name, size, type })) };
+    const base = { classId: formValues.classId, reason: formValues.reason };
     const input =
       kind === "grade-change"
         ? {
@@ -153,8 +155,6 @@ export function NewLecturerRequestDrawer({ open, onClose, onCreated, classes, bu
             kind,
             studentId: formValues.studentId,
             componentKey: formValues.componentKey,
-            componentLabel: selectedClass?.components.find((entry) => entry.key === formValues.componentKey)?.label ?? "",
-            oldScore,
             newScore: formValues.newScore,
           }
         : {
@@ -167,7 +167,11 @@ export function NewLecturerRequestDrawer({ open, onClose, onCreated, classes, bu
             makeupRoom: formValues.makeupRoom,
           };
     startTransition(async () => {
-      const result = await createLecturerRequest(input as LecturerRequestInput);
+      const result = await createLecturerRequest(requestFormData(input as LecturerRequestInput, picker.files)).catch(() => null);
+      if (!result) {
+        messageApi.error("Chưa gửi được, kiểm tra kết nối rồi thử lại.");
+        return;
+      }
       if (!result.ok) {
         form.setFields(toFormFields(result.fieldErrors));
         messageApi.error(result.fieldErrors?.attachments ?? result.message);
@@ -299,16 +303,9 @@ export function NewLecturerRequestDrawer({ open, onClose, onCreated, classes, bu
           </Form.Item>
           <Form.Item
             label="Minh chứng"
-            extra={`${kind === "grade-change" ? "Biên bản chấm, bài thi đã scan hoặc ảnh bảng điểm gốc" : "Giấy mời, quyết định cử đi công tác"}, tối đa ${ATTACHMENT_LIMIT.files} tệp, mỗi tệp không quá 5 MB`}
+            extra={`${kind === "grade-change" ? "Biên bản chấm, bài thi đã scan hoặc ảnh bảng điểm gốc" : "Giấy mời, quyết định cử đi công tác"}. ${ATTACHMENT_HINT}`}
           >
-            <Upload
-              multiple
-              beforeUpload={(file) => {
-                setFiles((current) => [...current, { uid: file.uid, name: file.name, size: file.size, type: file.type }]);
-                return false;
-              }}
-              onRemove={(file) => setFiles((current) => current.filter((entry) => entry.uid !== file.uid))}
-            >
+            <Upload multiple fileList={picker.fileList} beforeUpload={picker.beforeUpload} onRemove={picker.onRemove} accept={acceptOf(ATTACHMENT_LIMIT.kinds)}>
               <Button icon={<Paperclip size={16} aria-hidden className="text-zinc-500" />}>Đính kèm tệp</Button>
             </Upload>
           </Form.Item>

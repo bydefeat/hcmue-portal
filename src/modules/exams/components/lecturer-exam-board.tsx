@@ -9,9 +9,11 @@ import { StatusTag } from "@/shared/components/ui/status-tag";
 import { PERIODS, periodLabel, weekdayLabel } from "@/shared/constants/period.constant";
 import { dayjs, daysUntil, formatDate, formatDateTime, weekdayOf } from "@/shared/libs/date.lib";
 import { toFormFields } from "@/shared/libs/form.lib";
+import { acceptOf, formatFileSize, inspectFile } from "@/shared/libs/upload.lib";
 import { requestProctorSwap, submitExamPaper } from "@/modules/exams/exams.action";
-import { EXAM_FORMAT_LABEL, EXAM_KIND_LABEL, EXAM_PAPER_STATUS, EXAM_STATUS } from "@/modules/exams/exams.constant";
-import type { ExamPaperStatus, ExamSession } from "@/modules/exams/exams.type";
+import { EXAM_FORMAT_LABEL, EXAM_KIND_LABEL, EXAM_PAPER_FILE_LABEL, EXAM_PAPER_LIMIT, EXAM_PAPER_STATUS, EXAM_STATUS } from "@/modules/exams/exams.constant";
+import type { ExamPaperFile, ExamPaperFileKind, ExamPaperStatus, ExamSession } from "@/modules/exams/exams.type";
+import { ExamPaperLinks } from "@/modules/exams/components/exam-paper-links";
 
 export type TeachingSlot = {
   dayOfWeek: number;
@@ -84,9 +86,9 @@ function ClassCell({ exam }: { exam: ExamSession }) {
 
 export function LecturerExamBoard({ lecturerId, teaching, proctoring, teachingSlots, colleagues }: LecturerExamBoardProps) {
   const [messageApi, contextHolder] = message.useMessage();
-  const [papers, setPapers] = useState<Record<string, ExamPaperStatus>>({});
+  const [papers, setPapers] = useState<Record<string, { status: ExamPaperStatus; files: ExamPaperFile[] }>>({});
   const [uploading, setUploading] = useState<ExamSession | null>(null);
-  const [files, setFiles] = useState<{ paper: string | null; key: string | null }>({ paper: null, key: null });
+  const [files, setFiles] = useState<Record<ExamPaperFileKind, File | null>>({ paper: null, "answer-key": null });
   const [swapping, setSwapping] = useState<ExamSession | null>(null);
   const [swapRequested, setSwapRequested] = useState<string[]>(() =>
     proctoring.filter((exam) => exam.swapRequests.some((swap) => swap.requesterId === lecturerId)).map((exam) => exam.id),
@@ -95,19 +97,31 @@ export function LecturerExamBoard({ lecturerId, teaching, proctoring, teachingSl
   const [isSubmitting, startSubmitting] = useTransition();
   const [isSwapping, startSwapping] = useTransition();
 
-  const paperOf = (exam: ExamSession) => papers[exam.id] ?? exam.paperStatus;
+  const paperOf = (exam: ExamSession) => papers[exam.id]?.status ?? exam.paperStatus;
+  const filesOf = (exam: ExamSession) => papers[exam.id]?.files ?? exam.papers;
   const pendingPapers = teaching.filter((exam) => exam.status !== "done" && paperOf(exam) === "not-submitted");
   const conflicts = proctoring.map((exam) => ({ exam, slot: teachingConflict(exam, teachingSlots) })).filter((entry) => entry.slot);
 
+  const closeUpload = () => {
+    setUploading(null);
+    setFiles({ paper: null, "answer-key": null });
+  };
+
   const submitPaper = () => {
     if (!uploading) return;
-    if (!files.paper || !files.key) {
+    const paper = files.paper;
+    const answerKey = files["answer-key"];
+    if (!paper || !answerKey) {
       messageApi.error("Cần đủ 2 tệp: đề thi và đáp án, thang điểm. Tệp PDF, tối đa 20 MB.");
       return;
     }
     const exam = uploading;
+    const formData = new FormData();
+    formData.set("examSessionId", exam.id);
+    formData.set("paper", paper);
+    formData.set("answer-key", answerKey);
     startSubmitting(async () => {
-      const result = await submitExamPaper({ examSessionId: exam.id, paperFileName: files.paper ?? "", keyFileName: files.key ?? "" }).catch(() => null);
+      const result = await submitExamPaper(formData).catch(() => null);
       if (!result) {
         messageApi.error("Chưa nộp được, kiểm tra kết nối rồi thử lại.");
         return;
@@ -116,11 +130,17 @@ export function LecturerExamBoard({ lecturerId, teaching, proctoring, teachingSl
         messageApi.error(Object.values(result.fieldErrors ?? {})[0] ?? result.message);
         return;
       }
-      setPapers((current) => ({ ...current, [result.data.id]: result.data.paperStatus }));
+      setPapers((current) => ({ ...current, [result.data.id]: { status: result.data.paperStatus, files: result.data.papers } }));
       messageApi.success(`Đã nộp đề ${EXAM_KIND_LABEL[exam.kind].toLowerCase()} lớp ${exam.classCode}. Phòng Khảo thí sẽ duyệt đề.`);
-      setUploading(null);
-      setFiles({ paper: null, key: null });
+      closeUpload();
     });
+  };
+
+  const pickPaper = async (kind: ExamPaperFileKind, file: File) => {
+    const checked = await inspectFile(file, { kinds: EXAM_PAPER_LIMIT.kinds, maxBytes: EXAM_PAPER_LIMIT.bytes });
+    if (!checked.ok) messageApi.error(checked.message);
+    else setFiles((current) => ({ ...current, [kind]: file }));
+    return Upload.LIST_IGNORE;
   };
 
   const submitSwap = (values: SwapValues) => {
@@ -145,13 +165,20 @@ export function LecturerExamBoard({ lecturerId, teaching, proctoring, teachingSl
   };
 
   const paperCell = (exam: ExamSession) => {
-    if (exam.status === "done") return <StatusTag status={EXAM_STATUS.done} />;
+    if (exam.status === "done")
+      return (
+        <span className="flex flex-col items-start gap-1">
+          <StatusTag status={EXAM_STATUS.done} />
+          <ExamPaperLinks examSessionId={exam.id} papers={filesOf(exam)} />
+        </span>
+      );
     const status = paperOf(exam);
     const hint = status === "not-submitted" ? deadlineHint(exam.paperDeadline) : null;
     return (
       <span className="flex flex-col items-start gap-1">
         <StatusTag status={EXAM_PAPER_STATUS[status]} />
         {hint && <span className={`text-xs tabular-nums ${hint.className}`}>{hint.text}</span>}
+        <ExamPaperLinks examSessionId={exam.id} papers={filesOf(exam)} />
       </span>
     );
   };
@@ -339,10 +366,7 @@ export function LecturerExamBoard({ lecturerId, teaching, proctoring, teachingSl
         cancelText="Hủy"
         onOk={submitPaper}
         confirmLoading={isSubmitting}
-        onCancel={() => {
-          setUploading(null);
-          setFiles({ paper: null, key: null });
-        }}
+        onCancel={closeUpload}
         mask={{ closable: false }}
         destroyOnHidden
         width={640}
@@ -350,25 +374,26 @@ export function LecturerExamBoard({ lecturerId, teaching, proctoring, teachingSl
         {uploading && (
           <div className="flex flex-col gap-4">
             <p className="text-sm text-pretty text-muted">
-              Hạn nộp {formatDateTime(uploading.paperDeadline)}. Đề được mã hóa và chỉ Phòng Khảo thí mở được trước giờ thi.
+              Hạn nộp {formatDateTime(uploading.paperDeadline)}. Chỉ bạn và Phòng Khảo thí tải được đề đã nộp. Nộp lại thì bản mới thay bản cũ.
             </p>
-            {(["paper", "key"] as const).map((kind) => (
-              <div key={kind} className="flex flex-col gap-2">
-                <span className="text-sm font-medium">{kind === "paper" ? "Đề thi" : "Đáp án, thang điểm"}</span>
-                <Upload.Dragger
-                  accept=".pdf"
-                  maxCount={1}
-                  beforeUpload={(file) => {
-                    setFiles((current) => ({ ...current, [kind]: file.name }));
-                    return false;
-                  }}
-                  onRemove={() => setFiles((current) => ({ ...current, [kind]: null }))}
-                >
-                  <p className="text-sm">Kéo thả tệp PDF vào đây hoặc bấm để chọn</p>
-                  <p className="text-xs text-muted">Tối đa 20 MB</p>
-                </Upload.Dragger>
-              </div>
-            ))}
+            {(["paper", "answer-key"] as const).map((kind) => {
+              const picked = files[kind];
+              return (
+                <div key={kind} className="flex flex-col gap-2">
+                  <span className="text-sm font-medium">{EXAM_PAPER_FILE_LABEL[kind]}</span>
+                  <Upload.Dragger
+                    accept={acceptOf(EXAM_PAPER_LIMIT.kinds)}
+                    maxCount={1}
+                    fileList={picked ? [{ uid: kind, name: picked.name, size: picked.size, status: "done" }] : []}
+                    beforeUpload={(file) => pickPaper(kind, file)}
+                    onRemove={() => setFiles((current) => ({ ...current, [kind]: null }))}
+                  >
+                    <p className="text-sm">Kéo thả tệp PDF vào đây hoặc bấm để chọn</p>
+                    <p className="text-xs text-muted">Tối đa {formatFileSize(EXAM_PAPER_LIMIT.bytes)}</p>
+                  </Upload.Dragger>
+                </div>
+              );
+            })}
           </div>
         )}
       </Modal>

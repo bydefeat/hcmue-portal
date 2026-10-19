@@ -7,7 +7,7 @@ import { pgErrorMessage } from "@/shared/libs/pg-error.lib";
 import { enrollments } from "@/modules/course-registration/course-registration.schema";
 import { EXAMS_CONSTRAINT_MESSAGE, examConflicts } from "@/modules/exams/exams.constant";
 import { EXAM_SESSIONS } from "@/modules/exams/exams.mock";
-import { ELIGIBILITY_OVERRIDE_SCHEMA, EXAM_PAPER_SUBMIT_SCHEMA, EXAM_SESSION_UPDATE_SCHEMA, PROCTOR_SWAP_SCHEMA } from "@/modules/exams/exams.rule";
+import { checkExamPaperFiles, ELIGIBILITY_OVERRIDE_SCHEMA, EXAM_PAPER_SUBMIT_SCHEMA, EXAM_SESSION_UPDATE_SCHEMA, PROCTOR_SWAP_SCHEMA } from "@/modules/exams/exams.rule";
 import { examEligibilityOverrides, examProctors, examProctorSwapRequests, examSessions } from "@/modules/exams/exams.schema";
 import { lecturers } from "@/modules/users/users.schema";
 
@@ -39,9 +39,21 @@ describe("exams: kiểm dữ liệu", () => {
   test("cho dự thi và đổi ca phải có lý do, nộp đề chỉ nhận PDF", () => {
     assert.ok(!parseInput(ELIGIBILITY_OVERRIDE_SCHEMA, { enrollmentId: ID, reason: "   " }).ok);
     assert.ok(!parseInput(PROCTOR_SWAP_SCHEMA, { examSessionId: ID, colleagueId: OTHER, reason: "" }).ok);
-    const paper = parseInput(EXAM_PAPER_SUBMIT_SCHEMA, { examSessionId: ID, paperFileName: "de-thi.docx", keyFileName: "dap-an.PDF" });
-    assert.ok(!paper.ok);
-    assert.deepEqual(Object.keys(paper.fieldErrors ?? {}), ["paperFileName"]);
+    assert.ok(!parseInput(EXAM_PAPER_SUBMIT_SCHEMA, { examSessionId: "khong-phai-uuid" }).ok);
+    const pdf = { name: "dap-an.PDF", size: 900, head: new TextEncoder().encode("%PDF-1.7\n") };
+    const docx = { name: "de-thi.docx", size: 900, head: new Uint8Array([0x50, 0x4b, 0x03, 0x04]) };
+    const wrong = checkExamPaperFiles({ paper: docx, "answer-key": pdf });
+    assert.ok(!wrong.ok);
+    assert.deepEqual(Object.keys(wrong.fieldErrors), ["paper"]);
+    const missing = checkExamPaperFiles({ paper: pdf, "answer-key": null });
+    assert.ok(!missing.ok && missing.fieldErrors["answer-key"] === "Chưa chọn tệp đáp án, thang điểm");
+    // Đuôi .pdf nhưng nội dung là HTML: bị chặn theo chữ ký đầu tệp.
+    const fake = checkExamPaperFiles({ paper: { ...pdf, name: "de.pdf", head: new TextEncoder().encode("<html>") }, "answer-key": pdf });
+    assert.ok(!fake.ok && /không phải tệp PDF thật/.test(fake.fieldErrors.paper ?? ""));
+    const big = checkExamPaperFiles({ paper: { ...pdf, size: 21 * 1024 * 1024 }, "answer-key": pdf });
+    assert.ok(!big.ok && /tối đa 20,0 MB/.test(big.fieldErrors.paper ?? ""));
+    const ok = checkExamPaperFiles({ paper: { ...pdf, name: "Đề thi.pdf" }, "answer-key": pdf });
+    assert.ok(ok.ok && ok.files.paper.name === "Đề thi.pdf" && ok.files["answer-key"].contentType === "application/pdf");
   });
 
   test("xung đột phòng và cán bộ coi thi cùng ca", () => {
@@ -55,10 +67,25 @@ describe("exams: kiểm dữ liệu", () => {
 });
 
 describe("exams: ràng buộc ở DB", () => {
-  test("đề đã nộp phải có tệp, thời gian làm bài 15..240 phút", async () => {
+  test("đề đã nộp phải có đủ tệp đề và đáp án, tệp không quá 20 MB, thời gian làm bài 15..240 phút", async () => {
     const [exam] = await db.select().from(examSessions).where(eq(examSessions.paperStatus, "not-submitted")).limit(1);
     const paper = await failure(db.update(examSessions).set({ paperStatus: "submitted" }).where(eq(examSessions.id, exam.id)));
     assert.equal(pgErrorMessage(paper, EXAMS_CONSTRAINT_MESSAGE), EXAMS_CONSTRAINT_MESSAGE.exam_sessions_paper_fields);
+    const files = {
+      paperStatus: "submitted" as const,
+      paperStorageKey: `exams/${OTHER}`,
+      paperFileName: "de.pdf",
+      paperContentType: "application/pdf",
+      paperSizeBytes: 100,
+      answerKeyStorageKey: `exams/${THIRD}`,
+      answerKeyFileName: "dap-an.pdf",
+      answerKeyContentType: "application/pdf",
+      paperSubmittedAt: new Date(),
+    };
+    const noKey = await failure(db.update(examSessions).set({ ...files, answerKeySizeBytes: null }).where(eq(examSessions.id, exam.id)));
+    assert.equal(pgErrorMessage(noKey, EXAMS_CONSTRAINT_MESSAGE), EXAMS_CONSTRAINT_MESSAGE.exam_sessions_paper_fields);
+    const tooBig = await failure(db.update(examSessions).set({ ...files, answerKeySizeBytes: 21 * 1024 * 1024 }).where(eq(examSessions.id, exam.id)));
+    assert.equal(pgErrorMessage(tooBig, EXAMS_CONSTRAINT_MESSAGE), EXAMS_CONSTRAINT_MESSAGE.exam_sessions_paper_size_range);
     const duration = await failure(db.update(examSessions).set({ durationMinutes: 300 }).where(eq(examSessions.id, exam.id)));
     assert.equal(pgErrorMessage(duration, EXAMS_CONSTRAINT_MESSAGE), EXAMS_CONSTRAINT_MESSAGE.exam_sessions_duration_range);
   });

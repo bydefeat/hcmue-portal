@@ -1,5 +1,6 @@
 import type { StatusMeta } from "@/shared/constants/status.constant";
-import type { ExamConflict, ExamFormat, ExamKind, ExamPaperStatus, ExamSession, ExamSessionStatus } from "@/modules/exams/exams.type";
+import { MB, type UploadKind } from "@/shared/libs/upload.lib";
+import type { ExamConflict, ExamFormat, ExamKind, ExamPaperFileKind, ExamPaperStatus, ExamSession, ExamSessionStatus } from "@/modules/exams/exams.type";
 
 export const EXAM_KIND_LABEL: Record<ExamKind, string> = {
   midterm: "Giữa kỳ",
@@ -28,6 +29,18 @@ export const EXAM_PAPER_STATUS: Record<ExamPaperStatus, StatusMeta> = {
 
 export const PROCTORS_PER_ROOM = 2;
 
+// Đề thi và đáp án: mỗi tệp một PDF tối đa 20 MB (DB chặn bằng exam_sessions_paper_size_range).
+export const EXAM_PAPER_LIMIT = { bytes: 20 * MB, kinds: ["pdf"] as UploadKind[] };
+
+export const EXAM_PAPER_FILE_LABEL: Record<ExamPaperFileKind, string> = {
+  paper: "Đề thi",
+  "answer-key": "Đáp án, thang điểm",
+};
+
+export function examPaperHref(examSessionId: string, kind: ExamPaperFileKind) {
+  return `/api/files/exams/${examSessionId}/${kind}`;
+}
+
 export const EXAM_KIND_OPTIONS = Object.entries(EXAM_KIND_LABEL).map(([value, label]) => ({ value, label }));
 
 export const EXAM_FORMAT_OPTIONS = Object.entries(EXAM_FORMAT_LABEL).map(([value, label]) => ({ value, label }));
@@ -47,7 +60,10 @@ export function examConflicts(sessions: ExamSession[]): ExamConflict[] {
 
 export const EXAMS_CONSTRAINT_MESSAGE: Partial<Record<string, string>> = {
   exam_sessions_duration_range: "Thời gian làm bài phải từ 15 đến 240 phút.",
-  exam_sessions_paper_fields: "Đề thi đã nộp phải có tệp và thời điểm nộp; đề chưa nộp thì không có tệp.",
+  exam_sessions_paper_fields: "Đề thi đã nộp phải có đủ tệp đề, tệp đáp án và thời điểm nộp; đề chưa nộp thì không có tệp.",
+  exam_sessions_paper_size_range: "Mỗi tệp đề thi, đáp án từ 1 byte đến 20 MB.",
+  exam_sessions_paper_storage_key_unique: "Tệp đề thi bị trùng khóa lưu trữ. Nộp lại.",
+  exam_sessions_answer_key_storage_key_unique: "Tệp đáp án bị trùng khóa lưu trữ. Nộp lại.",
   exam_sessions_class_section_id_kind_unique: "Lớp này đã có ca thi cùng loại (giữa kỳ hoặc cuối kỳ).",
   exam_sessions_room_id_rooms_id_fk: "Phòng thi không còn trong danh mục.",
   exam_proctors_exam_session_id_lecturer_id_pk: "Một cán bộ chỉ được phân công một lần trong cùng ca thi.",

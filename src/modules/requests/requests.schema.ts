@@ -94,8 +94,8 @@ export const requestAttachments = pgTable(
     fileName: text().notNull(),
     contentType: text().notNull(),
     sizeBytes: integer().notNull(),
-    // Chưa có kho lưu tệp: mới giữ tên và kích thước, khóa lưu trữ để trống tới khi nối kho.
-    storageKey: text().unique("request_attachments_storage_key_unique"),
+    // Tên tệp gốc chỉ để hiện và đặt tên khi tải xuống; nội dung nằm trong kho tệp (storage.lib) dưới khóa do server sinh.
+    storageKey: text().notNull().unique("request_attachments_storage_key_unique"),
     uploadedAt: createdAt(),
   },
   (table) => [index().on(table.requestId), check("request_attachments_size_range", sql`${table.sizeBytes} BETWEEN 1 AND 10485760`)],

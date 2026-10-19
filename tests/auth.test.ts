@@ -130,7 +130,7 @@ describe("khôi phục mật khẩu", () => {
     const warn = mock.method(console, "warn", () => {});
     try {
       assert.equal((await call("/email-otp/request-password-reset", { email })).status, 200);
-      const otp = String(warn.mock.calls.at(-1)?.arguments[0]).match(/(\d{6})$/)?.[1];
+      const otp = String(warn.mock.calls.at(-1)?.arguments[0]).match(/: (\d{6})"/)?.[1];
       assert.ok(otp, "OTP được in ra log");
 
       const wrong = await call("/email-otp/check-verification-otp", { email, otp: otp === "000000" ? "111111" : "000000", type: "forget-password" });

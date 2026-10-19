@@ -22,7 +22,8 @@
     ".next/**",
     "drizzle/**",
     "public/**",
-    "next-env.d.ts"
+    "next-env.d.ts",
+    ".claude/**"
   ],
   "rules": {
     "react/rules-of-hooks": "error",

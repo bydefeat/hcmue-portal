@@ -1,7 +1,7 @@
 "use client";
 
-import { ErrorState } from "@/shared/components/ui/error-state";
+import { ErrorState, errorDigest } from "@/shared/components/ui/error-state";
 
-export default function Error({ retry }: { error: unknown; retry: () => void }) {
-  return <ErrorState onRetry={retry} />;
+export default function Error({ error, retry }: { error: unknown; retry: () => void }) {
+  return <ErrorState code={errorDigest(error)} onRetry={retry} homeHref="/administrator" homeLabel="Về trang tổng quan" />;
 }

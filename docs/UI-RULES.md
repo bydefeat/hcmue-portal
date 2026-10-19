@@ -125,7 +125,7 @@ Nguồn màu duy nhất: `src/shared/constants/theme.constant.ts` (sinh CSS vari
 | Số liệu tổng quan | `StatTile` (antd `Card` + `Statistic`) | |
 | Thanh tiến độ | `MeterBar` (antd `Progress`) | |
 | Trạng thái rỗng | `EmptyState` (antd `Empty`) | |
-| Lỗi, 404, 403 | antd `Result` qua `ErrorState`, `NotFoundState`, `app/forbidden.tsx` | |
+| Lỗi, 404, 403 | antd `Result` với icon xám qua `ErrorState` (kèm mã lỗi `digest`), `NotFoundState`, `forbidden.tsx` | Mỗi cổng có `error.tsx`, `not-found.tsx` và `[...missing]/page.tsx` để 404 nằm trong khung cổng; trang công khai, đăng nhập có `error.tsx`; lỗi layout gốc dùng `app/global-error.tsx` |
 | Nút, nút dạng chữ | antd `Button` (`type="link"` hoặc `"text"` cho nút dạng chữ) | Điều hướng thuần dùng `Link` của Next |
 | Icon trong nút, icon menu chưa chọn | Thêm `className="text-zinc-500"` cho icon | Nút `primary`, `danger`, `link` và mục menu đang chọn giữ màu của nút |
 | Nhãn + ô nhập | antd `Form` + `Form.Item` | Không tự viết `<label>` bọc control |

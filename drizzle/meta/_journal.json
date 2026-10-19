@@ -85,6 +85,13 @@
       "when": 1792428322224,
       "tag": "0011_advising_done_note",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1792434943385,
+      "tag": "0012_class_announcement_notified",
+      "breakpoints": true
     }
   ]
 }

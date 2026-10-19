@@ -15,6 +15,7 @@ export type GradeSheet = {
   deadline: string;
   lockedAt: string | null;
   savedAt: string | null;
+  returnReason: string | null;
   scores: Record<string, ScoreRow>;
 };
 

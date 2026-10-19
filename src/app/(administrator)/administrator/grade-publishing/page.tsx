@@ -3,10 +3,10 @@ import { PageHeader } from "@/shared/components/ui/page-header";
 import { StatTile } from "@/shared/components/ui/stat-tile";
 import { can, inScope } from "@/modules/access/access.constant";
 import { requirePermission } from "@/modules/access/access.query";
-import { getClassRoster, getClassSections, getCurrentTerm } from "@/modules/course-registration/course-registration.query";
+import { getClassSections, getCurrentTerm } from "@/modules/course-registration/course-registration.query";
 import { GradePublishingTable, type PublishingRow } from "@/modules/grades/components/grade-publishing-table";
 import { toLetter, weightedScore } from "@/modules/grades/grades.constant";
-import { getGradeSheet } from "@/modules/grades/grades.query";
+import { getGradeSheets } from "@/modules/grades/grades.query";
 
 export const metadata: Metadata = { title: "Duyệt và công bố điểm" };
 
@@ -14,10 +14,12 @@ export default async function Page() {
   const viewer = await requirePermission("grades.approve");
   const term = await getCurrentTerm();
   const sections = (await getClassSections(term.id)).filter((section) => section.status !== "cancelled" && inScope(viewer, section.faculty));
-  const rows: PublishingRow[] = await Promise.all(
-    sections.map(async (section) => {
-      const roster = await getClassRoster(section.id);
-      const sheet = await getGradeSheet(section.id, roster.map((entry) => entry.studentId));
+  const sheets = await getGradeSheets(sections.map((section) => section.id));
+  const sheetOf = new Map(sheets.map((sheet) => [sheet.classSectionId, sheet]));
+  const rows: PublishingRow[] = sections
+    .filter((section) => sheetOf.has(section.id))
+    .map((section) => {
+      const sheet = sheetOf.get(section.id)!;
       const values = Object.values(sheet.scores);
       const cells = values.flatMap((row) => Object.values(row));
       const totals = values.map((row) => weightedScore(sheet.components, row)).filter((value) => value !== null);
@@ -36,14 +38,13 @@ export default async function Page() {
         deadline: sheet.deadline,
         filledCells: cells.filter((value) => value !== null).length,
         totalCells: cells.length,
-        studentCount: roster.length,
+        studentCount: values.length,
         letterCounts,
         average: totals.length > 0 ? Math.round((totals.reduce((sum, value) => sum + value, 0) / totals.length) * 10) / 10 : null,
         passRate: totals.length > 0 ? Math.round((totals.filter((value) => value >= 4).length / totals.length) * 100) : null,
-        returnReason: sheet.state === "returned" ? "Tổng trọng số cột giữa kỳ sai, kiểm tra lại cấu hình cột điểm." : null,
+        returnReason: sheet.state === "returned" ? sheet.returnReason : null,
       };
-    }),
-  );
+    });
   const count = (state: PublishingRow["state"]) => rows.filter((row) => row.state === state).length;
 
   return (

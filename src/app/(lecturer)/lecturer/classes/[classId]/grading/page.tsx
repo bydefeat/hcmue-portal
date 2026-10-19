@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { getAuditLog } from "@/modules/audit/audit.query";
 import { getClassRoster, getClassSection } from "@/modules/course-registration/course-registration.query";
 import { GradingTable } from "@/modules/grades/components/grading-table";
 import { getGradeSheet } from "@/modules/grades/grades.query";
@@ -12,16 +11,9 @@ export const metadata: Metadata = { title: "Nhập điểm" };
 export default async function Page({ params }: { params: Promise<{ classId: string }> }) {
   const { classId } = await params;
   const [section, roster, lecturer] = await Promise.all([getClassSection(classId), getClassRoster(classId), getCurrentLecturer()]);
-  if (!section) notFound();
-  const [sheet, history, requestOptions] = await Promise.all([
-    getGradeSheet(
-      section.id,
-      roster.map((entry) => entry.studentId),
-    ),
-    getAuditLog({ entityType: "grade-sheet", entityId: section.id }),
-    lecturerRequestOptions(lecturer),
-  ]);
-  const returnReason = history.find((entry) => entry.action === "reject")?.summary ?? null;
+  if (!section || section.lecturerId !== lecturer.id) notFound();
+  const [sheet, requestOptions] = await Promise.all([getGradeSheet(section.id), lecturerRequestOptions(lecturer)]);
+  if (!sheet) notFound();
 
   return (
     <GradingTable
@@ -29,7 +21,7 @@ export default async function Page({ params }: { params: Promise<{ classId: stri
       students={roster}
       classCode={section.code}
       classId={section.id}
-      returnReason={returnReason}
+      returnReason={sheet.returnReason}
       requestOptions={requestOptions}
     />
   );

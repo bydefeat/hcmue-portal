@@ -30,6 +30,9 @@ export default async function Page() {
   const program = programs.find((entry) => entry.majorCode === student.majorCode && entry.cohorts.includes(student.cohort));
   const totalCredits = program?.totalCredits ?? 130;
   const completed = transcript.filter((entry) => !entry.isInProgress);
+  // Kỳ đang học: học phần theo thời khóa biểu, điểm lớp nào đã công bố thì hiện luôn.
+  const ongoing = transcript.find((entry) => entry.isInProgress);
+  const publishedOf = new Map((ongoing?.courses ?? []).map((course) => [course.courseCode, course]));
   const inProgress: TranscriptTerm = {
     termId: term.id,
     termName: term.name,
@@ -38,14 +41,14 @@ export default async function Page() {
       courseCode: section.courseCode,
       courseName: section.courseName,
       credits: section.credits,
-      score10: null,
-      letter: null,
-      point4: null,
+      score10: publishedOf.get(section.courseCode)?.score10 ?? null,
+      letter: publishedOf.get(section.courseCode)?.letter ?? null,
+      point4: publishedOf.get(section.courseCode)?.point4 ?? null,
     })),
     attemptedCredits: timetable.reduce((sum, { section }) => sum + section.credits, 0),
     earnedCredits: 0,
-    gpa4: null,
-    gpa10: null,
+    gpa4: ongoing?.gpa4 ?? null,
+    gpa10: ongoing?.gpa10 ?? null,
     cpa4: null,
   };
   const terms = timetable.length > 0 ? [...completed, inProgress] : completed;

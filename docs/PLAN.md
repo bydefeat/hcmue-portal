@@ -199,6 +199,7 @@ PostgreSQL 18.4, khoá chính `uuid` mặc định `uuidv7()`. Ràng buộc đ�
 ### Giai đoạn 7 — Giảng viên
 - Điểm danh theo buổi, nhập điểm (lưu nháp, chốt có xác nhận), đề cương, thông báo lớp, lịch dạy, khối lượng giảng dạy; admin công bố điểm → `course_results`.
 - Kiểm: chốt điểm xong không sửa được; điểm ngoài 0–10 bị chặn ở DB.
+- Đã làm (grades, graduation): bảng điểm học phần đọc/ghi DB (lưu nháp tự động, chốt, khoa duyệt/trả lại, công bố → `course_results`), bảng điểm sinh viên, GPA/CPA, xếp loại, cảnh báo học vụ, xét tốt nghiệp (trình hội đồng lập dự thảo quyết định) đọc từ DB; trigger chặn sửa điểm sau khi chốt và chặn nhảy bước; `tests/grades.test.ts`, `tests/graduation.test.ts`.
 
 ### Giai đoạn 8 — Sinh viên xem kết quả
 - Bảng điểm, GPA kỳ / CPA (*cần bảng quy đổi của trường*), TKB + xuất `.ics`, lịch thi và điều kiện dự thi, tiến độ chương trình.

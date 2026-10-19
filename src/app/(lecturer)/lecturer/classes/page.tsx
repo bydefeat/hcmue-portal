@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { PageHeader } from "@/shared/components/ui/page-header";
 import { formatDate, daysUntil } from "@/shared/libs/date.lib";
 import { LecturerClassList } from "@/modules/course-registration/components/lecturer-class-list";
-import { getClassRoster, getCurrentTerm, getLecturerClassSections } from "@/modules/course-registration/course-registration.query";
+import { getCurrentTerm, getLecturerClassSections } from "@/modules/course-registration/course-registration.query";
 import { GRADE_SHEET_STATE } from "@/modules/grades/grades.constant";
 import { getGradeSheetSummaries } from "@/modules/grades/grades.query";
 import type { GradeSheetSummary } from "@/modules/grades/grades.type";
@@ -24,10 +24,7 @@ function gradeNote(summary: GradeSheetSummary) {
 export default async function Page() {
   const [lecturer, term] = await Promise.all([getCurrentLecturer(), getCurrentTerm()]);
   const sections = await getLecturerClassSections(lecturer.id, term.id);
-  const rosters = await Promise.all(sections.map((section) => getClassRoster(section.id)));
-  const summaries = await getGradeSheetSummaries(
-    sections.map((section, index) => ({ classSectionId: section.id, studentIds: rosters[index].map((entry) => entry.studentId) })),
-  );
+  const summaries = await getGradeSheetSummaries(sections.map((section) => section.id));
   const items = sections.map((section, index) => ({
     section,
     gradeStatus: GRADE_SHEET_STATE[summaries[index].state],

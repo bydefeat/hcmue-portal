@@ -3,6 +3,8 @@ import { hashPassword } from "better-auth/crypto";
 import { db } from "@/shared/libs/db.lib";
 import { seedCatalog } from "./seed/catalog.seed";
 import type { SeedContext } from "./seed/context";
+import { seedGrades } from "./seed/grades.seed";
+import { seedGraduation } from "./seed/graduation.seed";
 import { seedPeople } from "./seed/people.seed";
 import { seedRegistration } from "./seed/registration.seed";
 import { seedSettings } from "./seed/settings.seed";
@@ -21,6 +23,8 @@ async function main() {
     const catalog = await seedCatalog(tx, context);
     const people = await seedPeople(tx, context);
     const registration = await seedRegistration(tx, context);
+    await seedGrades(tx, context);
+    await seedGraduation(tx, context);
     await seedSettings(tx, context);
     return { catalog, people, registration };
   });

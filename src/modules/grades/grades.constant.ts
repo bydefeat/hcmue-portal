@@ -12,6 +12,21 @@ export const LETTER_SCALE: { min: number; letter: LetterGrade; point4: number }[
   { min: 0, letter: "F", point4: 0 },
 ];
 
+export const LETTER_COLOR: Record<LetterGrade, { text: string; fill: string }> = {
+  A: { text: "text-green-700", fill: "#15803d" },
+  "B+": { text: "text-green-600", fill: "#22c55e" },
+  B: { text: "text-lime-700", fill: "#84cc16" },
+  "C+": { text: "text-yellow-700", fill: "#eab308" },
+  C: { text: "text-amber-600", fill: "#f59e0b" },
+  "D+": { text: "text-orange-600", fill: "#f97316" },
+  D: { text: "text-orange-700", fill: "#ea580c" },
+  F: { text: "text-red-600", fill: "#dc2626" },
+};
+
+export function letterTextClass(letter: string | null | undefined) {
+  return letter && letter in LETTER_COLOR ? LETTER_COLOR[letter as LetterGrade].text : "";
+}
+
 export function toLetter(score10: number) {
   return LETTER_SCALE.find((step) => score10 >= step.min)!;
 }

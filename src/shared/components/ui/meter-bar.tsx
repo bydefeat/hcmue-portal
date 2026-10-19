@@ -7,13 +7,14 @@ type MeterBarProps = {
   value: number;
   max: number;
   tone?: StatusTone | "primary";
+  color?: string;
   label?: string;
 };
 
-export function MeterBar({ value, max, tone = "primary", label }: MeterBarProps) {
+export function MeterBar({ value, max, tone = "primary", color, label }: MeterBarProps) {
   const { token } = theme.useToken();
   const percent = max > 0 ? Math.min(100, Math.round((value / max) * 100)) : 0;
-  const color = {
+  const toneColor = {
     primary: token.colorPrimary,
     success: token.colorSuccess,
     warning: token.colorWarning,
@@ -21,5 +22,5 @@ export function MeterBar({ value, max, tone = "primary", label }: MeterBarProps)
     neutral: token.colorTextQuaternary,
   }[tone];
 
-  return <Progress percent={percent} showInfo={false} size="small" strokeColor={color} aria-label={label} className="m-0 w-full min-w-12" />;
+  return <Progress percent={percent} showInfo={false} size="small" strokeColor={color ?? toneColor} aria-label={label} className="m-0 w-full min-w-12" />;
 }

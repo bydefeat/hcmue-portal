@@ -2,7 +2,7 @@
 
 import { Collapse, Table, type TableColumnsType } from "antd";
 import { EmptyState } from "@/shared/components/ui/empty-state";
-import { formatPoint } from "@/modules/grades/grades.constant";
+import { formatPoint, letterTextClass } from "@/modules/grades/grades.constant";
 import type { TranscriptCourse, TranscriptTerm } from "@/modules/grades/grades.type";
 
 const COLUMNS: TableColumnsType<TranscriptCourse> = [
@@ -14,7 +14,7 @@ const COLUMNS: TableColumnsType<TranscriptCourse> = [
     dataIndex: "score10",
     width: 88,
     align: "right",
-    render: (value: number | null) => <span className="tabular-nums">{formatPoint(value, 1)}</span>,
+    render: (value: number | null, row) => <span className={`tabular-nums ${letterTextClass(row.letter)}`}>{formatPoint(value, 1)}</span>,
   },
   {
     title: "Điểm chữ",
@@ -22,7 +22,7 @@ const COLUMNS: TableColumnsType<TranscriptCourse> = [
     width: 88,
     align: "center",
     render: (letter: string | null) => (
-      <span className={`font-medium tabular-nums ${letter === "F" ? "text-rose-700" : ""}`}>{letter ?? ""}</span>
+      <span className={`font-medium tabular-nums ${letterTextClass(letter)}`}>{letter ?? ""}</span>
     ),
   },
   {
@@ -30,7 +30,7 @@ const COLUMNS: TableColumnsType<TranscriptCourse> = [
     dataIndex: "point4",
     width: 80,
     align: "right",
-    render: (value: number | null) => <span className="tabular-nums">{formatPoint(value, 1)}</span>,
+    render: (value: number | null, row) => <span className={`tabular-nums ${letterTextClass(row.letter)}`}>{formatPoint(value, 1)}</span>,
   },
 ];
 
@@ -47,9 +47,9 @@ function CourseList({ courses }: { courses: TranscriptCourse[] }) {
             </span>
           </span>
           <span className="flex shrink-0 flex-col items-end">
-            <span className={`text-sm font-medium tabular-nums ${course.letter === "F" ? "text-rose-700" : ""}`}>{course.letter ?? "Chưa có điểm"}</span>
+            <span className={`text-sm font-medium tabular-nums ${letterTextClass(course.letter)}`}>{course.letter ?? "Chưa có điểm"}</span>
             {course.score10 !== null && (
-              <span className="text-xs text-muted tabular-nums">
+              <span className={`text-xs tabular-nums ${letterTextClass(course.letter)}`}>
                 {formatPoint(course.score10, 1)} · {formatPoint(course.point4, 1)}
               </span>
             )}

@@ -7,7 +7,7 @@ import { EmptyState } from "@/shared/components/ui/empty-state";
 import { MeterBar } from "@/shared/components/ui/meter-bar";
 import { StatusTag } from "@/shared/components/ui/status-tag";
 import { formatDateTime } from "@/shared/libs/date.lib";
-import { formatPoint, GRADE_SHEET_STATE, LETTER_SCALE } from "@/modules/grades/grades.constant";
+import { formatPoint, GRADE_SHEET_STATE, LETTER_SCALE, LETTER_COLOR } from "@/modules/grades/grades.constant";
 import type { GradeSheetState } from "@/modules/grades/grades.type";
 import { paginationItemRender } from "@/shared/constants/antd.constant";
 
@@ -245,8 +245,8 @@ export function GradePublishingTable({ rows: initialRows, canApprove, canPublish
                       const count = preview.letterCounts[step.letter] ?? 0;
                       return (
                         <li key={step.letter} className="grid grid-cols-[32px_minmax(0,1fr)_32px] items-center gap-2 text-sm">
-                          <span className="font-medium">{step.letter}</span>
-                          <MeterBar value={count} max={maxCount} tone={step.letter === "F" ? "danger" : "primary"} label={`Số sinh viên đạt ${step.letter}`} />
+                          <span className={`font-medium ${LETTER_COLOR[step.letter].text}`}>{step.letter}</span>
+                          <MeterBar value={count} max={maxCount} color={LETTER_COLOR[step.letter].fill} label={`Số sinh viên đạt ${step.letter}`} />
                           <span className="text-right tabular-nums">{count}</span>
                         </li>
                       );

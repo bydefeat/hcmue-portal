@@ -7,7 +7,7 @@ import { EmptyState } from "@/shared/components/ui/empty-state";
 import { MeterBar } from "@/shared/components/ui/meter-bar";
 import { StatusTag } from "@/shared/components/ui/status-tag";
 import { dayjs, daysUntil, formatDateTime } from "@/shared/libs/date.lib";
-import { formatPoint, GRADE_SHEET_STATE, toLetter, weightedScore } from "@/modules/grades/grades.constant";
+import { formatPoint, GRADE_SHEET_STATE, toLetter, weightedScore, letterTextClass } from "@/modules/grades/grades.constant";
 import {
   NewLecturerRequestDrawer,
   type BusySlot,
@@ -136,7 +136,7 @@ export function GradingTable({ sheet, students, classCode, classId, returnReason
     const totalScore = totalOf(row);
     if (totalScore === null) return <span className="text-muted">–</span>;
     const letter = toLetter(totalScore).letter;
-    return <span className={`font-medium ${letter === "F" ? "text-rose-700" : ""}`}>{letter}</span>;
+    return <span className={`font-medium ${letterTextClass(letter)}`}>{letter}</span>;
   };
 
   const columns: TableColumnsType<GradingStudent> = [
@@ -170,7 +170,10 @@ export function GradingTable({ sheet, students, classCode, classId, returnReason
       key: "total",
       width: 80,
       align: "right",
-      render: (_, row) => <span className="font-medium tabular-nums">{formatPoint(totalOf(row), 1) || <span className="text-muted">–</span>}</span>,
+      render: (_, row) => {
+        const rowTotal = totalOf(row);
+        return <span className={`font-medium tabular-nums ${rowTotal === null ? "" : letterTextClass(toLetter(rowTotal).letter)}`}>{formatPoint(rowTotal, 1) || <span className="text-muted">–</span>}</span>;
+      },
     },
     {
       title: "Điểm chữ",

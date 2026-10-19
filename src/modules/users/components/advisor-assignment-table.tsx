@@ -51,7 +51,7 @@ export function AdvisorAssignmentTable({ assignments, lecturers }: AdvisorAssign
   };
 
   const columns: TableColumnsType<AdvisorAssignment> = [
-    { title: "Lớp", dataIndex: "className", width: 140, fixed: "left", render: (value: string) => <span className="font-mono text-xs">{value}</span> },
+    { title: "Lớp", dataIndex: "className", width: 140, fixed: "left", render: (value: string) => <span className="text-xs">{value}</span> },
     { title: "Ngành", dataIndex: "majorName", width: 190 },
     { title: "Khóa", dataIndex: "cohort", width: 80, render: (value: number) => <span className="tabular-nums">K{value}</span> },
     { title: "Sĩ số", dataIndex: "studentCount", width: 80, align: "right", render: (value: number) => <span className="tabular-nums">{value}</span> },

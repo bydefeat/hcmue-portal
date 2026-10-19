@@ -43,7 +43,7 @@ function download(name: string, content: string) {
 
 const COLUMNS: TableColumnsType<ImportResult> = [
   { title: "Dòng", dataIndex: "line", width: 64, render: (value: number) => <span className="tabular-nums">{value}</span> },
-  { title: "Mã SV", key: "code", width: 120, render: (_, row) => <span className="font-mono text-xs">{row.raw[0]}</span> },
+  { title: "Mã SV", key: "code", width: 120, render: (_, row) => <span className="text-xs">{row.raw[0]}</span> },
   { title: "Họ và tên", key: "name", width: 160, render: (_, row) => row.raw[1] || <span className="text-muted">Trống</span> },
   {
     title: "Kết quả",

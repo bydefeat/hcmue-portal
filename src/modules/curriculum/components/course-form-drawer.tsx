@@ -73,7 +73,7 @@ export function CourseFormDrawer({ open, course, courses, faculties, onClose, on
               },
             ]}
           >
-            <Input className="font-mono" disabled={Boolean(course)} />
+            <Input disabled={Boolean(course)} />
           </Form.Item>
           <Form.Item name="name" label="Tên học phần" rules={[{ required: true, whitespace: true, message: "Chưa nhập tên học phần" }]}>
             <Input />

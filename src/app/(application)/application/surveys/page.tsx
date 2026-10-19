@@ -6,6 +6,7 @@ import { getTranscript } from "@/modules/grades/grades.query";
 import { StudentSurveyList } from "@/modules/surveys/components/student-survey-list";
 import { getStudentSurveyTasks, getSurvey } from "@/modules/surveys/surveys.query";
 import { getCurrentStudent } from "@/modules/users/users.query";
+import { PageHeader } from "@/shared/components/ui/page-header";
 
 export const metadata: Metadata = { title: "Khảo sát giảng dạy" };
 
@@ -21,9 +22,9 @@ export default async function Page() {
   );
 
   return (
-    <div className="flex flex-col gap-4">
-      <p className="text-sm text-pretty text-muted">Ý kiến của bạn giúp khoa cải thiện chất lượng giảng dạy. Mỗi lớp chỉ đánh giá một lần.</p>
+    <>
+      <PageHeader title="Khảo sát giảng dạy" description="Ý kiến của bạn giúp khoa cải thiện chất lượng giảng dạy. Mỗi lớp chỉ đánh giá một lần." />
       <StudentSurveyList survey={survey} tasks={tasks} />
-    </div>
+    </>
   );
 }

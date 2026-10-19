@@ -17,6 +17,7 @@ import { getAdvisees, getCurrentLecturer } from "@/modules/users/users.query";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { MeterBar } from "@/shared/components/ui/meter-bar";
 import { PageHeader } from "@/shared/components/ui/page-header";
+import { SectionCard } from "@/shared/components/ui/section-card";
 import { StatTile } from "@/shared/components/ui/stat-tile";
 import { StatusTag } from "@/shared/components/ui/status-tag";
 import { periodLabel, periodTimeRange, weekdayLabel } from "@/shared/constants/period.constant";
@@ -35,18 +36,6 @@ function slotsOf(sections: ClassSectionView[]): Slot[] {
 function nextSlot(slots: Slot[], today: number) {
   const ahead = slots.find((slot) => slot.meeting.dayOfWeek > today);
   return ahead ?? slots[0];
-}
-
-function Section({ title, action, children }: { title: string; action?: React.ReactNode; children: React.ReactNode }) {
-  return (
-    <section className="flex min-w-0 flex-col rounded-xl border border-border-strong bg-surface">
-      <header className="flex items-center justify-between gap-3 border-b border-border-strong px-4 py-3 sm:px-5">
-        <h2 className="text-lg font-semibold">{title}</h2>
-        {action}
-      </header>
-      {children}
-    </section>
-  );
 }
 
 function deadlineText(deadline: string) {
@@ -105,7 +94,7 @@ export default async function Page() {
       <div className="flex flex-col gap-4 sm:gap-6">
         <div className="grid gap-4 sm:gap-6 lg:grid-cols-3">
           <div className="min-w-0 lg:col-span-2">
-            <Section title="Lịch dạy hôm nay" action={<Link href="/lecturer/schedule" className="text-sm">Cả tuần</Link>}>
+            <SectionCard flush title="Lịch dạy hôm nay" extra={<Link href="/lecturer/schedule" className="text-sm">Cả tuần</Link>}>
               {todaySlots.length === 0 ? (
                 <EmptyState
                   icon={CalendarCheck}
@@ -127,7 +116,7 @@ export default async function Page() {
                       <Link href={`/lecturer/classes/${section.id}`} className="flex min-w-0 flex-1 flex-col text-foreground">
                         <span className="truncate font-medium">{section.courseName}</span>
                         <span className="text-xs text-muted">
-                          <span className="font-mono">{section.code}</span> · Phòng {meeting.room} · <span className="tabular-nums">{section.enrolled}</span> sinh viên
+                          {section.code} · Phòng {meeting.room} · <span className="tabular-nums">{section.enrolled}</span> sinh viên
                         </span>
                       </Link>
                       <Link href={`/lecturer/classes/${section.id}/attendance`} className="shrink-0 text-sm">
@@ -137,7 +126,7 @@ export default async function Page() {
                   ))}
                 </ul>
               )}
-            </Section>
+            </SectionCard>
           </div>
 
           <div className="grid min-w-0 grid-cols-2 gap-3 self-start lg:grid-cols-1">
@@ -146,7 +135,7 @@ export default async function Page() {
           </div>
         </div>
 
-        <Section title="Bảng điểm cần xử lý" action={<Link href="/lecturer/classes" className="text-sm">Tất cả lớp</Link>}>
+        <SectionCard flush title="Bảng điểm cần xử lý" extra={<Link href="/lecturer/classes" className="text-sm">Tất cả lớp</Link>}>
           {urgentSheets.length === 0 ? (
             <EmptyState icon={CircleCheck} title="Không có bảng điểm sắp hết hạn" description="Các lớp còn trên 5 ngày để nhập điểm hoặc đã chốt." />
           ) : (
@@ -162,7 +151,7 @@ export default async function Page() {
                       <span className="flex min-w-0 flex-1 flex-col">
                         <span className="truncate font-medium">{section.courseName}</span>
                         <span className="text-xs text-muted">
-                          <span className="font-mono">{section.code}</span> · Hạn {formatDateTime(summary.deadline)}
+                          {section.code} · Hạn {formatDateTime(summary.deadline)}
                         </span>
                       </span>
                       <span className="flex items-center gap-3 sm:w-56">
@@ -183,12 +172,13 @@ export default async function Page() {
               })}
             </ul>
           )}
-        </Section>
+        </SectionCard>
 
         <div className="grid gap-4 sm:gap-6 lg:grid-cols-3">
-          <Section
+          <SectionCard
+            flush
             title="Đơn chờ tôi xử lý"
-            action={
+            extra={
               <Link href="/lecturer/requests" className="text-sm">
                 Đơn từ
               </Link>
@@ -213,11 +203,12 @@ export default async function Page() {
                 </ul>
               </div>
             )}
-          </Section>
+          </SectionCard>
 
-          <Section
+          <SectionCard
+            flush
             title="Lịch coi thi sắp tới"
-            action={
+            extra={
               <Link href="/lecturer/exams" className="text-sm">
                 Lịch thi
               </Link>
@@ -237,12 +228,13 @@ export default async function Page() {
                 ))}
               </ul>
             )}
-          </Section>
+          </SectionCard>
 
           {lecturer.isAdvisor && (
-            <Section
+            <SectionCard
+              flush
               title="Lịch hẹn cố vấn hôm nay"
-              action={
+              extra={
                 <Link href="/lecturer/advising/appointments" className="text-sm">
                   Lịch hẹn
                 </Link>
@@ -264,7 +256,7 @@ export default async function Page() {
                   ))}
                 </ul>
               )}
-            </Section>
+            </SectionCard>
           )}
         </div>
 

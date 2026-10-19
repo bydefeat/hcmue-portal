@@ -44,7 +44,7 @@ export function LecturerFormDrawer({ open, lecturer, onClose, onSubmit }: Lectur
       <Form form={form} layout="vertical" initialValues={{ status: "active", roles: ["lecturer"], title: "ThS." }} onFinish={onSubmit}>
         <div className="grid gap-x-3 sm:grid-cols-2">
           <Form.Item name="code" label="Mã giảng viên" rules={[{ required: true, message: "Chưa nhập mã giảng viên" }]}>
-            <Input className="font-mono" disabled={isEdit} />
+            <Input disabled={isEdit} />
           </Form.Item>
           <Form.Item name="title" label="Học hàm, học vị">
             <Select options={LECTURER_TITLES.map((value) => ({ value, label: value }))} />

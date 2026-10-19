@@ -2,10 +2,11 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Alert, AutoComplete, Button, DatePicker, Drawer, Form, Input, message, Modal, Radio, Segmented, Select, TimePicker } from "antd";
+import { Alert, AutoComplete, Button, Card, DatePicker, Drawer, Form, Input, message, Modal, Radio, Segmented, Select, TimePicker } from "antd";
 import { CalendarUser, Notes, Plus } from "defeat-icons-react";
 import type { Dayjs } from "dayjs";
 import { EmptyState } from "@/shared/components/ui/empty-state";
+import { SectionCard } from "@/shared/components/ui/section-card";
 import { StatusTag } from "@/shared/components/ui/status-tag";
 import { weekdayLabel } from "@/shared/constants/period.constant";
 import { dayjs, formatDate, formatDateTime, weekdayOf } from "@/shared/libs/date.lib";
@@ -164,61 +165,65 @@ export function AppointmentBoard({ appointments, advisees, notes: initialNotes, 
         </div>
 
         {visible.length === 0 ? (
-          <div className="rounded-xl border border-border-strong bg-surface">
+          <SectionCard flush>
             <EmptyState
               icon={CalendarUser}
               title={view === "upcoming" ? "Không có lịch hẹn sắp tới" : "Chưa có buổi hẹn nào đã qua"}
               description={view === "upcoming" ? "Đặt lịch gặp sinh viên bị cảnh báo hoặc cần tư vấn kế hoạch học tập." : undefined}
             />
-          </div>
+          </SectionCard>
         ) : (
           <ul className="flex flex-col gap-3">
             {visible.map((appointment) => {
               const isToday = dayjs(appointment.date).isSame(now, "day");
               return (
-                <li key={appointment.id} className="flex flex-col gap-3 rounded-xl border border-border-strong bg-surface p-4 sm:flex-row sm:p-5">
-                  <div className="flex w-36 shrink-0 flex-col">
-                    <span className={`font-medium ${isToday && appointment.status === "scheduled" ? "text-primary" : ""}`}>{dayText(appointment.date)}</span>
-                    <span className="text-sm text-muted tabular-nums">
-                      {appointment.startTime} - {startOf(appointment).add(appointment.durationMinutes, "minute").format("HH:mm")}
-                    </span>
-                  </div>
-                  <div className="flex min-w-0 flex-1 flex-col gap-1">
-                    <span className="flex flex-wrap items-center gap-2">
-                      <span className="font-medium text-pretty">{appointment.topic}</span>
-                      {appointment.status !== "scheduled" && <StatusTag status={APPOINTMENT_STATUS[appointment.status]} />}
-                    </span>
-                    <span className="text-sm text-muted">
-                      {APPOINTMENT_MODE_LABEL[appointment.mode]} · {appointment.location}
-                    </span>
-                    <span className="flex flex-wrap gap-x-3 gap-y-1 text-sm">
-                      {appointment.students.map((student) => (
-                        <Link key={student.id} href={`/lecturer/advising/students/${student.id}`}>
-                          {student.fullName}
-                        </Link>
-                      ))}
-                    </span>
-                    {appointment.note && <p className="mt-1 text-sm text-pretty text-muted">“{appointment.note}”</p>}
-                  </div>
-                  {appointment.status === "scheduled" && (
-                    <div className="flex shrink-0 flex-wrap gap-2 sm:flex-col sm:items-end">
-                      <Button size="small" onClick={() => setCompleting(appointment)}>
-                        Ghi nhận đã gặp
-                      </Button>
-                      <Button
-                        size="small"
-                        onClick={() => {
-                          update(appointment.id, { status: "missed", note: "Sinh viên không đến." });
-                          messageApi.info("Đã ghi nhận sinh viên vắng");
-                        }}
-                      >
-                        Sinh viên vắng
-                      </Button>
-                      <Button size="small" danger onClick={() => cancel(appointment)}>
-                        Hủy hẹn
-                      </Button>
+                <li key={appointment.id}>
+                  <Card size="small">
+                    <div className="flex flex-col gap-3 sm:flex-row">
+                      <div className="flex w-36 shrink-0 flex-col">
+                        <span className={`font-medium ${isToday && appointment.status === "scheduled" ? "text-primary" : ""}`}>{dayText(appointment.date)}</span>
+                        <span className="text-sm text-muted tabular-nums">
+                          {appointment.startTime} - {startOf(appointment).add(appointment.durationMinutes, "minute").format("HH:mm")}
+                        </span>
+                      </div>
+                      <div className="flex min-w-0 flex-1 flex-col gap-1">
+                        <span className="flex flex-wrap items-center gap-2">
+                          <span className="font-medium text-pretty">{appointment.topic}</span>
+                          {appointment.status !== "scheduled" && <StatusTag status={APPOINTMENT_STATUS[appointment.status]} />}
+                        </span>
+                        <span className="text-sm text-muted">
+                          {APPOINTMENT_MODE_LABEL[appointment.mode]} · {appointment.location}
+                        </span>
+                        <span className="flex flex-wrap gap-x-3 gap-y-1 text-sm">
+                          {appointment.students.map((student) => (
+                            <Link key={student.id} href={`/lecturer/advising/students/${student.id}`}>
+                              {student.fullName}
+                            </Link>
+                          ))}
+                        </span>
+                        {appointment.note && <p className="mt-1 text-sm text-pretty text-muted">“{appointment.note}”</p>}
+                      </div>
+                      {appointment.status === "scheduled" && (
+                        <div className="flex shrink-0 flex-wrap gap-2 sm:flex-col sm:items-end">
+                          <Button size="small" onClick={() => setCompleting(appointment)}>
+                            Ghi nhận đã gặp
+                          </Button>
+                          <Button
+                            size="small"
+                            onClick={() => {
+                              update(appointment.id, { status: "missed", note: "Sinh viên không đến." });
+                              messageApi.info("Đã ghi nhận sinh viên vắng");
+                            }}
+                          >
+                            Sinh viên vắng
+                          </Button>
+                          <Button size="small" danger onClick={() => cancel(appointment)}>
+                            Hủy hẹn
+                          </Button>
+                        </div>
+                      )}
                     </div>
-                  )}
+                  </Card>
                 </li>
               );
             })}
@@ -226,11 +231,14 @@ export function AppointmentBoard({ appointments, advisees, notes: initialNotes, 
         )}
       </div>
 
-      <section className="flex min-w-0 flex-col gap-3 rounded-xl border border-border-strong bg-surface p-4 sm:p-5">
-        <h2 className="flex items-center gap-2 text-lg font-semibold">
-          <Notes size={18} aria-hidden className="text-muted" />
-          Ghi chú buổi gặp
-        </h2>
+      <SectionCard
+        title={
+          <span className="flex items-center gap-2">
+            <Notes size={18} aria-hidden className="text-muted" />
+            Ghi chú buổi gặp
+          </span>
+        }
+      >
         {notes.length === 0 ? (
           <p className="text-sm text-muted">Ghi chú tạo ra khi bạn ghi nhận đã gặp sinh viên.</p>
         ) : (
@@ -253,7 +261,7 @@ export function AppointmentBoard({ appointments, advisees, notes: initialNotes, 
             })}
           </ul>
         )}
-      </section>
+      </SectionCard>
 
       <Drawer
         open={isCreateOpen}
@@ -280,14 +288,15 @@ export function AppointmentBoard({ appointments, advisees, notes: initialNotes, 
               <span className="flex flex-wrap gap-x-3">
                 Chọn nhanh cả lớp:
                 {classNames.map((className) => (
-                  <button
+                  <Button
                     key={className}
-                    type="button"
-                    className="cursor-pointer font-mono text-primary hover:underline"
+                    type="link"
+                    size="small"
+                    className="h-auto p-0"
                     onClick={() => createForm.setFieldValue("studentIds", advisees.filter((student) => student.className === className).map((student) => student.id))}
                   >
                     {className}
-                  </button>
+                  </Button>
                 ))}
               </span>
             }

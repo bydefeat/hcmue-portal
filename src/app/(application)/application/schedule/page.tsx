@@ -7,6 +7,7 @@ import { IcsExportButton } from "@/modules/schedule/components/ics-export-button
 import { WeekSchedule } from "@/modules/schedule/components/week-schedule";
 import type { ScheduleEvent } from "@/modules/schedule/schedule.type";
 import { getCurrentStudent } from "@/modules/users/users.query";
+import { PageHeader } from "@/shared/components/ui/page-header";
 
 export const metadata: Metadata = { title: "Thời khóa biểu" };
 
@@ -32,20 +33,21 @@ export default async function Page() {
   const periods = events.reduce((sum, event) => sum + event.endPeriod - event.startPeriod + 1, 0);
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-sm text-muted tabular-nums">
-          {term.name} · {timetable.length} lớp, {credits} tín chỉ, {periods} tiết mỗi tuần
-        </p>
-        <IcsExportButton
-          events={events}
-          termStart={term.startDate}
-          termEnd={term.endDate}
-          calendarName={`Thời khóa biểu ${term.shortName}`}
-          fileName={`tkb-${student.code}-${term.code}.ics`}
-        />
-      </div>
+    <>
+      <PageHeader
+        title="Thời khóa biểu"
+        description={`${term.name} · ${timetable.length} lớp, ${credits} tín chỉ, ${periods} tiết mỗi tuần`}
+        actions={
+          <IcsExportButton
+            events={events}
+            termStart={term.startDate}
+            termEnd={term.endDate}
+            calendarName={`Thời khóa biểu ${term.shortName}`}
+            fileName={`tkb-${student.code}-${term.code}.ics`}
+          />
+        }
+      />
       <WeekSchedule events={events} termStart={term.startDate} termEnd={term.endDate} />
-    </div>
+    </>
   );
 }

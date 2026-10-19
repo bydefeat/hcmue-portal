@@ -143,7 +143,7 @@ export function evaluateSection(section: ClassSectionView, context: EligibilityC
       issues.push({
         kind: "lab",
         blocking: false,
-        message: `Lớp có ${section.labGroups.length} nhóm thực hành, chọn 1 nhóm khi thêm vào giỏ (còn ${open.length} nhóm có chỗ).`,
+        message: `Lớp có ${section.labGroups.length} nhóm thực hành, chọn 1 nhóm khi chọn lớp (còn ${open.length} nhóm có chỗ).`,
       });
     }
   }
@@ -164,7 +164,7 @@ export function evaluateSection(section: ClassSectionView, context: EligibilityC
     issues.push({
       kind: "corequisite",
       blocking: true,
-      message: `Học phần song hành ${coMissing.map((code) => courseLabel(code, context)).join(", ")} phải học cùng học kỳ. Thêm lớp của học phần đó vào giỏ trước.`,
+      message: `Học phần song hành ${coMissing.map((code) => courseLabel(code, context)).join(", ")} phải học cùng học kỳ. Chọn lớp của học phần đó trước.`,
     });
   }
 

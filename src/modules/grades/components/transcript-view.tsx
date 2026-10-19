@@ -6,7 +6,7 @@ import { formatPoint } from "../grades.constant";
 import type { TranscriptCourse, TranscriptTerm } from "../grades.type";
 
 const COLUMNS: TableColumnsType<TranscriptCourse> = [
-  { title: "Mã HP", dataIndex: "courseCode", width: 110, render: (code: string) => <span className="font-mono text-xs">{code}</span> },
+  { title: "Mã HP", dataIndex: "courseCode", width: 110, render: (code: string) => <span className="text-xs">{code}</span> },
   { title: "Tên học phần", dataIndex: "courseName", render: (name: string) => <span className="text-pretty">{name}</span> },
   { title: "TC", dataIndex: "credits", width: 56, align: "right", render: (value: number) => <span className="tabular-nums">{value}</span> },
   {

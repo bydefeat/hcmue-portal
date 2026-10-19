@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Button, message, Modal, Segmented, Table, type TableColumnsType } from "antd";
+import { Button, Card, message, Modal, Segmented, Table, type TableColumnsType } from "antd";
 import { CircleCheck } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { MeterBar } from "@/shared/components/ui/meter-bar";
@@ -106,7 +106,7 @@ export function RegistrationMonitorSections({ sections }: { sections: ClassSecti
       width: 260,
       render: (_, section) => (
         <span className="flex min-w-0 flex-col">
-          <span className="font-mono text-xs">{section.code}</span>
+          <span className="text-xs">{section.code}</span>
           <span className="truncate">{section.courseName}</span>
         </span>
       ),
@@ -179,32 +179,34 @@ export function RegistrationMonitorSections({ sections }: { sections: ClassSecti
       >
         <ul className="flex flex-col gap-3">
           {outcomes.map((outcome) => (
-            <li key={outcome.section.id} className="flex flex-col gap-2 rounded-lg border border-border-strong p-3">
-              <span className="text-sm">
-                <span className="font-mono">{outcome.section.code}</span> đã hủy. Đã gửi thông báo cho{" "}
-                <span className="tabular-nums">{outcome.section.enrolled}</span> sinh viên kèm gợi ý lớp thay thế.
-              </span>
-              {outcome.movedTo ? (
-                <span className="text-sm text-green-700">Đã chuyển sinh viên sang {outcome.movedTo}</span>
-              ) : outcome.alternatives.length === 0 ? (
-                <span className="text-sm text-amber-700">
-                  Không còn lớp nào cùng học phần còn chỗ. Sinh viên được nhắc đăng ký học phần khác hoặc gửi đơn xin mở lớp.
+            <li key={outcome.section.id}>
+              <Card size="small" classNames={{ body: "flex flex-col gap-2" }}>
+                <span className="text-sm">
+                  {outcome.section.code} đã hủy. Đã gửi thông báo cho{" "}
+                  <span className="tabular-nums">{outcome.section.enrolled}</span> sinh viên kèm gợi ý lớp thay thế.
                 </span>
-              ) : (
-                <ul className="flex flex-col gap-1">
-                  {outcome.alternatives.map((target) => (
-                    <li key={target.id} className="flex flex-wrap items-center justify-between gap-2 text-sm">
-                      <span className="min-w-0">
-                        <span className="font-mono">{target.code}</span> · {target.meetings.map(meetingText).join("; ")} ·{" "}
-                        <span className="tabular-nums">còn {target.capacity - target.enrolled} chỗ</span>
-                      </span>
-                      <Button size="small" onClick={() => moveAll(outcome, target)}>
-                        Chuyển sinh viên sang lớp này
-                      </Button>
-                    </li>
-                  ))}
-                </ul>
-              )}
+                {outcome.movedTo ? (
+                  <span className="text-sm text-green-700">Đã chuyển sinh viên sang {outcome.movedTo}</span>
+                ) : outcome.alternatives.length === 0 ? (
+                  <span className="text-sm text-amber-700">
+                    Không còn lớp nào cùng học phần còn chỗ. Sinh viên được nhắc đăng ký học phần khác hoặc gửi đơn xin mở lớp.
+                  </span>
+                ) : (
+                  <ul className="flex flex-col gap-1">
+                    {outcome.alternatives.map((target) => (
+                      <li key={target.id} className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                        <span className="min-w-0">
+                          {target.code} · {target.meetings.map(meetingText).join("; ")} ·{" "}
+                          <span className="tabular-nums">còn {target.capacity - target.enrolled} chỗ</span>
+                        </span>
+                        <Button size="small" onClick={() => moveAll(outcome, target)}>
+                          Chuyển sinh viên sang lớp này
+                        </Button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </Card>
             </li>
           ))}
         </ul>

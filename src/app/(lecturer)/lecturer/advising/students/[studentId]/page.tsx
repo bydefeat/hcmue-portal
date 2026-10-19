@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PageHeader } from "@/shared/components/ui/page-header";
+import { SectionCard } from "@/shared/components/ui/section-card";
 import { StatTile } from "@/shared/components/ui/stat-tile";
 import { StatusTag } from "@/shared/components/ui/status-tag";
 import { formatDateTime } from "@/shared/libs/date.lib";
@@ -50,13 +51,9 @@ export default async function Page({ params }: { params: Promise<{ studentId: st
             />
           </div>
 
-          <section className="flex flex-col gap-2 rounded-xl border border-border-strong bg-surface p-4 sm:p-5">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <h2 className="text-lg font-semibold">Kế hoạch học tập</h2>
-              {plan && <StatusTag status={STUDY_PLAN_STATUS[plan.status]} />}
-            </div>
+          <SectionCard title="Kế hoạch học tập" extra={plan && <StatusTag status={STUDY_PLAN_STATUS[plan.status]} />}>
             {plan ? (
-              <>
+              <div className="flex flex-col gap-2">
                 <p className="text-sm text-muted tabular-nums">
                   {plan.targetTermName}: {plan.totalCredits} tín chỉ, {plan.terms[0]?.courses.length ?? 0} học phần
                   {plan.submittedAt ? `. Nộp lúc ${formatDateTime(plan.submittedAt)}` : ". Sinh viên chưa nộp"}
@@ -66,11 +63,11 @@ export default async function Page({ params }: { params: Promise<{ studentId: st
                     Xét duyệt kế hoạch
                   </Link>
                 )}
-              </>
+              </div>
             ) : (
               <p className="text-sm text-muted">Sinh viên chưa lập kế hoạch học tập.</p>
             )}
-          </section>
+          </SectionCard>
 
           <section className="flex flex-col gap-2">
             <h2 className="text-lg font-semibold">Kết quả học tập</h2>

@@ -13,7 +13,7 @@ import {
   useSensors,
   type DragEndEvent,
 } from "@dnd-kit/core";
-import { Alert, Button, Dropdown, Input, message, type MenuProps } from "antd";
+import { Alert, Button, Card, Dropdown, Form, Input, message, type MenuProps } from "antd";
 import { Books, DotsVertical, GripDotsVertical } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { MeterBar } from "@/shared/components/ui/meter-bar";
@@ -21,6 +21,7 @@ import { StatusTag } from "@/shared/components/ui/status-tag";
 import { dayjs, formatDateTime } from "@/shared/libs/date.lib";
 import { STUDY_PLAN_STATUS } from "../study-plan.constant";
 import type { StudyPlan, StudyPlanCourse, StudyPlanStatus } from "../study-plan.type";
+import { SectionCard } from "@/shared/components/ui/section-card";
 
 type StudyPlanEditorProps = {
   plan: StudyPlan | null;
@@ -48,19 +49,21 @@ type CardProps = {
 
 function CourseCardView({ course, warning, handle, menu, isDragging = false }: CardProps) {
   return (
-    <div
-      className={`flex items-start gap-2 rounded-lg border bg-surface p-2.5 ${warning ? "border-amber-300" : "border-border-strong"} ${isDragging ? "opacity-40" : ""}`}
+    <Card
+      size="small"
+      className={`${warning ? "border-amber-300" : ""} ${isDragging ? "opacity-40" : ""}`}
+      classNames={{ body: "flex items-start gap-2 p-2.5" }}
     >
       {handle}
       <span className="flex min-w-0 flex-1 flex-col">
         <span className="text-sm text-pretty">{course.name}</span>
         <span className="text-xs text-muted">
-          <span className="font-mono">{course.code}</span> · <span className="tabular-nums">{course.credits} TC</span>
+          {course.code} · <span className="tabular-nums">{course.credits} TC</span>
         </span>
         {warning && <span className="text-xs text-pretty text-amber-700">{warning}</span>}
       </span>
       {menu}
-    </div>
+    </Card>
   );
 }
 
@@ -91,15 +94,15 @@ function CourseCard({
         warning={warning}
         isDragging={isDragging}
         handle={
-          <button
-            type="button"
+          <Button
+            type="text"
+            size="small"
             aria-label={`Kéo ${course.name}`}
-            className="mt-0.5 shrink-0 cursor-grab touch-none text-muted transition-colors hover:text-foreground"
+            className="shrink-0 cursor-grab touch-none text-muted"
+            icon={<GripDotsVertical size={16} aria-hidden />}
             {...listeners}
             {...attributes}
-          >
-            <GripDotsVertical size={16} aria-hidden />
-          </button>
+          />
         }
         menu={
           <Dropdown menu={{ items }} trigger={["click"]}>
@@ -114,14 +117,16 @@ function CourseCard({
 function Column({ id, title, children, footer }: { id: string; title: React.ReactNode; children: React.ReactNode; footer?: React.ReactNode }) {
   const { setNodeRef, isOver } = useDroppable({ id });
   return (
-    <section
+    <Card
       ref={setNodeRef}
-      className={`flex min-w-0 flex-col gap-2 rounded-xl border p-3 transition-colors ${isOver ? "border-primary bg-primary-light" : "border-border-strong bg-surface"}`}
+      size="small"
+      className={`min-w-0 transition-colors ${isOver ? "border-primary bg-primary-light" : ""}`}
+      classNames={{ body: "flex flex-col gap-2" }}
     >
       <header className="flex flex-col gap-1">{title}</header>
       <div className="flex min-h-24 flex-col gap-2">{children}</div>
       {footer}
-    </section>
+    </Card>
   );
 }
 
@@ -200,7 +205,7 @@ export function StudyPlanEditor({ plan, termNames, pool, passedGrades, prerequis
   return (
     <div className="flex flex-col gap-4">
       {contextHolder}
-      <div className="flex flex-col gap-3 rounded-xl border border-border-strong bg-surface p-4 sm:flex-row sm:items-center sm:justify-between">
+      <Card size="small" classNames={{ body: "flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between" }}>
         <div className="flex min-w-0 flex-col gap-1">
           <span className="flex flex-wrap items-center gap-2">
             <StatusTag status={STUDY_PLAN_STATUS[status]} />
@@ -219,7 +224,7 @@ export function StudyPlanEditor({ plan, termNames, pool, passedGrades, prerequis
             Gửi cố vấn duyệt
           </Button>
         </div>
-      </div>
+      </Card>
 
       {plan?.advisorComment && status !== "draft" && (
         <Alert
@@ -293,22 +298,22 @@ export function StudyPlanEditor({ plan, termNames, pool, passedGrades, prerequis
         </DragOverlay>
       </DndContext>
 
-      <section className="flex flex-col gap-2 rounded-xl border border-border-strong bg-surface p-4">
-        <label htmlFor="plan-note" className="text-sm font-medium">
-          Ghi chú cho cố vấn
-        </label>
-        <Input.TextArea
-          id="plan-note"
-          value={note}
-          onChange={(event) => {
-            setNote(event.target.value);
-            setIsDirty(true);
-          }}
-          autoSize={{ minRows: 2, maxRows: 5 }}
-          maxLength={500}
-          showCount
-        />
-      </section>
+      <SectionCard title="Ghi chú cho cố vấn">
+        <Form layout="vertical">
+          <Form.Item label="Nội dung ghi chú" className="mb-0">
+            <Input.TextArea
+              value={note}
+              onChange={(event) => {
+                setNote(event.target.value);
+                setIsDirty(true);
+              }}
+              autoSize={{ minRows: 2, maxRows: 5 }}
+              maxLength={500}
+              showCount
+            />
+          </Form.Item>
+        </Form>
+      </SectionCard>
     </div>
   );
 }

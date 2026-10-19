@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { Button, Divider, Drawer, Form, Input, InputNumber, Select } from "antd";
+import { Button, Card, Divider, Drawer, Form, Input, InputNumber, Select } from "antd";
 import { Plus, Trash } from "defeat-icons-react";
 import { PERIODS, WEEKDAYS } from "@/shared/constants/period.constant";
 import { MOCK_COHORTS, MOCK_MAJORS } from "@/shared/libs/mock.lib";
@@ -147,7 +147,7 @@ export function ClassSectionFormDrawer({ open, section, termName, courses, lectu
           {(fields, { add, remove }) => (
             <div className="mb-4 flex flex-col gap-3">
               {fields.map((field) => (
-                <div key={field.key} className="grid grid-cols-2 gap-x-3 rounded-lg border border-border-strong p-3 sm:grid-cols-[1fr_96px_auto]">
+                <Card key={field.key} size="small" classNames={{ body: "grid grid-cols-2 gap-x-3 sm:grid-cols-[1fr_96px_auto]" }}>
                   <Form.Item name={[field.name, "label"]} label="Nhóm" rules={[{ required: true, message: "Chưa nhập" }]} className="col-span-2 sm:col-span-1">
                     <Input placeholder="Ví dụ: Khóa 48 cần để tốt nghiệp" />
                   </Form.Item>
@@ -163,7 +163,7 @@ export function ClassSectionFormDrawer({ open, section, termName, courses, lectu
                   <Form.Item name={[field.name, "cohorts"]} label="Khóa" className="col-span-2">
                     <Select mode="multiple" allowClear options={COHORT_OPTIONS} />
                   </Form.Item>
-                </div>
+                </Card>
               ))}
               <Button icon={<Plus size={16} aria-hidden />} onClick={() => add({ label: "", seats: 5, majorCodes: [], cohorts: [] })} className="self-start">
                 Thêm nhóm dành riêng
@@ -184,7 +184,7 @@ export function ClassSectionFormDrawer({ open, section, termName, courses, lectu
           {(fields, { add, remove }, { errors }) => (
             <div className="flex flex-col gap-3">
               {fields.map((field) => (
-                <div key={field.key} className="grid grid-cols-2 gap-x-3 rounded-lg border border-border-strong p-3 sm:grid-cols-[1fr_1fr_1fr_auto]">
+                <Card key={field.key} size="small" classNames={{ body: "grid grid-cols-2 gap-x-3 sm:grid-cols-[1fr_1fr_1fr_auto]" }}>
                   <Form.Item name={[field.name, "dayOfWeek"]} label="Thứ" rules={[{ required: true, message: "Chưa chọn" }]}>
                     <Select options={DAY_OPTIONS} />
                   </Form.Item>
@@ -213,7 +213,7 @@ export function ClassSectionFormDrawer({ open, section, termName, courses, lectu
                   <div className="col-span-2 flex justify-end sm:col-span-1 sm:items-start sm:pt-7">
                     <Button type="text" danger icon={<Trash size={16} aria-hidden />} aria-label="Xóa buổi học" onClick={() => remove(field.name)} />
                   </div>
-                </div>
+                </Card>
               ))}
               <Form.ErrorList errors={errors} />
               <Button icon={<Plus size={16} aria-hidden />} onClick={() => add({ dayOfWeek: 2, startPeriod: 1, endPeriod: 3, room: ROOMS[0] })} className="self-start">
@@ -230,9 +230,9 @@ export function ClassSectionFormDrawer({ open, section, termName, courses, lectu
           {(fields, { add, remove }) => (
             <div className="flex flex-col gap-3">
               {fields.map((field) => (
-                <div key={field.key} className="grid grid-cols-2 gap-x-3 rounded-lg border border-border-strong p-3 sm:grid-cols-[80px_1fr_1fr_80px_auto]">
+                <Card key={field.key} size="small" classNames={{ body: "grid grid-cols-2 gap-x-3 sm:grid-cols-[80px_1fr_1fr_80px_auto]" }}>
                   <Form.Item name={[field.name, "code"]} label="Nhóm" rules={[{ required: true, message: "Chưa nhập" }]}>
-                    <Input placeholder="TH1" className="font-mono" />
+                    <Input placeholder="TH1" />
                   </Form.Item>
                   <Form.Item name={[field.name, "dayOfWeek"]} label="Thứ" rules={[{ required: true, message: "Chưa chọn" }]}>
                     <Select options={DAY_OPTIONS} />
@@ -252,7 +252,7 @@ export function ClassSectionFormDrawer({ open, section, termName, courses, lectu
                   <Form.Item name={[field.name, "endPeriod"]} label="Đến tiết" rules={[{ required: true, message: "Chưa chọn" }]}>
                     <Select options={PERIOD_OPTIONS} />
                   </Form.Item>
-                </div>
+                </Card>
               ))}
               <Button
                 icon={<Plus size={16} aria-hidden />}

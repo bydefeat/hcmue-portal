@@ -10,7 +10,7 @@ export default function Forbidden() {
       <Card className="w-full max-w-lg">
         <Result
           status="403"
-          title="Bạn chưa được cấp quyền xem trang này"
+          title={<h1 className="text-xl font-semibold">Bạn chưa được cấp quyền xem trang này</h1>}
           subTitle="Vai trò hiện tại của tài khoản không gồm quyền cần cho chức năng này. Liên hệ quản trị hệ thống của Phòng Đào tạo để được cấp quyền."
           extra={<Link href="/administrator">Về trang tổng quan</Link>}
         />

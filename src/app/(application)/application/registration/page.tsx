@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { StudentRegistration } from "@/modules/course-registration/components/student-registration";
 import { bestGrades, creditCapOf, evaluateSection, pickTimetable } from "@/modules/course-registration/course-registration.rule";
 import type { ClassSectionView, RegistrationHold } from "@/modules/course-registration/course-registration.type";
@@ -18,6 +19,7 @@ import { formatDate } from "@/shared/libs/date.lib";
 import { formatMoney } from "@/modules/tuition/tuition.constant";
 import { getInvoices } from "@/modules/tuition/tuition.query";
 import { getCurrentStudent } from "@/modules/users/users.query";
+import { PageHeader } from "@/shared/components/ui/page-header";
 
 export const metadata: Metadata = { title: "Đăng ký học phần" };
 
@@ -114,23 +116,29 @@ export default async function Page() {
   const allHolds = [...(tuitionHold ? [tuitionHold] : []), ...holds.filter((hold) => hold.kind !== "tuition")];
 
   return (
-    <StudentRegistration
-      sections={openSections}
-      period={period}
-      termName={targetTerm.name}
-      cohort={student.cohort}
-      student={profile}
-      passedGrades={passedGrades}
-      prerequisites={prerequisites}
-      corequisites={corequisites}
-      equivalents={equivalents}
-      courseNames={courseNames}
-      credits={{ min: regulation.credits.minPerTerm, max: cap.max, note: cap.note }}
-      planCodes={planCodes}
-      inProgressCodes={inProgressCodes}
-      initialPlannedIds={initialPlanned.map((section) => section.id)}
-      initialLabChoices={initialLabChoices}
-      holds={allHolds}
-    />
+    <>
+      <PageHeader
+        title="Đăng ký học phần"
+        description={`${targetTerm.name}. Hệ thống kiểm tra tiên quyết, trùng lịch, sĩ số và hạn mức tín chỉ ngay khi bạn chọn lớp.`}
+        actions={<Link href="/application/registration/history">Lịch sử và phiếu đăng ký</Link>}
+      />
+      <StudentRegistration
+        sections={openSections}
+        period={period}
+        cohort={student.cohort}
+        student={profile}
+        passedGrades={passedGrades}
+        prerequisites={prerequisites}
+        corequisites={corequisites}
+        equivalents={equivalents}
+        courseNames={courseNames}
+        credits={{ min: regulation.credits.minPerTerm, max: cap.max, note: cap.note }}
+        planCodes={planCodes}
+        inProgressCodes={inProgressCodes}
+        initialPlannedIds={initialPlanned.map((section) => section.id)}
+        initialLabChoices={initialLabChoices}
+        holds={allHolds}
+      />
+    </>
   );
 }

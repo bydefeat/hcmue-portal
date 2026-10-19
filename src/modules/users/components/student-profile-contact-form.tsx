@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { Button, Form, Input, message } from "antd";
+import { SectionCard } from "@/shared/components/ui/section-card";
 
 type ContactValues = {
   schoolEmail: string;
@@ -17,12 +18,9 @@ export function StudentProfileContactForm({ initialValues }: { initialValues: Co
   const [messageApi, contextHolder] = message.useMessage();
 
   return (
-    <section className="flex flex-col gap-4 rounded-xl border border-border-strong bg-surface p-4 sm:p-5">
+    <SectionCard title="Thông tin liên hệ">
       {contextHolder}
-      <div className="flex flex-col gap-1">
-        <h2 className="text-lg font-semibold">Thông tin liên hệ</h2>
-        <p className="text-sm text-pretty text-muted">Nhà trường dùng các thông tin này để gửi thông báo học vụ và liên lạc khi khẩn cấp.</p>
-      </div>
+      <p className="mb-4 text-sm text-pretty text-muted">Nhà trường dùng các thông tin này để gửi thông báo học vụ và liên lạc khi khẩn cấp.</p>
       <Form<ContactValues>
         form={form}
         layout="vertical"
@@ -65,6 +63,6 @@ export function StudentProfileContactForm({ initialValues }: { initialValues: Co
           </Button>
         </div>
       </Form>
-    </section>
+    </SectionCard>
   );
 }

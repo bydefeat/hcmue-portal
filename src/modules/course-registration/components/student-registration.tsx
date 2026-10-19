@@ -2,10 +2,11 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { Alert, Button, Checkbox, Input, message, Modal, Select } from "antd";
+import { Alert, Button, Card, Checkbox, Form, Input, message, Modal, Select } from "antd";
 import { CircleCheck, CircleXmark, ClipboardCheck, Magnifier, Plus, Trash } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { MeterBar } from "@/shared/components/ui/meter-bar";
+import { SectionCard } from "@/shared/components/ui/section-card";
 import { StatusTag } from "@/shared/components/ui/status-tag";
 import { formatDateTime } from "@/shared/libs/date.lib";
 import { HOLD_KIND_LABEL, meetingText, REGISTRATION_PERIOD_STATE } from "../course-registration.constant";
@@ -26,7 +27,6 @@ import { PeriodCountdown } from "./student-period-countdown";
 type StudentRegistrationProps = {
   sections: ClassSectionView[];
   period: RegistrationPeriodView | null;
-  termName: string;
   cohort: number;
   student: RegistrationStudent;
   passedGrades: Record<string, string>;
@@ -67,7 +67,7 @@ function PeriodBanner({ period, state, cohort }: { period: RegistrationPeriodVie
         type="info"
         showIcon
         title={`Chưa có đợt đăng ký cho khóa ${cohort}`}
-        description="Phòng Đào tạo sẽ thông báo lịch đăng ký trên cổng và qua email. Bạn vẫn có thể chuẩn bị giỏ dự kiến."
+        description="Phòng Đào tạo sẽ thông báo lịch đăng ký trên cổng và qua email. Bạn vẫn có thể chọn trước các lớp dự kiến."
       />
     );
   }
@@ -81,7 +81,7 @@ function PeriodBanner({ period, state, cohort }: { period: RegistrationPeriodVie
             {period.name}: <PeriodCountdown target={period.opensAt} prefix="mở" />
           </span>
         }
-        description={`Mở lúc ${formatDateTime(period.opensAt)}, đóng lúc ${formatDateTime(period.closesAt)}. Chuẩn bị giỏ dự kiến trước, khi đợt mở chỉ cần bấm Đăng ký.`}
+        description={`Mở lúc ${formatDateTime(period.opensAt)}, đóng lúc ${formatDateTime(period.closesAt)}. Chọn trước các lớp dự kiến, khi đợt mở chỉ cần bấm Đăng ký.`}
       />
     );
   }
@@ -116,7 +116,7 @@ function IssueList({ issues }: { issues: RegistrationIssue[] }) {
       {issues.map((issue) => (
         <li key={issue.kind} className={`flex items-start gap-1.5 text-xs text-pretty ${issue.blocking ? "text-rose-700" : "text-amber-700"}`}>
           <CircleXmark size={14} aria-hidden className="mt-px shrink-0" />
-          <span>{issue.message}</span>
+          {issue.message}
         </li>
       ))}
     </ul>
@@ -126,7 +126,6 @@ function IssueList({ issues }: { issues: RegistrationIssue[] }) {
 export function StudentRegistration({
   sections,
   period,
-  termName,
   cohort,
   student,
   passedGrades,
@@ -200,7 +199,7 @@ export function StudentRegistration({
       return;
     }
     setPlannedIds((current) => [...current, section.id]);
-    messageApi.success(`Đã thêm ${section.code} vào giỏ dự kiến`);
+    messageApi.success(`Đã chọn lớp ${section.code}`);
   };
 
   const confirmLab = (section: ClassSectionView, groupId: string) => {
@@ -223,7 +222,7 @@ export function StudentRegistration({
       return;
     }
     if (basketCredits < credits.min) {
-      messageApi.warning(`Cần tối thiểu ${credits.min} tín chỉ, giỏ đang có ${basketCredits}. Thêm học phần rồi đăng ký lại.`);
+      messageApi.warning(`Cần tối thiểu ${credits.min} tín chỉ, các lớp đã chọn mới có ${basketCredits}. Chọn thêm học phần rồi đăng ký lại.`);
       return;
     }
     const problems = basketProblems(basket, { ...context });
@@ -260,9 +259,6 @@ export function StudentRegistration({
       {contextHolder}
       {modalContextHolder}
       <div className="flex flex-col gap-2">
-        <p className="text-sm text-pretty text-muted">
-          {termName}. Hệ thống kiểm tra tiên quyết, trùng lịch, sĩ số và hạn mức tín chỉ ngay khi bạn chọn lớp.
-        </p>
         <PeriodBanner period={period} state={state} cohort={cohort} />
         {holds
           .filter((hold) => !hold.releasedAt)
@@ -277,15 +273,11 @@ export function StudentRegistration({
             />
           ))}
         {credits.note && <Alert type="warning" showIcon title={credits.note} />}
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <label className="flex flex-wrap items-center gap-2 text-xs text-muted">
-            Xem thử trạng thái đợt
-            <Select<Simulation> size="small" value={simulation} onChange={setSimulation} options={SIMULATION_OPTIONS} className="w-48" />
-          </label>
-          <Link href="/application/registration/history" className="text-sm">
-            Lịch sử và phiếu đăng ký
-          </Link>
-        </div>
+        <Form layout="inline" size="small">
+          <Form.Item label="Xem thử trạng thái đợt" className="mb-0">
+            <Select<Simulation> value={simulation} onChange={setSimulation} options={SIMULATION_OPTIONS} className="w-48" />
+          </Form.Item>
+        </Form>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_340px] lg:items-start">
@@ -320,9 +312,9 @@ export function StudentRegistration({
           </div>
 
           {rows.length === 0 ? (
-            <div className="rounded-xl border border-border-strong bg-surface">
+            <SectionCard flush>
               <EmptyState title="Không có lớp khớp bộ lọc" description="Bỏ bớt điều kiện lọc để xem toàn bộ lớp đang mở." />
-            </div>
+            </SectionCard>
           ) : (
             <ul className="flex flex-col gap-2">
               {rows.map(({ section, issues }) => {
@@ -332,69 +324,71 @@ export function StudentRegistration({
                 const onlyFull = blocked && issues.filter((issue) => issue.blocking).every((issue) => issue.kind === "full");
                 const isWaiting = waitlistIds.includes(section.id);
                 return (
-                  <li key={section.id} className="flex flex-col gap-3 rounded-xl border border-border-strong bg-surface p-4 md:flex-row md:items-start">
-                    <div className="flex min-w-0 flex-1 flex-col gap-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="font-mono text-xs text-muted">{section.code}</span>
-                        <span className="text-xs text-muted tabular-nums">{section.credits} TC</span>
-                        {planCodes.includes(section.courseCode) && <span className="text-xs text-primary">Trong kế hoạch</span>}
+                  <li key={section.id}>
+                    <Card size="small" classNames={{ body: "flex flex-col gap-3 md:flex-row md:items-start" }}>
+                      <div className="flex min-w-0 flex-1 flex-col gap-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-xs text-muted">{section.code}</span>
+                          <span className="text-xs text-muted tabular-nums">{section.credits} TC</span>
+                          {planCodes.includes(section.courseCode) && <span className="text-xs text-primary">Trong kế hoạch</span>}
+                        </div>
+                        <span className="font-medium text-pretty">{section.courseName}</span>
+                        <span className="text-xs text-muted">{section.lecturerName ?? "Chưa phân công giảng viên"}</span>
+                        <span className="text-xs text-muted">{section.meetings.map(meetingText).join("; ")}</span>
+                        <IssueList issues={issues} />
                       </div>
-                      <span className="font-medium text-pretty">{section.courseName}</span>
-                      <span className="text-xs text-muted">{section.lecturerName ?? "Chưa phân công giảng viên"}</span>
-                      <span className="text-xs text-muted">{section.meetings.map(meetingText).join("; ")}</span>
-                      <IssueList issues={issues} />
-                    </div>
-                    <div className="flex shrink-0 items-center gap-3 md:w-56 md:flex-col md:items-stretch">
-                      <div className="flex min-w-0 flex-1 items-center gap-2 md:flex-none">
-                        <MeterBar
-                          value={section.enrolled}
-                          max={section.capacity}
-                          tone={section.isFull ? "warning" : "primary"}
-                          label={`Đã đăng ký ${section.code}`}
-                        />
-                        <span className="shrink-0 text-xs text-muted tabular-nums">
-                          {section.enrolled}/{section.capacity}
-                        </span>
-                      </div>
-                      {isRegistered ? (
-                        <span className="flex items-center gap-1 text-sm text-green-700">
-                          <CircleCheck size={16} aria-hidden />
-                          Đã đăng ký
-                        </span>
-                      ) : isPlanned ? (
-                        <Button onClick={() => removePlanned(section)} icon={<Trash size={16} aria-hidden />}>
-                          Bỏ khỏi giỏ
-                        </Button>
-                      ) : isWaiting ? (
-                        <span className="flex flex-col items-start gap-1 md:items-stretch">
-                          <span className="text-xs text-amber-700 tabular-nums">Đang chờ, vị trí {waitlistPosition(section.code)}</span>
+                      <div className="flex shrink-0 items-center gap-3 md:w-56 md:flex-col md:items-stretch">
+                        <div className="flex min-w-0 flex-1 items-center gap-2 md:flex-none">
+                          <MeterBar
+                            value={section.enrolled}
+                            max={section.capacity}
+                            tone={section.isFull ? "warning" : "primary"}
+                            label={`Đã đăng ký ${section.code}`}
+                          />
+                          <span className="shrink-0 text-xs text-muted tabular-nums">
+                            {section.enrolled}/{section.capacity}
+                          </span>
+                        </div>
+                        {isRegistered ? (
+                          <span className="flex items-center gap-1 text-sm text-green-700">
+                            <CircleCheck size={16} aria-hidden />
+                            Đã đăng ký
+                          </span>
+                        ) : isPlanned ? (
+                          <Button onClick={() => removePlanned(section)} icon={<Trash size={16} aria-hidden />}>
+                            Bỏ chọn
+                          </Button>
+                        ) : isWaiting ? (
+                          <span className="flex flex-col items-start gap-1 md:items-stretch">
+                            <span className="text-xs text-amber-700 tabular-nums">Đang chờ, vị trí {waitlistPosition(section.code)}</span>
+                            <Button
+                              size="small"
+                              onClick={() => {
+                                setWaitlistIds((current) => current.filter((id) => id !== section.id));
+                                messageApi.info(`Đã rời danh sách chờ lớp ${section.code}`);
+                              }}
+                            >
+                              Rời danh sách chờ
+                            </Button>
+                          </span>
+                        ) : onlyFull ? (
                           <Button
-                            size="small"
                             onClick={() => {
-                              setWaitlistIds((current) => current.filter((id) => id !== section.id));
-                              messageApi.info(`Đã rời danh sách chờ lớp ${section.code}`);
+                              setWaitlistIds((current) => [...current, section.id]);
+                              messageApi.success(
+                                `Đã vào danh sách chờ lớp ${section.code}, vị trí ${waitlistPosition(section.code)}. Khi có chỗ trống hệ thống tự đăng ký nếu không trùng lịch và báo cho bạn.`,
+                              );
                             }}
                           >
-                            Rời danh sách chờ
+                            Vào danh sách chờ
                           </Button>
-                        </span>
-                      ) : onlyFull ? (
-                        <Button
-                          onClick={() => {
-                            setWaitlistIds((current) => [...current, section.id]);
-                            messageApi.success(
-                              `Đã vào danh sách chờ lớp ${section.code}, vị trí ${waitlistPosition(section.code)}. Khi có chỗ trống hệ thống tự đăng ký nếu không trùng lịch và báo cho bạn.`,
-                            );
-                          }}
-                        >
-                          Vào danh sách chờ
-                        </Button>
-                      ) : (
-                        <Button onClick={() => add(section)} disabled={blocked} icon={<Plus size={16} aria-hidden />}>
-                          Thêm vào giỏ
-                        </Button>
-                      )}
-                    </div>
+                        ) : (
+                          <Button onClick={() => add(section)} disabled={blocked} icon={<Plus size={16} aria-hidden />}>
+                            Chọn lớp
+                          </Button>
+                        )}
+                      </div>
+                    </Card>
                   </li>
                 );
               })}
@@ -403,13 +397,9 @@ export function StudentRegistration({
         </section>
 
         <aside className="flex flex-col gap-3 lg:sticky lg:top-20">
-          <section className="flex flex-col rounded-xl border border-border-strong bg-surface">
-            <header className="flex items-center justify-between gap-3 border-b border-border-strong px-4 py-3">
-              <h2 className="text-lg font-semibold">Lớp đã chọn</h2>
-              {period && state && <StatusTag status={REGISTRATION_PERIOD_STATE[state]} />}
-            </header>
+          <SectionCard title="Lớp đã chọn" extra={period && state ? <StatusTag status={REGISTRATION_PERIOD_STATE[state]} /> : undefined} flush>
             {basket.length === 0 ? (
-              <EmptyState icon={ClipboardCheck} title="Chưa chọn lớp nào" description="Bấm Thêm vào giỏ ở lớp muốn học." />
+              <EmptyState icon={ClipboardCheck} title="Chưa chọn lớp nào" description="Bấm Chọn lớp ở lớp muốn học, lớp đã chọn hiện ở đây." />
             ) : (
               <ul className="flex flex-col divide-y divide-border-strong">
                 {registered.map((section) => (
@@ -417,7 +407,7 @@ export function StudentRegistration({
                     <span className="flex min-w-0 flex-1 flex-col">
                       <span className="truncate font-medium">{section.courseName}</span>
                       <span className="text-xs text-muted">
-                        <span className="font-mono">{section.code}</span> · <span className="tabular-nums">{section.credits} TC</span> ·{" "}
+                        {section.code} · <span className="tabular-nums">{section.credits} TC</span> ·{" "}
                         <span className="text-green-700">Đã đăng ký</span>
                       </span>
                     </span>
@@ -437,7 +427,7 @@ export function StudentRegistration({
                     <span className="flex min-w-0 flex-1 flex-col">
                       <span className="truncate font-medium">{section.courseName}</span>
                       <span className="text-xs text-muted">
-                        <span className="font-mono">{section.code}</span> · <span className="tabular-nums">{section.credits} TC</span> · Dự kiến
+                        {section.code} · <span className="tabular-nums">{section.credits} TC</span> · Dự kiến
                       </span>
                       {section.labGroups.length > 0 && (
                         <span className="text-xs">
@@ -448,9 +438,9 @@ export function StudentRegistration({
                           ) : (
                             <span className="text-rose-700">Chưa chọn nhóm thực hành</span>
                           )}{" "}
-                          <button type="button" onClick={() => setPickerSection(section)} className="cursor-pointer text-primary hover:underline">
+                          <Button type="link" size="small" onClick={() => setPickerSection(section)} className="h-auto p-0 text-xs">
                             {labChoices[section.id] ? "Đổi nhóm" : "Chọn nhóm"}
-                          </button>
+                          </Button>
                         </span>
                       )}
                       {basketProblems([section, ...basket.filter((entry) => entry.id !== section.id)], context)
@@ -466,11 +456,11 @@ export function StudentRegistration({
                 ))}
               </ul>
             )}
-          </section>
+          </SectionCard>
         </aside>
       </div>
 
-      <div className="sticky bottom-24 z-10 flex flex-col gap-2 rounded-xl border border-border-strong bg-surface p-3 sm:flex-row sm:items-center sm:justify-between lg:bottom-4">
+      <Card size="small" className="sticky bottom-24 z-10 lg:bottom-4" classNames={{ body: "flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between" }}>
         <div className="flex min-w-0 flex-col gap-1">
           <span className="text-sm">
             Tổng <span className="font-semibold tabular-nums">{basketCredits}</span>
@@ -492,7 +482,7 @@ export function StudentRegistration({
                 ? "Chờ đợt đăng ký mở"
                 : "Ngoài thời gian đăng ký"}
         </Button>
-      </div>
+      </Card>
       <LabGroupPicker
         key={pickerSection?.id ?? "none"}
         section={pickerSection}

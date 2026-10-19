@@ -5,6 +5,7 @@ import { LecturerProfileCard } from "@/modules/users/components/lecturer-profile
 import { getAdvisedClasses, getCurrentLecturer } from "@/modules/users/users.query";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { PageHeader } from "@/shared/components/ui/page-header";
+import { SectionCard } from "@/shared/components/ui/section-card";
 
 export const metadata: Metadata = { title: "Hồ sơ cá nhân" };
 
@@ -22,8 +23,8 @@ export default async function Page() {
       <div className="grid gap-4 lg:grid-cols-[360px_minmax(0,1fr)] lg:items-start">
         <LecturerProfileCard lecturer={lecturer} />
         <div className="flex min-w-0 flex-col gap-4">
-          <section className="flex flex-col gap-3 rounded-xl border border-border-strong bg-surface p-4 sm:p-5">
-            <h2 className="text-lg font-semibold">Lớp cố vấn</h2>
+          <SectionCard title="Lớp cố vấn">
+            <div className="flex flex-col gap-3">
             {advisedClasses.length === 0 ? (
               <p className="text-sm text-muted">Bạn chưa được phân công cố vấn lớp nào.</p>
             ) : (
@@ -31,7 +32,7 @@ export default async function Page() {
                 {advisedClasses.map((entry) => (
                   <li key={entry.className} className="flex items-center justify-between gap-3 py-2 text-sm">
                     <span className="flex min-w-0 flex-col">
-                      <span className="font-mono">{entry.className}</span>
+                      {entry.className}
                       <span className="text-xs text-muted">
                         {entry.majorName}, khóa {entry.cohort}
                       </span>
@@ -46,9 +47,9 @@ export default async function Page() {
                 Xem sinh viên cố vấn
               </Link>
             )}
-          </section>
-          <section className="flex flex-col gap-3 rounded-xl border border-border-strong bg-surface p-4 sm:p-5">
-            <h2 className="text-lg font-semibold">Lịch sử giảng dạy</h2>
+            </div>
+          </SectionCard>
+          <SectionCard title="Lịch sử giảng dạy">
             {withSections.length === 0 ? (
               <EmptyState title="Chưa có lớp học phần" />
             ) : (
@@ -71,7 +72,7 @@ export default async function Page() {
                             <span className="min-w-0 truncate">{section.courseName}</span>
                           )}
                           <span className="shrink-0 text-xs text-muted tabular-nums">
-                            <span className="font-mono">{section.code}</span> · {section.enrolled}/{section.capacity}
+                            {section.code} · {section.enrolled}/{section.capacity}
                           </span>
                         </li>
                       ))}
@@ -80,7 +81,7 @@ export default async function Page() {
                 ))}
               </div>
             )}
-          </section>
+          </SectionCard>
         </div>
       </div>
     </>

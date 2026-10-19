@@ -55,7 +55,7 @@ export function GraduationReview({ candidates }: { candidates: GraduationCandida
         <span className="flex min-w-0 flex-col">
           <span className="truncate font-medium">{row.fullName}</span>
           <span className="truncate text-xs text-muted">
-            <span className="font-mono">{row.code}</span> · {row.className}
+            {row.code} · {row.className}
           </span>
         </span>
       ),

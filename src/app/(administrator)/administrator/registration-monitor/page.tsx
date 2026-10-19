@@ -22,6 +22,7 @@ import {
   getRegistrationTargetTerm,
 } from "@/modules/course-registration/course-registration.query";
 import { getStudents } from "@/modules/users/users.query";
+import { SectionCard } from "@/shared/components/ui/section-card";
 
 export const metadata: Metadata = { title: "Theo dõi đăng ký" };
 
@@ -67,29 +68,25 @@ export default async function Page() {
       />
       <div className="flex flex-col gap-4 sm:gap-6">
         {active.length === 0 ? (
-          <section className="rounded-xl border border-border-strong bg-surface">
+          <SectionCard flush>
             <EmptyState icon={CalendarClock} title="Không có đợt đăng ký đang mở" description="Số liệu dưới đây là kết quả của các đợt đã đóng." />
-          </section>
+          </SectionCard>
         ) : (
           <div className="grid gap-3 md:grid-cols-2">
             {active.map((period) => (
-              <section key={period.id} className="flex flex-col gap-3 rounded-xl border border-border-strong bg-surface p-4 sm:p-5">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex min-w-0 flex-col">
-                    <h2 className="text-base font-semibold text-pretty">{period.name}</h2>
-                    <span className="text-xs text-muted tabular-nums">
-                      Đóng sau {hoursText(period.hoursLeft)}, lúc {formatDateTime(period.closesAt)}
+              <SectionCard key={period.id} title={period.name} extra={<StatusTag status={REGISTRATION_PERIOD_STATE[period.state]} />}>
+                <div className="flex flex-col gap-3">
+                  <span className="text-xs text-muted tabular-nums">
+                    Đóng sau {hoursText(period.hoursLeft)}, lúc {formatDateTime(period.closesAt)}
+                  </span>
+                  <div className="flex items-center gap-3">
+                    <MeterBar value={period.registeredStudents} max={period.eligibleStudents} label={`Đã đăng ký ${period.name}`} />
+                    <span className="shrink-0 text-sm tabular-nums">
+                      <span className="font-semibold">{period.registeredStudents}</span>/{period.eligibleStudents} sinh viên
                     </span>
                   </div>
-                  <StatusTag status={REGISTRATION_PERIOD_STATE[period.state]} />
                 </div>
-                <div className="flex items-center gap-3">
-                  <MeterBar value={period.registeredStudents} max={period.eligibleStudents} label={`Đã đăng ký ${period.name}`} />
-                  <span className="shrink-0 text-sm tabular-nums">
-                    <span className="font-semibold">{period.registeredStudents}</span>/{period.eligibleStudents} sinh viên
-                  </span>
-                </div>
-              </section>
+              </SectionCard>
             ))}
           </div>
         )}

@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Button, Checkbox, DatePicker, Drawer, Form, Input, message, Modal, Switch } from "antd";
+import { Button, Card, Checkbox, DatePicker, Drawer, Form, Input, message, Modal, Switch } from "antd";
 import { Envelope, Megaphone, Pin, Plus } from "defeat-icons-react";
 import type { Dayjs } from "dayjs";
 import { EmptyState } from "@/shared/components/ui/empty-state";
+import { SectionCard } from "@/shared/components/ui/section-card";
 import { StatusTag } from "@/shared/components/ui/status-tag";
 import { dayjs, formatDateTime, formatRelative } from "@/shared/libs/date.lib";
 import { CLASS_ANNOUNCEMENT_STATUS } from "../teaching.constant";
@@ -107,51 +108,55 @@ export function ClassAnnouncementBoard({ announcements, classSectionId, classCod
       </div>
 
       {ordered.length === 0 ? (
-        <div className="rounded-xl border border-border-strong bg-surface">
+        <SectionCard flush>
           <EmptyState
             icon={Megaphone}
             title="Lớp chưa có thông báo"
             description="Thông báo lịch nghỉ, bài tập hay tài liệu cho riêng lớp này. Có thể gửi kèm email."
           />
-        </div>
+        </SectionCard>
       ) : (
         <ul className="flex flex-col gap-3">
           {ordered.map((announcement) => (
-            <li key={announcement.id} className="flex flex-col gap-2 rounded-xl border border-border-strong bg-surface p-4 sm:p-5">
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                <div className="flex min-w-0 flex-col gap-1">
-                  <h2 className="flex items-center gap-2 text-base font-semibold text-pretty">
-                    {announcement.isPinned && <Pin size={16} aria-label="Đã ghim" className="shrink-0 text-primary" />}
-                    {announcement.title}
-                  </h2>
-                  <span className="flex flex-wrap items-center gap-2 text-xs text-muted">
-                    {announcement.status === "scheduled" && <StatusTag status={CLASS_ANNOUNCEMENT_STATUS.scheduled} />}
-                    <span className="tabular-nums" title={formatDateTime(announcement.publishAt)}>
-                      {announcement.status === "scheduled" ? `Đăng lúc ${formatDateTime(announcement.publishAt)}` : formatRelative(announcement.publishAt)}
-                    </span>
-                    {announcement.sendEmail && (
-                      <span className="flex items-center gap-1">
-                        <Envelope size={14} aria-hidden />
-                        Có gửi email
+            <li key={announcement.id}>
+              <Card size="small">
+                <div className="flex flex-col gap-2">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="flex min-w-0 flex-col gap-1">
+                      <h2 className="flex items-center gap-2 text-base font-semibold text-pretty">
+                        {announcement.isPinned && <Pin size={16} aria-label="Đã ghim" className="shrink-0 text-primary" />}
+                        {announcement.title}
+                      </h2>
+                      <span className="flex flex-wrap items-center gap-2 text-xs text-muted">
+                        {announcement.status === "scheduled" && <StatusTag status={CLASS_ANNOUNCEMENT_STATUS.scheduled} />}
+                        <span className="tabular-nums" title={formatDateTime(announcement.publishAt)}>
+                          {announcement.status === "scheduled" ? `Đăng lúc ${formatDateTime(announcement.publishAt)}` : formatRelative(announcement.publishAt)}
+                        </span>
+                        {announcement.sendEmail && (
+                          <span className="flex items-center gap-1">
+                            <Envelope size={14} aria-hidden />
+                            Có gửi email
+                          </span>
+                        )}
+                        {announcement.status === "published" && (
+                          <span className="tabular-nums">
+                            {announcement.readCount}/{studentCount} đã xem
+                          </span>
+                        )}
                       </span>
-                    )}
-                    {announcement.status === "published" && (
-                      <span className="tabular-nums">
-                        {announcement.readCount}/{studentCount} đã xem
-                      </span>
-                    )}
-                  </span>
+                    </div>
+                    <div className="flex shrink-0 gap-2">
+                      <Button size="small" onClick={() => openCompose(announcement)}>
+                        Sửa
+                      </Button>
+                      <Button size="small" danger onClick={() => remove(announcement)}>
+                        Gỡ
+                      </Button>
+                    </div>
+                  </div>
+                  <p className="max-w-prose text-sm text-pretty whitespace-pre-line">{announcement.body}</p>
                 </div>
-                <div className="flex shrink-0 gap-2">
-                  <Button size="small" onClick={() => openCompose(announcement)}>
-                    Sửa
-                  </Button>
-                  <Button size="small" danger onClick={() => remove(announcement)}>
-                    Gỡ
-                  </Button>
-                </div>
-              </div>
-              <p className="max-w-prose text-sm text-pretty whitespace-pre-line">{announcement.body}</p>
+              </Card>
             </li>
           ))}
         </ul>

@@ -7,6 +7,7 @@ import { getRegulation } from "@/modules/settings/settings.query";
 import { StudyPlanEditor } from "@/modules/study-plan/components/study-plan-editor";
 import { getStudyPlanOfStudent } from "@/modules/study-plan/study-plan.query";
 import { getAdvisorOf, getCurrentStudent } from "@/modules/users/users.query";
+import { PageHeader } from "@/shared/components/ui/page-header";
 
 export const metadata: Metadata = { title: "Kế hoạch học tập" };
 
@@ -38,10 +39,11 @@ export default async function Page() {
   const termNames = [...new Set([...(plan?.terms.map((entry) => entry.termName) ?? []), ...DEFAULT_TERMS])].slice(0, 3);
 
   return (
-    <div className="flex flex-col gap-4">
-      <p className="text-sm text-pretty text-muted">
-        Xếp học phần cho các học kỳ tới. Kế hoạch được cố vấn duyệt là căn cứ để Phòng Đào tạo mở lớp và để bạn đăng ký học phần.
-      </p>
+    <>
+      <PageHeader
+        title="Kế hoạch học tập"
+        description="Xếp học phần cho các học kỳ tới. Kế hoạch được cố vấn duyệt là căn cứ để Phòng Đào tạo mở lớp và để bạn đăng ký học phần."
+      />
       <StudyPlanEditor
         plan={plan}
         termNames={termNames}
@@ -51,6 +53,6 @@ export default async function Page() {
         limits={{ min: regulation.credits.minPerTerm, max: regulation.credits.maxPerTerm }}
         advisorName={advisor?.displayName ?? null}
       />
-    </div>
+    </>
   );
 }

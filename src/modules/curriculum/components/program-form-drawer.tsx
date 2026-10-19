@@ -57,7 +57,7 @@ export function ProgramFormDrawer({ open, program, onClose, onSubmit }: ProgramF
               { pattern: /^\d{7}$/, message: "Mã ngành gồm 7 chữ số theo danh mục của Bộ" },
             ]}
           >
-            <Input inputMode="numeric" className="font-mono" />
+            <Input inputMode="numeric" />
           </Form.Item>
           <Form.Item name="degree" label="Văn bằng" rules={[{ required: true, message: "Chưa chọn văn bằng" }]}>
             <Select options={DEGREE_OPTIONS} />

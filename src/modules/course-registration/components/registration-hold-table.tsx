@@ -116,7 +116,7 @@ export function RegistrationHoldTable({ holds, students, actorName, studentHrefB
         <Link href={`${studentHrefBase}${row.studentId}`} className="flex min-w-0 flex-col">
           <span className="truncate font-medium">{row.studentName}</span>
           <span className="text-xs text-muted">
-            <span className="font-mono">{row.studentCode}</span> · {row.className}
+            {row.studentCode} · {row.className}
           </span>
         </Link>
       ),
@@ -141,7 +141,7 @@ export function RegistrationHoldTable({ holds, students, actorName, studentHrefB
       render: (_, row) =>
         view === "active" ? (
           <span className="flex flex-col text-xs text-muted">
-            <span>{row.createdBy}</span>
+            {row.createdBy}
             <span className="tabular-nums">{formatDate(row.createdAt)}</span>
           </span>
         ) : (

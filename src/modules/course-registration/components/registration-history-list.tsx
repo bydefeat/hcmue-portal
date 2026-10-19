@@ -17,7 +17,7 @@ export function RegistrationHistoryList({ events }: { events: RegistrationEvent[
           <span className="flex min-w-0 flex-1 flex-col gap-1">
             <span className="flex flex-wrap items-center gap-2">
               <StatusTag status={REGISTRATION_EVENT[event.kind]} />
-              <span className="font-mono text-xs">{event.sectionCode}</span>
+              <span className="text-xs">{event.sectionCode}</span>
               <span className="min-w-0 text-sm text-pretty">{event.courseName}</span>
             </span>
             <span className="text-xs text-pretty text-muted">{event.note}</span>

@@ -5,7 +5,7 @@ import type { ScheduleEvent } from "./schedule.type";
 const ICS_DAY = ["", "", "MO", "TU", "WE", "TH", "FR", "SA", "SU"];
 
 function escapeText(value: string) {
-  return value.replace(/\\/g, "\\\\").replace(/;/g, "\;").replace(/,/g, "\\,").replace(/\n/g, "\\n");
+  return value.replace(/\\/g, "\\\\").replace(/;/g, "\\;").replace(/,/g, "\\,").replace(/\n/g, "\\n");
 }
 
 function localStamp(date: string, time: string) {

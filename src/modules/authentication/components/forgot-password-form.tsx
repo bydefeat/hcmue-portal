@@ -73,9 +73,9 @@ export function ForgotPasswordForm({ defaultEmail }: { defaultEmail?: string }) 
         </Form>
         <div className="mt-6 flex items-center justify-between gap-3 text-sm">
           <ResendCodeButton />
-          <button type="button" onClick={() => setStep("email")} className="cursor-pointer text-foreground hover:underline">
+          <Button type="link" size="small" onClick={() => setStep("email")} className="px-0">
             Đổi email
-          </button>
+          </Button>
         </div>
       </>
     );

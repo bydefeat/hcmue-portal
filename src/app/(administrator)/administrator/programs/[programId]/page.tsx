@@ -23,7 +23,7 @@ export default async function Page({ params }: { params: Promise<{ programId: st
         title={program.name}
         description={
           <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
-            <span className="font-mono">{program.code}</span>
+            <span>{program.code}</span>
             <span>{program.faculty}</span>
             <span>{program.degree}</span>
             <span className="tabular-nums">

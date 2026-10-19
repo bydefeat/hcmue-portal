@@ -7,10 +7,10 @@ import type { Announcement } from "../announcements.type";
 export function deadlineHint(deadline: string | null) {
   if (!deadline) return null;
   const days = daysUntil(deadline);
-  if (days < 0) return { text: `Đã hết hạn ${formatDate(deadline)}`, className: "text-muted" };
-  if (days === 0) return { text: "Hết hạn hôm nay", className: "text-rose-700" };
-  if (days <= 3) return { text: `Còn ${days} ngày, hạn ${formatDate(deadline)}`, className: "text-amber-700" };
-  return { text: `Hạn ${formatDate(deadline)}`, className: "text-muted" };
+  if (days < 0) return { text: `Đã hết hạn ${formatDate(deadline)}`, className: "text-muted", type: "info" as const };
+  if (days === 0) return { text: "Hết hạn hôm nay", className: "text-rose-700", type: "error" as const };
+  if (days <= 3) return { text: `Còn ${days} ngày, hạn ${formatDate(deadline)}`, className: "text-amber-700", type: "warning" as const };
+  return { text: `Hạn ${formatDate(deadline)}`, className: "text-muted", type: "info" as const };
 }
 
 export function PublicAnnouncementItem({ announcement }: { announcement: Announcement }) {
@@ -22,7 +22,7 @@ export function PublicAnnouncementItem({ announcement }: { announcement: Announc
     >
       <span className="flex shrink-0 flex-row gap-2 text-xs text-muted sm:w-24 sm:flex-col sm:gap-1">
         <span className="font-medium text-foreground tabular-nums">{announcement.publishedAt ? formatDate(announcement.publishedAt) : ""}</span>
-        <span>{ANNOUNCEMENT_CATEGORY_LABEL[announcement.category]}</span>
+        {ANNOUNCEMENT_CATEGORY_LABEL[announcement.category]}
       </span>
       <span className="flex min-w-0 flex-1 flex-col gap-1">
         <span className="flex items-start gap-2">
@@ -31,7 +31,7 @@ export function PublicAnnouncementItem({ announcement }: { announcement: Announc
         </span>
         <span className="line-clamp-2 text-sm text-pretty text-muted">{announcement.summary}</span>
         <span className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted">
-          <span>{announcement.audiences.join(", ")}</span>
+          {announcement.audiences.join(", ")}
           {hint && <span className={`tabular-nums ${hint.className}`}>{hint.text}</span>}
         </span>
       </span>

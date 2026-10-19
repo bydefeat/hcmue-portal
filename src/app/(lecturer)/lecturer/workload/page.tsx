@@ -13,6 +13,7 @@ import { getCurrentLecturer } from "@/modules/users/users.query";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { MeterBar } from "@/shared/components/ui/meter-bar";
 import { PageHeader } from "@/shared/components/ui/page-header";
+import { SectionCard } from "@/shared/components/ui/section-card";
 import { StatTile } from "@/shared/components/ui/stat-tile";
 import { periodLabel, weekdayLabel } from "@/shared/constants/period.constant";
 
@@ -35,41 +36,44 @@ function TermLoad({ title, workload, sections }: { title: string; workload: Lect
   const norm = workload?.normHours ?? 0;
   const ratio = norm > 0 ? Math.round((standard / norm) * 100) : 0;
   return (
-    <section className="flex min-w-0 flex-col gap-4 rounded-xl border border-border-strong bg-surface p-4 sm:p-5">
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 className="text-lg font-semibold">{title}</h2>
+    <SectionCard
+      title={title}
+      extra={
         <span className={`text-sm tabular-nums ${ratio > 130 ? "text-amber-700" : ratio < 80 ? "text-amber-700" : "text-muted"}`}>
           {standard}/{norm} giờ chuẩn, {ratio}% định mức
         </span>
-      </div>
-      <MeterBar value={standard} max={norm} tone={ratio > 130 ? "warning" : "primary"} label={`Giờ chuẩn ${title}`} />
-      {sections.length === 0 ? (
-        <EmptyState title="Chưa được phân công lớp" description="Khoa sẽ phân công trước khi mở đăng ký học phần." />
-      ) : (
-        <ul className="flex flex-col divide-y divide-border-strong">
-          {sections.map((section) => {
-            const periods = periodsOf(section);
-            const hours = Math.round(periods * TEACHING_WEEKS * sizeFactor(section.enrolled));
-            return (
-              <li key={section.id} className="flex flex-col gap-1 py-3 sm:flex-row sm:items-center sm:gap-4">
-                <span className="flex min-w-0 flex-1 flex-col">
-                  <span className="truncate font-medium">{section.courseName}</span>
-                  <span className="text-xs text-muted">
-                    <span className="font-mono">{section.code}</span> ·{" "}
-                    {section.meetings.map((meeting) => `${weekdayLabel(meeting.dayOfWeek)}, ${periodLabel(meeting.startPeriod, meeting.endPeriod)}`).join("; ")}
+      }
+    >
+      <div className="flex flex-col gap-4">
+        <MeterBar value={standard} max={norm} tone={ratio > 130 ? "warning" : "primary"} label={`Giờ chuẩn ${title}`} />
+        {sections.length === 0 ? (
+          <EmptyState title="Chưa được phân công lớp" description="Khoa sẽ phân công trước khi mở đăng ký học phần." />
+        ) : (
+          <ul className="flex flex-col divide-y divide-border-strong">
+            {sections.map((section) => {
+              const periods = periodsOf(section);
+              const hours = Math.round(periods * TEACHING_WEEKS * sizeFactor(section.enrolled));
+              return (
+                <li key={section.id} className="flex flex-col gap-1 py-3 sm:flex-row sm:items-center sm:gap-4">
+                  <span className="flex min-w-0 flex-1 flex-col">
+                    <span className="truncate font-medium">{section.courseName}</span>
+                    <span className="text-xs text-muted">
+                      {section.code} ·{" "}
+                      {section.meetings.map((meeting) => `${weekdayLabel(meeting.dayOfWeek)}, ${periodLabel(meeting.startPeriod, meeting.endPeriod)}`).join("; ")}
+                    </span>
                   </span>
-                </span>
-                <span className="flex shrink-0 gap-4 text-sm text-muted tabular-nums sm:w-72 sm:justify-end">
-                  <span>{section.enrolled} SV</span>
-                  <span>{periods} tiết/tuần</span>
-                  <span className="font-medium text-foreground">{hours} giờ chuẩn</span>
-                </span>
-              </li>
-            );
-          })}
-        </ul>
-      )}
-    </section>
+                  <span className="flex shrink-0 gap-4 text-sm text-muted tabular-nums sm:w-72 sm:justify-end">
+                    <span>{section.enrolled} SV</span>
+                    <span>{periods} tiết/tuần</span>
+                    <span className="font-medium text-foreground">{hours} giờ chuẩn</span>
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
+    </SectionCard>
   );
 }
 

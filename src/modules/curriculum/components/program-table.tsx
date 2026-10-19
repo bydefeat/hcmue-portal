@@ -68,7 +68,7 @@ export function ProgramTable({ programs }: { programs: ProgramSummary[] }) {
       render: (_, row) => (
         <Link href={`/administrator/programs/${row.id}`} className="flex min-w-0 flex-col">
           <span className="font-medium text-pretty">{row.name}</span>
-          <span className="font-mono text-xs text-muted">{row.code}</span>
+          <span className="text-xs text-muted">{row.code}</span>
         </Link>
       ),
     },

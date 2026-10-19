@@ -20,7 +20,6 @@
   --font-slab: var(--font-roboto-slab), ui-serif, Georgia, serif;
   --color-item-hover: var(--item-hover);
   --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
-  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
 }
 
 :root {

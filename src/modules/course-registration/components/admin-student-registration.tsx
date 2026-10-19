@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Alert, Button, Checkbox, Drawer, Input, message, Modal, Select } from "antd";
+import { Alert, Button, Card, Checkbox, Drawer, Form, Input, message, Modal, Select } from "antd";
 import { CircleXmark, ClipboardCheck, Plus } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { dayjs } from "@/shared/libs/date.lib";
@@ -10,6 +10,7 @@ import { HOLD_KIND_LABEL, meetingText } from "../course-registration.constant";
 import { blockingHolds, evaluateSection, sectionCredits, type RegistrationStudent } from "../course-registration.rule";
 import type { ClassSectionView, RegistrationEvent, RegistrationHold } from "../course-registration.type";
 import { RegistrationHistoryList } from "./registration-history-list";
+import { SectionCard } from "@/shared/components/ui/section-card";
 
 type AdminStudentRegistrationProps = {
   studentName: string;
@@ -117,21 +118,19 @@ export function AdminStudentRegistration({
   };
 
   return (
-    <section className="flex flex-col rounded-xl border border-border-strong bg-surface">
-      {contextHolder}
-      <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border-strong px-4 py-3 sm:px-5">
-        <div className="flex min-w-0 flex-col">
-          <h2 className="text-lg font-semibold">Đăng ký học phần</h2>
-          <span className="text-xs text-muted">
-            {termName} · <span className="tabular-nums">{sectionCredits(registered)}</span>/{credits.max} tín chỉ
-          </span>
-        </div>
+    <SectionCard
+      title="Đăng ký học phần"
+      extra={
         <Button icon={<Plus size={16} aria-hidden />} onClick={() => setIsAdding(true)}>
           Đăng ký hộ
         </Button>
-      </header>
-
-      <div className="flex flex-col gap-3 p-4 sm:p-5">
+      }
+    >
+      {contextHolder}
+      <div className="flex flex-col gap-3">
+        <span className="text-xs text-muted">
+          {termName} · <span className="tabular-nums">{sectionCredits(registered)}</span>/{credits.max} tín chỉ
+        </span>
         {activeHolds.map((hold) => (
           <Alert
             key={hold.id}
@@ -147,30 +146,29 @@ export function AdminStudentRegistration({
         {registered.length === 0 ? (
           <EmptyState icon={ClipboardCheck} title="Chưa đăng ký lớp nào" description="Sinh viên chưa đăng ký hoặc đợt của khóa chưa mở." />
         ) : (
-          <ul className="flex flex-col divide-y divide-border-strong rounded-lg border border-border-strong">
-            {registered.map((section) => (
-              <li key={section.id} className="flex items-start gap-3 px-3 py-2">
-                <span className="flex min-w-0 flex-1 flex-col">
-                  <span className="text-sm font-medium text-pretty">{section.courseName}</span>
-                  <span className="text-xs text-muted">
-                    <span className="font-mono">{section.code}</span> · <span className="tabular-nums">{section.credits} TC</span> ·{" "}
-                    {section.meetings.map(meetingText).join("; ")}
+          <Card size="small" classNames={{ body: "p-0" }}>
+            <ul className="flex flex-col divide-y divide-border-strong">
+              {registered.map((section) => (
+                <li key={section.id} className="flex items-start gap-3 px-3 py-2">
+                  <span className="flex min-w-0 flex-1 flex-col">
+                    <span className="text-sm font-medium text-pretty">{section.courseName}</span>
+                    <span className="text-xs text-muted">
+                      {section.code} · <span className="tabular-nums">{section.credits} TC</span> ·{" "}
+                      {section.meetings.map(meetingText).join("; ")}
+                    </span>
                   </span>
-                </span>
-                <Button size="small" danger onClick={() => setDropping(section)}>
-                  Hủy hộ
-                </Button>
-              </li>
-            ))}
-          </ul>
+                  <Button size="small" danger onClick={() => setDropping(section)}>
+                    Hủy hộ
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          </Card>
         )}
 
-        <div className="flex flex-col gap-2">
-          <h3 className="text-base font-medium">Lịch sử đăng ký</h3>
-          <div className="rounded-lg border border-border-strong">
-            <RegistrationHistoryList events={events} />
-          </div>
-        </div>
+        <Card size="small" title="Lịch sử đăng ký" classNames={{ body: "p-0" }}>
+          <RegistrationHistoryList events={events} />
+        </Card>
       </div>
 
       <Drawer
@@ -189,17 +187,17 @@ export function AdminStudentRegistration({
           </div>
         }
       >
-        <div className="flex flex-col gap-4">
+        <Form layout="vertical">
           {blocking.length > 0 && (
             <Alert
               type="warning"
               showIcon
+              className="mb-4"
               title="Sinh viên đang bị khóa đăng ký"
               description="Đăng ký hộ vẫn được, nhưng cần ghi rõ căn cứ. Khóa không tự gỡ."
             />
           )}
-          <label className="flex flex-col gap-1 text-sm">
-            Lớp học phần
+          <Form.Item label="Lớp học phần" required>
             <Select
               showSearch={{ optionFilterProp: "label" }}
               value={sectionId}
@@ -216,10 +214,9 @@ export function AdminStudentRegistration({
                   label: `${section.code} ${section.courseName} (${section.enrolled}/${section.capacity})`,
                 }))}
             />
-          </label>
+          </Form.Item>
           {selected && needsLab && (
-            <label className="flex flex-col gap-1 text-sm">
-              Nhóm thực hành
+            <Form.Item label="Nhóm thực hành" required>
               <Select
                 value={labId}
                 onChange={setLabId}
@@ -229,10 +226,10 @@ export function AdminStudentRegistration({
                   label: `${group.code.split(".").at(-1)} · ${meetingText(group.meeting)} · ${group.enrolled}/${group.capacity}`,
                 }))}
               />
-            </label>
+            </Form.Item>
           )}
           {selected && (
-            <div className="flex flex-col gap-1">
+            <div className="mb-4 flex flex-col gap-1">
               <span className="text-sm font-medium">Kết quả kiểm tra</span>
               {issues.filter((issue) => issue.kind !== "lab").length === 0 ? (
                 <span className="text-sm text-green-700">Đủ điều kiện đăng ký</span>
@@ -255,8 +252,7 @@ export function AdminStudentRegistration({
               )}
             </div>
           )}
-          <label className="flex flex-col gap-1 text-sm">
-            Căn cứ đăng ký hộ
+          <Form.Item label="Căn cứ đăng ký hộ" required>
             <Input.TextArea
               value={reason}
               onChange={(event) => setReason(event.target.value)}
@@ -265,8 +261,8 @@ export function AdminStudentRegistration({
               showCount
               placeholder="Ví dụ: theo đơn DT-2026-01258 đã được duyệt"
             />
-          </label>
-        </div>
+          </Form.Item>
+        </Form>
       </Drawer>
 
       <Modal
@@ -292,6 +288,6 @@ export function AdminStudentRegistration({
           aria-label="Lý do hủy hộ"
         />
       </Modal>
-    </section>
+    </SectionCard>
   );
 }

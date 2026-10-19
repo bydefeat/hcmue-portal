@@ -15,7 +15,7 @@ const CURRENT: StatusMeta = { label: "Đang diễn ra", tone: "success" };
 const TARGET: StatusMeta = { label: "Đang nhận đăng ký", tone: "warning" };
 
 const COLUMNS: TableColumnsType<TermRow> = [
-  { title: "Mã học kỳ", dataIndex: "code", width: 120, render: (code: string) => <span className="font-mono text-xs">{code}</span> },
+  { title: "Mã học kỳ", dataIndex: "code", width: 120, render: (code: string) => <span className="text-xs">{code}</span> },
   {
     title: "Học kỳ",
     dataIndex: "name",

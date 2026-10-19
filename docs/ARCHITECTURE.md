@@ -270,9 +270,17 @@ Hàm thuần trong `modules/course-registration/course-registration.rule.ts`, d�
 | Khóa đăng ký | `RegistrationHold` (học phí, kỷ luật, hồ sơ, tình trạng học tập, cố vấn) | `blocking` chặn nút Đăng ký, không chặn thì chỉ nhắc |
 | Đối tượng lớp | `ClassSection.audience` (ngành, khóa) | Chặn nếu sinh viên không thuộc đối tượng |
 | Chỗ dành riêng | `ClassSection.reservedSeats` | Chỗ còn trống trừ phần giữ cho nhóm khác, hết thì cho vào danh sách chờ |
-| Tiên quyết, song hành, tương đương | `Course.prerequisiteCodes`, `corequisiteCodes`, `equivalentCodes` | Đạt học phần tương đương được tính là đạt; song hành phải có trong giỏ hoặc đã đạt |
+| Tiên quyết, song hành, tương đương | `Course.prerequisiteCodes`, `corequisiteCodes`, `equivalentCodes` | Đạt học phần tương đương được tính là đạt; song hành phải nằm trong các lớp đã chọn hoặc đã đạt |
 | Nhóm thực hành | `ClassSection.labGroups` | Bắt buộc chọn 1 nhóm, lịch nhóm tính vào kiểm tra trùng lịch |
 | Hạn mức tín chỉ | Quy chế + mức cảnh báo học vụ (`creditCapOf`) | Bị cảnh báo thì dùng `maxWhenWarned` |
 | Sĩ số tối thiểu | `ClassSection.minEnrollment` | Lớp dưới mức được đề xuất hủy, sinh viên nhận gợi ý lớp thay thế |
 
 Giờ tiết học ở `shared/constants/period.constant.ts`: 12 tiết, mỗi tiết 50 phút, bắt đầu 06:30, giải lao sau tiết 3 và 9, nghỉ trưa 11:40 đến 12:30, kết thúc 17:40.
+
+## 9. Hiệu năng khi phát triển
+
+| Vấn đề | Cách xử lý |
+| --- | --- |
+| `antd/es/index.js` có code chạy khi import nên Next không tối ưu barrel, mỗi route kéo cả thư viện | `modularizeImports` trong `next.config.ts` đổi `import { Button } from "antd"` thành `antd/es/button` |
+| Mock gọi nối tiếp làm mỗi lần chuyển trang chậm thêm | `mockDelay` mặc định 0ms, đặt `MOCK_DELAY_MS=120` khi cần xem skeleton |
+| ESLint chậm | `npm run lint` chạy `oxlint src` (khoảng 1 giây) trước, rồi `eslint` cho các rule của Next |

@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { Alert, Button, message, Radio, Select, Table, type TableColumnsType } from "antd";
 import { CalendarClock } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
+import { SectionCard } from "@/shared/components/ui/section-card";
 import { periodLabel, weekdayLabel } from "@/shared/constants/period.constant";
 import { dayjs, formatDate, weekdayOf } from "@/shared/libs/date.lib";
 import { ABSENCE_LIMIT_RATIO, ATTENDANCE_STATUS } from "../schedule.constant";
@@ -63,14 +64,14 @@ export function AttendanceSheet({ book, students, absenceLimitPercent = ABSENCE_
 
   if (book.sessions.length === 0 || !session) {
     return (
-      <div className="rounded-xl border border-border-strong bg-surface">
+      <SectionCard flush>
         <EmptyState icon={CalendarClock} title="Chưa có buổi học" description="Lớp chưa có buổi học nào được xếp lịch trong học kỳ." />
-      </div>
+      </SectionCard>
     );
   }
 
   const setStatus = (studentId: string, status: AttendanceStatus) =>
-    setRecords((value) => ({ ...value, [session.id]: { ...(value[session.id] ?? {}), [studentId]: status } }));
+    setRecords((value) => ({ ...value, [session.id]: { ...value[session.id], [studentId]: status } }));
 
   const markAllPresent = () =>
     setRecords((value) => ({
@@ -101,7 +102,7 @@ export function AttendanceSheet({ book, students, absenceLimitPercent = ABSENCE_
       render: (_, row) => (
         <span className="flex min-w-0 flex-col">
           <span className="truncate font-medium">{row.fullName}</span>
-          <span className="font-mono text-xs text-muted">{row.studentCode}</span>
+          <span className="text-xs text-muted">{row.studentCode}</span>
         </span>
       ),
     },

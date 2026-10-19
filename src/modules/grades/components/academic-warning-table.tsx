@@ -63,11 +63,11 @@ export function AcademicWarningTable({ warnings, studentHrefBase, showFaculty = 
       render: (_, row) => (
         <Link href={`${studentHrefBase}${row.studentId}`} className="flex min-w-0 flex-col">
           <span className="truncate font-medium">{row.fullName}</span>
-          <span className="font-mono text-xs text-muted">{row.studentCode}</span>
+          <span className="text-xs text-muted">{row.studentCode}</span>
         </Link>
       ),
     },
-    { title: "Lớp", dataIndex: "className", width: 130, render: (value: string) => <span className="font-mono text-xs">{value}</span> },
+    { title: "Lớp", dataIndex: "className", width: 130, render: (value: string) => <span className="text-xs">{value}</span> },
     ...(showFaculty ? [{ title: "Khoa", dataIndex: "faculty", width: 200 }] : []),
     {
       title: "CPA",

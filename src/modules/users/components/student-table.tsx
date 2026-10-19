@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { Button, Dropdown, Input, message, Select, Table, type TableColumnsType } from "antd";
+import { Button, Card, Dropdown, Input, message, Select, Table, type TableColumnsType } from "antd";
 import { FileArrowIn, Magnifier, Pen, Plus, UserSearch } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { StatusTag } from "@/shared/components/ui/status-tag";
@@ -95,7 +95,7 @@ export function StudentTable({ students }: { students: StudentRow[] }) {
       dataIndex: "code",
       width: 120,
       fixed: "left",
-      render: (code: string) => <span className="font-mono text-xs">{code}</span>,
+      render: (code: string) => <span className="text-xs">{code}</span>,
     },
     {
       title: "Họ và tên",
@@ -108,7 +108,7 @@ export function StudentTable({ students }: { students: StudentRow[] }) {
         </Link>
       ),
     },
-    { title: "Lớp", dataIndex: "className", width: 130, render: (value: string) => <span className="font-mono text-xs">{value}</span> },
+    { title: "Lớp", dataIndex: "className", width: 130, render: (value: string) => <span className="text-xs">{value}</span> },
     { title: "Ngành", dataIndex: "majorName", width: 190 },
     {
       title: "CPA",
@@ -176,7 +176,7 @@ export function StudentTable({ students }: { students: StudentRow[] }) {
       </div>
 
       {selectedIds.length > 0 && (
-        <div className="flex flex-wrap items-center gap-3 rounded-lg border border-border-strong bg-surface px-4 py-2">
+        <Card size="small" classNames={{ body: "flex flex-wrap items-center gap-3 py-2" }}>
           <span className="text-sm tabular-nums">Đã chọn {selectedIds.length} sinh viên</span>
           <Dropdown
             trigger={["click"]}
@@ -190,7 +190,7 @@ export function StudentTable({ students }: { students: StudentRow[] }) {
           <Button size="small" type="text" onClick={() => setSelectedIds([])}>
             Bỏ chọn
           </Button>
-        </div>
+        </Card>
       )}
 
       <Table

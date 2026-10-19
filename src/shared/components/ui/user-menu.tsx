@@ -74,7 +74,7 @@ export function UserMenu({ user, links = [], switcher, compact = false }: UserMe
       label: (
         <span className="flex flex-col gap-1">
           <span className="truncate text-sm font-medium text-foreground">{user.name}</span>
-          <span className="truncate font-mono text-xs text-muted">{user.code}</span>
+          <span className="truncate text-xs text-muted">{user.code}</span>
           {user.role && <span className="max-w-64 text-xs text-pretty text-muted">{user.role}</span>}
         </span>
       ),

@@ -8,6 +8,7 @@ import { EmptyState } from "@/shared/components/ui/empty-state";
 import { formatDateTime, formatRelative } from "@/shared/libs/date.lib";
 import { NOTIFICATION_KIND_LABEL } from "../notifications.constant";
 import type { AppNotification, NotificationKind } from "../notifications.type";
+import { SectionCard } from "@/shared/components/ui/section-card";
 
 type View = "all" | "unread";
 
@@ -46,7 +47,7 @@ export function NotificationList({ notifications }: { notifications: AppNotifica
           </Button>
         )}
       </div>
-      <section className="rounded-xl border border-border-strong bg-surface">
+      <SectionCard flush>
         {visible.length === 0 ? (
           <EmptyState
             icon={BellSlash}
@@ -76,7 +77,7 @@ export function NotificationList({ notifications }: { notifications: AppNotifica
             ))}
           </ul>
         )}
-      </section>
+      </SectionCard>
     </div>
   );
 }

@@ -1,6 +1,8 @@
 import { connection } from "next/server";
 
-export async function mockDelay(milliseconds = 120) {
+const MOCK_DELAY_MS = Number(process.env.MOCK_DELAY_MS ?? 0);
+
+export async function mockDelay(milliseconds = MOCK_DELAY_MS) {
   await connection();
-  return new Promise((resolve) => setTimeout(resolve, milliseconds));
+  if (milliseconds > 0) await new Promise((resolve) => setTimeout(resolve, milliseconds));
 }

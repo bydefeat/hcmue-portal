@@ -6,7 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "oxlint src && eslint"
   },
   "dependencies": {
     "@ant-design/icons": "^6.3.4",
@@ -42,6 +42,7 @@
     "drizzle-kit": "^0.31.11",
     "eslint": "^9",
     "eslint-config-next": "16.4.2",
+    "oxlint": "^1.88.0",
     "tailwindcss": "^4",
     "typescript": "^5"
   }

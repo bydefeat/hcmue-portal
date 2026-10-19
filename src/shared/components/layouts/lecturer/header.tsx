@@ -18,11 +18,15 @@ import {
 
 const ADVISING_KEY = "advising";
 
-function menuItem(item: NavItem) {
+function iconClass(isActive: boolean) {
+  return isActive ? undefined : "text-zinc-500";
+}
+
+function menuItem(item: NavItem, pathname: string) {
   const Icon = item.icon;
   return {
     key: item.href,
-    icon: Icon ? <Icon size={16} aria-hidden /> : undefined,
+    icon: Icon ? <Icon size={16} aria-hidden className={iconClass(isActiveItem(pathname, item))} /> : undefined,
     label: <Link href={item.href}>{item.label}</Link>,
   };
 }
@@ -36,15 +40,16 @@ type LecturerHeaderProps = {
 export function LecturerHeader({ user, isAdvisor, notifications }: LecturerHeaderProps) {
   const pathname = usePathname();
   const AdvisingIcon = LECTURER_ADVISING_GROUP.icon;
+  const isAdvisingActive = LECTURER_ADVISING_GROUP.items.some((item) => isActiveItem(pathname, item));
   const items: MenuProps["items"] = [
-    ...LECTURER_NAVIGATION.map(menuItem),
+    ...LECTURER_NAVIGATION.map((item) => menuItem(item, pathname)),
     ...(isAdvisor
       ? [
           {
             key: ADVISING_KEY,
-            icon: <AdvisingIcon size={16} aria-hidden />,
+            icon: <AdvisingIcon size={16} aria-hidden className={iconClass(isAdvisingActive)} />,
             label: LECTURER_ADVISING_GROUP.label,
-            children: LECTURER_ADVISING_GROUP.items.map(menuItem),
+            children: LECTURER_ADVISING_GROUP.items.map((item) => menuItem(item, pathname)),
           },
         ]
       : []),
@@ -52,7 +57,7 @@ export function LecturerHeader({ user, isAdvisor, notifications }: LecturerHeade
   const selectedKeys = [...LECTURER_NAVIGATION, ...LECTURER_ADVISING_GROUP.items]
     .filter((item) => isActiveItem(pathname, item))
     .map((item) => item.href);
-  if (LECTURER_ADVISING_GROUP.items.some((item) => isActiveItem(pathname, item))) selectedKeys.push(ADVISING_KEY);
+  if (isAdvisingActive) selectedKeys.push(ADVISING_KEY);
 
   return (
     <Layout.Header className="sticky top-0 z-20 border-b border-border-strong print:!hidden">

@@ -59,7 +59,7 @@ export function PrintableTranscript({ student, terms, standing }: PrintableTrans
             <tbody>
               {term.courses.map((course) => (
                 <tr key={course.courseCode}>
-                  <td className="border border-black px-1 py-0.5 font-mono">{course.courseCode}</td>
+                  <td className="border border-black px-1 py-0.5">{course.courseCode}</td>
                   <td className="border border-black px-1 py-0.5">{course.courseName}</td>
                   <td className="border border-black px-1 py-0.5 text-right">{course.credits}</td>
                   <td className="border border-black px-1 py-0.5 text-right">{formatPoint(course.score10, 1)}</td>

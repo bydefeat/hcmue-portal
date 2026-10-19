@@ -1,10 +1,11 @@
+import { Card } from "antd";
 import { formatDate } from "@/shared/libs/date.lib";
 import { DECISION_KIND_LABEL } from "../users.constant";
 import type { StudentDecision } from "../users.type";
 
 export function DecisionPreview({ decision }: { decision: StudentDecision }) {
   return (
-    <article className="flex flex-col gap-4 rounded-lg border border-border-strong bg-surface p-6 text-sm leading-relaxed">
+    <Card classNames={{ body: "flex flex-col gap-4 p-6 text-sm leading-relaxed" }}>
       <header className="grid grid-cols-2 gap-4 text-center text-xs">
         <div className="flex flex-col">
           <span>BỘ GIÁO DỤC VÀ ĐÀO TẠO</span>
@@ -37,6 +38,6 @@ export function DecisionPreview({ decision }: { decision: StudentDecision }) {
         <span className="font-semibold">PHÓ HIỆU TRƯỞNG</span>
         <span className="mt-10">{decision.signedBy ? decision.signedBy.split(",")[0] : "Chưa ký"}</span>
       </footer>
-    </article>
+    </Card>
   );
 }

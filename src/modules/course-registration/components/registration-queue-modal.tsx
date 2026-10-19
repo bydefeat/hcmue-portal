@@ -60,7 +60,7 @@ function QueueBody({ onAdmitted, onLeave }: Omit<RegistrationQueueModalProps, "o
               Còn <span className="font-semibold tabular-nums">{position.toLocaleString("vi-VN")}</span> sinh viên phía trước
             </p>
             <p className="text-sm text-pretty text-muted tabular-nums">
-              Ước tính khoảng {seconds} giây. Giữ nguyên trang này, giỏ dự kiến của bạn được giữ nguyên và gửi đi khi đến lượt.
+              Ước tính khoảng {seconds} giây. Giữ nguyên trang này, các lớp bạn đã chọn được giữ nguyên và gửi đi khi đến lượt.
             </p>
           </>
         ) : (

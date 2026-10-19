@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Input, Segmented } from "antd";
 import { Magnifier, Megaphone } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
+import { SectionCard } from "@/shared/components/ui/section-card";
 import { ANNOUNCEMENT_CATEGORY_LABEL } from "../announcements.constant";
 import type { Announcement, AnnouncementCategory } from "../announcements.type";
 import { PublicAnnouncementItem } from "./public-announcement-item";
@@ -48,7 +49,7 @@ export function PublicAnnouncementBrowser({ announcements }: { announcements: An
           className="w-full md:w-72"
         />
       </div>
-      <section className="rounded-xl border border-border-strong bg-surface">
+      <SectionCard flush>
         {visible.length === 0 ? (
           <EmptyState
             icon={Megaphone}
@@ -64,7 +65,7 @@ export function PublicAnnouncementBrowser({ announcements }: { announcements: An
             ))}
           </ul>
         )}
-      </section>
+      </SectionCard>
     </div>
   );
 }

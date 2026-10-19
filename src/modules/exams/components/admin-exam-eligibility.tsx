@@ -57,7 +57,7 @@ export function AdminExamEligibility({ rows: initialRows, limitPercent }: { rows
         <span className="flex min-w-0 flex-col">
           <span className="truncate font-medium">{row.fullName}</span>
           <span className="truncate text-xs text-muted">
-            <span className="font-mono">{row.studentCode}</span> · {row.className}
+            {row.studentCode} · {row.className}
           </span>
         </span>
       ),
@@ -68,7 +68,7 @@ export function AdminExamEligibility({ rows: initialRows, limitPercent }: { rows
       width: 250,
       render: (_, row) => (
         <span className="flex min-w-0 flex-col">
-          <span className="font-mono text-xs">{row.sectionCode}</span>
+          <span className="text-xs">{row.sectionCode}</span>
           <span className="truncate">{row.courseName}</span>
         </span>
       ),

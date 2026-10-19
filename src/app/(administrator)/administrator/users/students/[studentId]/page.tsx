@@ -29,6 +29,7 @@ import {
 } from "@/modules/course-registration/course-registration.query";
 import { getCourses } from "@/modules/curriculum/curriculum.query";
 import { getRegulation } from "@/modules/settings/settings.query";
+import { SectionCard } from "@/shared/components/ui/section-card";
 
 type PageProps = { params: Promise<{ studentId: string }> };
 
@@ -82,48 +83,51 @@ export default async function Page({ params }: PageProps) {
         <div className="grid gap-4 lg:grid-cols-[320px_minmax(0,1fr)] lg:items-start">
           <div className="flex flex-col gap-4">
             <StudentProfileCard student={student} advisorName={advisorName} />
-            <section className="flex flex-col gap-2 rounded-xl border border-border-strong bg-surface p-4 sm:p-5">
-              <h2 className="text-base font-semibold">Kế hoạch học tập</h2>
-              {plan ? (
-                <>
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-sm">{plan.targetTermName}</span>
-                    <StatusTag status={STUDY_PLAN_STATUS[plan.status]} />
-                  </div>
-                  <p className="text-xs text-muted tabular-nums">
-                    {plan.totalCredits} tín chỉ
-                    {plan.submittedAt ? `, nộp lúc ${formatDateTime(plan.submittedAt)}` : ", chưa nộp cho cố vấn"}
-                  </p>
-                  {plan.advisorComment && <p className="text-sm text-pretty text-muted">Cố vấn: {plan.advisorComment}</p>}
-                </>
-              ) : (
-                <p className="text-sm text-muted">Sinh viên chưa lập kế hoạch học tập cho học kỳ tới.</p>
-              )}
-            </section>
-            <section className="flex flex-col gap-2 rounded-xl border border-border-strong bg-surface p-4 sm:p-5">
-              <h2 className="text-base font-semibold">Quyết định</h2>
-              {decisions.length === 0 ? (
-                <p className="text-sm text-muted">Chưa có quyết định nào liên quan đến sinh viên.</p>
-              ) : (
-                <ul className="flex flex-col gap-3">
-                  {decisions.map((decision) => (
-                    <li key={decision.id} className="flex flex-col gap-1">
-                      <div className="flex items-start justify-between gap-2">
-                        <span className="text-sm font-medium text-pretty">{DECISION_KIND_LABEL[decision.kind]}</span>
-                        <StatusTag status={DECISION_STATUS[decision.status]} />
-                      </div>
-                      <span className="text-xs text-muted tabular-nums">
-                        {decision.number ?? "Chưa có số"} · hiệu lực {formatDate(decision.effectiveDate)}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </section>
-            <section className="flex flex-col gap-3 rounded-xl border border-border-strong bg-surface p-4 sm:p-5">
-              <h2 className="text-base font-semibold">Lịch sử thay đổi</h2>
-              <AuditTimeline entries={history} emptyText="Hồ sơ chưa được sửa kể từ khi nhập học." />
-            </section>
+            <SectionCard title="Kế hoạch học tập">
+              <div className="flex flex-col gap-2">
+                {plan ? (
+                  <>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-sm">{plan.targetTermName}</span>
+                      <StatusTag status={STUDY_PLAN_STATUS[plan.status]} />
+                    </div>
+                    <p className="text-xs text-muted tabular-nums">
+                      {plan.totalCredits} tín chỉ
+                      {plan.submittedAt ? `, nộp lúc ${formatDateTime(plan.submittedAt)}` : ", chưa nộp cho cố vấn"}
+                    </p>
+                    {plan.advisorComment && <p className="text-sm text-pretty text-muted">Cố vấn: {plan.advisorComment}</p>}
+                  </>
+                ) : (
+                  <p className="text-sm text-muted">Sinh viên chưa lập kế hoạch học tập cho học kỳ tới.</p>
+                )}
+              </div>
+            </SectionCard>
+            <SectionCard title="Quyết định">
+              <div className="flex flex-col gap-2">
+                {decisions.length === 0 ? (
+                  <p className="text-sm text-muted">Chưa có quyết định nào liên quan đến sinh viên.</p>
+                ) : (
+                  <ul className="flex flex-col gap-3">
+                    {decisions.map((decision) => (
+                      <li key={decision.id} className="flex flex-col gap-1">
+                        <div className="flex items-start justify-between gap-2">
+                          <span className="text-sm font-medium text-pretty">{DECISION_KIND_LABEL[decision.kind]}</span>
+                          <StatusTag status={DECISION_STATUS[decision.status]} />
+                        </div>
+                        <span className="text-xs text-muted tabular-nums">
+                          {decision.number ?? "Chưa có số"} · hiệu lực {formatDate(decision.effectiveDate)}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </SectionCard>
+            <SectionCard title="Lịch sử thay đổi">
+              <div className="flex flex-col gap-3">
+                <AuditTimeline entries={history} emptyText="Hồ sơ chưa được sửa kể từ khi nhập học." />
+              </div>
+            </SectionCard>
           </div>
           <div className="flex min-w-0 flex-col gap-4">
             <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">

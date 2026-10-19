@@ -5,6 +5,7 @@ import { StudentCurriculumProgress, type CourseProgress } from "@/modules/curric
 import { getCourses, getProgram, getPrograms } from "@/modules/curriculum/curriculum.query";
 import { getStudentStandings, getTranscript } from "@/modules/grades/grades.query";
 import { getCurrentStudent } from "@/modules/users/users.query";
+import { PageHeader } from "@/shared/components/ui/page-header";
 
 export const metadata: Metadata = { title: "Chương trình đào tạo" };
 
@@ -31,13 +32,16 @@ export default async function Page() {
   }
 
   return (
-    <div className="flex flex-col gap-4">
-      <p className="text-sm text-pretty text-muted">
-        {program
-          ? `${program.name} (mã ngành ${program.code}), ${program.degree.toLowerCase()}, ${program.durationYears} năm, áp dụng cho khóa ${student.cohort}.`
-          : `Ngành ${student.majorName}, khóa ${student.cohort}.`}
-      </p>
+    <>
+      <PageHeader
+        title="Chương trình đào tạo"
+        description={
+          program
+            ? `${program.name} (mã ngành ${program.code}), ${program.degree.toLowerCase()}, ${program.durationYears} năm, áp dụng cho khóa ${student.cohort}.`
+            : `Ngành ${student.majorName}, khóa ${student.cohort}.`
+        }
+      />
       <StudentCurriculumProgress program={program} progress={progress} earnedCredits={standing.earnedCredits} />
-    </div>
+    </>
   );
 }

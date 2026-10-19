@@ -108,9 +108,9 @@ export function RequestInbox({
       dataIndex: "code",
       width: 140,
       render: (code: string, row) => (
-        <button type="button" onClick={() => setOpenId(row.id)} className="cursor-pointer font-mono text-xs text-primary hover:underline">
+        <Button type="link" size="small" onClick={() => setOpenId(row.id)} className="h-auto p-0 text-xs">
           {code}
-        </button>
+        </Button>
       ),
     },
     { title: "Loại đơn", dataIndex: "kind", width: 170, render: (value: RequestKind) => REQUEST_KINDS[value].label },
@@ -124,7 +124,7 @@ export function RequestInbox({
               <span className="flex min-w-0 flex-col">
                 <span className="truncate font-medium">{row.requesterName}</span>
                 <span className="truncate text-xs text-muted">
-                  <span className="font-mono">{row.requesterCode}</span> · {row.requesterUnit}
+                  {row.requesterCode} · {row.requesterUnit}
                 </span>
               </span>
             ),
@@ -141,7 +141,7 @@ export function RequestInbox({
         const due = waitingText(row);
         return (
           <span className="flex flex-col">
-            <span>{row.currentStep.label}</span>
+            {row.currentStep.label}
             {due && <span className={`text-xs tabular-nums ${due.className}`}>{due.text}</span>}
           </span>
         );

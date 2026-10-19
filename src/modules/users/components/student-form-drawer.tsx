@@ -66,7 +66,7 @@ export function StudentFormDrawer({ open, student, onClose, onSubmit }: StudentF
               { pattern: /^\d{10}$/, message: "Mã sinh viên gồm đúng 10 chữ số, ví dụ 4901104012" },
             ]}
           >
-            <Input inputMode="numeric" className="font-mono" disabled={isEdit} />
+            <Input inputMode="numeric" disabled={isEdit} />
           </Form.Item>
           <Form.Item name="fullName" label="Họ và tên" rules={[{ required: true, whitespace: true, message: "Chưa nhập họ và tên" }]}>
             <Input autoComplete="off" />
@@ -94,7 +94,7 @@ export function StudentFormDrawer({ open, student, onClose, onSubmit }: StudentF
             extra="Gợi ý theo khóa và ngành đã chọn"
             rules={[{ required: true, message: "Chưa nhập lớp sinh hoạt" }]}
           >
-            <AutoComplete options={classSuggestions(cohort, majorCode)} className="font-mono" />
+            <AutoComplete options={classSuggestions(cohort, majorCode)} />
           </Form.Item>
           <Form.Item name="status" label="Tình trạng">
             <Select options={STUDENT_STATUS_OPTIONS} />

@@ -50,7 +50,7 @@ Nguồn: plugin `evon:ui-ux` (evondevkit), áp cho stack của dự án (**antd 
 - **Một bảng trạng thái cho cả app** ở `src/shared/constants/status.constant.ts`: xám = chờ/trung tính, xanh lá = xong, hổ phách = cần chú ý, đỏ = lỗi/không đảo ngược. Màu **luôn có chữ hoặc icon đi kèm** (`N4`, `M7`).
 - Một font (Geist, có subset `vietnamese`), phân vai bằng độ đậm: 400 thân, 500 nhãn/nút, 600 tiêu đề (`T2`, `T5`).
 - Thang cỡ chữ: `xs` nhãn/thời gian · `sm` **mặc định** · `base` tên thẻ · `lg` tiêu đề khối · `xl` **tên trang** (không `2xl` ngoài hero). Tên trang > tiêu đề khối > tên thẻ, mỗi bậc cách đúng một nấc (`T6`, `T8`).
-- Số xếp cột (điểm, tín chỉ, sĩ số, GPA) dùng `tabular-nums` (`T16`). Mã SV, mã học phần, mã lớp dùng `font-mono` (`T17`).
+- Số xếp cột (điểm, tín chỉ, sĩ số, GPA) dùng `tabular-nums` (`T16`). Mã SV, mã học phần, mã lớp dùng cùng font chữ nội dung, không dùng `font-mono` (`T17`).
 - Câu dài tối đa ~75 ký tự/dòng, căn trái, mô tả có `text-pretty` (`T10`–`T12`).
 
 ### Khối & nhịp

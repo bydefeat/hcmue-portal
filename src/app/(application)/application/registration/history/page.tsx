@@ -1,6 +1,4 @@
 import type { Metadata } from "next";
-import Link from "next/link";
-import { ChevronLeft } from "defeat-icons-react";
 import { RegistrationHistoryList } from "@/modules/course-registration/components/registration-history-list";
 import { RegistrationReceipt } from "@/modules/course-registration/components/registration-receipt";
 import { bestGrades, buildRegistrationHistory, pickTimetable } from "@/modules/course-registration/course-registration.rule";
@@ -8,7 +6,9 @@ import { getCurrentTerm, getRegistrationPeriods, getStudentEnrollments } from "@
 import { getCourses } from "@/modules/curriculum/curriculum.query";
 import { getTranscript } from "@/modules/grades/grades.query";
 import { getCurrentStudent } from "@/modules/users/users.query";
+import { PageHeader } from "@/shared/components/ui/page-header";
 import { PrintButton } from "@/shared/components/ui/print-button";
+import { SectionCard } from "@/shared/components/ui/section-card";
 
 export const metadata: Metadata = { title: "Lịch sử và phiếu đăng ký" };
 
@@ -44,13 +44,12 @@ export default async function Page() {
         verificationCode={verificationCode}
       />
       <div className="flex flex-col gap-4 print:hidden">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <Link href="/application/registration" className="flex w-fit items-center gap-1 text-sm">
-            <ChevronLeft size={14} aria-hidden />
-            Về đăng ký học phần
-          </Link>
-          <PrintButton label="In phiếu đăng ký" />
-        </div>
+        <PageHeader
+          title="Lịch sử và phiếu đăng ký"
+          description={`${term.name}. Phiếu đăng ký có mã xác thực, in nộp khi cần đối chiếu với Phòng Đào tạo.`}
+          back={{ href: "/application/registration", label: "Đăng ký học phần" }}
+          actions={<PrintButton label="In phiếu đăng ký" />}
+        />
         <RegistrationReceipt
           variant="screen"
           student={student}
@@ -59,13 +58,12 @@ export default async function Page() {
           confirmedAt={confirmedAt}
           verificationCode={verificationCode}
         />
-        <section className="flex flex-col rounded-xl border border-border-strong bg-surface">
-          <header className="border-b border-border-strong px-4 py-3 sm:px-5">
-            <h2 className="text-lg font-semibold">Lịch sử đăng ký {term.shortName}</h2>
-            <p className="text-xs text-muted">Mọi lần đăng ký, hủy, đổi lớp, xếp từ danh sách chờ và thay đổi do Phòng Đào tạo thực hiện.</p>
-          </header>
+        <SectionCard title={`Lịch sử đăng ký ${term.shortName}`} flush>
+          <p className="border-b border-border-strong px-4 py-2 text-xs text-pretty text-muted sm:px-5">
+            Mọi lần đăng ký, hủy, đổi lớp, xếp từ danh sách chờ và thay đổi do Phòng Đào tạo thực hiện.
+          </p>
           <RegistrationHistoryList events={events} />
-        </section>
+        </SectionCard>
       </div>
     </>
   );

@@ -17,6 +17,7 @@ import { getStudents } from "@/modules/users/users.query";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { MeterBar } from "@/shared/components/ui/meter-bar";
 import { PageHeader } from "@/shared/components/ui/page-header";
+import { SectionCard } from "@/shared/components/ui/section-card";
 import { StatTile } from "@/shared/components/ui/stat-tile";
 import { StatusTag } from "@/shared/components/ui/status-tag";
 import { formatDate, formatDateTime } from "@/shared/libs/date.lib";
@@ -49,18 +50,6 @@ function periodHint(period: RegistrationPeriodView) {
   if (period.state === "upcoming") return `Mở lúc ${formatDateTime(period.opensAt)}`;
   if (period.state === "closed") return `Đã đóng ${formatDate(period.closesAt)}`;
   return `Đóng sau ${hoursText(period.hoursLeft)}, lúc ${formatDateTime(period.closesAt)}`;
-}
-
-function Section({ title, action, children }: { title: string; action?: React.ReactNode; children: React.ReactNode }) {
-  return (
-    <section className="flex min-w-0 flex-col rounded-xl border border-border-strong bg-surface">
-      <header className="flex items-center justify-between gap-3 border-b border-border-strong px-4 py-3 sm:px-5">
-        <h2 className="text-lg font-semibold">{title}</h2>
-        {action}
-      </header>
-      {children}
-    </section>
-  );
 }
 
 export default async function Page() {
@@ -147,9 +136,10 @@ export default async function Page() {
 
         <div className="grid gap-4 sm:gap-6 xl:grid-cols-3">
           <div className="min-w-0 xl:col-span-2">
-            <Section
+            <SectionCard
+              flush
               title="Lớp học phần cần xử lý"
-              action={<Link href={`/administrator/class-sections?term=${targetTerm.id}`} className="text-sm">Tất cả lớp</Link>}
+              extra={<Link href={`/administrator/class-sections?term=${targetTerm.id}`} className="text-sm">Tất cả lớp</Link>}
             >
               {issues.length === 0 ? (
                 <EmptyState icon={CircleCheck} title="Không có lớp cần xử lý" description="Mọi lớp đã có giảng viên, không trùng phòng hay trùng giờ." />
@@ -163,7 +153,7 @@ export default async function Page() {
                       >
                         <span className="flex min-w-0 flex-1 flex-col">
                           <span className="truncate font-medium">{section.courseName}</span>
-                          <span className="font-mono text-xs text-muted">{section.code}</span>
+                          <span className="text-xs text-muted">{section.code}</span>
                         </span>
                         <span className={`min-w-0 text-sm text-pretty sm:w-80 ${tone === "danger" ? "text-rose-700" : "text-amber-700"}`}>
                           {reason}
@@ -173,11 +163,11 @@ export default async function Page() {
                   ))}
                 </ul>
               )}
-            </Section>
+            </SectionCard>
           </div>
 
           <div className="flex min-w-0 flex-col gap-4 sm:gap-6">
-            <Section title="Đợt đăng ký" action={<Link href="/administrator/terms" className="text-sm">Cấu hình</Link>}>
+            <SectionCard flush title="Đợt đăng ký" extra={<Link href="/administrator/terms" className="text-sm">Cấu hình</Link>}>
               <ul className="flex flex-col divide-y divide-border-strong">
                 {periods.map((period) => (
                   <li key={period.id} className="flex flex-col gap-2 px-4 py-3 sm:px-5">
@@ -197,22 +187,22 @@ export default async function Page() {
                   </li>
                 ))}
               </ul>
-            </Section>
+            </SectionCard>
 
-            <Section title="Thông báo" action={<Link href="/administrator/announcements" className="text-sm">Quản lý</Link>}>
+            <SectionCard flush title="Thông báo" extra={<Link href="/administrator/announcements" className="text-sm">Quản lý</Link>}>
               <ul className="flex flex-col divide-y divide-border-strong">
                 {recentAnnouncements.map((announcement) => (
                   <li key={announcement.id} className="flex flex-col gap-1 px-4 py-3 sm:px-5">
                     <span className="line-clamp-2 font-medium text-pretty">{announcement.title}</span>
                     <span className="flex flex-wrap items-center gap-2 text-xs text-muted">
-                      <span>{ANNOUNCEMENT_CATEGORY_LABEL[announcement.category]}</span>
+                      {ANNOUNCEMENT_CATEGORY_LABEL[announcement.category]}
                       <span className="tabular-nums">{announcement.publishedAt ? formatDate(announcement.publishedAt) : "Chưa đăng"}</span>
                       {announcement.status !== "published" && <StatusTag status={ANNOUNCEMENT_STATUS[announcement.status]} />}
                     </span>
                   </li>
                 ))}
               </ul>
-            </Section>
+            </SectionCard>
           </div>
         </div>
       </div>

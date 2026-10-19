@@ -9,7 +9,9 @@ import { getStudentStandings, getTranscript } from "@/modules/grades/grades.quer
 import type { TranscriptTerm } from "@/modules/grades/grades.type";
 import { getCurrentStudent } from "@/modules/users/users.query";
 import { MeterBar } from "@/shared/components/ui/meter-bar";
+import { PageHeader } from "@/shared/components/ui/page-header";
 import { PrintButton } from "@/shared/components/ui/print-button";
+import { SectionCard } from "@/shared/components/ui/section-card";
 import { StatTile } from "@/shared/components/ui/stat-tile";
 
 export const metadata: Metadata = { title: "Kết quả học tập" };
@@ -54,12 +56,11 @@ export default async function Page() {
     <>
       <PrintableTranscript student={student} terms={transcript} standing={standing} />
       <div className="flex flex-col gap-4 print:hidden">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-sm text-muted">
-            Điểm quy đổi theo thang 4 của quy chế đào tạo tín chỉ. Điểm học kỳ hiện tại hiện sau khi Phòng Đào tạo công bố.
-          </p>
-          <PrintButton label="In bảng điểm" />
-        </div>
+        <PageHeader
+          title="Kết quả học tập"
+          description="Điểm quy đổi theo thang 4 của quy chế đào tạo tín chỉ. Điểm học kỳ hiện tại hiện sau khi Phòng Đào tạo công bố."
+          actions={<PrintButton label="In bảng điểm" />}
+        />
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           <StatTile label="Điểm trung bình tích lũy" value={formatPoint(standing.cpa4)} hint={`Xếp loại ${STANDING_LABEL[standing.standing]}`} />
           <StatTile
@@ -75,18 +76,17 @@ export default async function Page() {
             tone={standing.warningLevel > 0 ? "danger" : standing.failedCredits > 0 ? "warning" : undefined}
           />
         </div>
-        <section className="flex flex-col gap-2 rounded-xl border border-border-strong bg-surface p-4 sm:p-5">
-          <div className="flex items-baseline justify-between gap-3">
-            <h2 className="text-base font-semibold">Tiến độ tốt nghiệp</h2>
-            <span className="text-xs text-muted tabular-nums">
-              Còn {Math.max(0, totalCredits - standing.earnedCredits)} tín chỉ
-            </span>
+        <SectionCard
+          title="Tiến độ tốt nghiệp"
+          extra={<span className="text-xs text-muted tabular-nums">Còn {Math.max(0, totalCredits - standing.earnedCredits)} tín chỉ</span>}
+        >
+          <div className="flex flex-col gap-2">
+            <MeterBar value={standing.earnedCredits} max={totalCredits} label="Tín chỉ đã tích lũy" />
+            <p className="text-xs text-pretty text-muted">
+              {program ? `${program.name}, ${program.degree.toLowerCase()} ${program.totalCredits} tín chỉ.` : ""} Xem chi tiết từng học phần ở mục Chương trình đào tạo.
+            </p>
           </div>
-          <MeterBar value={standing.earnedCredits} max={totalCredits} label="Tín chỉ đã tích lũy" />
-          <p className="text-xs text-pretty text-muted">
-            {program ? `${program.name}, ${program.degree.toLowerCase()} ${program.totalCredits} tín chỉ.` : ""} Xem chi tiết từng học phần ở mục Chương trình đào tạo.
-          </p>
-        </section>
+        </SectionCard>
         <TranscriptView terms={terms} />
       </div>
     </>

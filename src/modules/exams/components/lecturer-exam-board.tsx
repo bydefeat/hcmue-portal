@@ -73,7 +73,7 @@ function ClassCell({ exam }: { exam: ExamSession }) {
     <span className="flex min-w-0 flex-col">
       <span className="truncate font-medium">{exam.courseName}</span>
       <span className="text-xs text-muted">
-        <span className="font-mono">{exam.classCode}</span> · {EXAM_KIND_LABEL[exam.kind]}
+        {exam.classCode} · {EXAM_KIND_LABEL[exam.kind]}
       </span>
     </span>
   );
@@ -113,7 +113,7 @@ export function LecturerExamBoard({ lecturerId, teaching, proctoring, teachingSl
       width: 170,
       render: (_, exam) => (
         <span className="flex flex-col">
-          <span>{EXAM_FORMAT_LABEL[exam.format]}</span>
+          {EXAM_FORMAT_LABEL[exam.format]}
           <span className="text-xs text-muted tabular-nums">
             {exam.durationMinutes} phút · {exam.candidateCount} thí sinh
           </span>

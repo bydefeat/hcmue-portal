@@ -25,9 +25,9 @@ export function ClassRosterTable({ roster, classCode }: { roster: RosterEntry[];
 
   const columns: TableColumnsType<RosterEntry> = [
     { title: "STT", key: "index", width: 56, align: "right", render: (_, __, index) => <span className="text-muted tabular-nums">{index + 1}</span> },
-    { title: "Mã SV", dataIndex: "studentCode", width: 120, render: (value: string) => <span className="font-mono text-xs">{value}</span> },
+    { title: "Mã SV", dataIndex: "studentCode", width: 120, render: (value: string) => <span className="text-xs">{value}</span> },
     { title: "Họ và tên", dataIndex: "fullName", width: 220, render: (value: string) => <span className="font-medium">{value}</span> },
-    { title: "Lớp sinh hoạt", dataIndex: "className", width: 140, render: (value: string) => <span className="font-mono text-xs">{value}</span> },
+    { title: "Lớp sinh hoạt", dataIndex: "className", width: 140, render: (value: string) => <span className="text-xs">{value}</span> },
     {
       title: "Email",
       key: "email",

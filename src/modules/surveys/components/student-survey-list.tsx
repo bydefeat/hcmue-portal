@@ -1,13 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { Button, message } from "antd";
+import { Button, Card, message } from "antd";
 import { CircleCheck, StarList } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { MeterBar } from "@/shared/components/ui/meter-bar";
 import { dayjs, formatDateTime } from "@/shared/libs/date.lib";
 import type { StudentSurveyTask, Survey } from "../surveys.type";
 import { SurveyForm } from "./survey-form";
+import { SectionCard } from "@/shared/components/ui/section-card";
 
 export function StudentSurveyList({ survey, tasks }: { survey: Survey; tasks: StudentSurveyTask[] }) {
   const [messageApi, contextHolder] = message.useMessage();
@@ -20,39 +21,42 @@ export function StudentSurveyList({ survey, tasks }: { survey: Survey; tasks: St
   return (
     <div className="flex flex-col gap-4">
       {contextHolder}
-      <section className="flex flex-col gap-2 rounded-xl border border-border-strong bg-surface p-4 sm:p-5">
-        <p className="text-sm font-medium text-pretty">{survey.title}</p>
-        <p className="text-xs text-muted tabular-nums">
-          Mở đến {formatDateTime(survey.closesAt)} · Đã đánh giá {done}/{rows.length} lớp
-        </p>
-        <div className="w-full max-w-xs">
-          <MeterBar value={done} max={rows.length} tone={done === rows.length ? "success" : "primary"} label="Số lớp đã đánh giá" />
+      <SectionCard title={survey.title}>
+        <div className="flex flex-col gap-2">
+          <p className="text-xs text-muted tabular-nums">
+            Mở đến {formatDateTime(survey.closesAt)} · Đã đánh giá {done}/{rows.length} lớp
+          </p>
+          <div className="w-full max-w-xs">
+            <MeterBar value={done} max={rows.length} tone={done === rows.length ? "success" : "primary"} label="Số lớp đã đánh giá" />
+          </div>
         </div>
-      </section>
+      </SectionCard>
       {rows.length === 0 ? (
-        <div className="rounded-xl border border-border-strong bg-surface">
+        <SectionCard flush>
           <EmptyState icon={StarList} title="Không có lớp cần đánh giá" description="Học kỳ này bạn chưa có lớp học phần nào." />
-        </div>
+        </SectionCard>
       ) : (
         <ul className="flex flex-col gap-2">
           {rows.map((task) => (
-            <li key={task.classSectionId} className="flex flex-col gap-3 rounded-xl border border-border-strong bg-surface p-4 sm:flex-row sm:items-center">
-              <span className="flex min-w-0 flex-1 flex-col">
-                <span className="font-medium text-pretty">{task.courseName}</span>
-                <span className="text-xs text-muted">
-                  <span className="font-mono">{task.classCode}</span> · {task.lecturerName ?? "Chưa phân công giảng viên"}
+            <li key={task.classSectionId}>
+              <Card size="small" classNames={{ body: "flex flex-col gap-3 sm:flex-row sm:items-center" }}>
+                <span className="flex min-w-0 flex-1 flex-col">
+                  <span className="font-medium text-pretty">{task.courseName}</span>
+                  <span className="text-xs text-muted">
+                    {task.classCode} · {task.lecturerName ?? "Chưa phân công giảng viên"}
+                  </span>
                 </span>
-              </span>
-              {task.submittedAt ? (
-                <span className="flex items-center gap-1 text-sm text-green-700">
-                  <CircleCheck size={16} aria-hidden />
-                  Đã gửi {formatDateTime(task.submittedAt)}
-                </span>
-              ) : (
-                <Button onClick={() => setOpenId(task.classSectionId)} disabled={isClosed}>
-                  {isClosed ? "Đã hết hạn" : "Đánh giá"}
-                </Button>
-              )}
+                {task.submittedAt ? (
+                  <span className="flex items-center gap-1 text-sm text-green-700">
+                    <CircleCheck size={16} aria-hidden />
+                    Đã gửi {formatDateTime(task.submittedAt)}
+                  </span>
+                ) : (
+                  <Button onClick={() => setOpenId(task.classSectionId)} disabled={isClosed}>
+                    {isClosed ? "Đã hết hạn" : "Đánh giá"}
+                  </Button>
+                )}
+              </Card>
             </li>
           ))}
         </ul>

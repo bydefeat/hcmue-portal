@@ -88,7 +88,7 @@ export function RoleAssignmentTable({ assignments, roles, faculties, currentUser
         <span className="flex min-w-0 flex-col">
           <span className="truncate font-medium">{row.userName}</span>
           <span className="truncate text-xs text-muted">
-            <span className="font-mono">{row.userCode}</span> · {row.unit}
+            {row.userCode} · {row.unit}
           </span>
         </span>
       ),
@@ -99,7 +99,7 @@ export function RoleAssignmentTable({ assignments, roles, faculties, currentUser
       width: 260,
       render: (_, row) => (
         <span className="flex flex-col">
-          <span>{roleName(row.roleId)}</span>
+          {roleName(row.roleId)}
           {row.faculty && <span className="text-xs text-muted">{row.faculty}</span>}
         </span>
       ),
@@ -190,7 +190,7 @@ export function RoleAssignmentTable({ assignments, roles, faculties, currentUser
           </Form.Item>
           <div className="grid gap-x-3 sm:grid-cols-2">
             <Form.Item name="userCode" label="Mã cán bộ" rules={[{ required: true, whitespace: true, message: "Chưa nhập mã cán bộ" }]}>
-              <Input className="font-mono" autoComplete="off" />
+              <Input autoComplete="off" />
             </Form.Item>
             <Form.Item name="unit" label="Đơn vị công tác" rules={[{ required: true, whitespace: true, message: "Chưa nhập đơn vị" }]}>
               <Input autoComplete="off" />

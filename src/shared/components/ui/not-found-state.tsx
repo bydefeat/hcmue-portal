@@ -11,7 +11,7 @@ export function NotFoundState({ homeHref = "/", homeLabel = "Về trang chủ" }
     <Card>
       <Result
         status="404"
-        title="Không tìm thấy trang"
+        title={<h1 className="text-xl font-semibold">Không tìm thấy trang</h1>}
         subTitle="Đường dẫn có thể đã sai, hoặc dữ liệu đã bị xóa hay chuyển sang học kỳ khác. Kiểm tra lại đường dẫn hoặc quay về trang chính để tìm tiếp."
         extra={<Link href={homeHref}>{homeLabel}</Link>}
       />

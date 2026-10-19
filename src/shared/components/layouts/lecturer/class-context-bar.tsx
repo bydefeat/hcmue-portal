@@ -43,14 +43,14 @@ export function ClassContextBar({ classContext }: { classContext: ClassContext }
         </Link>
         <div className="mt-1 flex flex-col gap-1 md:flex-row md:items-baseline md:justify-between md:gap-4">
           <h1 className="min-w-0 text-xl font-semibold text-pretty">
-            {classContext.courseName} <span className="font-mono text-base font-medium text-muted">{classContext.code}</span>
+            {classContext.courseName} <span className="text-base font-medium text-muted">{classContext.code}</span>
           </h1>
           <p className="flex shrink-0 flex-wrap gap-x-4 gap-y-1 text-sm text-muted">
             <span className="tabular-nums">
               Sĩ số <span className="font-medium text-foreground">{classContext.enrolled}</span>/{classContext.capacity}
             </span>
             <span className="tabular-nums">{classContext.credits} tín chỉ</span>
-            <span>{classContext.termLabel}</span>
+            {classContext.termLabel}
           </p>
         </div>
         <p className="mt-1 text-sm text-muted">{classContext.scheduleText}</p>

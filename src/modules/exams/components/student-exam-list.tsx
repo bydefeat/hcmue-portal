@@ -2,13 +2,14 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Alert, Segmented } from "antd";
+import { Alert, Card, Segmented } from "antd";
 import { CalendarCheck, CircleWarning } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { StatusTag } from "@/shared/components/ui/status-tag";
 import { daysUntil, dayjs } from "@/shared/libs/date.lib";
 import { EXAM_FORMAT_LABEL, EXAM_KIND_LABEL } from "../exams.constant";
 import type { ExamKind, ExamSession } from "../exams.type";
+import { SectionCard } from "@/shared/components/ui/section-card";
 
 export type StudentExamItem = {
   exam: ExamSession;
@@ -63,39 +64,41 @@ export function StudentExamList({ items, absenceLimitPercent }: { items: Student
         className="self-start"
       />
       {visible.length === 0 ? (
-        <div className="rounded-xl border border-border-strong bg-surface">
+        <SectionCard flush>
           <EmptyState icon={CalendarCheck} title="Không có lịch thi sắp tới" description="Lịch thi cuối kỳ được Phòng Khảo thí công bố trước kỳ thi 2 tuần." />
-        </div>
+        </SectionCard>
       ) : (
         <ul className="flex flex-col gap-2">
           {visible.map(({ exam, absences, sessionsHeld, isBanned }) => {
             const when = whenText(exam.date);
             const isDraft = exam.status === "draft";
             return (
-              <li key={exam.id} className="flex flex-col gap-3 rounded-xl border border-border-strong bg-surface p-4 sm:flex-row sm:items-start">
-                <div className="flex w-24 shrink-0 flex-row items-baseline gap-2 sm:flex-col sm:gap-0">
-                  <span className="text-lg font-semibold tabular-nums">{dayjs(exam.date).format("DD/MM")}</span>
-                  <span className="text-xs text-muted capitalize">{dayjs(exam.date).format("dddd")}</span>
-                </div>
-                <div className="flex min-w-0 flex-1 flex-col gap-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-mono text-xs text-muted">{exam.classCode}</span>
-                    <span className="text-xs text-muted">
-                      {EXAM_KIND_LABEL[exam.kind]} · {EXAM_FORMAT_LABEL[exam.format]}
-                    </span>
-                    {isDraft && <StatusTag status={{ label: "Dự kiến", tone: "neutral" }} />}
+              <li key={exam.id}>
+                <Card size="small" classNames={{ body: "flex flex-col gap-3 sm:flex-row sm:items-start" }}>
+                  <div className="flex w-24 shrink-0 flex-row items-baseline gap-2 sm:flex-col sm:gap-0">
+                    <span className="text-lg font-semibold tabular-nums">{dayjs(exam.date).format("DD/MM")}</span>
+                    <span className="text-xs text-muted capitalize">{dayjs(exam.date).format("dddd")}</span>
                   </div>
-                  <span className="font-medium text-pretty">{exam.courseName}</span>
-                  <span className="text-sm text-muted tabular-nums">
-                    {exam.startTime} - {endTime(exam.startTime, exam.durationMinutes)} · Phòng {exam.room} · {exam.durationMinutes} phút
-                  </span>
-                  <span className={`text-xs tabular-nums ${isBanned ? "text-rose-700" : "text-muted"}`}>
-                    {isBanned && <CircleWarning size={14} aria-hidden className="mr-1 inline align-[-2px]" />}
-                    Đã vắng {absences}/{sessionsHeld} buổi
-                    {isBanned ? ", thuộc diện cấm thi nếu không có minh chứng" : ""}
-                  </span>
-                </div>
-                <span className={`shrink-0 text-sm tabular-nums ${when.className}`}>{when.text}</span>
+                  <div className="flex min-w-0 flex-1 flex-col gap-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-xs text-muted">{exam.classCode}</span>
+                      <span className="text-xs text-muted">
+                        {EXAM_KIND_LABEL[exam.kind]} · {EXAM_FORMAT_LABEL[exam.format]}
+                      </span>
+                      {isDraft && <StatusTag status={{ label: "Dự kiến", tone: "neutral" }} />}
+                    </div>
+                    <span className="font-medium text-pretty">{exam.courseName}</span>
+                    <span className="text-sm text-muted tabular-nums">
+                      {exam.startTime} - {endTime(exam.startTime, exam.durationMinutes)} · Phòng {exam.room} · {exam.durationMinutes} phút
+                    </span>
+                    <span className={`text-xs tabular-nums ${isBanned ? "text-rose-700" : "text-muted"}`}>
+                      {isBanned && <CircleWarning size={14} aria-hidden className="mr-1 inline align-[-2px]" />}
+                      Đã vắng {absences}/{sessionsHeld} buổi
+                      {isBanned ? ", thuộc diện cấm thi nếu không có minh chứng" : ""}
+                    </span>
+                  </div>
+                  <span className={`shrink-0 text-sm tabular-nums ${when.className}`}>{when.text}</span>
+                </Card>
               </li>
             );
           })}

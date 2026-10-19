@@ -62,7 +62,7 @@ export function AuditLogTable({ entries }: { entries: AuditEntry[] }) {
       ),
     },
     { title: "Nội dung", dataIndex: "summary", render: (value: string) => <span className="text-pretty">{value}</span> },
-    { title: "IP", dataIndex: "ip", width: 110, render: (value: string) => <span className="font-mono text-xs text-muted">{value}</span> },
+    { title: "IP", dataIndex: "ip", width: 110, render: (value: string) => <span className="text-xs text-muted">{value}</span> },
   ];
 
   return (

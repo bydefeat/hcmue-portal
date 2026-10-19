@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "@bprogress/next/app";
 import { usePathname } from "next/navigation";
@@ -43,29 +43,13 @@ export function MobileNavigation({ dockItems, sections, homeHref, hideFrom, acti
   const pathname = usePathname();
   const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
-  const [isScrollHidden, setIsScrollHidden] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
   const [previousPathname, setPreviousPathname] = useState(pathname);
-  const lastScrollY = useRef(0);
 
   if (previousPathname !== pathname) {
     setPreviousPathname(pathname);
     setIsOpen(false);
-    setIsScrollHidden(false);
   }
-
-  useEffect(() => {
-    const handleScroll = () => {
-      const currentY = window.scrollY;
-      const isAtBottom = window.innerHeight + currentY >= document.documentElement.scrollHeight - 80;
-      if (currentY <= 10 || isAtBottom) setIsScrollHidden(false);
-      else if (currentY > lastScrollY.current + 12 && currentY > 60) setIsScrollHidden(true);
-      else if (currentY < lastScrollY.current - 8) setIsScrollHidden(false);
-      lastScrollY.current = currentY;
-    };
-    window.addEventListener("scroll", handleScroll, { passive: true });
-    return () => window.removeEventListener("scroll", handleScroll);
-  }, []);
 
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout>;
@@ -105,7 +89,7 @@ export function MobileNavigation({ dockItems, sections, homeHref, hideFrom, acti
   const activeDockHref = dockItems.find((item) => isActiveItem(pathname, item))?.href;
   const isInSections = sections.some((section) => section.items.some((item) => isActiveItem(pathname, item)));
   const activeKey = isOpen ? MENU_KEY : (activeDockHref ?? (isInSections ? MENU_KEY : null));
-  const isDockHidden = (isScrollHidden || isTyping) && !isOpen;
+  const isDockHidden = isTyping && !isOpen;
 
   return (
     <>

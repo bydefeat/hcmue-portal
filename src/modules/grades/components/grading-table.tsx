@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Alert, Button, InputNumber, message, Modal, Table, type TableColumnsType } from "antd";
+import { Alert, Button, Card, InputNumber, message, Modal, Table, type TableColumnsType } from "antd";
 import { Download, FilePen, LockKey, Upload } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { MeterBar } from "@/shared/components/ui/meter-bar";
@@ -106,14 +106,14 @@ export function GradingTable({ sheet, students, classCode, classId, returnReason
       render: (_, row) => (
         <span className="flex min-w-0 flex-col">
           <span className="truncate font-medium">{row.fullName}</span>
-          <span className="font-mono text-xs text-muted">{row.studentCode}</span>
+          <span className="text-xs text-muted">{row.studentCode}</span>
         </span>
       ),
     },
     ...sheet.components.map((component, columnIndex) => ({
       title: (
         <span className="flex flex-col">
-          <span>{component.label}</span>
+          {component.label}
           <span className="text-xs font-normal text-muted tabular-nums">{component.weight}%</span>
         </span>
       ),
@@ -174,49 +174,51 @@ export function GradingTable({ sheet, students, classCode, classId, returnReason
   return (
     <div className="flex flex-col gap-3">
       {contextHolder}
-      <div className="flex flex-col gap-3 rounded-xl border border-border-strong bg-surface p-4 sm:p-5 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex min-w-0 flex-col gap-2">
-          <div className="flex flex-wrap items-center gap-2">
-            <StatusTag status={GRADE_SHEET_STATE[state]} />
-            {isLocked && lockedAt ? (
-              <span className="text-sm text-muted">Chốt lúc {formatDateTime(lockedAt)}</span>
-            ) : (
-              <span className="text-sm text-muted tabular-nums">
-                Hạn nhập {formatDateTime(sheet.deadline)}, {deadlineText(sheet.deadline)}
+      <Card size="small">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex min-w-0 flex-col gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <StatusTag status={GRADE_SHEET_STATE[state]} />
+              {isLocked && lockedAt ? (
+                <span className="text-sm text-muted">Chốt lúc {formatDateTime(lockedAt)}</span>
+              ) : (
+                <span className="text-sm text-muted tabular-nums">
+                  Hạn nhập {formatDateTime(sheet.deadline)}, {deadlineText(sheet.deadline)}
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="w-40">
+                <MeterBar value={filled} max={total} tone={filled === total ? "success" : "primary"} label="Tiến độ nhập điểm" />
+              </div>
+              <span className="text-xs text-muted tabular-nums">
+                Đã nhập {filled}/{total} ô
               </span>
+              {!isLocked && savedAt && <span className="text-xs text-muted tabular-nums">Đã lưu nháp lúc {dayjs(savedAt).format("HH:mm")}</span>}
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button icon={<Download size={16} aria-hidden />} onClick={() => messageApi.success(`Đã xuất bảng điểm ${classCode} ra tệp Excel.`)}>
+              Xuất Excel
+            </Button>
+            {canRequestChange && requestOptions && (
+              <Button icon={<FilePen size={16} aria-hidden />} onClick={() => setIsRequestOpen(true)}>
+                Đề nghị sửa điểm
+              </Button>
+            )}
+            {!isLocked && (
+              <>
+                <Button icon={<Upload size={16} aria-hidden />} onClick={() => messageApi.info("Chọn tệp Excel theo mẫu đã xuất, điểm sẽ được điền vào các ô tương ứng.")}>
+                  Nhập từ Excel
+                </Button>
+                <Button type="primary" danger icon={<LockKey size={16} aria-hidden />} onClick={requestLock}>
+                  Chốt điểm
+                </Button>
+              </>
             )}
           </div>
-          <div className="flex items-center gap-3">
-            <div className="w-40">
-              <MeterBar value={filled} max={total} tone={filled === total ? "success" : "primary"} label="Tiến độ nhập điểm" />
-            </div>
-            <span className="text-xs text-muted tabular-nums">
-              Đã nhập {filled}/{total} ô
-            </span>
-            {!isLocked && savedAt && <span className="text-xs text-muted tabular-nums">Đã lưu nháp lúc {dayjs(savedAt).format("HH:mm")}</span>}
-          </div>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <Button icon={<Download size={16} aria-hidden />} onClick={() => messageApi.success(`Đã xuất bảng điểm ${classCode} ra tệp Excel.`)}>
-            Xuất Excel
-          </Button>
-          {canRequestChange && requestOptions && (
-            <Button icon={<FilePen size={16} aria-hidden />} onClick={() => setIsRequestOpen(true)}>
-              Đề nghị sửa điểm
-            </Button>
-          )}
-          {!isLocked && (
-            <>
-              <Button icon={<Upload size={16} aria-hidden />} onClick={() => messageApi.info("Chọn tệp Excel theo mẫu đã xuất, điểm sẽ được điền vào các ô tương ứng.")}>
-                Nhập từ Excel
-              </Button>
-              <Button type="primary" danger icon={<LockKey size={16} aria-hidden />} onClick={requestLock}>
-                Chốt điểm
-              </Button>
-            </>
-          )}
-        </div>
-      </div>
+      </Card>
 
       {sheet.status === "returned" && !isLocked && (
         <Alert

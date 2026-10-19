@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Collapse } from "antd";
+import { Card, Collapse } from "antd";
 import { Location, PhoneOffice } from "defeat-icons-react";
 import { getRegulationVersions } from "@/modules/settings/settings.query";
+import { PageHeader } from "@/shared/components/ui/page-header";
+import { SectionCard } from "@/shared/components/ui/section-card";
 import { formatDate } from "@/shared/libs/date.lib";
 import { PUBLIC_SIGN_IN_HREF } from "@/shared/constants/navigation.constant";
 
@@ -29,20 +31,20 @@ export default async function Page() {
   const versions = await getRegulationVersions();
   return (
     <div className="flex flex-col gap-6 sm:gap-8">
-      <div className="flex flex-col gap-1">
-        <h1 className="text-xl font-semibold">Giới thiệu cổng đào tạo</h1>
-        <p className="max-w-prose text-sm text-pretty text-muted">
-          Cổng thông tin đào tạo và học vụ của Trường Đại học Sư phạm Thành phố Hồ Chí Minh, dùng chung cho sinh viên, giảng viên, cố vấn học tập và Phòng Đào tạo.
-        </p>
-      </div>
+      <PageHeader
+        title="Giới thiệu cổng đào tạo"
+        description="Cổng thông tin đào tạo và học vụ của Trường Đại học Sư phạm Thành phố Hồ Chí Minh, dùng chung cho sinh viên, giảng viên, cố vấn học tập và Phòng Đào tạo."
+      />
 
       <section className="flex flex-col gap-3">
         <h2 className="text-lg font-semibold">Chức năng chính</h2>
         <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {MODULES.map((module) => (
-            <li key={module.title} className="flex flex-col gap-1 rounded-xl border border-border-strong bg-surface p-4 sm:p-5">
-              <span className="text-base font-medium">{module.title}</span>
-              <span className="text-sm text-pretty text-muted">{module.text}</span>
+            <li key={module.title}>
+              <Card size="small" className="h-full" classNames={{ body: "flex flex-col gap-1" }}>
+                <span className="text-base font-medium">{module.title}</span>
+                <span className="text-sm text-pretty text-muted">{module.text}</span>
+              </Card>
             </li>
           ))}
         </ul>
@@ -55,9 +57,8 @@ export default async function Page() {
         </section>
 
         <aside className="flex min-w-0 flex-col gap-6">
-          <section className="flex flex-col gap-3">
-            <h2 className="text-lg font-semibold">Quy chế đang áp dụng</h2>
-            <ul className="flex flex-col divide-y divide-border-strong rounded-xl border border-border-strong bg-surface">
+          <SectionCard title="Quy chế đang áp dụng" flush>
+            <ul className="flex flex-col divide-y divide-border-strong">
               {versions.map((version, index) => (
                 <li key={version.version} className="flex flex-col gap-1 px-4 py-3">
                   <span className="flex flex-wrap items-center gap-2">
@@ -65,30 +66,31 @@ export default async function Page() {
                     {index === 0 && <span className="text-xs text-primary">Hiện hành</span>}
                   </span>
                   <span className="text-xs text-muted tabular-nums">
-                    Quyết định <span className="font-mono">{version.decision}</span>, áp dụng từ {formatDate(version.effectiveFrom)}
+                    Quyết định {version.decision}, áp dụng từ {formatDate(version.effectiveFrom)}
                   </span>
                   <span className="text-sm text-pretty text-muted">{version.summary}</span>
                 </li>
               ))}
             </ul>
-          </section>
+          </SectionCard>
 
-          <section className="flex flex-col gap-3 rounded-xl border border-border-strong bg-surface p-4 sm:p-5">
-            <h2 className="text-lg font-semibold">Liên hệ</h2>
-            <p className="flex items-start gap-2 text-sm text-pretty">
-              <Location size={18} aria-hidden className="mt-0.5 shrink-0 text-muted" />
-              280 An Dương Vương, Phường Chợ Quán, Thành phố Hồ Chí Minh
-            </p>
-            <p className="flex items-center gap-2 text-sm">
-              <PhoneOffice size={18} aria-hidden className="shrink-0 text-muted" />
-              <a href="tel:02838352020" className="tabular-nums">
-                028 - 38352020
-              </a>
-            </p>
-            <Link href={PUBLIC_SIGN_IN_HREF} className="text-sm">
-              Đăng nhập cổng
-            </Link>
-          </section>
+          <SectionCard title="Liên hệ">
+            <div className="flex flex-col gap-3">
+              <p className="flex items-start gap-2 text-sm text-pretty">
+                <Location size={18} aria-hidden className="mt-0.5 shrink-0 text-muted" />
+                280 An Dương Vương, Phường Chợ Quán, Thành phố Hồ Chí Minh
+              </p>
+              <p className="flex items-center gap-2 text-sm">
+                <PhoneOffice size={18} aria-hidden className="shrink-0 text-muted" />
+                <a href="tel:02838352020" className="tabular-nums">
+                  028 - 38352020
+                </a>
+              </p>
+              <Link href={PUBLIC_SIGN_IN_HREF} className="text-sm">
+                Đăng nhập cổng
+              </Link>
+            </div>
+          </SectionCard>
         </aside>
       </div>
     </div>

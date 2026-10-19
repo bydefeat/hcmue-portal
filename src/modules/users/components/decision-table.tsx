@@ -114,9 +114,9 @@ export function DecisionTable({ decisions, students, signerName }: DecisionTable
       key: "number",
       width: 150,
       render: (_, row) => (
-        <button type="button" onClick={() => setPreviewId(row.id)} className="cursor-pointer font-mono text-xs text-primary hover:underline">
+        <Button type="link" size="small" onClick={() => setPreviewId(row.id)} className="h-auto p-0 text-xs">
           {row.number ?? "Chưa có số"}
-        </button>
+        </Button>
       ),
     },
     { title: "Loại", dataIndex: "kind", width: 200, render: (value: DecisionKind) => DECISION_KIND_LABEL[value] },
@@ -128,7 +128,7 @@ export function DecisionTable({ decisions, students, signerName }: DecisionTable
         <span className="flex min-w-0 flex-col">
           <span className="truncate font-medium">{row.studentName}</span>
           <span className="truncate text-xs text-muted">
-            <span className="font-mono">{row.studentCode}</span> · {row.className}
+            {row.studentCode} · {row.className}
           </span>
         </span>
       ),

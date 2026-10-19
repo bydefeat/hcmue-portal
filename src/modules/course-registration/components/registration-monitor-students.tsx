@@ -49,11 +49,11 @@ export function RegistrationMonitorStudents({ students }: { students: PendingStu
       render: (_, student) => (
         <span className="flex min-w-0 flex-col">
           <span className="truncate font-medium">{student.fullName}</span>
-          <span className="font-mono text-xs text-muted">{student.code}</span>
+          <span className="text-xs text-muted">{student.code}</span>
         </span>
       ),
     },
-    { title: "Lớp", dataIndex: "className", width: 130, render: (value: string) => <span className="font-mono text-xs">{value}</span> },
+    { title: "Lớp", dataIndex: "className", width: 130, render: (value: string) => <span className="text-xs">{value}</span> },
     { title: "Khoa", dataIndex: "faculty", width: 200 },
     { title: "Nhắc", key: "reminded", width: 120, render: (_, student) => (reminded.includes(student.id) ? <span className="text-xs text-green-700">Đã nhắc</span> : <span className="text-xs text-muted">Chưa nhắc</span>) },
   ];

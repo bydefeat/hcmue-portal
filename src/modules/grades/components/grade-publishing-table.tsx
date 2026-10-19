@@ -107,10 +107,10 @@ export function GradePublishingTable({ rows: initialRows, canApprove, canPublish
       width: 250,
       fixed: "left",
       render: (_, row) => (
-        <button type="button" onClick={() => setPreviewId(row.classSectionId)} className="flex min-w-0 cursor-pointer flex-col text-left">
-          <span className="font-mono text-xs text-primary">{row.code}</span>
-          <span className="truncate">{row.courseName}</span>
-        </button>
+        <Button type="link" size="small" onClick={() => setPreviewId(row.classSectionId)} className="h-auto max-w-full flex-col items-start gap-0 p-0 text-left">
+          <span className="text-xs">{row.code}</span>
+          <span className="max-w-full truncate text-foreground">{row.courseName}</span>
+        </Button>
       ),
     },
     { title: "Giảng viên", dataIndex: "lecturerName", width: 190, render: (value: string | null) => value ?? <span className="text-muted">Chưa phân công</span> },

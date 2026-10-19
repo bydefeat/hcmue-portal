@@ -67,11 +67,11 @@ export function StudyPlanReview({ plans }: { plans: StudyPlan[] }) {
       render: (_, row) => (
         <span className="flex min-w-0 flex-col">
           <span className="truncate font-medium">{row.fullName}</span>
-          <span className="font-mono text-xs text-muted">{row.studentCode}</span>
+          <span className="text-xs text-muted">{row.studentCode}</span>
         </span>
       ),
     },
-    { title: "Lớp", dataIndex: "className", width: 130, render: (value: string) => <span className="font-mono text-xs">{value}</span> },
+    { title: "Lớp", dataIndex: "className", width: 130, render: (value: string) => <span className="text-xs">{value}</span> },
     {
       title: "Tín chỉ kỳ tới",
       dataIndex: "totalCredits",
@@ -188,8 +188,8 @@ export function StudyPlanReview({ plans }: { plans: StudyPlan[] }) {
         {openPlan && (
           <div className="flex flex-col gap-5">
             <div className="flex flex-wrap items-center gap-2 text-sm text-muted">
-              <span className="font-mono">{openPlan.studentCode}</span>
-              <span className="font-mono">{openPlan.className}</span>
+              <span>{openPlan.studentCode}</span>
+              <span>{openPlan.className}</span>
               <StatusTag status={STUDY_PLAN_STATUS[openPlan.status]} />
             </div>
             {isCreditOutOfRange(nextTermCredits) && (
@@ -211,7 +211,7 @@ export function StudyPlanReview({ plans }: { plans: StudyPlan[] }) {
                   <ul className="flex flex-col divide-y divide-border-strong rounded-lg border border-border-strong">
                     {term.courses.map((course) => (
                       <li key={course.code} className="flex items-center gap-3 px-3 py-2">
-                        <span className="w-20 shrink-0 font-mono text-xs text-muted">{course.code}</span>
+                        <span className="w-20 shrink-0 text-xs text-muted">{course.code}</span>
                         <span className="min-w-0 flex-1 text-sm text-pretty">{course.name}</span>
                         <span className="shrink-0 text-xs text-muted tabular-nums">{course.credits} TC</span>
                       </li>

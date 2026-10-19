@@ -91,7 +91,7 @@ export function TeachingAssignmentBoard({ sections, lecturers, terms, termId }: 
         row.sections.length === 0 ? (
           <span className="text-muted">Chưa có</span>
         ) : (
-          <span className="flex flex-wrap gap-x-2 font-mono text-xs">{row.sections.map((section) => <span key={section.id}>{section.code}</span>)}</span>
+          <span className="flex flex-wrap gap-x-2 text-xs">{row.sections.map((section) => <span key={section.id}>{section.code}</span>)}</span>
         ),
     },
     { title: "Tiết/tuần", dataIndex: "periodsPerWeek", width: 90, align: "right", sorter: (a, b) => a.periodsPerWeek - b.periodsPerWeek, render: (value: number) => <span className="tabular-nums">{value}</span> },
@@ -132,7 +132,7 @@ export function TeachingAssignmentBoard({ sections, lecturers, terms, termId }: 
       fixed: "left",
       render: (_, section) => (
         <span className="flex min-w-0 flex-col">
-          <span className="font-mono text-xs">{section.code}</span>
+          <span className="text-xs">{section.code}</span>
           <span className="truncate">{section.courseName}</span>
         </span>
       ),

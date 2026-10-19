@@ -99,7 +99,7 @@ export function AdminExamSchedule({ sessions, rooms, proctors }: AdminExamSchedu
       defaultSortOrder: "ascend",
       render: (_, row) => (
         <span className="flex flex-col tabular-nums">
-          <span>{formatDate(row.date)}</span>
+          {formatDate(row.date)}
           <span className="text-xs text-muted">
             {row.startTime}, {row.durationMinutes} phút
           </span>
@@ -112,7 +112,7 @@ export function AdminExamSchedule({ sessions, rooms, proctors }: AdminExamSchedu
       width: 240,
       render: (_, row) => (
         <span className="flex min-w-0 flex-col">
-          <span className="font-mono text-xs">{row.classCode}</span>
+          <span className="text-xs">{row.classCode}</span>
           <span className="truncate">{row.courseName}</span>
         </span>
       ),
@@ -127,7 +127,7 @@ export function AdminExamSchedule({ sessions, rooms, proctors }: AdminExamSchedu
         const over = row.candidateCount > capacity;
         return (
           <span className="flex flex-col">
-            <span className="font-mono text-xs">{row.room}</span>
+            <span className="text-xs">{row.room}</span>
             <span className={`text-xs tabular-nums ${over ? "text-rose-700" : "text-muted"}`}>
               {row.candidateCount} thí sinh / {capacity} chỗ{over ? `, cần ${Math.ceil(row.candidateCount / Math.max(capacity, 1))} phòng` : ""}
             </span>

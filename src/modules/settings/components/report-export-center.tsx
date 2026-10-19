@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Button, Drawer, Form, message, Radio, Select, Table, type TableColumnsType } from "antd";
+import { Button, Card, Drawer, Form, message, Radio, Select, Table, type TableColumnsType } from "antd";
 import { FileExport, TableDownload } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { StatusTag } from "@/shared/components/ui/status-tag";
@@ -65,7 +65,7 @@ export function ReportExportCenter({ reports, terms, faculties, defaultTermId, u
         </span>
       ),
     },
-    { title: "Định dạng", dataIndex: "format", width: 90, render: (value: string) => <span className="font-mono text-xs">{value}</span> },
+    { title: "Định dạng", dataIndex: "format", width: 90, render: (value: string) => <span className="text-xs">{value}</span> },
     { title: "Số dòng", dataIndex: "rows", width: 90, align: "right", render: (value: number | null) => <span className="tabular-nums">{value ?? ""}</span> },
     {
       title: "Người tạo",
@@ -73,7 +73,7 @@ export function ReportExportCenter({ reports, terms, faculties, defaultTermId, u
       width: 200,
       render: (_, job) => (
         <span className="flex flex-col text-xs">
-          <span>{job.createdBy}</span>
+          {job.createdBy}
           <span className="text-muted tabular-nums">{formatDateTime(job.createdAt)}</span>
         </span>
       ),
@@ -97,24 +97,26 @@ export function ReportExportCenter({ reports, terms, faculties, defaultTermId, u
       {contextHolder}
       <ul className="grid gap-3 md:grid-cols-2">
         {reports.map((report) => (
-          <li key={report.id} className="flex flex-col gap-2 rounded-xl border border-border-strong bg-surface p-4 sm:p-5">
-            <div className="flex items-start gap-3">
-              <FileExport size={20} aria-hidden className="mt-0.5 shrink-0 text-muted" />
-              <div className="flex min-w-0 flex-1 flex-col gap-1">
-                <h3 className="text-base font-medium text-pretty">{report.name}</h3>
-                <p className="text-sm text-pretty text-muted">{report.description}</p>
-                <p className="text-xs text-muted">Nơi nhận: {report.audience}</p>
+          <li key={report.id}>
+            <Card size="small" className="h-full" classNames={{ body: "flex flex-col gap-2" }}>
+              <div className="flex items-start gap-3">
+                <FileExport size={20} aria-hidden className="mt-0.5 shrink-0 text-muted" />
+                <div className="flex min-w-0 flex-1 flex-col gap-1">
+                  <h3 className="text-base font-medium text-pretty">{report.name}</h3>
+                  <p className="text-sm text-pretty text-muted">{report.description}</p>
+                  <p className="text-xs text-muted">Nơi nhận: {report.audience}</p>
+                </div>
               </div>
-            </div>
-            <Button
-              className="self-end"
-              onClick={() => {
-                form.resetFields();
-                setOpenId(report.id);
-              }}
-            >
-              Tạo báo cáo
-            </Button>
+              <Button
+                className="self-end"
+                onClick={() => {
+                  form.resetFields();
+                  setOpenId(report.id);
+                }}
+              >
+                Tạo báo cáo
+              </Button>
+            </Card>
           </li>
         ))}
       </ul>

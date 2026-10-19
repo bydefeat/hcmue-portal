@@ -3,6 +3,7 @@
 import { Alert, Button, Collapse, Descriptions, message } from "antd";
 import { Copy, Receipt } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
+import { SectionCard } from "@/shared/components/ui/section-card";
 import { StatusTag } from "@/shared/components/ui/status-tag";
 import { formatDate, formatDateTime } from "@/shared/libs/date.lib";
 import { BANK_ACCOUNT, formatMoney, INVOICE_STATUS, transferContent } from "../tuition.constant";
@@ -39,7 +40,7 @@ function InvoiceBody({ invoice }: { invoice: TuitionInvoiceView }) {
           {invoice.payments.map((payment) => (
             <span key={payment.id} className="flex flex-wrap justify-between gap-x-3 text-xs text-muted tabular-nums">
               <span>
-                {formatDateTime(payment.paidAt)} · {payment.method} · <span className="font-mono">{payment.reference}</span>
+                {formatDateTime(payment.paidAt)} · {payment.method} · {payment.reference}
               </span>
               <span className="text-foreground">{formatMoney(payment.amount)}</span>
             </span>
@@ -66,9 +67,9 @@ export function InvoiceList({ invoices, studentCode }: { invoices: TuitionInvoic
 
   if (invoices.length === 0) {
     return (
-      <div className="rounded-xl border border-border-strong bg-surface">
+      <SectionCard flush>
         <EmptyState icon={Receipt} title="Chưa có khoản phải nộp" description="Học phí được tính sau khi kết thúc đợt điều chỉnh đăng ký." />
-      </div>
+      </SectionCard>
     );
   }
 
@@ -80,73 +81,75 @@ export function InvoiceList({ invoices, studentCode }: { invoices: TuitionInvoic
         const due = dueText(invoice);
         const content = transferContent(studentCode, invoice.termId);
         return (
-          <section key={invoice.id} className="flex flex-col gap-4 rounded-xl border border-border-strong bg-surface p-4 sm:p-5">
-            <header className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-              <div className="flex flex-col gap-1">
-                <h2 className="text-lg font-semibold">{invoice.termName}</h2>
-                <span className="text-xs text-muted tabular-nums">
-                  Phát hành {formatDate(invoice.issuedAt)} · Hạn nộp {formatDateTime(invoice.dueDate)}
-                </span>
-              </div>
-              <div className="flex flex-col items-start gap-1 sm:items-end">
-                <span className="text-xl font-semibold tabular-nums">{formatMoney(invoice.balance)}</span>
-                <span className="flex items-center gap-2">
-                  <StatusTag status={INVOICE_STATUS[invoice.status]} />
-                  {due && <span className={`text-xs tabular-nums ${due.className}`}>{due.text}</span>}
-                </span>
-              </div>
-            </header>
-            {invoice.status === "overdue" && (
-              <Alert type="error" showIcon title="Tài khoản đang bị khóa đăng ký học phần" description="Nộp đủ học phí, hệ thống mở khóa sau 1 ngày làm việc kể từ khi nhận tiền." />
-            )}
-            <div className="grid gap-4 lg:grid-cols-2">
-              <InvoiceBody invoice={invoice} />
-              <div className="flex flex-col gap-2 rounded-lg bg-background p-3">
-                <span className="text-sm font-medium">Chuyển khoản</span>
-                <Descriptions
-                  size="small"
-                  column={1}
-                  items={[
-                    { key: "bank", label: "Ngân hàng", children: <span className="text-pretty">{BANK_ACCOUNT.bank}</span> },
-                    { key: "name", label: "Chủ tài khoản", children: BANK_ACCOUNT.accountName },
-                    {
-                      key: "number",
-                      label: "Số tài khoản",
-                      children: (
-                        <span className="flex items-center gap-1">
-                          <span className="font-mono">{BANK_ACCOUNT.accountNumber}</span>
-                          <Button
-                            type="text"
-                            size="small"
-                            aria-label="Sao chép số tài khoản"
-                            icon={<Copy size={14} aria-hidden />}
-                            onClick={() => copy(BANK_ACCOUNT.accountNumber.replace(/\s/g, ""), "số tài khoản")}
-                          />
-                        </span>
-                      ),
-                    },
-                    {
-                      key: "content",
-                      label: "Nội dung",
-                      children: (
-                        <span className="flex items-center gap-1">
-                          <span className="font-mono">{content}</span>
-                          <Button
-                            type="text"
-                            size="small"
-                            aria-label="Sao chép nội dung chuyển khoản"
-                            icon={<Copy size={14} aria-hidden />}
-                            onClick={() => copy(content, "nội dung chuyển khoản")}
-                          />
-                        </span>
-                      ),
-                    },
-                  ]}
-                />
-                <p className="text-xs text-pretty text-muted">Ghi đúng nội dung để hệ thống tự gạch nợ. Sai nội dung, mang biên lai đến Phòng Kế hoạch - Tài chính.</p>
+          <SectionCard key={invoice.id}>
+            <div className="flex flex-col gap-4">
+              <header className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                <div className="flex flex-col gap-1">
+                  <h2 className="text-lg font-semibold">{invoice.termName}</h2>
+                  <span className="text-xs text-muted tabular-nums">
+                    Phát hành {formatDate(invoice.issuedAt)} · Hạn nộp {formatDateTime(invoice.dueDate)}
+                  </span>
+                </div>
+                <div className="flex flex-col items-start gap-1 sm:items-end">
+                  <span className="text-xl font-semibold tabular-nums">{formatMoney(invoice.balance)}</span>
+                  <span className="flex items-center gap-2">
+                    <StatusTag status={INVOICE_STATUS[invoice.status]} />
+                    {due && <span className={`text-xs tabular-nums ${due.className}`}>{due.text}</span>}
+                  </span>
+                </div>
+              </header>
+              {invoice.status === "overdue" && (
+                <Alert type="error" showIcon title="Tài khoản đang bị khóa đăng ký học phần" description="Nộp đủ học phí, hệ thống mở khóa sau 1 ngày làm việc kể từ khi nhận tiền." />
+              )}
+              <div className="grid gap-4 lg:grid-cols-2">
+                <InvoiceBody invoice={invoice} />
+                <div className="flex flex-col gap-2 rounded-lg bg-background p-3">
+                  <span className="text-sm font-medium">Chuyển khoản</span>
+                  <Descriptions
+                    size="small"
+                    column={1}
+                    items={[
+                      { key: "bank", label: "Ngân hàng", children: <span className="text-pretty">{BANK_ACCOUNT.bank}</span> },
+                      { key: "name", label: "Chủ tài khoản", children: BANK_ACCOUNT.accountName },
+                      {
+                        key: "number",
+                        label: "Số tài khoản",
+                        children: (
+                          <span className="flex items-center gap-1">
+                            {BANK_ACCOUNT.accountNumber}
+                            <Button
+                              type="text"
+                              size="small"
+                              aria-label="Sao chép số tài khoản"
+                              icon={<Copy size={14} aria-hidden />}
+                              onClick={() => copy(BANK_ACCOUNT.accountNumber.replace(/\s/g, ""), "số tài khoản")}
+                            />
+                          </span>
+                        ),
+                      },
+                      {
+                        key: "content",
+                        label: "Nội dung",
+                        children: (
+                          <span className="flex items-center gap-1">
+                            {content}
+                            <Button
+                              type="text"
+                              size="small"
+                              aria-label="Sao chép nội dung chuyển khoản"
+                              icon={<Copy size={14} aria-hidden />}
+                              onClick={() => copy(content, "nội dung chuyển khoản")}
+                            />
+                          </span>
+                        ),
+                      },
+                    ]}
+                  />
+                  <p className="text-xs text-pretty text-muted">Ghi đúng nội dung để hệ thống tự gạch nợ. Sai nội dung, mang biên lai đến Phòng Kế hoạch - Tài chính.</p>
+                </div>
               </div>
             </div>
-          </section>
+          </SectionCard>
         );
       })}
       {history.length > 0 && (
@@ -157,7 +160,7 @@ export function InvoiceList({ invoices, studentCode }: { invoices: TuitionInvoic
               key: invoice.id,
               label: (
                 <span className="flex flex-wrap items-center justify-between gap-2">
-                  <span>{invoice.termName}</span>
+                  {invoice.termName}
                   <span className="text-sm tabular-nums">{formatMoney(invoice.total)}</span>
                 </span>
               ),

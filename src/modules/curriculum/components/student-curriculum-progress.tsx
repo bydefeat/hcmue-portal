@@ -3,6 +3,7 @@ import { EmptyState } from "@/shared/components/ui/empty-state";
 import { MeterBar } from "@/shared/components/ui/meter-bar";
 import { COURSE_TYPE_LABEL, KNOWLEDGE_BLOCK_LABEL } from "../curriculum.constant";
 import type { KnowledgeBlock, ProgramDetail } from "../curriculum.type";
+import { SectionCard } from "@/shared/components/ui/section-card";
 
 export type CourseProgress = {
   status: "passed" | "failed" | "in-progress" | "not-taken";
@@ -32,9 +33,9 @@ function statusText(entry: CourseProgress) {
 export function StudentCurriculumProgress({ program, progress, earnedCredits }: StudentCurriculumProgressProps) {
   if (!program || program.semesters.length === 0) {
     return (
-      <div className="rounded-xl border border-border-strong bg-surface">
+      <SectionCard flush>
         <EmptyState title="Chưa có khung chương trình" description="Khoa chưa công bố khung chương trình cho khóa của bạn. Liên hệ cố vấn học tập để được hướng dẫn." />
-      </div>
+      </SectionCard>
     );
   }
 
@@ -60,13 +61,16 @@ export function StudentCurriculumProgress({ program, progress, earnedCredits }: 
           {program.semesters.map((semester) => {
             const done = semester.courses.filter((course) => statusOf(course.code).status === "passed").length;
             return (
-              <section key={semester.semester} className="rounded-xl border border-border-strong bg-surface">
-                <header className="flex items-baseline justify-between gap-3 border-b border-border-strong px-4 py-3">
-                  <h2 className="text-base font-semibold">Học kỳ {semester.semester}</h2>
+              <SectionCard
+                key={semester.semester}
+                title={`Học kỳ ${semester.semester}`}
+                extra={
                   <span className="text-xs text-muted tabular-nums">
                     {done}/{semester.courses.length} học phần · {semester.credits} TC
                   </span>
-                </header>
+                }
+                flush
+              >
                 <ul className="flex flex-col divide-y divide-border-strong">
                   {semester.courses.map((course) => {
                     const entry = statusOf(course.code);
@@ -78,12 +82,12 @@ export function StudentCurriculumProgress({ program, progress, earnedCredits }: 
                         <span className="flex min-w-0 flex-1 flex-col">
                           <span className="text-pretty">{course.name}</span>
                           <span className="text-xs text-muted">
-                            <span className="font-mono">{course.code}</span> · <span className="tabular-nums">{course.credits} TC</span> ·{" "}
+                            {course.code} · <span className="tabular-nums">{course.credits} TC</span> ·{" "}
                             {COURSE_TYPE_LABEL[course.type]}
                             {course.prerequisiteCodes.length > 0 && (
                               <>
                                 {" "}
-                                · Tiên quyết <span className="font-mono">{course.prerequisiteCodes.join(", ")}</span>
+                                · Tiên quyết {course.prerequisiteCodes.join(", ")}
                               </>
                             )}
                           </span>
@@ -93,43 +97,45 @@ export function StudentCurriculumProgress({ program, progress, earnedCredits }: 
                     );
                   })}
                 </ul>
-              </section>
+              </SectionCard>
             );
           })}
         </div>
 
         <aside className="flex flex-col gap-3 lg:sticky lg:top-20">
-          <section className="flex flex-col gap-3 rounded-xl border border-border-strong bg-surface p-4">
-            <h2 className="text-base font-semibold">Điều kiện tốt nghiệp</h2>
-            <div className="flex flex-col gap-1">
-              <div className="flex justify-between text-sm">
-                <span>Tín chỉ tích lũy</span>
-                <span className="tabular-nums">
-                  {earnedCredits}/{program.totalCredits}
-                </span>
-              </div>
-              <MeterBar value={earnedCredits} max={program.totalCredits} label="Tín chỉ tích lũy" />
-            </div>
-            <p className="text-sm text-pretty text-muted">
-              {remaining === 0 && requiredLeft.length === 0
-                ? "Bạn đã đủ tín chỉ và các học phần bắt buộc. Theo dõi đợt xét tốt nghiệp ở mục Thông báo."
-                : `Còn ${remaining} tín chỉ và ${requiredLeft.length} học phần bắt buộc chưa đạt. Cần thêm chứng chỉ ngoại ngữ B1 và chứng chỉ ứng dụng công nghệ thông tin cơ bản.`}
-            </p>
-          </section>
-          <section className="flex flex-col gap-3 rounded-xl border border-border-strong bg-surface p-4">
-            <h2 className="text-base font-semibold">Theo khối kiến thức</h2>
-            {blocks.map((entry) => (
-              <div key={entry.block} className="flex flex-col gap-1">
-                <div className="flex justify-between gap-3 text-sm">
-                  <span className="min-w-0 truncate">{KNOWLEDGE_BLOCK_LABEL[entry.block]}</span>
-                  <span className="shrink-0 tabular-nums">
-                    {entry.earned}/{entry.planned}
+          <SectionCard title="Điều kiện tốt nghiệp">
+            <div className="flex flex-col gap-3">
+              <div className="flex flex-col gap-1">
+                <div className="flex justify-between text-sm">
+                  <span>Tín chỉ tích lũy</span>
+                  <span className="tabular-nums">
+                    {earnedCredits}/{program.totalCredits}
                   </span>
                 </div>
-                <MeterBar value={entry.earned} max={entry.planned} tone={entry.earned >= entry.planned ? "success" : "primary"} label={KNOWLEDGE_BLOCK_LABEL[entry.block]} />
+                <MeterBar value={earnedCredits} max={program.totalCredits} label="Tín chỉ tích lũy" />
               </div>
-            ))}
-          </section>
+              <p className="text-sm text-pretty text-muted">
+                {remaining === 0 && requiredLeft.length === 0
+                  ? "Bạn đã đủ tín chỉ và các học phần bắt buộc. Theo dõi đợt xét tốt nghiệp ở mục Thông báo."
+                  : `Còn ${remaining} tín chỉ và ${requiredLeft.length} học phần bắt buộc chưa đạt. Cần thêm chứng chỉ ngoại ngữ B1 và chứng chỉ ứng dụng công nghệ thông tin cơ bản.`}
+              </p>
+            </div>
+          </SectionCard>
+          <SectionCard title="Theo khối kiến thức">
+            <div className="flex flex-col gap-3">
+              {blocks.map((entry) => (
+                <div key={entry.block} className="flex flex-col gap-1">
+                  <div className="flex justify-between gap-3 text-sm">
+                    <span className="min-w-0 truncate">{KNOWLEDGE_BLOCK_LABEL[entry.block]}</span>
+                    <span className="shrink-0 tabular-nums">
+                      {entry.earned}/{entry.planned}
+                    </span>
+                  </div>
+                  <MeterBar value={entry.earned} max={entry.planned} tone={entry.earned >= entry.planned ? "success" : "primary"} label={KNOWLEDGE_BLOCK_LABEL[entry.block]} />
+                </div>
+              ))}
+            </div>
+          </SectionCard>
         </aside>
       </div>
     </div>

@@ -140,36 +140,34 @@ const LABS: Record<string, LabSeed[]> = {
 };
 
 export const REGISTRATION_HOLDS: RegistrationHold[] = [
-  ...[
-    [29, "tuition", true, "Nợ học phí học kỳ 2, năm học 2025-2026: 8.320.000 đ", "Nộp đủ học phí qua tài khoản định danh, khóa tự gỡ sau 1 ngày làm việc"],
-    [77, "discipline", true, "Đang trong thời gian kỷ luật đình chỉ học tập", "Chờ hết thời hạn kỷ luật theo quyết định 1229/QĐ-ĐHSP"],
-    [5, "academic-status", true, "Đang xét buộc thôi học do cảnh báo học vụ mức 3", "Chờ kết luận của Hội đồng xét học vụ"],
-    [60, "academic-status", true, "Đang làm thủ tục bảo lưu học kỳ 2", "Rút đơn bảo lưu tại Phòng Đào tạo nếu muốn tiếp tục học"],
-    [130, "tuition", true, "Nợ học phí học kỳ 1, năm học 2026-2027 quá hạn", "Nộp học phí hoặc nộp đơn xin gia hạn tại Phòng Kế hoạch - Tài chính"],
-    [204, "documents", true, "Chưa nộp bằng tốt nghiệp THPT bản chính để đối chiếu", "Mang bản chính đến Phòng Đào tạo, phòng A.102"],
-    [18, "advisor", false, "Kế hoạch học tập học kỳ 2 bị cố vấn trả lại", "Sửa kế hoạch theo góp ý của cố vấn và nộp lại"],
-    [12, "documents", false, "Thiếu bản sao giấy khai sinh trong hồ sơ nhập học", "Nộp tại Phòng Đào tạo trước 30/11, không ảnh hưởng đăng ký học phần"],
-    [96, "tuition", false, "Học phí học kỳ 1 còn thiếu 1.040.000 đ, hạn 28/10", "Nộp trước hạn để tránh bị khóa đăng ký"],
-  ].map(([index, kind, blocking, reason, resolveHint], position) => {
-    const student = mockStudentIdentity(index as number);
-    return {
-      id: `khoa-${position + 1}`,
-      studentId: student.id,
-      studentCode: student.code,
-      studentName: student.fullName,
-      className: student.className,
-      faculty: student.faculty,
-      kind: kind as RegistrationHold["kind"],
-      blocking: blocking as boolean,
-      reason: reason as string,
-      resolveHint: resolveHint as string,
-      createdAt: mockDate(-(position * 3 + 2), "09:00"),
-      createdBy: kind === "tuition" ? "Phòng Kế hoạch - Tài chính" : "Phòng Đào tạo",
-      releasedAt: null,
-      releasedBy: null,
-    };
-  }),
-];
+  [29, "tuition", true, "Nợ học phí học kỳ 2, năm học 2025-2026: 8.320.000 đ", "Nộp đủ học phí qua tài khoản định danh, khóa tự gỡ sau 1 ngày làm việc"],
+  [77, "discipline", true, "Đang trong thời gian kỷ luật đình chỉ học tập", "Chờ hết thời hạn kỷ luật theo quyết định 1229/QĐ-ĐHSP"],
+  [5, "academic-status", true, "Đang xét buộc thôi học do cảnh báo học vụ mức 3", "Chờ kết luận của Hội đồng xét học vụ"],
+  [60, "academic-status", true, "Đang làm thủ tục bảo lưu học kỳ 2", "Rút đơn bảo lưu tại Phòng Đào tạo nếu muốn tiếp tục học"],
+  [130, "tuition", true, "Nợ học phí học kỳ 1, năm học 2026-2027 quá hạn", "Nộp học phí hoặc nộp đơn xin gia hạn tại Phòng Kế hoạch - Tài chính"],
+  [204, "documents", true, "Chưa nộp bằng tốt nghiệp THPT bản chính để đối chiếu", "Mang bản chính đến Phòng Đào tạo, phòng A.102"],
+  [18, "advisor", false, "Kế hoạch học tập học kỳ 2 bị cố vấn trả lại", "Sửa kế hoạch theo góp ý của cố vấn và nộp lại"],
+  [12, "documents", false, "Thiếu bản sao giấy khai sinh trong hồ sơ nhập học", "Nộp tại Phòng Đào tạo trước 30/11, không ảnh hưởng đăng ký học phần"],
+  [96, "tuition", false, "Học phí học kỳ 1 còn thiếu 1.040.000 đ, hạn 28/10", "Nộp trước hạn để tránh bị khóa đăng ký"],
+].map(([index, kind, blocking, reason, resolveHint], position) => {
+  const student = mockStudentIdentity(index as number);
+  return {
+    id: `khoa-${position + 1}`,
+    studentId: student.id,
+    studentCode: student.code,
+    studentName: student.fullName,
+    className: student.className,
+    faculty: student.faculty,
+    kind: kind as RegistrationHold["kind"],
+    blocking: blocking as boolean,
+    reason: reason as string,
+    resolveHint: resolveHint as string,
+    createdAt: mockDate(-(position * 3 + 2), "09:00"),
+    createdBy: kind === "tuition" ? "Phòng Kế hoạch - Tài chính" : "Phòng Đào tạo",
+    releasedAt: null,
+    releasedBy: null,
+  };
+});
 
 function meeting([dayOfWeek, startPeriod, endPeriod, room]: SectionSeed[5][number]): ClassMeeting {
   return { dayOfWeek, startPeriod, endPeriod, room };

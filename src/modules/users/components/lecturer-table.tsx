@@ -53,7 +53,7 @@ export function LecturerTable({ lecturers, initialQuery = "" }: { lecturers: Lec
   };
 
   const columns: TableColumnsType<Lecturer> = [
-    { title: "Mã GV", dataIndex: "code", width: 110, fixed: "left", render: (code: string) => <span className="font-mono text-xs">{code}</span> },
+    { title: "Mã GV", dataIndex: "code", width: 110, fixed: "left", render: (code: string) => <span className="text-xs">{code}</span> },
     {
       title: "Họ và tên",
       key: "name",

@@ -7,6 +7,7 @@ import { dayjs } from "@/shared/libs/date.lib";
 import { REQUEST_KINDS, requestView, STEP_ROLE_LABEL, STUDENT_REQUEST_KINDS } from "../requests.constant";
 import type { AcademicRequest, RequestDetail, RequestKind, RequestView } from "../requests.type";
 import { RequestInbox } from "./request-inbox";
+import { PageHeader } from "@/shared/components/ui/page-header";
 
 type SectionOption = { value: string; label: string };
 
@@ -242,12 +243,15 @@ export function StudentRequestCenter({ requests, requester, sections, overloadMi
   return (
     <div className="flex flex-col gap-3">
       {contextHolder}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-sm text-pretty text-muted">Theo dõi tiến độ từng bước duyệt. Đơn chưa được tiếp nhận có thể hủy.</p>
-        <Button type="primary" icon={<Plus size={16} aria-hidden />} onClick={() => setOpen(true)} className="shrink-0">
-          Tạo đơn
-        </Button>
-      </div>
+      <PageHeader
+        title="Đơn từ"
+        description="Theo dõi tiến độ từng bước duyệt. Đơn chưa được tiếp nhận có thể hủy."
+        actions={
+          <Button type="primary" icon={<Plus size={16} aria-hidden />} onClick={() => setOpen(true)}>
+            Tạo đơn
+          </Button>
+        }
+      />
       <RequestInbox key={rows.length} requests={rows} mode="own" actorName={requester.name} showRequester={false} />
       <NewRequestDrawer
         open={open}

@@ -51,11 +51,11 @@ export function AdviseeTable({ rows, studentHrefBase }: AdviseeTableProps) {
       render: (_, row) => (
         <Link href={`${studentHrefBase}${row.student.id}`} className="flex min-w-0 flex-col">
           <span className="truncate font-medium">{row.student.fullName}</span>
-          <span className="font-mono text-xs text-muted">{row.student.code}</span>
+          <span className="text-xs text-muted">{row.student.code}</span>
         </Link>
       ),
     },
-    { title: "Lớp", key: "className", width: 130, render: (_, row) => <span className="font-mono text-xs">{row.student.className}</span> },
+    { title: "Lớp", key: "className", width: 130, render: (_, row) => <span className="text-xs">{row.student.className}</span> },
     {
       title: "CPA",
       dataIndex: "cpa4",

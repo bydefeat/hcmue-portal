@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Modal, Radio } from "antd";
+import { Card, Modal, Radio } from "antd";
 import { MeterBar } from "@/shared/components/ui/meter-bar";
 import { meetingText, overlaps } from "../course-registration.constant";
 import type { ClassMeeting, ClassSectionView } from "../course-registration.type";
@@ -44,17 +44,17 @@ function PickerBody({ section, busyMeetings, initialGroupId, onCancel, onConfirm
       </p>
       <Radio.Group value={groupId} onChange={(event) => setGroupId(event.target.value)} className="flex w-full flex-col gap-2">
         {options.map(({ group, clash, isFull, disabled }) => (
-          <div
+          <Card
             key={group.id}
+            size="small"
             role="presentation"
             onClick={() => !disabled && setGroupId(group.id)}
-            className={`flex cursor-pointer items-start gap-3 rounded-lg border border-border-strong p-3 transition-colors ${
-              disabled ? "cursor-not-allowed opacity-60" : "hover:bg-surface-hover"
-            }`}
+            className={`transition-colors ${disabled ? "cursor-not-allowed opacity-60" : "cursor-pointer hover:bg-surface-hover"}`}
+            classNames={{ body: "flex items-start gap-3" }}
           >
             <Radio value={group.id} disabled={disabled} className="mt-0.5" />
             <span className="flex min-w-0 flex-1 flex-col gap-1">
-              <span className="font-mono text-xs">{group.code}</span>
+              <span className="text-xs">{group.code}</span>
               <span className="text-sm">{meetingText(group.meeting)}</span>
               <span className="flex items-center gap-2">
                 <MeterBar value={group.enrolled} max={group.capacity} tone={isFull ? "warning" : "primary"} label={`Sĩ số ${group.code}`} />
@@ -65,7 +65,7 @@ function PickerBody({ section, busyMeetings, initialGroupId, onCancel, onConfirm
               {isFull && <span className="text-xs text-amber-700">Nhóm đã đủ chỗ</span>}
               {clash && <span className="text-xs text-rose-700">Trùng lịch với {clash.code}</span>}
             </span>
-          </div>
+          </Card>
         ))}
       </Radio.Group>
     </Modal>

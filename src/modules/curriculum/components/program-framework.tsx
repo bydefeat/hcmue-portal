@@ -6,9 +6,10 @@ import { EmptyState } from "@/shared/components/ui/empty-state";
 import { MeterBar } from "@/shared/components/ui/meter-bar";
 import { COURSE_TYPE_LABEL, KNOWLEDGE_BLOCK_LABEL } from "../curriculum.constant";
 import type { Course, CourseType, ProgramDetail } from "../curriculum.type";
+import { SectionCard } from "@/shared/components/ui/section-card";
 
 const COLUMNS: TableColumnsType<Course> = [
-  { title: "Mã HP", dataIndex: "code", width: 110, render: (code: string) => <span className="font-mono text-xs">{code}</span> },
+  { title: "Mã HP", dataIndex: "code", width: 110, render: (code: string) => <span className="text-xs">{code}</span> },
   { title: "Tên học phần", dataIndex: "name", render: (name: string) => <span className="text-pretty">{name}</span> },
   { title: "TC", dataIndex: "credits", width: 56, align: "right", render: (value: number) => <span className="tabular-nums">{value}</span> },
   {
@@ -28,20 +29,20 @@ const COLUMNS: TableColumnsType<Course> = [
     dataIndex: "prerequisiteCodes",
     width: 180,
     render: (codes: string[]) =>
-      codes.length > 0 ? <span className="font-mono text-xs">{codes.join(", ")}</span> : <span className="text-muted">Không</span>,
+      codes.length > 0 ? <span className="text-xs">{codes.join(", ")}</span> : <span className="text-muted">Không</span>,
   },
 ];
 
 export function ProgramFramework({ program }: { program: ProgramDetail }) {
   if (program.semesters.length === 0) {
     return (
-      <div className="rounded-xl border border-border-strong bg-surface">
+      <SectionCard flush>
         <EmptyState
           icon={BookOpen}
           title="Chưa có khung chương trình"
           description="Chương trình này chưa được gán học phần theo học kỳ. Sinh viên các khóa áp dụng sẽ chưa thấy tiến độ đào tạo."
         />
-      </div>
+      </SectionCard>
     );
   }
 
@@ -62,29 +63,31 @@ export function ProgramFramework({ program }: { program: ProgramDetail }) {
           </section>
         ))}
       </div>
-      <aside className="flex flex-col gap-4 rounded-xl border border-border-strong bg-surface p-4 sm:p-5 lg:sticky lg:top-20">
-        <div className="flex flex-col gap-1">
-          <span className="text-xs font-medium text-muted">Tín chỉ đã xếp vào khung</span>
-          <span className="text-xl font-semibold tabular-nums">
-            {program.plannedCredits}/{program.totalCredits}
-          </span>
-          <MeterBar value={program.plannedCredits} max={program.totalCredits} label="Tín chỉ đã xếp" />
-          {missing > 0 && (
-            <span className="text-xs text-pretty text-amber-700">Còn thiếu {missing} tín chỉ so với tổng của chương trình.</span>
-          )}
+      <SectionCard className="lg:sticky lg:top-20">
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-1">
+            <span className="text-xs font-medium text-muted">Tín chỉ đã xếp vào khung</span>
+            <span className="text-xl font-semibold tabular-nums">
+              {program.plannedCredits}/{program.totalCredits}
+            </span>
+            <MeterBar value={program.plannedCredits} max={program.totalCredits} label="Tín chỉ đã xếp" />
+            {missing > 0 && (
+              <span className="text-xs text-pretty text-amber-700">Còn thiếu {missing} tín chỉ so với tổng của chương trình.</span>
+            )}
+          </div>
+          <ul className="flex flex-col gap-3">
+            {program.creditsByBlock.map((entry) => (
+              <li key={entry.block} className="flex flex-col gap-1">
+                <span className="flex justify-between gap-2 text-sm">
+                  {KNOWLEDGE_BLOCK_LABEL[entry.block]}
+                  <span className="tabular-nums">{entry.credits} TC</span>
+                </span>
+                <MeterBar value={entry.credits} max={program.plannedCredits} label={KNOWLEDGE_BLOCK_LABEL[entry.block]} />
+              </li>
+            ))}
+          </ul>
         </div>
-        <ul className="flex flex-col gap-3">
-          {program.creditsByBlock.map((entry) => (
-            <li key={entry.block} className="flex flex-col gap-1">
-              <span className="flex justify-between gap-2 text-sm">
-                <span>{KNOWLEDGE_BLOCK_LABEL[entry.block]}</span>
-                <span className="tabular-nums">{entry.credits} TC</span>
-              </span>
-              <MeterBar value={entry.credits} max={program.plannedCredits} label={KNOWLEDGE_BLOCK_LABEL[entry.block]} />
-            </li>
-          ))}
-        </ul>
-      </aside>
+      </SectionCard>
     </div>
   );
 }

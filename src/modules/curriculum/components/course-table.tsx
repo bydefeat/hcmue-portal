@@ -56,7 +56,7 @@ export function CourseTable({ courses, initialQuery = "" }: { courses: Course[];
       fixed: "left",
       width: 110,
       sorter: (a, b) => a.code.localeCompare(b.code),
-      render: (code: string) => <span className="font-mono text-xs">{code}</span>,
+      render: (code: string) => <span className="text-xs">{code}</span>,
     },
     {
       title: "Tên học phần",
@@ -108,7 +108,7 @@ export function CourseTable({ courses, initialQuery = "" }: { courses: Course[];
               <span key={group.label} className="flex flex-wrap gap-x-2">
                 <span className="text-muted">{group.label}</span>
                 {group.codes.map((code) => (
-                  <span key={code} title={nameByCode.get(code)} className="font-mono">
+                  <span key={code} title={nameByCode.get(code)}>
                     {code}
                   </span>
                 ))}

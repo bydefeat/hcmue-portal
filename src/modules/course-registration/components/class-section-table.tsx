@@ -147,7 +147,7 @@ export function ClassSectionTable({ sections, terms, termId, initialQuery = "", 
       sorter: (a, b) => a.code.localeCompare(b.code),
       render: (_, row) => (
         <span className="flex min-w-0 flex-col">
-          <span className="font-mono text-xs font-medium">{row.code}</span>
+          <span className="text-xs font-medium">{row.code}</span>
           <span className="text-pretty">{row.courseName}</span>
           {row.audience && <span className="text-xs text-pretty text-amber-700">{audienceText(row.audience)}</span>}
           {row.reservedSeats.map((seat) => (
@@ -182,7 +182,7 @@ export function ClassSectionTable({ sections, terms, termId, initialQuery = "", 
           ))}
           {row.labGroups.map((group) => (
             <li key={group.id} className="text-muted tabular-nums">
-              <span className="font-mono">{group.code.split(".").at(-1)}</span> {meetingText(group.meeting)} · {group.enrolled}/{group.capacity}
+              {group.code.split(".").at(-1)} {meetingText(group.meeting)} · {group.enrolled}/{group.capacity}
             </li>
           ))}
         </ul>

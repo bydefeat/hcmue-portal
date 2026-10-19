@@ -10,6 +10,7 @@ import type { StatusMeta } from "@/shared/constants/status.constant";
 import { dayjs, formatDate } from "@/shared/libs/date.lib";
 import { CALENDAR_EVENT_LABEL, CALENDAR_EVENT_OPTIONS } from "../settings.constant";
 import type { CalendarEvent, CalendarEventKind } from "../settings.type";
+import { SectionCard } from "@/shared/components/ui/section-card";
 
 type TermOption = { id: string; name: string };
 
@@ -79,27 +80,27 @@ export function AcademicCalendar({ events, terms, defaultTermId }: { events: Cal
         </Button>
       </div>
       {visible.length === 0 ? (
-        <section className="rounded-xl border border-border-strong bg-surface">
+        <SectionCard flush>
           <EmptyState icon={CalendarGrid} title="Chưa có mốc nào" description="Thêm thời gian học, thi, đăng ký và nghỉ lễ để giảng viên và sinh viên cùng theo dõi." />
-        </section>
+        </SectionCard>
       ) : (
         months.map((month) => (
-          <section key={month} className="flex flex-col gap-2">
-            <h2 className="text-base font-semibold capitalize">{dayjs(`${month}-01`).format("MMMM YYYY")}</h2>
-            <ul className="flex flex-col divide-y divide-border-strong rounded-xl border border-border-strong bg-surface">
+          <SectionCard key={month} flush title={<span className="capitalize">{dayjs(`${month}-01`).format("MMMM YYYY")}</span>}>
+            <ul className="flex flex-col divide-y divide-border-strong">
               {visible
                 .filter((event) => dayjs(event.startDate).format("YYYY-MM") === month)
                 .map((event) => {
                   const state = stateOf(event);
                   return (
                     <li key={event.id}>
-                      <button
-                        type="button"
+                      <Button
+                        type="text"
+                        block
                         onClick={() => {
                           setEditing(event);
                           setOpen(true);
                         }}
-                        className={`flex w-full cursor-pointer flex-col gap-1 px-4 py-3 text-left transition-colors hover:bg-surface-hover sm:flex-row sm:items-center sm:gap-4 sm:px-5 ${state === "past" ? "text-muted" : ""}`}
+                        className={`h-auto flex-col items-stretch gap-1 rounded-none px-4 py-3 text-left whitespace-normal sm:flex-row sm:items-center sm:gap-4 sm:px-5 ${state === "past" ? "text-muted" : ""}`}
                       >
                         <span className="w-44 shrink-0 text-sm tabular-nums">
                           {event.startDate === event.endDate ? formatDate(event.startDate) : `${formatDate(event.startDate)} - ${formatDate(event.endDate)}`}
@@ -111,12 +112,12 @@ export function AcademicCalendar({ events, terms, defaultTermId }: { events: Cal
                           </span>
                         </span>
                         {state !== "past" && <StatusTag status={state === "ongoing" ? ONGOING : UPCOMING} className="w-fit" />}
-                      </button>
+                      </Button>
                     </li>
                   );
                 })}
             </ul>
-          </section>
+          </SectionCard>
         ))
       )}
       <Drawer

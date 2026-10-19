@@ -8,6 +8,7 @@ import { getTranscript } from "@/modules/grades/grades.query";
 import { getAttendanceBook } from "@/modules/schedule/schedule.query";
 import { getRegulation } from "@/modules/settings/settings.query";
 import { getCurrentStudent } from "@/modules/users/users.query";
+import { PageHeader } from "@/shared/components/ui/page-header";
 
 export const metadata: Metadata = { title: "Lịch thi" };
 
@@ -43,9 +44,9 @@ export default async function Page() {
   });
 
   return (
-    <div className="flex flex-col gap-4">
-      <p className="text-sm text-muted">{term.name} · {exams.length} ca thi của {timetable.length} học phần</p>
+    <>
+      <PageHeader title="Lịch thi" description={`${term.name} · ${exams.length} ca thi của ${timetable.length} học phần`} />
       <StudentExamList items={items} absenceLimitPercent={limit} />
-    </div>
+    </>
   );
 }

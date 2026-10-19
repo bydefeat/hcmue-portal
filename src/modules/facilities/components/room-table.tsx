@@ -62,14 +62,14 @@ export function RoomTable({ rooms, campuses, bookings, termName }: RoomTableProp
   };
 
   const columns: TableColumnsType<Room> = [
-    { title: "Phòng", dataIndex: "code", width: 170, fixed: "left", render: (code: string) => <span className="font-mono font-medium">{code}</span> },
+    { title: "Phòng", dataIndex: "code", width: 170, fixed: "left", render: (code: string) => <span className="font-medium">{code}</span> },
     {
       title: "Vị trí",
       key: "place",
       width: 220,
       render: (_, room) => (
         <span className="flex flex-col">
-          <span>{campusName(room.campusId)}</span>
+          {campusName(room.campusId)}
           <span className="text-xs text-muted">
             {room.building}, tầng {room.floor}
           </span>
@@ -85,7 +85,7 @@ export function RoomTable({ rooms, campuses, bookings, termName }: RoomTableProp
       sorter: (a, b) => a.capacity - b.capacity,
       render: (_, room) => (
         <span className="flex flex-col tabular-nums">
-          <span>{room.capacity}</span>
+          {room.capacity}
           <span className="text-xs text-muted">thi {room.examCapacity}</span>
         </span>
       ),

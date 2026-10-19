@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Drawer, Input, Segmented, Select, Table, type TableColumnsType } from "antd";
+import { Button, Drawer, Input, Segmented, Select, Table, type TableColumnsType } from "antd";
 import { Magnifier, StarList } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { MeterBar } from "@/shared/components/ui/meter-bar";
@@ -73,10 +73,10 @@ export function AdminSurveyResults({ results, questions }: { results: SectionSur
       key: "section",
       width: 250,
       render: (_, row) => (
-        <button type="button" onClick={() => setOpenId(row.classSectionId)} className="flex min-w-0 cursor-pointer flex-col text-left">
-          <span className="font-mono text-xs text-primary">{row.classCode}</span>
-          <span className="truncate">{row.courseName}</span>
-        </button>
+        <Button type="link" size="small" onClick={() => setOpenId(row.classSectionId)} className="h-auto max-w-full flex-col items-start gap-0 p-0 text-left">
+          <span className="text-xs">{row.classCode}</span>
+          <span className="max-w-full truncate text-foreground">{row.courseName}</span>
+        </Button>
       ),
     },
     { title: "Giảng viên", dataIndex: "lecturerName", width: 200, render: (value: string | null) => value ?? <span className="text-muted">Chưa phân công</span> },

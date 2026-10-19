@@ -50,12 +50,13 @@ export async function sendMail(message: MailMessage): Promise<MailResult> {
     });
     const body = (await response.json().catch(() => null)) as { id?: string; message?: string } | null;
     if (!response.ok) {
-      console.error(`[mail] Resend từ chối thư "${message.subject}": ${response.status} ${body?.message ?? ""}`);
+      // Không ghi tiêu đề vào log: tiêu đề thư OTP chứa mã.
+      console.error(`[mail] Resend từ chối thư tới ${recipients.length} người nhận: ${response.status} ${body?.message ?? ""}`);
       return { ok: false, error: body?.message ?? `HTTP ${response.status}` };
     }
     return { ok: true, id: body?.id ?? null };
   } catch (error) {
-    console.error(`[mail] Không gửi được thư "${message.subject}":`, error);
+    console.error(`[mail] Không gửi được thư tới ${recipients.length} người nhận:`, error);
     return { ok: false, error: error instanceof Error ? error.message : "Không gửi được thư" };
   }
 }

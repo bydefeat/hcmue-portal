@@ -1,5 +1,5 @@
 import { Button, Card, Result } from "antd";
-import { Illustration } from "./illustration";
+import { Illustration } from "@/shared/components/ui/illustration";
 
 type NotFoundStateProps = {
   title?: string;

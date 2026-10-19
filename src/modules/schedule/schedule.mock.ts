@@ -1,5 +1,5 @@
 import { createRandom } from "@/shared/libs/mock.lib";
-import type { AttendanceBook, AttendanceSession, AttendanceStatus } from "./schedule.type";
+import type { AttendanceBook, AttendanceSession, AttendanceStatus } from "@/modules/schedule/schedule.type";
 
 function seedOf(value: string) {
   return [...value].reduce((sum, char) => (sum * 33 + char.charCodeAt(0)) >>> 0, 5381);

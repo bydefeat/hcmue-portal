@@ -6,10 +6,10 @@ import { Alert, Button, Card, Checkbox, Drawer, Form, Input, message, Modal, Sel
 import { CircleXmark, Plus } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { dayjs } from "@/shared/libs/date.lib";
-import { HOLD_KIND_LABEL, keepCurrencyTogether, meetingText } from "../course-registration.constant";
-import { blockingHolds, evaluateSection, sectionCredits, type RegistrationStudent } from "../course-registration.rule";
-import type { ClassSectionView, RegistrationEvent, RegistrationHold } from "../course-registration.type";
-import { RegistrationHistoryList } from "./registration-history-list";
+import { HOLD_KIND_LABEL, keepCurrencyTogether, meetingText } from "@/modules/course-registration/course-registration.constant";
+import { blockingHolds, evaluateSection, sectionCredits, type RegistrationStudent } from "@/modules/course-registration/course-registration.rule";
+import type { ClassSectionView, RegistrationEvent, RegistrationHold } from "@/modules/course-registration/course-registration.type";
+import { RegistrationHistoryList } from "@/modules/course-registration/components/registration-history-list";
 import { SectionCard } from "@/shared/components/ui/section-card";
 
 type AdminStudentRegistrationProps = {

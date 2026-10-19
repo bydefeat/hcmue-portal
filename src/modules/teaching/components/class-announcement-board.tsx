@@ -8,8 +8,8 @@ import { EmptyState } from "@/shared/components/ui/empty-state";
 import { SectionCard } from "@/shared/components/ui/section-card";
 import { StatusTag } from "@/shared/components/ui/status-tag";
 import { dayjs, formatDateTime, formatRelative } from "@/shared/libs/date.lib";
-import { CLASS_ANNOUNCEMENT_STATUS } from "../teaching.constant";
-import type { ClassAnnouncement } from "../teaching.type";
+import { CLASS_ANNOUNCEMENT_STATUS } from "@/modules/teaching/teaching.constant";
+import type { ClassAnnouncement } from "@/modules/teaching/teaching.type";
 
 type ClassAnnouncementBoardProps = {
   announcements: ClassAnnouncement[];

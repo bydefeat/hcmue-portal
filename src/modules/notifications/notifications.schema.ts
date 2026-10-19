@@ -1,7 +1,7 @@
 import { sql } from "drizzle-orm";
 import { index, pgEnum, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
-import { createdAt, primaryId } from "../../shared/libs/db-column.lib";
-import { user } from "../authentication/authentication.schema";
+import { createdAt, primaryId } from "@/shared/libs/db-column.lib";
+import { user } from "@/modules/authentication/authentication.schema";
 
 export const notificationKindEnum = pgEnum("notification_kind", ["request", "deadline", "grade", "exam", "announcement", "advising", "system"]);
 

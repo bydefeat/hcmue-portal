@@ -16,9 +16,9 @@ import {
   conflictsOf,
   meetingText,
   reservedText,
-} from "../course-registration.constant";
-import type { ClassSectionFormValues, ClassSectionStatus, ClassSectionView, Term } from "../course-registration.type";
-import { ClassSectionFormDrawer, type SectionCourseOption, type SectionLecturerOption } from "./class-section-form-drawer";
+} from "@/modules/course-registration/course-registration.constant";
+import type { ClassSectionFormValues, ClassSectionStatus, ClassSectionView, Term } from "@/modules/course-registration/course-registration.type";
+import { ClassSectionFormDrawer, type SectionCourseOption, type SectionLecturerOption } from "@/modules/course-registration/components/class-section-form-drawer";
 import { paginationItemRender } from "@/shared/constants/antd.constant";
 
 type ClassSectionTableProps = {

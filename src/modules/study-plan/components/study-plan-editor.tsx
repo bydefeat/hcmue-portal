@@ -19,8 +19,8 @@ import { EmptyState } from "@/shared/components/ui/empty-state";
 import { MeterBar } from "@/shared/components/ui/meter-bar";
 import { StatusTag } from "@/shared/components/ui/status-tag";
 import { dayjs, formatDateTime } from "@/shared/libs/date.lib";
-import { STUDY_PLAN_STATUS } from "../study-plan.constant";
-import type { StudyPlan, StudyPlanCourse, StudyPlanStatus } from "../study-plan.type";
+import { STUDY_PLAN_STATUS } from "@/modules/study-plan/study-plan.constant";
+import type { StudyPlan, StudyPlanCourse, StudyPlanStatus } from "@/modules/study-plan/study-plan.type";
 import { SectionCard } from "@/shared/components/ui/section-card";
 
 type StudyPlanEditorProps = {

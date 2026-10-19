@@ -1,4 +1,4 @@
-import type { AuditChange } from "../audit.type";
+import type { AuditChange } from "@/modules/audit/audit.type";
 
 export function AuditChanges({ changes }: { changes: AuditChange[] }) {
   if (changes.length === 0) return <p className="text-xs text-muted">Thao tác không thay đổi giá trị trường nào.</p>;

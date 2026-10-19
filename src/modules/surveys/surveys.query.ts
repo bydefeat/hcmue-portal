@@ -1,7 +1,7 @@
 import { mockDelay } from "@/shared/libs/mock-request.lib";
 import { mockDate } from "@/shared/libs/mock.lib";
-import { SURVEY, SURVEY_RESULTS } from "./surveys.mock";
-import type { StudentSurveyTask } from "./surveys.type";
+import { SURVEY, SURVEY_RESULTS } from "@/modules/surveys/surveys.mock";
+import type { StudentSurveyTask } from "@/modules/surveys/surveys.type";
 
 export async function getSurvey() {
   return SURVEY;

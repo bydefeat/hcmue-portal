@@ -6,9 +6,9 @@ import { Magnifier, Pen, Plus } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { PageHeader } from "@/shared/components/ui/page-header";
 import { StatusTag } from "@/shared/components/ui/status-tag";
-import { FACULTY_OPTIONS, LECTURER_STATUS, USER_ROLES } from "../users.constant";
-import type { Lecturer, LecturerFormValues } from "../users.type";
-import { LecturerFormDrawer } from "./lecturer-form-drawer";
+import { FACULTY_OPTIONS, LECTURER_STATUS, USER_ROLES } from "@/modules/users/users.constant";
+import type { Lecturer, LecturerFormValues } from "@/modules/users/users.type";
+import { LecturerFormDrawer } from "@/modules/users/components/lecturer-form-drawer";
 import { paginationItemRender } from "@/shared/constants/antd.constant";
 
 const ROLE_LABEL = Object.fromEntries(USER_ROLES.map((role) => [role.value, role.label]));

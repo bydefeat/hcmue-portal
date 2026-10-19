@@ -1,6 +1,6 @@
 import type { StatusMeta } from "@/shared/constants/status.constant";
 import { daysUntil } from "@/shared/libs/date.lib";
-import type { InvoiceStatus, TuitionInvoice, TuitionInvoiceView } from "./tuition.type";
+import type { InvoiceStatus, TuitionInvoice, TuitionInvoiceView } from "@/modules/tuition/tuition.type";
 
 export const PRICE_PER_CREDIT: Record<string, number> = {
   "104": 520_000,

@@ -1,4 +1,4 @@
-import type { CalendarEventKind } from "./settings.type";
+import type { CalendarEventKind } from "@/modules/settings/settings.type";
 
 export const CALENDAR_EVENT_LABEL: Record<CalendarEventKind, string> = {
   teaching: "Giảng dạy",

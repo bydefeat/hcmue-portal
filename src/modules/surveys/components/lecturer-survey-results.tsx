@@ -1,7 +1,7 @@
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { MeterBar } from "@/shared/components/ui/meter-bar";
 import { SectionCard } from "@/shared/components/ui/section-card";
-import type { SectionSurveyResult, SurveyQuestion } from "../surveys.type";
+import type { SectionSurveyResult, SurveyQuestion } from "@/modules/surveys/surveys.type";
 
 type LecturerSurveyResultsProps = {
   results: SectionSurveyResult[];

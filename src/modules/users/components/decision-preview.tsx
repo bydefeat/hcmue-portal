@@ -1,7 +1,7 @@
 import { Card } from "antd";
 import { formatDate } from "@/shared/libs/date.lib";
-import { DECISION_KIND_LABEL } from "../users.constant";
-import type { StudentDecision } from "../users.type";
+import { DECISION_KIND_LABEL } from "@/modules/users/users.constant";
+import type { StudentDecision } from "@/modules/users/users.type";
 
 export function DecisionPreview({ decision }: { decision: StudentDecision }) {
   return (

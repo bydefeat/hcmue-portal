@@ -14,7 +14,7 @@ import {
 } from "@/shared/constants/navigation.constant";
 import { NotificationBell, type BellItem } from "@/shared/components/ui/notification-bell";
 import { UserMenu, type MenuUser } from "@/shared/components/ui/user-menu";
-import { ApplicationSidebar } from "./sidebar";
+import { ApplicationSidebar } from "@/shared/components/layouts/application/sidebar";
 
 type ApplicationLayoutProps = {
   user: MenuUser;

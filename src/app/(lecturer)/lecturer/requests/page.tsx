@@ -3,7 +3,7 @@ import { PageHeader } from "@/shared/components/ui/page-header";
 import { LecturerRequestBoard } from "@/modules/requests/components/lecturer-request-board";
 import { getRequestsForAssignee, getRequestsOf } from "@/modules/requests/requests.query";
 import { getCurrentLecturer } from "@/modules/users/users.query";
-import { lecturerRequestOptions } from "../_data/request-options";
+import { lecturerRequestOptions } from "@/app/(lecturer)/lecturer/_data/request-options";
 
 export const metadata: Metadata = { title: "Đơn từ" };
 

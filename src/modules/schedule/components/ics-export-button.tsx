@@ -2,8 +2,8 @@
 
 import { Button, message } from "antd";
 import { CalendarDownload } from "defeat-icons-react";
-import { buildIcs } from "../schedule.ics";
-import type { ScheduleEvent } from "../schedule.type";
+import { buildIcs } from "@/modules/schedule/schedule.ics";
+import type { ScheduleEvent } from "@/modules/schedule/schedule.type";
 
 type IcsExportButtonProps = {
   events: ScheduleEvent[];

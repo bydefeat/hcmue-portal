@@ -5,9 +5,9 @@ import { Button, Input, message, Select, Table, Tag, type TableColumnsType } fro
 import { Magnifier, Pen, Plus } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { PageHeader } from "@/shared/components/ui/page-header";
-import { COURSE_TYPE_LABEL, COURSE_TYPE_OPTIONS, KNOWLEDGE_BLOCK_LABEL, KNOWLEDGE_BLOCK_OPTIONS } from "../curriculum.constant";
-import type { Course, CourseFormValues, CourseType, KnowledgeBlock } from "../curriculum.type";
-import { CourseFormDrawer } from "./course-form-drawer";
+import { COURSE_TYPE_LABEL, COURSE_TYPE_OPTIONS, KNOWLEDGE_BLOCK_LABEL, KNOWLEDGE_BLOCK_OPTIONS } from "@/modules/curriculum/curriculum.constant";
+import type { Course, CourseFormValues, CourseType, KnowledgeBlock } from "@/modules/curriculum/curriculum.type";
+import { CourseFormDrawer } from "@/modules/curriculum/components/course-form-drawer";
 import { paginationItemRender } from "@/shared/constants/antd.constant";
 
 function normalize(value: string) {

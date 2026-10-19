@@ -1,5 +1,5 @@
 import { mockDelay } from "@/shared/libs/mock-request.lib";
-import { CALENDAR_EVENTS, REGULATION, REGULATION_VERSIONS } from "./settings.mock";
+import { CALENDAR_EVENTS, REGULATION, REGULATION_VERSIONS } from "@/modules/settings/settings.mock";
 
 export async function getRegulation() {
   await mockDelay();

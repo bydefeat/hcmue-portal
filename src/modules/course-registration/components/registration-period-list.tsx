@@ -8,9 +8,9 @@ import { SectionCard } from "@/shared/components/ui/section-card";
 import { MeterBar } from "@/shared/components/ui/meter-bar";
 import { StatusTag } from "@/shared/components/ui/status-tag";
 import { dayjs, formatDateTime, hoursUntil } from "@/shared/libs/date.lib";
-import { periodState, REGISTRATION_PERIOD_STATE } from "../course-registration.constant";
-import type { RegistrationPeriodView, Term } from "../course-registration.type";
-import { RegistrationPeriodFormModal, type PeriodFormResult } from "./registration-period-form-modal";
+import { periodState, REGISTRATION_PERIOD_STATE } from "@/modules/course-registration/course-registration.constant";
+import type { RegistrationPeriodView, Term } from "@/modules/course-registration/course-registration.type";
+import { RegistrationPeriodFormModal, type PeriodFormResult } from "@/modules/course-registration/components/registration-period-form-modal";
 
 type RegistrationPeriodListProps = {
   terms: Term[];

@@ -14,7 +14,7 @@ import type {
   RegistrationPeriodView,
   ReservedSeat,
   SectionAudience,
-} from "./course-registration.type";
+} from "@/modules/course-registration/course-registration.type";
 
 export const CLOSING_SOON_HOURS = 48;
 

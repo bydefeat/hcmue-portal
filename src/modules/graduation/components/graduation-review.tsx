@@ -5,8 +5,8 @@ import { Button, Input, message, Modal, Select, Table, type TableColumnsType } f
 import { CircleCheck, CircleXmark, Magnifier, TableDownload } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { StatusTag } from "@/shared/components/ui/status-tag";
-import { GRADUATION_STATUS } from "../graduation.constant";
-import type { GraduationCandidate, GraduationStatus } from "../graduation.type";
+import { GRADUATION_STATUS } from "@/modules/graduation/graduation.constant";
+import type { GraduationCandidate, GraduationStatus } from "@/modules/graduation/graduation.type";
 import { paginationItemRender } from "@/shared/constants/antd.constant";
 
 function normalize(value: string) {

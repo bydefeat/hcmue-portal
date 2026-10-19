@@ -1,7 +1,7 @@
 import { dayjs } from "@/shared/libs/date.lib";
 import { mockDate, mockLecturerIdentity, mockStudentIdentity } from "@/shared/libs/mock.lib";
-import { REQUEST_KINDS } from "./requests.constant";
-import type { AcademicRequest, ApprovalStep, RequestDetail, RequestKind } from "./requests.type";
+import { REQUEST_KINDS } from "@/modules/requests/requests.constant";
+import type { AcademicRequest, ApprovalStep, RequestDetail, RequestKind } from "@/modules/requests/requests.type";
 
 const ADVISOR_CLASSES = ["49.01.CNTT.A", "50.01.CNTT.A"];
 const OFFICERS = { faculty: "Võ Thanh Trang", "academic-office": "Nguyễn Thị Thu Hà", "exam-office": "Huỳnh Văn Sơn" } as const;

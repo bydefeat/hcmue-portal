@@ -4,7 +4,7 @@ import { Table, type TableColumnsType } from "antd";
 import { StatusTag } from "@/shared/components/ui/status-tag";
 import { dayjs, formatDate } from "@/shared/libs/date.lib";
 import type { StatusMeta } from "@/shared/constants/status.constant";
-import type { Term } from "../course-registration.type";
+import type { Term } from "@/modules/course-registration/course-registration.type";
 
 export type TermRow = Term & {
   sectionCount: number;

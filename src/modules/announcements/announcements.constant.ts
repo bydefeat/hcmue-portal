@@ -1,5 +1,5 @@
 import type { StatusMeta } from "@/shared/constants/status.constant";
-import type { AnnouncementCategory, AnnouncementStatus } from "./announcements.type";
+import type { AnnouncementCategory, AnnouncementStatus } from "@/modules/announcements/announcements.type";
 
 export const ANNOUNCEMENT_CATEGORY_LABEL: Record<AnnouncementCategory, string> = {
   registration: "Đăng ký học phần",

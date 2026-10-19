@@ -1,5 +1,5 @@
 import type { StatusMeta } from "@/shared/constants/status.constant";
-import type { AuditAction, AuditEntityType } from "./audit.type";
+import type { AuditAction, AuditEntityType } from "@/modules/audit/audit.type";
 
 export const AUDIT_ACTION: Record<AuditAction, StatusMeta> = {
   create: { label: "Tạo mới", tone: "neutral" },

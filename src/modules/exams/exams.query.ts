@@ -1,6 +1,6 @@
 import { mockDelay } from "@/shared/libs/mock-request.lib";
-import { EXAM_SESSIONS } from "./exams.mock";
-import type { ExamSession } from "./exams.type";
+import { EXAM_SESSIONS } from "@/modules/exams/exams.mock";
+import type { ExamSession } from "@/modules/exams/exams.type";
 
 function byDate(a: ExamSession, b: ExamSession) {
   return a.date.localeCompare(b.date) || a.startTime.localeCompare(b.startTime);

@@ -8,9 +8,9 @@ import { EmptyState } from "@/shared/components/ui/empty-state";
 import { MeterBar } from "@/shared/components/ui/meter-bar";
 import { StatusTag } from "@/shared/components/ui/status-tag";
 import type { StatusMeta } from "@/shared/constants/status.constant";
-import { meetingText } from "../course-registration.constant";
-import type { ClassSectionView } from "../course-registration.type";
-import { computeWorkloads, lecturerClash, loadStateOf, type AssignableLecturer, type LoadState, type WorkloadRow } from "../teaching-assignment.rule";
+import { meetingText } from "@/modules/course-registration/course-registration.constant";
+import type { ClassSectionView } from "@/modules/course-registration/course-registration.type";
+import { computeWorkloads, lecturerClash, loadStateOf, type AssignableLecturer, type LoadState, type WorkloadRow } from "@/modules/course-registration/teaching-assignment.rule";
 import { paginationItemRender } from "@/shared/constants/antd.constant";
 import { TABS_MORE } from "@/shared/constants/antd.constant";
 

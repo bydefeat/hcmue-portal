@@ -1,8 +1,8 @@
 import { sql } from "drizzle-orm";
 import { check, date, index, pgEnum, pgTable, primaryKey, smallint, timestamp, unique, uuid } from "drizzle-orm/pg-core";
-import { primaryId, updatedAt } from "../../shared/libs/db-column.lib";
-import { classSections, enrollments } from "../course-registration/course-registration.schema";
-import { rooms } from "../facilities/facilities.schema";
+import { primaryId, updatedAt } from "@/shared/libs/db-column.lib";
+import { classSections, enrollments } from "@/modules/course-registration/course-registration.schema";
+import { rooms } from "@/modules/facilities/facilities.schema";
 
 export const attendanceStatusEnum = pgEnum("attendance_status", ["present", "late", "excused", "absent"]);
 

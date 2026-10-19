@@ -5,8 +5,8 @@ import { Alert, Button, Drawer, Form, Input, InputNumber, Segmented, Select, Upl
 import { Paperclip } from "defeat-icons-react";
 import { PERIODS, periodLabel, periodTimeRange, WEEKDAYS, weekdayLabel } from "@/shared/constants/period.constant";
 import { dayjs, formatDate, weekdayOf } from "@/shared/libs/date.lib";
-import { LECTURER_REQUEST_KINDS, REQUEST_KINDS } from "../requests.constant";
-import type { AcademicRequest, ApprovalStep, RequestKind } from "../requests.type";
+import { LECTURER_REQUEST_KINDS, REQUEST_KINDS } from "@/modules/requests/requests.constant";
+import type { AcademicRequest, ApprovalStep, RequestKind } from "@/modules/requests/requests.type";
 
 export type RequestMeeting = {
   dayOfWeek: number;

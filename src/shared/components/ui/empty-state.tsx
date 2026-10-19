@@ -1,5 +1,5 @@
 import { Empty } from "antd";
-import { Illustration, type IllustrationName } from "./illustration";
+import { Illustration, type IllustrationName } from "@/shared/components/ui/illustration";
 
 type EmptyStateProps = {
   title: string;

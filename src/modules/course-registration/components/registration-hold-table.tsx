@@ -9,8 +9,8 @@ import { PageHeader } from "@/shared/components/ui/page-header";
 import { StatusTag } from "@/shared/components/ui/status-tag";
 import type { StatusMeta } from "@/shared/constants/status.constant";
 import { dayjs, formatDate, formatDateTime } from "@/shared/libs/date.lib";
-import { HOLD_KIND_LABEL, HOLD_KIND_OPTIONS, keepCurrencyTogether } from "../course-registration.constant";
-import type { HoldKind, RegistrationHold } from "../course-registration.type";
+import { HOLD_KIND_LABEL, HOLD_KIND_OPTIONS, keepCurrencyTogether } from "@/modules/course-registration/course-registration.constant";
+import type { HoldKind, RegistrationHold } from "@/modules/course-registration/course-registration.type";
 import { paginationItemRender } from "@/shared/constants/antd.constant";
 
 export type HoldStudentOption = {

@@ -1,10 +1,10 @@
 import { sql } from "drizzle-orm";
 import { check, foreignKey, index, numeric, pgEnum, pgTable, primaryKey, smallint, text, timestamp, unique, uniqueIndex, uuid } from "drizzle-orm/pg-core";
-import { createdAt, primaryId, timestamps, updatedAt } from "../../shared/libs/db-column.lib";
-import { user } from "../authentication/authentication.schema";
-import { classSections, enrollments, terms } from "../course-registration/course-registration.schema";
-import { courses } from "../curriculum/curriculum.schema";
-import { students } from "../users/users.schema";
+import { createdAt, primaryId, timestamps, updatedAt } from "@/shared/libs/db-column.lib";
+import { user } from "@/modules/authentication/authentication.schema";
+import { classSections, enrollments, terms } from "@/modules/course-registration/course-registration.schema";
+import { courses } from "@/modules/curriculum/curriculum.schema";
+import { students } from "@/modules/users/users.schema";
 
 export const gradeSheetStatusEnum = pgEnum("grade_sheet_status", ["draft", "locked", "approved", "published", "returned"]);
 export const courseResultSourceEnum = pgEnum("course_result_source", ["class", "transfer", "exemption"]);

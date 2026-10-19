@@ -1,5 +1,5 @@
 import type { StatusMeta } from "@/shared/constants/status.constant";
-import type { StudyPlanStatus } from "./study-plan.type";
+import type { StudyPlanStatus } from "@/modules/study-plan/study-plan.type";
 
 export const STUDY_PLAN_STATUS: Record<StudyPlanStatus, StatusMeta> = {
   draft: { label: "Chưa nộp", tone: "neutral" },

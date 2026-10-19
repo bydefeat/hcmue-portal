@@ -3,8 +3,8 @@
 import { useState } from "react";
 import { Card, Modal, Radio } from "antd";
 import { MeterBar } from "@/shared/components/ui/meter-bar";
-import { meetingText, overlaps } from "../course-registration.constant";
-import type { ClassMeeting, ClassSectionView } from "../course-registration.type";
+import { meetingText, overlaps } from "@/modules/course-registration/course-registration.constant";
+import type { ClassMeeting, ClassSectionView } from "@/modules/course-registration/course-registration.type";
 
 type LabGroupPickerProps = {
   section: ClassSectionView | null;

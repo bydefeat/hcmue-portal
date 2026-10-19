@@ -1,6 +1,6 @@
 import { dayjs } from "@/shared/libs/date.lib";
 import { mockDate } from "@/shared/libs/mock.lib";
-import type { CalendarEvent, RegulationSettings, RegulationVersion } from "./settings.type";
+import type { CalendarEvent, RegulationSettings, RegulationVersion } from "@/modules/settings/settings.type";
 
 export const REGULATION: RegulationSettings = {
   version: "2025.1",

@@ -7,8 +7,8 @@ import { CircleWarning } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { StatusTag } from "@/shared/components/ui/status-tag";
 import { daysUntil, dayjs } from "@/shared/libs/date.lib";
-import { EXAM_FORMAT_LABEL, EXAM_KIND_LABEL } from "../exams.constant";
-import type { ExamKind, ExamSession } from "../exams.type";
+import { EXAM_FORMAT_LABEL, EXAM_KIND_LABEL } from "@/modules/exams/exams.constant";
+import type { ExamKind, ExamSession } from "@/modules/exams/exams.type";
 import { SectionCard } from "@/shared/components/ui/section-card";
 
 export type StudentExamItem = {

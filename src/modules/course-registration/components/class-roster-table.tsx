@@ -5,7 +5,7 @@ import { Button, Input, message, Table, type TableColumnsType } from "antd";
 import { Download, Envelope, Magnifier } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { formatDate } from "@/shared/libs/date.lib";
-import type { RosterEntry } from "../course-registration.type";
+import type { RosterEntry } from "@/modules/course-registration/course-registration.type";
 import { paginationItemRender } from "@/shared/constants/antd.constant";
 
 function normalize(value: string) {

@@ -1,5 +1,5 @@
 import type { StatusMeta } from "@/shared/constants/status.constant";
-import type { RoomStatus, RoomType } from "./facilities.type";
+import type { RoomStatus, RoomType } from "@/modules/facilities/facilities.type";
 
 export const ROOM_TYPE_LABEL: Record<RoomType, string> = {
   lecture: "Phòng lý thuyết",

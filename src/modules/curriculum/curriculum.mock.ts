@@ -1,4 +1,4 @@
-import type { Course, CourseType, KnowledgeBlock, Program, ProgramCourse } from "./curriculum.type";
+import type { Course, CourseType, KnowledgeBlock, Program, ProgramCourse } from "@/modules/curriculum/curriculum.type";
 
 type CourseSeed = [code: string, name: string, credits: number, faculty: string, type: CourseType, block: KnowledgeBlock, prerequisites?: string[]];
 

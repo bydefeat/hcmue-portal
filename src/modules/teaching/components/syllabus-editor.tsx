@@ -7,8 +7,8 @@ import { EmptyState } from "@/shared/components/ui/empty-state";
 import { SectionCard } from "@/shared/components/ui/section-card";
 import { StatusTag } from "@/shared/components/ui/status-tag";
 import { dayjs, formatDateTime } from "@/shared/libs/date.lib";
-import { assessmentMismatches, SYLLABUS_STATUS } from "../teaching.constant";
-import type { LearningOutcome, Syllabus, SyllabusAssessment, SyllabusWeek } from "../teaching.type";
+import { assessmentMismatches, SYLLABUS_STATUS } from "@/modules/teaching/teaching.constant";
+import type { LearningOutcome, Syllabus, SyllabusAssessment, SyllabusWeek } from "@/modules/teaching/teaching.type";
 
 type GradeComponentInfo = { key: string; label: string; weight: number };
 

@@ -1,6 +1,6 @@
 import { mockDelay } from "@/shared/libs/mock-request.lib";
-import { AUDIT_LOG } from "./audit.mock";
-import type { AuditEntityType } from "./audit.type";
+import { AUDIT_LOG } from "@/modules/audit/audit.mock";
+import type { AuditEntityType } from "@/modules/audit/audit.type";
 
 export async function getAuditLog(filter?: { entityType?: AuditEntityType; entityId?: string }) {
   await mockDelay();

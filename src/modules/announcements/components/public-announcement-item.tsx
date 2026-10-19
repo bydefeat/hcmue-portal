@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { Pin } from "defeat-icons-react";
 import { daysUntil, formatDate, formatDateTime } from "@/shared/libs/date.lib";
-import { ANNOUNCEMENT_CATEGORY_LABEL } from "../announcements.constant";
-import type { Announcement } from "../announcements.type";
+import { ANNOUNCEMENT_CATEGORY_LABEL } from "@/modules/announcements/announcements.constant";
+import type { Announcement } from "@/modules/announcements/announcements.type";
 
 export function deadlineHint(deadline: string | null, withTime = false) {
   if (!deadline) return null;

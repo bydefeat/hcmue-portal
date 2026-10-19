@@ -5,8 +5,8 @@ import Link from "next/link";
 import { Button, Segmented, Select } from "antd";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { formatDateTime, formatRelative } from "@/shared/libs/date.lib";
-import { NOTIFICATION_KIND_LABEL } from "../notifications.constant";
-import type { AppNotification, NotificationKind } from "../notifications.type";
+import { NOTIFICATION_KIND_LABEL } from "@/modules/notifications/notifications.constant";
+import type { AppNotification, NotificationKind } from "@/modules/notifications/notifications.type";
 import { SectionCard } from "@/shared/components/ui/section-card";
 
 type View = "all" | "unread";

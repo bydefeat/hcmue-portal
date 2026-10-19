@@ -9,9 +9,9 @@ import { PageHeader } from "@/shared/components/ui/page-header";
 import { StatusTag } from "@/shared/components/ui/status-tag";
 import { formatDate } from "@/shared/libs/date.lib";
 import { MOCK_MAJORS } from "@/shared/libs/mock.lib";
-import { PROGRAM_STATUS, PROGRAM_STATUS_OPTIONS } from "../curriculum.constant";
-import type { ProgramFormValues, ProgramStatus, ProgramSummary } from "../curriculum.type";
-import { ProgramFormDrawer } from "./program-form-drawer";
+import { PROGRAM_STATUS, PROGRAM_STATUS_OPTIONS } from "@/modules/curriculum/curriculum.constant";
+import type { ProgramFormValues, ProgramStatus, ProgramSummary } from "@/modules/curriculum/curriculum.type";
+import { ProgramFormDrawer } from "@/modules/curriculum/components/program-form-drawer";
 import { paginationItemRender } from "@/shared/constants/antd.constant";
 
 function normalize(value: string) {

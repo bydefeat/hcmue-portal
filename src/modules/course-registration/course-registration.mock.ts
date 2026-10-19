@@ -1,5 +1,5 @@
 import { createRandom, mockDate, mockLecturerIdentity, mockStudentIdentity } from "@/shared/libs/mock.lib";
-import type { ClassMeeting, ClassSection, ClassSectionStatus, RegistrationHold, RegistrationPeriod, ReservedSeat, SectionAudience, Term } from "./course-registration.type";
+import type { ClassMeeting, ClassSection, ClassSectionStatus, RegistrationHold, RegistrationPeriod, ReservedSeat, SectionAudience, Term } from "@/modules/course-registration/course-registration.type";
 
 export const TERMS: Term[] = [
   { id: "hk2-2025", code: "2025-2026.2", name: "Học kỳ 2, năm học 2025-2026", shortName: "HK2 2025-2026", startDate: "2026-02-23", endDate: "2026-06-27", isCurrent: false, isRegistrationTarget: false },

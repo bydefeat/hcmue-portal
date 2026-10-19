@@ -4,8 +4,8 @@ import { useEffect } from "react";
 import { AutoComplete, Button, DatePicker, Drawer, Form, Input, Radio, Select } from "antd";
 import { dayjs } from "@/shared/libs/date.lib";
 import { MOCK_MAJORS } from "@/shared/libs/mock.lib";
-import { COHORT_OPTIONS, MAJOR_OPTIONS, STUDENT_STATUS_OPTIONS } from "../users.constant";
-import type { Student, StudentFormValues } from "../users.type";
+import { COHORT_OPTIONS, MAJOR_OPTIONS, STUDENT_STATUS_OPTIONS } from "@/modules/users/users.constant";
+import type { Student, StudentFormValues } from "@/modules/users/users.type";
 
 type StudentFormDrawerProps = {
   open: boolean;

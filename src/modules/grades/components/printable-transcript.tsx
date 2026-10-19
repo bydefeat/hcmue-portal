@@ -1,6 +1,6 @@
 import { dayjs, formatDate } from "@/shared/libs/date.lib";
-import { formatPoint, STANDING_LABEL } from "../grades.constant";
-import type { StudentStanding, TranscriptTerm } from "../grades.type";
+import { formatPoint, STANDING_LABEL } from "@/modules/grades/grades.constant";
+import type { StudentStanding, TranscriptTerm } from "@/modules/grades/grades.type";
 
 type PrintableStudent = {
   code: string;

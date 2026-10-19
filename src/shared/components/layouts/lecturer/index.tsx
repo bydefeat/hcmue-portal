@@ -11,8 +11,8 @@ import {
   LECTURER_HOME_HREF,
   LECTURER_NAVIGATION,
 } from "@/shared/constants/navigation.constant";
-import { ClassContextBar, type ClassContext } from "./class-context-bar";
-import { LecturerHeader } from "./header";
+import { ClassContextBar, type ClassContext } from "@/shared/components/layouts/lecturer/class-context-bar";
+import { LecturerHeader } from "@/shared/components/layouts/lecturer/header";
 
 export type { ClassContext };
 

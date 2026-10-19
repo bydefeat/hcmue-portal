@@ -1,8 +1,8 @@
 import { sql } from "drizzle-orm";
 import { check, date, index, pgTable, primaryKey, smallint, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
-import { primaryId, timestamps } from "../../shared/libs/db-column.lib";
-import { classSections, terms } from "../course-registration/course-registration.schema";
-import { students } from "../users/users.schema";
+import { primaryId, timestamps } from "@/shared/libs/db-column.lib";
+import { classSections, terms } from "@/modules/course-registration/course-registration.schema";
+import { students } from "@/modules/users/users.schema";
 
 export const surveys = pgTable(
   "surveys",

@@ -1,9 +1,9 @@
 "use client";
 
 import { Tabs } from "antd";
-import type { Role, RoleAssignment } from "../access.type";
-import { RoleAssignmentTable } from "./role-assignment-table";
-import { RolePermissionMatrix, type RoleRow } from "./role-permission-matrix";
+import type { Role, RoleAssignment } from "@/modules/access/access.type";
+import { RoleAssignmentTable } from "@/modules/access/components/role-assignment-table";
+import { RolePermissionMatrix, type RoleRow } from "@/modules/access/components/role-permission-matrix";
 import { TABS_MORE } from "@/shared/constants/antd.constant";
 
 type AccessManagerProps = {

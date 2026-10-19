@@ -6,9 +6,9 @@ import { FileContent, Magnifier } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { StatusTag } from "@/shared/components/ui/status-tag";
 import { dayjs, formatDate, formatDateTime } from "@/shared/libs/date.lib";
-import { decideStep, REQUEST_KINDS, REQUEST_STATUS, requestView } from "../requests.constant";
-import type { AcademicRequest, RequestKind, RequestStatus, RequestView, StepRole } from "../requests.type";
-import { ApprovalSteps } from "./approval-steps";
+import { decideStep, REQUEST_KINDS, REQUEST_STATUS, requestView } from "@/modules/requests/requests.constant";
+import type { AcademicRequest, RequestKind, RequestStatus, RequestView, StepRole } from "@/modules/requests/requests.type";
+import { ApprovalSteps } from "@/modules/requests/components/approval-steps";
 import { paginationItemRender } from "@/shared/constants/antd.constant";
 
 type RequestInboxProps = {

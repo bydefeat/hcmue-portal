@@ -1,7 +1,7 @@
 import { mockDelay } from "@/shared/libs/mock-request.lib";
-import { requestView } from "./requests.constant";
-import { REQUESTS } from "./requests.mock";
-import type { RequestView, StepRole } from "./requests.type";
+import { requestView } from "@/modules/requests/requests.constant";
+import { REQUESTS } from "@/modules/requests/requests.mock";
+import type { RequestView, StepRole } from "@/modules/requests/requests.type";
 
 function newestFirst(a: RequestView, b: RequestView) {
   return b.createdAt.localeCompare(a.createdAt);

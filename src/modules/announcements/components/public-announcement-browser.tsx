@@ -5,9 +5,9 @@ import { Input, Segmented } from "antd";
 import { Magnifier } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { SectionCard } from "@/shared/components/ui/section-card";
-import { ANNOUNCEMENT_CATEGORY_LABEL } from "../announcements.constant";
-import type { Announcement, AnnouncementCategory } from "../announcements.type";
-import { PublicAnnouncementItem } from "./public-announcement-item";
+import { ANNOUNCEMENT_CATEGORY_LABEL } from "@/modules/announcements/announcements.constant";
+import type { Announcement, AnnouncementCategory } from "@/modules/announcements/announcements.type";
+import { PublicAnnouncementItem } from "@/modules/announcements/components/public-announcement-item";
 
 type Filter = AnnouncementCategory | "all";
 

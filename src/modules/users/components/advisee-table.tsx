@@ -7,7 +7,7 @@ import { Magnifier } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { StatusTag } from "@/shared/components/ui/status-tag";
 import type { StatusMeta } from "@/shared/constants/status.constant";
-import type { Student } from "../users.type";
+import type { Student } from "@/modules/users/users.type";
 import { paginationItemRender } from "@/shared/constants/antd.constant";
 
 export type AdviseeRow = {

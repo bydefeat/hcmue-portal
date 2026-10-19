@@ -4,9 +4,9 @@ import { useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "@bprogress/next/app";
 import { Button, Form, Input } from "antd";
-import { AuthHeading } from "./auth-heading";
-import { OTP_RULES } from "../authentication.constant";
-import { ResendCodeButton } from "./resend-code-button";
+import { AuthHeading } from "@/modules/authentication/components/auth-heading";
+import { OTP_RULES } from "@/modules/authentication/authentication.constant";
+import { ResendCodeButton } from "@/modules/authentication/components/resend-code-button";
 
 export function VerifyForm({ email }: { email?: string }) {
   const router = useRouter();

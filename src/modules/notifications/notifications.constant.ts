@@ -1,4 +1,4 @@
-import type { NotificationKind } from "./notifications.type";
+import type { NotificationKind } from "@/modules/notifications/notifications.type";
 
 export const NOTIFICATION_KIND_LABEL: Record<NotificationKind, string> = {
   request: "Đơn từ",

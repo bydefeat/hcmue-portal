@@ -7,7 +7,7 @@ import {
   mockStudentIdentity,
   pickOne,
 } from "@/shared/libs/mock.lib";
-import type { AdvisorAssignment, DecisionKind, DecisionStatus, Lecturer, Student, StudentDecision, StudentStatus } from "./users.type";
+import type { AdvisorAssignment, DecisionKind, DecisionStatus, Lecturer, Student, StudentDecision, StudentStatus } from "@/modules/users/users.type";
 
 const STUDENT_COUNT = 600;
 const LECTURER_COUNT = 24;

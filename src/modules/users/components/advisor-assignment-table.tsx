@@ -5,8 +5,8 @@ import { Checkbox, Input, message, Select, Table, type TableColumnsType } from "
 import { Magnifier } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { StatusTag } from "@/shared/components/ui/status-tag";
-import { COHORT_OPTIONS, FACULTY_OPTIONS } from "../users.constant";
-import type { AdvisorAssignment, Lecturer } from "../users.type";
+import { COHORT_OPTIONS, FACULTY_OPTIONS } from "@/modules/users/users.constant";
+import type { AdvisorAssignment, Lecturer } from "@/modules/users/users.type";
 import { paginationItemRender } from "@/shared/constants/antd.constant";
 
 const UNASSIGNED = { label: "Chưa có cố vấn", tone: "warning" } as const;

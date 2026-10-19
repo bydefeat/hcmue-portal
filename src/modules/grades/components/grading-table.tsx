@@ -7,13 +7,13 @@ import { EmptyState } from "@/shared/components/ui/empty-state";
 import { MeterBar } from "@/shared/components/ui/meter-bar";
 import { StatusTag } from "@/shared/components/ui/status-tag";
 import { dayjs, daysUntil, formatDateTime } from "@/shared/libs/date.lib";
-import { formatPoint, GRADE_SHEET_STATE, toLetter, weightedScore } from "../grades.constant";
+import { formatPoint, GRADE_SHEET_STATE, toLetter, weightedScore } from "@/modules/grades/grades.constant";
 import {
   NewLecturerRequestDrawer,
   type BusySlot,
   type RequestClassOption,
 } from "@/modules/requests/components/new-lecturer-request-drawer";
-import type { GradeSheet, GradeSheetState, ScoreRow } from "../grades.type";
+import type { GradeSheet, GradeSheetState, ScoreRow } from "@/modules/grades/grades.type";
 
 export type GradingStudent = {
   studentId: string;

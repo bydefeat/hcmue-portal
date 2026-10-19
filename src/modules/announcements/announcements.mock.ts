@@ -1,5 +1,5 @@
 import { mockDate } from "@/shared/libs/mock.lib";
-import type { Announcement } from "./announcements.type";
+import type { Announcement } from "@/modules/announcements/announcements.type";
 
 const AUTHOR = "Phòng Đào tạo";
 

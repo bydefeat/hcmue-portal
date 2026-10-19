@@ -3,8 +3,8 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { DEMO_ROLE_COOKIE } from "./access.constant";
-import { ROLE_ASSIGNMENTS } from "./access.mock";
+import { DEMO_ROLE_COOKIE } from "@/modules/access/access.constant";
+import { ROLE_ASSIGNMENTS } from "@/modules/access/access.mock";
 
 const schema = z.object({ assignmentId: z.string().min(1) });
 

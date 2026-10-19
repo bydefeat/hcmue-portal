@@ -1,6 +1,6 @@
 import { createRandom, mockDate, mockStudentIdentity } from "@/shared/libs/mock.lib";
 import { mockCourseSequence, mockCoursesTaken } from "@/shared/libs/mock-course.lib";
-import type { StudyPlan, StudyPlanCourse, StudyPlanStatus } from "./study-plan.type";
+import type { StudyPlan, StudyPlanCourse, StudyPlanStatus } from "@/modules/study-plan/study-plan.type";
 
 const PLAN_CLASSES = ["49.01.CNTT.A", "50.01.CNTT.A", "49.01.CNTT.B", "50.01.CNTT.B"];
 const STUDENT_TOTAL = 600;

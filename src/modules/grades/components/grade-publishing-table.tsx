@@ -7,8 +7,8 @@ import { EmptyState } from "@/shared/components/ui/empty-state";
 import { MeterBar } from "@/shared/components/ui/meter-bar";
 import { StatusTag } from "@/shared/components/ui/status-tag";
 import { formatDateTime } from "@/shared/libs/date.lib";
-import { formatPoint, GRADE_SHEET_STATE, LETTER_SCALE } from "../grades.constant";
-import type { GradeSheetState } from "../grades.type";
+import { formatPoint, GRADE_SHEET_STATE, LETTER_SCALE } from "@/modules/grades/grades.constant";
+import type { GradeSheetState } from "@/modules/grades/grades.type";
 import { paginationItemRender } from "@/shared/constants/antd.constant";
 
 export type PublishingRow = {

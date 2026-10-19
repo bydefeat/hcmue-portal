@@ -1,5 +1,5 @@
 import { mockDate, mockLecturerIdentity } from "@/shared/libs/mock.lib";
-import type { ClassAnnouncement, Syllabus, SyllabusAssessment, SyllabusWeek } from "./teaching.type";
+import type { ClassAnnouncement, Syllabus, SyllabusAssessment, SyllabusWeek } from "@/modules/teaching/teaching.type";
 
 const TOPICS: Record<string, string[]> = {
   COMP1020: [

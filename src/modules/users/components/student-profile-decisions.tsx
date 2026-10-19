@@ -2,8 +2,8 @@ import { EmptyState } from "@/shared/components/ui/empty-state";
 import { SectionCard } from "@/shared/components/ui/section-card";
 import { StatusTag } from "@/shared/components/ui/status-tag";
 import { formatDate } from "@/shared/libs/date.lib";
-import { DECISION_KIND_LABEL, DECISION_STATUS } from "../users.constant";
-import type { StudentDecision } from "../users.type";
+import { DECISION_KIND_LABEL, DECISION_STATUS } from "@/modules/users/users.constant";
+import type { StudentDecision } from "@/modules/users/users.type";
 
 export function StudentProfileDecisions({ decisions }: { decisions: StudentDecision[] }) {
   const visible = decisions.filter((decision) => decision.status !== "draft");

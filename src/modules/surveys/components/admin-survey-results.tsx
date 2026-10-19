@@ -6,7 +6,7 @@ import { Magnifier } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { MeterBar } from "@/shared/components/ui/meter-bar";
 import { StatusTag } from "@/shared/components/ui/status-tag";
-import type { SectionSurveyResult, SurveyQuestion } from "../surveys.type";
+import type { SectionSurveyResult, SurveyQuestion } from "@/modules/surveys/surveys.type";
 import { paginationItemRender } from "@/shared/constants/antd.constant";
 
 export const LOW_SCORE = 3.5;

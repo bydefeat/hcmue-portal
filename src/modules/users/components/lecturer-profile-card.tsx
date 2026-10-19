@@ -5,8 +5,8 @@ import { Avatar, Button, Descriptions, Form, Input, message, Modal } from "antd"
 import { Pen } from "defeat-icons-react";
 import { SectionCard } from "@/shared/components/ui/section-card";
 import { StatusTag } from "@/shared/components/ui/status-tag";
-import { LECTURER_STATUS, USER_ROLES } from "../users.constant";
-import type { Lecturer } from "../users.type";
+import { LECTURER_STATUS, USER_ROLES } from "@/modules/users/users.constant";
+import type { Lecturer } from "@/modules/users/users.type";
 
 type ContactValues = {
   phone: string;

@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { after, before, describe, test } from "node:test";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/shared/libs/db.lib";
+import { newId } from "@/shared/libs/id.lib";
 import { pgErrorMessage } from "@/shared/libs/pg-error.lib";
 import { REGISTRATION_CONSTRAINT_MESSAGE } from "@/modules/course-registration/course-registration.constant";
 import { classSections, enrollments, labGroups, registrationHolds, reservedSeats, terms } from "@/modules/course-registration/course-registration.schema";
@@ -297,5 +298,31 @@ describe("ràng buộc chéo bảng", () => {
       }),
       /registration_holds_release_after_create/,
     );
+  });
+});
+
+describe("khóa chính UUID v7", () => {
+  test("mọi khóa chính uuid một cột mặc định uuidv7(), không cột nào dùng UUID ngẫu nhiên", async () => {
+    const rows = await db.execute<{ table_name: string; column_default: string | null }>(sql`
+      SELECT c.table_name, c.column_default
+      FROM information_schema.table_constraints tc
+      JOIN information_schema.key_column_usage k ON k.constraint_name = tc.constraint_name AND k.table_schema = tc.table_schema
+      JOIN information_schema.columns c ON c.table_schema = k.table_schema AND c.table_name = k.table_name AND c.column_name = k.column_name
+      WHERE tc.table_schema = 'public' AND tc.constraint_type = 'PRIMARY KEY' AND c.data_type = 'uuid'
+        AND (SELECT count(*) FROM information_schema.key_column_usage x WHERE x.constraint_name = tc.constraint_name AND x.table_schema = tc.table_schema) = 1
+    `);
+    assert.ok(rows.length >= 50);
+    assert.deepEqual(rows.filter((row) => row.column_default !== "uuidv7()").map((row) => row.table_name), []);
+    const random = await db.execute(sql`SELECT table_name, column_name FROM information_schema.columns WHERE table_schema = 'public' AND column_default ILIKE '%random_uuid%'`);
+    assert.equal(random.length, 0);
+  });
+
+  test("id sinh ra là phiên bản 7 và tăng dần, ở cả DB lẫn newId()", async () => {
+    const [first] = await db.execute<{ id: string }>(sql`SELECT uuidv7()::text AS id`);
+    const [second] = await db.execute<{ id: string }>(sql`SELECT uuidv7()::text AS id`);
+    const app = [newId(), newId(), newId()];
+    for (const id of [first.id, second.id, ...app]) assert.equal(id[14], "7");
+    assert.ok(first.id < second.id);
+    assert.deepEqual([...app].sort(), app);
   });
 });

@@ -1,7 +1,7 @@
 import { sql } from "drizzle-orm";
 import { boolean, check, index, integer, pgEnum, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
-import { primaryId, timestamps } from "../../shared/libs/db-column.lib";
-import { user } from "../authentication/authentication.schema";
+import { primaryId, timestamps } from "@/shared/libs/db-column.lib";
+import { user } from "@/modules/authentication/authentication.schema";
 
 export const announcementCategoryEnum = pgEnum("announcement_category", ["registration", "exam", "tuition", "academic", "event"]);
 export const announcementStatusEnum = pgEnum("announcement_status", ["draft", "scheduled", "published", "archived"]);

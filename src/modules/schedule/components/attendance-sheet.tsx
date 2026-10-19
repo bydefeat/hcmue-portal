@@ -6,8 +6,8 @@ import { EmptyState } from "@/shared/components/ui/empty-state";
 import { SectionCard } from "@/shared/components/ui/section-card";
 import { periodLabel, weekdayLabel } from "@/shared/constants/period.constant";
 import { dayjs, formatDate, weekdayOf } from "@/shared/libs/date.lib";
-import { ABSENCE_LIMIT_RATIO, ATTENDANCE_STATUS } from "../schedule.constant";
-import type { AttendanceBook, AttendanceSession, AttendanceStatus } from "../schedule.type";
+import { ABSENCE_LIMIT_RATIO, ATTENDANCE_STATUS } from "@/modules/schedule/schedule.constant";
+import type { AttendanceBook, AttendanceSession, AttendanceStatus } from "@/modules/schedule/schedule.type";
 
 export type AttendanceStudent = {
   studentId: string;

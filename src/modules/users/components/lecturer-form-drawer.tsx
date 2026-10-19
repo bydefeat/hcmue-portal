@@ -2,8 +2,8 @@
 
 import { useEffect } from "react";
 import { Button, Checkbox, Drawer, Form, Input, Select } from "antd";
-import { FACULTY_OPTIONS, LECTURER_STATUS, LECTURER_TITLES, USER_ROLES } from "../users.constant";
-import type { Lecturer, LecturerFormValues, LecturerStatus } from "../users.type";
+import { FACULTY_OPTIONS, LECTURER_STATUS, LECTURER_TITLES, USER_ROLES } from "@/modules/users/users.constant";
+import type { Lecturer, LecturerFormValues, LecturerStatus } from "@/modules/users/users.type";
 
 type LecturerFormDrawerProps = {
   open: boolean;

@@ -1,7 +1,7 @@
 import { dayjs, weekdayOf } from "@/shared/libs/date.lib";
 import { mockDelay } from "@/shared/libs/mock-request.lib";
-import { mockAttendanceRecords } from "./schedule.mock";
-import type { AttendanceBook, AttendanceSession, MeetingInput } from "./schedule.type";
+import { mockAttendanceRecords } from "@/modules/schedule/schedule.mock";
+import type { AttendanceBook, AttendanceSession, MeetingInput } from "@/modules/schedule/schedule.type";
 
 export function buildSessions(classSectionId: string, meetings: MeetingInput[], startDate: string, weeksAhead = 1): AttendanceSession[] {
   const today = dayjs().startOf("day");

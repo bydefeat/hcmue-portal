@@ -7,7 +7,7 @@ import { Select } from "antd";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { BREAKS, PERIODS, periodLabel, periodTimeRange, WEEKDAYS } from "@/shared/constants/period.constant";
 import { dayjs, formatShortDate, weekdayOf } from "@/shared/libs/date.lib";
-import type { ScheduleEvent } from "../schedule.type";
+import type { ScheduleEvent } from "@/modules/schedule/schedule.type";
 import { SectionCard } from "@/shared/components/ui/section-card";
 
 type WeekScheduleProps = {

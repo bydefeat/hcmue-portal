@@ -1,6 +1,6 @@
 import { sql } from "drizzle-orm";
 import { check, index, pgEnum, pgTable, smallint, text, unique, uuid } from "drizzle-orm/pg-core";
-import { primaryId, timestamps } from "../../shared/libs/db-column.lib";
+import { primaryId, timestamps } from "@/shared/libs/db-column.lib";
 
 export const roomTypeEnum = pgEnum("room_type", ["lecture", "lab", "hall", "seminar"]);
 export const roomStatusEnum = pgEnum("room_status", ["active", "maintenance"]);

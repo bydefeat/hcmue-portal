@@ -1,5 +1,5 @@
 import type { StatusMeta } from "@/shared/constants/status.constant";
-import type { GraduationStatus } from "./graduation.type";
+import type { GraduationStatus } from "@/modules/graduation/graduation.type";
 
 export const GRADUATION_STATUS: Record<GraduationStatus, StatusMeta> = {
   eligible: { label: "Đủ điều kiện", tone: "success" },

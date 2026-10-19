@@ -1,8 +1,8 @@
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { StatusTag } from "@/shared/components/ui/status-tag";
 import { formatDateTime } from "@/shared/libs/date.lib";
-import { REGISTRATION_EVENT } from "../course-registration.constant";
-import type { RegistrationEvent } from "../course-registration.type";
+import { REGISTRATION_EVENT } from "@/modules/course-registration/course-registration.constant";
+import type { RegistrationEvent } from "@/modules/course-registration/course-registration.type";
 
 export function RegistrationHistoryList({ events }: { events: RegistrationEvent[] }) {
   if (events.length === 0) {

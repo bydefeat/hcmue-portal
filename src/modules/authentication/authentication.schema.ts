@@ -1,5 +1,5 @@
 import { bigint, boolean, index, integer, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
-import { primaryId, timestamps } from "../../shared/libs/db-column.lib";
+import { primaryId, timestamps } from "@/shared/libs/db-column.lib";
 
 export const user = pgTable("user", {
   id: primaryId(),

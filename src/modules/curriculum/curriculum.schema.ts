@@ -1,6 +1,6 @@
 import { sql } from "drizzle-orm";
 import { boolean, check, index, pgEnum, pgTable, primaryKey, smallint, text, uuid } from "drizzle-orm/pg-core";
-import { primaryId, timestamps } from "../../shared/libs/db-column.lib";
+import { primaryId, timestamps } from "@/shared/libs/db-column.lib";
 
 export const courseTypeEnum = pgEnum("course_type", ["required", "elective"]);
 export const knowledgeBlockEnum = pgEnum("knowledge_block", ["general", "foundation", "major", "internship"]);

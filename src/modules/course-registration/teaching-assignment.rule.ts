@@ -1,5 +1,5 @@
-import { overlaps } from "./course-registration.constant";
-import type { ClassSectionView } from "./course-registration.type";
+import { overlaps } from "@/modules/course-registration/course-registration.constant";
+import type { ClassSectionView } from "@/modules/course-registration/course-registration.type";
 
 export const TEACHING_WEEKS = 15;
 

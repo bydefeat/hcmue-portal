@@ -8,9 +8,9 @@ import { EmptyState } from "@/shared/components/ui/empty-state";
 import { PageHeader } from "@/shared/components/ui/page-header";
 import { StatusTag } from "@/shared/components/ui/status-tag";
 import { dayjs, formatDate } from "@/shared/libs/date.lib";
-import { DECISION_KIND_LABEL, DECISION_KIND_OPTIONS, DECISION_STATUS } from "../users.constant";
-import type { DecisionKind, DecisionStatus, StudentDecision } from "../users.type";
-import { DecisionPreview } from "./decision-preview";
+import { DECISION_KIND_LABEL, DECISION_KIND_OPTIONS, DECISION_STATUS } from "@/modules/users/users.constant";
+import type { DecisionKind, DecisionStatus, StudentDecision } from "@/modules/users/users.type";
+import { DecisionPreview } from "@/modules/users/components/decision-preview";
 import { paginationItemRender } from "@/shared/constants/antd.constant";
 
 export type DecisionStudentOption = { id: string; code: string; fullName: string; className: string; faculty: string };

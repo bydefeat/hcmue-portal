@@ -9,8 +9,8 @@ import { PageHeader } from "@/shared/components/ui/page-header";
 import { StatusTag } from "@/shared/components/ui/status-tag";
 import type { StatusMeta } from "@/shared/constants/status.constant";
 import { dayjs, formatDate } from "@/shared/libs/date.lib";
-import { CALENDAR_EVENT_LABEL, CALENDAR_EVENT_OPTIONS } from "../settings.constant";
-import type { CalendarEvent, CalendarEventKind } from "../settings.type";
+import { CALENDAR_EVENT_LABEL, CALENDAR_EVENT_OPTIONS } from "@/modules/settings/settings.constant";
+import type { CalendarEvent, CalendarEventKind } from "@/modules/settings/settings.type";
 import { SectionCard } from "@/shared/components/ui/section-card";
 
 type TermOption = { id: string; name: string };

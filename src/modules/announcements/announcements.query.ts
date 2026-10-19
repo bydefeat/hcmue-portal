@@ -1,6 +1,6 @@
 import { dayjs } from "@/shared/libs/date.lib";
 import { mockDelay } from "@/shared/libs/mock-request.lib";
-import { ANNOUNCEMENTS } from "./announcements.mock";
+import { ANNOUNCEMENTS } from "@/modules/announcements/announcements.mock";
 
 function byNewest(a: { publishedAt: string | null }, b: { publishedAt: string | null }) {
   return dayjs(b.publishedAt ?? "2100-01-01").valueOf() - dayjs(a.publishedAt ?? "2100-01-01").valueOf();

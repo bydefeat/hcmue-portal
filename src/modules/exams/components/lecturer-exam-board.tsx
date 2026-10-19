@@ -8,8 +8,8 @@ import { SectionCard } from "@/shared/components/ui/section-card";
 import { StatusTag } from "@/shared/components/ui/status-tag";
 import { PERIODS, periodLabel, weekdayLabel } from "@/shared/constants/period.constant";
 import { dayjs, daysUntil, formatDate, formatDateTime, weekdayOf } from "@/shared/libs/date.lib";
-import { EXAM_FORMAT_LABEL, EXAM_KIND_LABEL, EXAM_PAPER_STATUS, EXAM_STATUS } from "../exams.constant";
-import type { ExamPaperStatus, ExamSession } from "../exams.type";
+import { EXAM_FORMAT_LABEL, EXAM_KIND_LABEL, EXAM_PAPER_STATUS, EXAM_STATUS } from "@/modules/exams/exams.constant";
+import type { ExamPaperStatus, ExamSession } from "@/modules/exams/exams.type";
 
 export type TeachingSlot = {
   dayOfWeek: number;

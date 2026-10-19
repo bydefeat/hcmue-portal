@@ -3,8 +3,8 @@
 import { Table, type TableColumnsType } from "antd";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { MeterBar } from "@/shared/components/ui/meter-bar";
-import { COURSE_TYPE_LABEL, KNOWLEDGE_BLOCK_LABEL } from "../curriculum.constant";
-import type { Course, CourseType, ProgramDetail } from "../curriculum.type";
+import { COURSE_TYPE_LABEL, KNOWLEDGE_BLOCK_LABEL } from "@/modules/curriculum/curriculum.constant";
+import type { Course, CourseType, ProgramDetail } from "@/modules/curriculum/curriculum.type";
 import { SectionCard } from "@/shared/components/ui/section-card";
 
 const COLUMNS: TableColumnsType<Course> = [

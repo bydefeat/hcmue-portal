@@ -3,8 +3,8 @@
 import { useEffect } from "react";
 import { Button, Drawer, Form, Input, InputNumber, Select } from "antd";
 import { MOCK_COHORTS, MOCK_MAJORS } from "@/shared/libs/mock.lib";
-import { DEGREE_OPTIONS, PROGRAM_STATUS_OPTIONS } from "../curriculum.constant";
-import type { Program, ProgramFormValues } from "../curriculum.type";
+import { DEGREE_OPTIONS, PROGRAM_STATUS_OPTIONS } from "@/modules/curriculum/curriculum.constant";
+import type { Program, ProgramFormValues } from "@/modules/curriculum/curriculum.type";
 
 type ProgramFormDrawerProps = {
   open: boolean;

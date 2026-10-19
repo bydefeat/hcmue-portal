@@ -6,8 +6,8 @@ import { EmptyState } from "@/shared/components/ui/empty-state";
 import { SectionCard } from "@/shared/components/ui/section-card";
 import { StatusTag } from "@/shared/components/ui/status-tag";
 import { formatDate, formatDateTime } from "@/shared/libs/date.lib";
-import { BANK_ACCOUNT, formatMoney, INVOICE_STATUS, transferContent } from "../tuition.constant";
-import type { TuitionInvoiceView } from "../tuition.type";
+import { BANK_ACCOUNT, formatMoney, INVOICE_STATUS, transferContent } from "@/modules/tuition/tuition.constant";
+import type { TuitionInvoiceView } from "@/modules/tuition/tuition.type";
 
 function dueText(invoice: TuitionInvoiceView) {
   if (invoice.status === "paid") return null;

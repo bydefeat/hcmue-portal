@@ -3,8 +3,8 @@
 import { useState } from "react";
 import { Alert, Button, Modal, Table, Upload, type TableColumnsType } from "antd";
 import { CircleCheck, CircleWarning, Download, FileArrowIn } from "defeat-icons-react";
-import { IMPORT_COLUMNS, templateCsv, validateImportRow, type ImportResult, type ImportRow } from "../users.rule";
-import type { StudentFormValues } from "../users.type";
+import { IMPORT_COLUMNS, templateCsv, validateImportRow, type ImportResult, type ImportRow } from "@/modules/users/users.rule";
+import type { StudentFormValues } from "@/modules/users/users.type";
 import { paginationItemRender } from "@/shared/constants/antd.constant";
 
 type StudentImportModalProps = {

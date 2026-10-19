@@ -1,5 +1,5 @@
 import type { StatusMeta } from "@/shared/constants/status.constant";
-import type { AttendanceStatus } from "./schedule.type";
+import type { AttendanceStatus } from "@/modules/schedule/schedule.type";
 
 export const ATTENDANCE_STATUS: Record<AttendanceStatus, StatusMeta> = {
   present: { label: "Có mặt", tone: "success" },

@@ -10,8 +10,8 @@ import { SectionCard } from "@/shared/components/ui/section-card";
 import { StatusTag } from "@/shared/components/ui/status-tag";
 import { weekdayLabel } from "@/shared/constants/period.constant";
 import { dayjs, formatDate, formatDateTime, weekdayOf } from "@/shared/libs/date.lib";
-import { APPOINTMENT_DURATIONS, APPOINTMENT_MODE_LABEL, APPOINTMENT_STATUS, APPOINTMENT_TOPICS } from "../advising.constant";
-import type { Appointment, AppointmentMode, AppointmentStudent, MeetingNote } from "../advising.type";
+import { APPOINTMENT_DURATIONS, APPOINTMENT_MODE_LABEL, APPOINTMENT_STATUS, APPOINTMENT_TOPICS } from "@/modules/advising/advising.constant";
+import type { Appointment, AppointmentMode, AppointmentStudent, MeetingNote } from "@/modules/advising/advising.type";
 
 type AppointmentBoardProps = {
   appointments: Appointment[];

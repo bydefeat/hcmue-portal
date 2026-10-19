@@ -1,6 +1,6 @@
 import { dayjs } from "@/shared/libs/date.lib";
 import { mockDate, mockLecturerIdentity } from "@/shared/libs/mock.lib";
-import type { ExamFormat, ExamPaperStatus, ExamSession } from "./exams.type";
+import type { ExamFormat, ExamPaperStatus, ExamSession } from "@/modules/exams/exams.type";
 
 type Seed = [sectionId: string, code: string, courseName: string, lecturerIndex: number | null, candidates: number, faculty: string, format: ExamFormat];
 

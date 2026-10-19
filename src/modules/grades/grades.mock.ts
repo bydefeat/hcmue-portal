@@ -1,7 +1,7 @@
 import { createRandom, mockDate, mockStudentIdentity } from "@/shared/libs/mock.lib";
 import { COURSES_IN_CURRENT_TERM, COURSES_PER_PAST_TERM, mockCourseSequence, TERMS_DONE_BY_COHORT } from "@/shared/libs/mock-course.lib";
-import { toLetter } from "./grades.constant";
-import type { GradeComponent, GradeSheetStatus, TranscriptCourse } from "./grades.type";
+import { toLetter } from "@/modules/grades/grades.constant";
+import type { GradeComponent, GradeSheetStatus, TranscriptCourse } from "@/modules/grades/grades.type";
 
 export const PAST_TERMS = [
   { id: "hk1-2022", name: "Học kỳ 1, năm học 2022-2023" },

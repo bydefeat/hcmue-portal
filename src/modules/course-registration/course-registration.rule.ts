@@ -1,7 +1,7 @@
 import { periodLabel, weekdayLabel } from "@/shared/constants/period.constant";
 import { dayjs } from "@/shared/libs/date.lib";
-import { audienceText, overlaps } from "./course-registration.constant";
-import type { ClassMeeting, ClassSectionView, RegistrationEvent, RegistrationHold, StudentEnrollment } from "./course-registration.type";
+import { audienceText, overlaps } from "@/modules/course-registration/course-registration.constant";
+import type { ClassMeeting, ClassSectionView, RegistrationEvent, RegistrationHold, StudentEnrollment } from "@/modules/course-registration/course-registration.type";
 
 export type RegistrationIssueKind =
   | "hold"

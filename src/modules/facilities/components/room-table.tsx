@@ -6,9 +6,9 @@ import { Magnifier } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { MeterBar } from "@/shared/components/ui/meter-bar";
 import { StatusTag } from "@/shared/components/ui/status-tag";
-import { EQUIPMENT_OPTIONS, ROOM_STATUS, ROOM_TYPE_LABEL, ROOM_TYPE_OPTIONS } from "../facilities.constant";
-import type { Campus, Room, RoomStatus, RoomType } from "../facilities.type";
-import { RoomWeekGrid, type RoomBooking } from "./room-week-grid";
+import { EQUIPMENT_OPTIONS, ROOM_STATUS, ROOM_TYPE_LABEL, ROOM_TYPE_OPTIONS } from "@/modules/facilities/facilities.constant";
+import type { Campus, Room, RoomStatus, RoomType } from "@/modules/facilities/facilities.type";
+import { RoomWeekGrid, type RoomBooking } from "@/modules/facilities/components/room-week-grid";
 
 const WEEK_SLOTS = 6 * 12;
 

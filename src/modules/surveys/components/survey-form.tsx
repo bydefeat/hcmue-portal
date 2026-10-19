@@ -2,8 +2,8 @@
 
 import { useEffect } from "react";
 import { Alert, Button, Drawer, Form, Input, Radio } from "antd";
-import { SURVEY_SCALE } from "../surveys.constant";
-import type { Survey, StudentSurveyTask } from "../surveys.type";
+import { SURVEY_SCALE } from "@/modules/surveys/surveys.constant";
+import type { Survey, StudentSurveyTask } from "@/modules/surveys/surveys.type";
 
 type SurveyFormValues = Record<string, number | string | undefined>;
 

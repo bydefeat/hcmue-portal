@@ -5,7 +5,7 @@ import { Button, Card, DatePicker, Form, Input, InputNumber, message, Modal, Tab
 import type { Dayjs } from "dayjs";
 import { StatusTag } from "@/shared/components/ui/status-tag";
 import { dayjs, formatDate, formatDateTime } from "@/shared/libs/date.lib";
-import type { RegulationSettings, RegulationVersion } from "../settings.type";
+import type { RegulationSettings, RegulationVersion } from "@/modules/settings/settings.type";
 import { SectionCard } from "@/shared/components/ui/section-card";
 
 type RegulationFormProps = {

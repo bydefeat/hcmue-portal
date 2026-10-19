@@ -3,7 +3,7 @@
 import { Table, type TableColumnsType } from "antd";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { MeterBar } from "@/shared/components/ui/meter-bar";
-import type { FacultyRegistrationSummary } from "../course-registration.type";
+import type { FacultyRegistrationSummary } from "@/modules/course-registration/course-registration.type";
 
 function fillRate(row: FacultyRegistrationSummary) {
   return row.capacity > 0 ? Math.round((row.enrolled / row.capacity) * 100) : 0;

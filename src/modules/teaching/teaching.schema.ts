@@ -1,8 +1,8 @@
 import { sql } from "drizzle-orm";
 import { boolean, check, foreignKey, index, pgEnum, pgTable, primaryKey, smallint, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
-import { createdAt, primaryId, timestamps } from "../../shared/libs/db-column.lib";
-import { classSections } from "../course-registration/course-registration.schema";
-import { lecturers, students } from "../users/users.schema";
+import { createdAt, primaryId, timestamps } from "@/shared/libs/db-column.lib";
+import { classSections } from "@/modules/course-registration/course-registration.schema";
+import { lecturers, students } from "@/modules/users/users.schema";
 
 export const syllabusStatusEnum = pgEnum("syllabus_status", ["draft", "published"]);
 export const classAnnouncementStatusEnum = pgEnum("class_announcement_status", ["published", "scheduled"]);

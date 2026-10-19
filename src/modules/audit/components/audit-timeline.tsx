@@ -4,9 +4,9 @@ import { Timeline } from "antd";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { StatusTag } from "@/shared/components/ui/status-tag";
 import { formatDateTime } from "@/shared/libs/date.lib";
-import { AUDIT_ACTION } from "../audit.constant";
-import type { AuditEntry } from "../audit.type";
-import { AuditChanges } from "./audit-changes";
+import { AUDIT_ACTION } from "@/modules/audit/audit.constant";
+import type { AuditEntry } from "@/modules/audit/audit.type";
+import { AuditChanges } from "@/modules/audit/components/audit-changes";
 
 export function AuditTimeline({ entries, emptyText = "Chưa có thay đổi nào được ghi nhận." }: { entries: AuditEntry[]; emptyText?: string }) {
   if (entries.length === 0) return <EmptyState illustration="document" title="Chưa có lịch sử" description={emptyText} />;

@@ -4,9 +4,9 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "@bprogress/next/app";
 import { Button, Form, Input } from "antd";
-import { AuthHeading } from "./auth-heading";
-import { EMAIL_RULES, NEW_PASSWORD_RULES, OTP_RULES } from "../authentication.constant";
-import { ResendCodeButton } from "./resend-code-button";
+import { AuthHeading } from "@/modules/authentication/components/auth-heading";
+import { EMAIL_RULES, NEW_PASSWORD_RULES, OTP_RULES } from "@/modules/authentication/authentication.constant";
+import { ResendCodeButton } from "@/modules/authentication/components/resend-code-button";
 
 type Step = "email" | "code" | "password" | "done";
 

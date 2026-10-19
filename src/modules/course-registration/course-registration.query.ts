@@ -1,7 +1,7 @@
 import { dayjs } from "@/shared/libs/date.lib";
 import { createRandom, mockLecturerIdentity, mockStudentIdentity } from "@/shared/libs/mock.lib";
 import { mockDelay } from "@/shared/libs/mock-request.lib";
-import { conflictsOf, periodState } from "./course-registration.constant";
+import { conflictsOf, periodState } from "@/modules/course-registration/course-registration.constant";
 import {
   CLASS_SECTIONS,
   FACULTY_MAJOR_INDEX,
@@ -9,7 +9,7 @@ import {
   REGISTRATION_PERIODS,
   rosterIndices,
   TERMS,
-} from "./course-registration.mock";
+} from "@/modules/course-registration/course-registration.mock";
 import type {
   ClassSection,
   ClassSectionView,
@@ -18,7 +18,7 @@ import type {
   RegistrationQueueStatus,
   RosterEntry,
   StudentEnrollment,
-} from "./course-registration.type";
+} from "@/modules/course-registration/course-registration.type";
 
 function toView(section: ClassSection): ClassSectionView {
   const siblings = CLASS_SECTIONS.filter((entry) => entry.termId === section.termId);

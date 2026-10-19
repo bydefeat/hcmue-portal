@@ -1,7 +1,7 @@
 import { mockDelay } from "@/shared/libs/mock-request.lib";
-import { SYLLABUS_WEEKS } from "./teaching.constant";
-import { CLASS_ANNOUNCEMENTS, SYLLABI } from "./teaching.mock";
-import type { Syllabus } from "./teaching.type";
+import { SYLLABUS_WEEKS } from "@/modules/teaching/teaching.constant";
+import { CLASS_ANNOUNCEMENTS, SYLLABI } from "@/modules/teaching/teaching.mock";
+import type { Syllabus } from "@/modules/teaching/teaching.type";
 
 export async function getSyllabus(classSectionId: string, fallback: { courseCode: string; courseName: string }): Promise<Syllabus> {
   await mockDelay();

@@ -1,5 +1,5 @@
 import type { StatusMeta } from "@/shared/constants/status.constant";
-import type { ClassAnnouncementStatus, SyllabusAssessment, SyllabusStatus } from "./teaching.type";
+import type { ClassAnnouncementStatus, SyllabusAssessment, SyllabusStatus } from "@/modules/teaching/teaching.type";
 
 export const SYLLABUS_STATUS: Record<SyllabusStatus, StatusMeta> = {
   draft: { label: "Bản nháp, sinh viên chưa thấy", tone: "warning" },

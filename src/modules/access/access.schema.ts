@@ -1,8 +1,8 @@
 import { boolean, index, pgEnum, pgTable, primaryKey, text, unique, uuid } from "drizzle-orm/pg-core";
-import { createdAt, primaryId, timestamps } from "../../shared/libs/db-column.lib";
-import { user } from "../authentication/authentication.schema";
-import { faculties } from "../curriculum/curriculum.schema";
-import type { Permission } from "./access.type";
+import { createdAt, primaryId, timestamps } from "@/shared/libs/db-column.lib";
+import { user } from "@/modules/authentication/authentication.schema";
+import { faculties } from "@/modules/curriculum/curriculum.schema";
+import type { Permission } from "@/modules/access/access.type";
 
 export const roleScopeEnum = pgEnum("role_scope", ["university", "faculty"]);
 

@@ -1,6 +1,6 @@
 import { PERIODS } from "@/shared/constants/period.constant";
 import { dayjs, weekdayOf } from "@/shared/libs/date.lib";
-import type { ScheduleEvent } from "./schedule.type";
+import type { ScheduleEvent } from "@/modules/schedule/schedule.type";
 
 const ICS_DAY = ["", "", "MO", "TU", "WE", "TH", "FR", "SA", "SU"];
 

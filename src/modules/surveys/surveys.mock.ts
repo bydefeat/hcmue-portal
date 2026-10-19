@@ -1,5 +1,5 @@
 import { createRandom, mockDate, mockLecturerIdentity } from "@/shared/libs/mock.lib";
-import type { SectionSurveyResult, Survey } from "./surveys.type";
+import type { SectionSurveyResult, Survey } from "@/modules/surveys/surveys.type";
 
 export const SURVEY: Survey = {
   id: "ks-hk1-2026",

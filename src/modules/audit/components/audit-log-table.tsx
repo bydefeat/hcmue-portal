@@ -7,9 +7,9 @@ import { Magnifier } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { StatusTag } from "@/shared/components/ui/status-tag";
 import { dayjs, formatDateTime } from "@/shared/libs/date.lib";
-import { AUDIT_ACTION, AUDIT_ENTITY_LABEL } from "../audit.constant";
-import type { AuditAction, AuditEntityType, AuditEntry } from "../audit.type";
-import { AuditChanges } from "./audit-changes";
+import { AUDIT_ACTION, AUDIT_ENTITY_LABEL } from "@/modules/audit/audit.constant";
+import type { AuditAction, AuditEntityType, AuditEntry } from "@/modules/audit/audit.type";
+import { AuditChanges } from "@/modules/audit/components/audit-changes";
 import { paginationItemRender } from "@/shared/constants/antd.constant";
 
 function normalize(value: string) {

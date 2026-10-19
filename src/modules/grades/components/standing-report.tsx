@@ -2,8 +2,8 @@
 
 import { Table, Tooltip, type TableColumnsType } from "antd";
 import { EmptyState } from "@/shared/components/ui/empty-state";
-import { formatPoint, STANDING_SCALE } from "../grades.constant";
-import type { AcademicStanding, FacultyStandingSummary } from "../grades.type";
+import { formatPoint, STANDING_SCALE } from "@/modules/grades/grades.constant";
+import type { AcademicStanding, FacultyStandingSummary } from "@/modules/grades/grades.type";
 
 const SEGMENT_CLASS: Record<AcademicStanding, string> = {
   excellent: "bg-primary",

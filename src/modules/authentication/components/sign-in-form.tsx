@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "@bprogress/next/app";
 import { Button, Divider, Form, Input } from "antd";
 import { DEMO_ACCOUNTS, demoRolesOf, landingOf } from "@/shared/constants/role.constant";
-import { AuthHeading } from "./auth-heading";
+import { AuthHeading } from "@/modules/authentication/components/auth-heading";
 
 type SignInValues = {
   username: string;

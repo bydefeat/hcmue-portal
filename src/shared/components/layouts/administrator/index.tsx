@@ -17,8 +17,8 @@ import {
   isActiveItem,
   type NavGroup,
 } from "@/shared/constants/navigation.constant";
-import { GlobalSearch, type SearchEntry } from "./global-search";
-import { AdministratorSidebar } from "./sidebar";
+import { GlobalSearch, type SearchEntry } from "@/shared/components/layouts/administrator/global-search";
+import { AdministratorSidebar } from "@/shared/components/layouts/administrator/sidebar";
 
 export type { SearchEntry };
 

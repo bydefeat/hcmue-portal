@@ -1,8 +1,8 @@
 import { Table } from "antd";
 import { SectionCard } from "@/shared/components/ui/section-card";
 import { formatDateTime } from "@/shared/libs/date.lib";
-import { meetingText } from "../course-registration.constant";
-import type { StudentEnrollment } from "../course-registration.type";
+import { meetingText } from "@/modules/course-registration/course-registration.constant";
+import type { StudentEnrollment } from "@/modules/course-registration/course-registration.type";
 
 type ReceiptStudent = {
   code: string;

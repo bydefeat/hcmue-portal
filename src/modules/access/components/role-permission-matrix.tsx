@@ -4,8 +4,8 @@ import { useState } from "react";
 import { Alert, Button, Card, Checkbox, message } from "antd";
 import { Lock } from "defeat-icons-react";
 import { StatusTag } from "@/shared/components/ui/status-tag";
-import { PERMISSION_GROUPS, SCOPE_LABEL } from "../access.constant";
-import type { Permission, Role } from "../access.type";
+import { PERMISSION_GROUPS, SCOPE_LABEL } from "@/modules/access/access.constant";
+import type { Permission, Role } from "@/modules/access/access.type";
 import { SectionCard } from "@/shared/components/ui/section-card";
 
 export type RoleRow = Role & { memberCount: number };

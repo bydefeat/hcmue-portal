@@ -3,10 +3,10 @@
 import { useState } from "react";
 import { Button, message, Tabs } from "antd";
 import { Plus } from "defeat-icons-react";
-import { requestView } from "../requests.constant";
-import type { RequestStatus, RequestView } from "../requests.type";
-import { RequestInbox } from "./request-inbox";
-import { NewLecturerRequestDrawer, type BusySlot, type RequestClassOption } from "./new-lecturer-request-drawer";
+import { requestView } from "@/modules/requests/requests.constant";
+import type { RequestStatus, RequestView } from "@/modules/requests/requests.type";
+import { RequestInbox } from "@/modules/requests/components/request-inbox";
+import { NewLecturerRequestDrawer, type BusySlot, type RequestClassOption } from "@/modules/requests/components/new-lecturer-request-drawer";
 import { TABS_MORE } from "@/shared/constants/antd.constant";
 
 type LecturerRequestBoardProps = {

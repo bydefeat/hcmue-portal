@@ -4,9 +4,9 @@ import { useEffect, useState } from "react";
 import { Alert, Button, DatePicker, Drawer, Form, Input, InputNumber, message, Select, Upload, type UploadFile } from "antd";
 import { Plus, Upload as UploadIcon } from "defeat-icons-react";
 import { dayjs } from "@/shared/libs/date.lib";
-import { REQUEST_KINDS, requestView, STEP_ROLE_LABEL, STUDENT_REQUEST_KINDS } from "../requests.constant";
-import type { AcademicRequest, RequestDetail, RequestKind, RequestView } from "../requests.type";
-import { RequestInbox } from "./request-inbox";
+import { REQUEST_KINDS, requestView, STEP_ROLE_LABEL, STUDENT_REQUEST_KINDS } from "@/modules/requests/requests.constant";
+import type { AcademicRequest, RequestDetail, RequestKind, RequestView } from "@/modules/requests/requests.type";
+import { RequestInbox } from "@/modules/requests/components/request-inbox";
 import { PageHeader } from "@/shared/components/ui/page-header";
 
 type SectionOption = { value: string; label: string };

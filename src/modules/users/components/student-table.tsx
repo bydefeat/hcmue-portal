@@ -8,10 +8,10 @@ import { EmptyState } from "@/shared/components/ui/empty-state";
 import { PageHeader } from "@/shared/components/ui/page-header";
 import { StatusTag } from "@/shared/components/ui/status-tag";
 import { MOCK_MAJORS } from "@/shared/libs/mock.lib";
-import { COHORT_OPTIONS, FACULTY_OPTIONS, STUDENT_STATUS, STUDENT_STATUS_OPTIONS } from "../users.constant";
-import type { Student, StudentFormValues, StudentStatus } from "../users.type";
-import { StudentFormDrawer } from "./student-form-drawer";
-import { StudentImportModal } from "./student-import-modal";
+import { COHORT_OPTIONS, FACULTY_OPTIONS, STUDENT_STATUS, STUDENT_STATUS_OPTIONS } from "@/modules/users/users.constant";
+import type { Student, StudentFormValues, StudentStatus } from "@/modules/users/users.type";
+import { StudentFormDrawer } from "@/modules/users/components/student-form-drawer";
+import { StudentImportModal } from "@/modules/users/components/student-import-modal";
 import { paginationItemRender } from "@/shared/constants/antd.constant";
 
 export type StudentRow = Student & {

@@ -7,8 +7,8 @@ import { Magnifier } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { StatusTag } from "@/shared/components/ui/status-tag";
 import { formatDate } from "@/shared/libs/date.lib";
-import { formatPoint, WARNING_LEVEL, WARNING_STATUS } from "../grades.constant";
-import type { AcademicWarning, WarningStatus } from "../grades.type";
+import { formatPoint, WARNING_LEVEL, WARNING_STATUS } from "@/modules/grades/grades.constant";
+import type { AcademicWarning, WarningStatus } from "@/modules/grades/grades.type";
 import { paginationItemRender } from "@/shared/constants/antd.constant";
 
 type AcademicWarningTableProps = {

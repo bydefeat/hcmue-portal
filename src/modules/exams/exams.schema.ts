@@ -1,10 +1,10 @@
 import { sql } from "drizzle-orm";
 import { check, date, index, pgEnum, pgTable, primaryKey, smallint, text, time, timestamp, unique, uuid } from "drizzle-orm/pg-core";
-import { createdAt, primaryId, timestamps } from "../../shared/libs/db-column.lib";
-import { user } from "../authentication/authentication.schema";
-import { classSections, enrollments, terms } from "../course-registration/course-registration.schema";
-import { rooms } from "../facilities/facilities.schema";
-import { lecturers } from "../users/users.schema";
+import { createdAt, primaryId, timestamps } from "@/shared/libs/db-column.lib";
+import { user } from "@/modules/authentication/authentication.schema";
+import { classSections, enrollments, terms } from "@/modules/course-registration/course-registration.schema";
+import { rooms } from "@/modules/facilities/facilities.schema";
+import { lecturers } from "@/modules/users/users.schema";
 
 export const examKindEnum = pgEnum("exam_kind", ["midterm", "final"]);
 export const examFormatEnum = pgEnum("exam_format", ["written", "multiple-choice", "practical", "oral", "project"]);

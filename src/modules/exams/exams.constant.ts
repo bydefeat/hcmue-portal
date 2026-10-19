@@ -1,5 +1,5 @@
 import type { StatusMeta } from "@/shared/constants/status.constant";
-import type { ExamConflict, ExamFormat, ExamKind, ExamPaperStatus, ExamSession, ExamSessionStatus } from "./exams.type";
+import type { ExamConflict, ExamFormat, ExamKind, ExamPaperStatus, ExamSession, ExamSessionStatus } from "@/modules/exams/exams.type";
 
 export const EXAM_KIND_LABEL: Record<ExamKind, string> = {
   midterm: "Giữa kỳ",

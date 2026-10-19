@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Badge, Button, Popover } from "antd";
 import { Bell } from "defeat-icons-react";
 import { formatRelative } from "@/shared/libs/date.lib";
-import { EmptyState } from "./empty-state";
+import { EmptyState } from "@/shared/components/ui/empty-state";
 
 export type BellItem = {
   id: string;

@@ -1,9 +1,9 @@
 import { sql } from "drizzle-orm";
 import { check, index, integer, jsonb, pgEnum, pgTable, smallint, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
-import { createdAt, primaryId } from "../../shared/libs/db-column.lib";
-import { user } from "../authentication/authentication.schema";
-import { faculties } from "../curriculum/curriculum.schema";
-import { lecturers, students } from "../users/users.schema";
+import { createdAt, primaryId } from "@/shared/libs/db-column.lib";
+import { user } from "@/modules/authentication/authentication.schema";
+import { faculties } from "@/modules/curriculum/curriculum.schema";
+import { lecturers, students } from "@/modules/users/users.schema";
 
 export const requestKindEnum = pgEnum("request_kind", [
   "overload",

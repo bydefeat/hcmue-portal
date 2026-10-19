@@ -1,6 +1,6 @@
 import { mockDate } from "@/shared/libs/mock.lib";
-import { ALL_PERMISSIONS } from "./access.constant";
-import type { Permission, Role, RoleAssignment } from "./access.type";
+import { ALL_PERMISSIONS } from "@/modules/access/access.constant";
+import type { Permission, Role, RoleAssignment } from "@/modules/access/access.type";
 
 const without = (...excluded: Permission[]) => ALL_PERMISSIONS.filter((permission) => !excluded.includes(permission));
 

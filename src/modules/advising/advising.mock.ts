@@ -1,5 +1,5 @@
 import { mockDate, mockLecturerIdentity, mockStudentIdentity } from "@/shared/libs/mock.lib";
-import type { Appointment, AppointmentStudent, MeetingNote } from "./advising.type";
+import type { Appointment, AppointmentStudent, MeetingNote } from "@/modules/advising/advising.type";
 
 const ADVISOR = mockLecturerIdentity(0);
 

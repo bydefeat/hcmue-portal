@@ -1,4 +1,4 @@
-import type { Permission, Viewer } from "./access.type";
+import type { Permission, Viewer } from "@/modules/access/access.type";
 
 export const DEMO_ROLE_COOKIE = "hcmue-demo-admin-role";
 

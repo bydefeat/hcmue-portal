@@ -1,7 +1,7 @@
 import { dayjs } from "@/shared/libs/date.lib";
 import { mockDate } from "@/shared/libs/mock.lib";
-import { PRICE_PER_CREDIT, TEACHER_TRAINING_PRICE } from "./tuition.constant";
-import type { CourseCharge, TuitionInvoice } from "./tuition.type";
+import { PRICE_PER_CREDIT, TEACHER_TRAINING_PRICE } from "@/modules/tuition/tuition.constant";
+import type { CourseCharge, TuitionInvoice } from "@/modules/tuition/tuition.type";
 
 const HEALTH_INSURANCE = 1_263_600;
 

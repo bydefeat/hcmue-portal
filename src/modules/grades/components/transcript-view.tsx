@@ -2,8 +2,8 @@
 
 import { Collapse, Table, type TableColumnsType } from "antd";
 import { EmptyState } from "@/shared/components/ui/empty-state";
-import { formatPoint } from "../grades.constant";
-import type { TranscriptCourse, TranscriptTerm } from "../grades.type";
+import { formatPoint } from "@/modules/grades/grades.constant";
+import type { TranscriptCourse, TranscriptTerm } from "@/modules/grades/grades.type";
 
 const COLUMNS: TableColumnsType<TranscriptCourse> = [
   { title: "Mã HP", dataIndex: "courseCode", width: 110, render: (code: string) => <span className="text-xs">{code}</span> },

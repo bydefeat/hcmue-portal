@@ -5,8 +5,8 @@ import { Button, Card, message, Modal, Segmented, Table, type TableColumnsType }
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { MeterBar } from "@/shared/components/ui/meter-bar";
 import { StatusTag } from "@/shared/components/ui/status-tag";
-import { CLASS_SECTION_STATUS, meetingText } from "../course-registration.constant";
-import type { ClassSectionView } from "../course-registration.type";
+import { CLASS_SECTION_STATUS, meetingText } from "@/modules/course-registration/course-registration.constant";
+import type { ClassSectionView } from "@/modules/course-registration/course-registration.type";
 
 export const MIN_CLASS_SIZE = 15;
 const NEAR_FULL_RATIO = 0.9;

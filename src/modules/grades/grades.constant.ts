@@ -1,5 +1,5 @@
 import type { StatusMeta } from "@/shared/constants/status.constant";
-import type { AcademicStanding, GradeComponent, GradeSheetState, LetterGrade, WarningStatus } from "./grades.type";
+import type { AcademicStanding, GradeComponent, GradeSheetState, LetterGrade, WarningStatus } from "@/modules/grades/grades.type";
 
 export const LETTER_SCALE: { min: number; letter: LetterGrade; point4: number }[] = [
   { min: 8.5, letter: "A", point4: 4 },

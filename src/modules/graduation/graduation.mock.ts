@@ -1,5 +1,5 @@
 import { createRandom, pickOne } from "@/shared/libs/mock.lib";
-import type { GraduationExtras } from "./graduation.type";
+import type { GraduationExtras } from "@/modules/graduation/graduation.type";
 
 const LANGUAGE = ["VSTEP B1", "IELTS 5.5", "TOEIC 550", "VSTEP B2", "IELTS 6.5"];
 const IT = ["Ứng dụng CNTT cơ bản", "MOS Word và Excel", "IC3"];

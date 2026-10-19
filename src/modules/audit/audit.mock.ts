@@ -1,5 +1,5 @@
 import { mockDate } from "@/shared/libs/mock.lib";
-import type { AuditAction, AuditChange, AuditEntityType, AuditEntry } from "./audit.type";
+import type { AuditAction, AuditChange, AuditEntityType, AuditEntry } from "@/modules/audit/audit.type";
 
 type Seed = [daysAgo: number, time: string, actor: string, role: string, action: AuditAction, entity: AuditEntityType, entityId: string, label: string, summary: string, changes?: AuditChange[]];
 

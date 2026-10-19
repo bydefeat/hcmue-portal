@@ -1,8 +1,8 @@
 import { CircleCheck, CircleDashed, CircleXmark, Clock } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { MeterBar } from "@/shared/components/ui/meter-bar";
-import { COURSE_TYPE_LABEL, KNOWLEDGE_BLOCK_LABEL } from "../curriculum.constant";
-import type { KnowledgeBlock, ProgramDetail } from "../curriculum.type";
+import { COURSE_TYPE_LABEL, KNOWLEDGE_BLOCK_LABEL } from "@/modules/curriculum/curriculum.constant";
+import type { KnowledgeBlock, ProgramDetail } from "@/modules/curriculum/curriculum.type";
 import { SectionCard } from "@/shared/components/ui/section-card";
 
 export type CourseProgress = {

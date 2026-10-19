@@ -1,7 +1,7 @@
 import { mockDelay } from "@/shared/libs/mock-request.lib";
-import { invoiceView } from "./tuition.constant";
-import { buildInvoice } from "./tuition.mock";
-import type { CourseCharge } from "./tuition.type";
+import { invoiceView } from "@/modules/tuition/tuition.constant";
+import { buildInvoice } from "@/modules/tuition/tuition.mock";
+import type { CourseCharge } from "@/modules/tuition/tuition.type";
 
 export async function getInvoices(params: {
   majorCode: string;

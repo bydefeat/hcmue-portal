@@ -1,7 +1,7 @@
 import { mockDelay } from "@/shared/libs/mock-request.lib";
-import { KNOWLEDGE_BLOCK_LABEL } from "./curriculum.constant";
-import { COURSES, PROGRAM_COURSES, PROGRAMS } from "./curriculum.mock";
-import type { KnowledgeBlock, ProgramDetail, ProgramSummary } from "./curriculum.type";
+import { KNOWLEDGE_BLOCK_LABEL } from "@/modules/curriculum/curriculum.constant";
+import { COURSES, PROGRAM_COURSES, PROGRAMS } from "@/modules/curriculum/curriculum.mock";
+import type { KnowledgeBlock, ProgramDetail, ProgramSummary } from "@/modules/curriculum/curriculum.type";
 
 export async function getCourses() {
   await mockDelay();

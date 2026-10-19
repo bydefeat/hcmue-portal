@@ -1,8 +1,8 @@
 import { sql } from "drizzle-orm";
 import { check, index, inet, jsonb, pgEnum, pgTable, text, uuid } from "drizzle-orm/pg-core";
-import { createdAt, primaryId } from "../../shared/libs/db-column.lib";
-import { user } from "../authentication/authentication.schema";
-import type { AuditChange } from "./audit.type";
+import { createdAt, primaryId } from "@/shared/libs/db-column.lib";
+import { user } from "@/modules/authentication/authentication.schema";
+import type { AuditChange } from "@/modules/audit/audit.type";
 
 export const auditActionEnum = pgEnum("audit_action", ["create", "update", "delete", "approve", "reject", "publish", "lock", "assign", "export", "sign-in", "permission"]);
 export const auditEntityTypeEnum = pgEnum("audit_entity_type", [

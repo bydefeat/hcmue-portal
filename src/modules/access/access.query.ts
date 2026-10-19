@@ -1,9 +1,9 @@
 import { cookies } from "next/headers";
 import { forbidden } from "next/navigation";
 import { mockDelay } from "@/shared/libs/mock-request.lib";
-import { can, DEMO_ROLE_COOKIE } from "./access.constant";
-import { DEFAULT_DEMO_ASSIGNMENT_ID, ROLE_ASSIGNMENTS, ROLES } from "./access.mock";
-import type { Permission, Viewer } from "./access.type";
+import { can, DEMO_ROLE_COOKIE } from "@/modules/access/access.constant";
+import { DEFAULT_DEMO_ASSIGNMENT_ID, ROLE_ASSIGNMENTS, ROLES } from "@/modules/access/access.mock";
+import type { Permission, Viewer } from "@/modules/access/access.type";
 
 export async function getRoles() {
   await mockDelay();

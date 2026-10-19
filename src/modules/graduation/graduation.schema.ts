@@ -1,8 +1,8 @@
 import { sql } from "drizzle-orm";
 import { check, pgEnum, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
-import { primaryId, timestamps } from "../../shared/libs/db-column.lib";
-import { user } from "../authentication/authentication.schema";
-import { studentDecisions, students } from "../users/users.schema";
+import { primaryId, timestamps } from "@/shared/libs/db-column.lib";
+import { user } from "@/modules/authentication/authentication.schema";
+import { studentDecisions, students } from "@/modules/users/users.schema";
 
 export const graduationRecordStatusEnum = pgEnum("graduation_record_status", ["pending", "approved", "graduated"]);
 

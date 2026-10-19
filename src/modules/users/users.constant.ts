@@ -1,6 +1,6 @@
 import type { StatusMeta } from "@/shared/constants/status.constant";
 import { MOCK_COHORTS, MOCK_MAJORS } from "@/shared/libs/mock.lib";
-import type { DecisionKind, DecisionStatus, LecturerStatus, StudentStatus } from "./users.type";
+import type { DecisionKind, DecisionStatus, LecturerStatus, StudentStatus } from "@/modules/users/users.type";
 
 export const STUDENT_STATUS: Record<StudentStatus, StatusMeta> = {
   studying: { label: "Đang học", tone: "neutral" },

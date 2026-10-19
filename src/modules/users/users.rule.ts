@@ -1,5 +1,5 @@
 import { MOCK_COHORTS, MOCK_MAJORS } from "@/shared/libs/mock.lib";
-import type { StudentFormValues } from "./users.type";
+import type { StudentFormValues } from "@/modules/users/users.type";
 
 export const IMPORT_COLUMNS = ["Mã sinh viên", "Họ và tên", "Giới tính", "Ngày sinh", "Email", "Điện thoại", "Mã ngành", "Khóa", "Lớp"] as const;
 

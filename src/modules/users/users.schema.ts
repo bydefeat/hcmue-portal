@@ -1,8 +1,8 @@
 import { sql } from "drizzle-orm";
 import { check, date, index, pgEnum, pgTable, smallint, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
-import { primaryId, timestamps } from "../../shared/libs/db-column.lib";
-import { user } from "../authentication/authentication.schema";
-import { faculties, majors } from "../curriculum/curriculum.schema";
+import { primaryId, timestamps } from "@/shared/libs/db-column.lib";
+import { user } from "@/modules/authentication/authentication.schema";
+import { faculties, majors } from "@/modules/curriculum/curriculum.schema";
 
 export const genderEnum = pgEnum("gender", ["female", "male"]);
 export const studentStatusEnum = pgEnum("student_status", ["studying", "reserved", "suspended", "graduated"]);

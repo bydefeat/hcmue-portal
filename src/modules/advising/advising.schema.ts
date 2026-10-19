@@ -1,7 +1,7 @@
 import { sql } from "drizzle-orm";
 import { check, date, index, pgEnum, pgTable, primaryKey, smallint, text, time, timestamp, uuid } from "drizzle-orm/pg-core";
-import { primaryId, timestamps } from "../../shared/libs/db-column.lib";
-import { lecturers, students } from "../users/users.schema";
+import { primaryId, timestamps } from "@/shared/libs/db-column.lib";
+import { lecturers, students } from "@/modules/users/users.schema";
 
 export const appointmentModeEnum = pgEnum("appointment_mode", ["in-person", "online"]);
 export const appointmentStatusEnum = pgEnum("appointment_status", ["scheduled", "done", "missed", "cancelled"]);

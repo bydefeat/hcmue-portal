@@ -5,7 +5,7 @@ import { Button, Drawer, Form, Input, message, Modal, Select, Table, type TableC
 import { Magnifier, Plus } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { dayjs, formatDate } from "@/shared/libs/date.lib";
-import type { Role, RoleAssignment } from "../access.type";
+import type { Role, RoleAssignment } from "@/modules/access/access.type";
 import { paginationItemRender } from "@/shared/constants/antd.constant";
 
 type RoleAssignmentTableProps = {

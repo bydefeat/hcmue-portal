@@ -13,9 +13,9 @@ import {
   ANNOUNCEMENT_CATEGORY_OPTIONS,
   ANNOUNCEMENT_STATUS,
   ANNOUNCEMENT_STATUS_OPTIONS,
-} from "../announcements.constant";
-import type { Announcement, AnnouncementFormValues, AnnouncementStatus } from "../announcements.type";
-import { AnnouncementFormDrawer } from "./announcement-form-drawer";
+} from "@/modules/announcements/announcements.constant";
+import type { Announcement, AnnouncementFormValues, AnnouncementStatus } from "@/modules/announcements/announcements.type";
+import { AnnouncementFormDrawer } from "@/modules/announcements/components/announcement-form-drawer";
 import { paginationItemRender } from "@/shared/constants/antd.constant";
 
 function normalize(value: string) {

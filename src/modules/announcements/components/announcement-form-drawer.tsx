@@ -3,8 +3,8 @@
 import { useEffect } from "react";
 import { Button, Checkbox, DatePicker, Drawer, Form, Input, Radio, Select } from "antd";
 import { dayjs } from "@/shared/libs/date.lib";
-import { ANNOUNCEMENT_AUDIENCES, ANNOUNCEMENT_CATEGORY_OPTIONS } from "../announcements.constant";
-import type { Announcement, AnnouncementFormValues } from "../announcements.type";
+import { ANNOUNCEMENT_AUDIENCES, ANNOUNCEMENT_CATEGORY_OPTIONS } from "@/modules/announcements/announcements.constant";
+import type { Announcement, AnnouncementFormValues } from "@/modules/announcements/announcements.type";
 
 type FormShape = Omit<AnnouncementFormValues, "deadline" | "publishedAt"> & {
   deadline?: dayjs.Dayjs;

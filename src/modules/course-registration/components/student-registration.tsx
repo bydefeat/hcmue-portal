@@ -9,7 +9,7 @@ import { MeterBar } from "@/shared/components/ui/meter-bar";
 import { SectionCard } from "@/shared/components/ui/section-card";
 import { StatusTag } from "@/shared/components/ui/status-tag";
 import { formatDateTime } from "@/shared/libs/date.lib";
-import { HOLD_KIND_LABEL, meetingText, REGISTRATION_PERIOD_STATE } from "../course-registration.constant";
+import { HOLD_KIND_LABEL, meetingText, REGISTRATION_PERIOD_STATE } from "@/modules/course-registration/course-registration.constant";
 import {
   basketProblems,
   blockingHolds,
@@ -18,11 +18,11 @@ import {
   sectionCredits,
   type RegistrationIssue,
   type RegistrationStudent,
-} from "../course-registration.rule";
-import type { ClassSectionView, RegistrationHold, RegistrationPeriodState, RegistrationPeriodView } from "../course-registration.type";
-import { LabGroupPicker } from "./lab-group-picker";
-import { RegistrationQueueModal } from "./registration-queue-modal";
-import { PeriodCountdown } from "./student-period-countdown";
+} from "@/modules/course-registration/course-registration.rule";
+import type { ClassSectionView, RegistrationHold, RegistrationPeriodState, RegistrationPeriodView } from "@/modules/course-registration/course-registration.type";
+import { LabGroupPicker } from "@/modules/course-registration/components/lab-group-picker";
+import { RegistrationQueueModal } from "@/modules/course-registration/components/registration-queue-modal";
+import { PeriodCountdown } from "@/modules/course-registration/components/student-period-countdown";
 
 type StudentRegistrationProps = {
   sections: ClassSectionView[];

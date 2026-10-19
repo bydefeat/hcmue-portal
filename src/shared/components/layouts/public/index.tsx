@@ -3,8 +3,8 @@
 import { Layout } from "antd";
 import { MobileNavigation } from "@/shared/components/ui/mobile-navigation";
 import { PUBLIC_NAVIGATION, PUBLIC_SIGN_IN_HREF } from "@/shared/constants/navigation.constant";
-import { PublicFooter } from "./footer";
-import { PublicHeader } from "./header";
+import { PublicFooter } from "@/shared/components/layouts/public/footer";
+import { PublicHeader } from "@/shared/components/layouts/public/header";
 
 const MOBILE_SECTIONS = [{ items: PUBLIC_NAVIGATION }];
 const SIGN_IN_ACTION = { label: "Đăng nhập", href: PUBLIC_SIGN_IN_HREF };

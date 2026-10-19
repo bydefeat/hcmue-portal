@@ -5,8 +5,8 @@ import { Button, Card, Divider, Drawer, Form, Input, InputNumber, Select } from 
 import { Plus, Trash } from "defeat-icons-react";
 import { PERIODS, WEEKDAYS } from "@/shared/constants/period.constant";
 import { MOCK_COHORTS, MOCK_MAJORS } from "@/shared/libs/mock.lib";
-import { CLASS_SECTION_STATUS_OPTIONS, ROOMS } from "../course-registration.constant";
-import type { ClassSectionFormValues, ClassSectionView } from "../course-registration.type";
+import { CLASS_SECTION_STATUS_OPTIONS, ROOMS } from "@/modules/course-registration/course-registration.constant";
+import type { ClassSectionFormValues, ClassSectionView } from "@/modules/course-registration/course-registration.type";
 
 export type SectionCourseOption = { code: string; name: string; credits: number; faculty: string };
 export type SectionLecturerOption = { id: string; displayName: string; faculty: string };

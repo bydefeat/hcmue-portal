@@ -2,8 +2,8 @@ import { Avatar, Descriptions } from "antd";
 import { SectionCard } from "@/shared/components/ui/section-card";
 import { StatusTag } from "@/shared/components/ui/status-tag";
 import { formatDate } from "@/shared/libs/date.lib";
-import { GENDER_LABEL, STUDENT_STATUS } from "../users.constant";
-import type { Student } from "../users.type";
+import { GENDER_LABEL, STUDENT_STATUS } from "@/modules/users/users.constant";
+import type { Student } from "@/modules/users/users.type";
 
 type StudentProfileCardProps = {
   student: Student;

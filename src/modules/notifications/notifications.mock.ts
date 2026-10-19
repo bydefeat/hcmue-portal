@@ -1,5 +1,5 @@
 import { mockDate } from "@/shared/libs/mock.lib";
-import type { AppNotification } from "./notifications.type";
+import type { AppNotification } from "@/modules/notifications/notifications.type";
 
 export const NOTIFICATIONS: AppNotification[] = [
   { id: "nt-a01", audience: "administrator", kind: "deadline", title: "Đợt 1 đăng ký học kỳ 2 đóng sau 24 giờ", body: "Còn 81 sinh viên khóa 48, 49 chưa đăng ký học phần nào.", href: "/administrator/registration-monitor", createdAt: mockDate(-1, "17:30"), isRead: false },

@@ -1,6 +1,6 @@
 import type { StatusMeta } from "@/shared/constants/status.constant";
 import { dayjs } from "@/shared/libs/date.lib";
-import type { AcademicRequest, RequestKind, RequestKindConfig, RequestStatus, RequestView, StepRole, StepStatus } from "./requests.type";
+import type { AcademicRequest, RequestKind, RequestKindConfig, RequestStatus, RequestView, StepRole, StepStatus } from "@/modules/requests/requests.type";
 
 export const STEP_ROLE_LABEL: Record<StepRole, string> = {
   advisor: "Cố vấn học tập",

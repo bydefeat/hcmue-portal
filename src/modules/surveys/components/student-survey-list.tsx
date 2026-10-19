@@ -6,8 +6,8 @@ import { CircleCheck } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { MeterBar } from "@/shared/components/ui/meter-bar";
 import { dayjs, formatDateTime } from "@/shared/libs/date.lib";
-import type { StudentSurveyTask, Survey } from "../surveys.type";
-import { SurveyForm } from "./survey-form";
+import type { StudentSurveyTask, Survey } from "@/modules/surveys/surveys.type";
+import { SurveyForm } from "@/modules/surveys/components/survey-form";
 import { SectionCard } from "@/shared/components/ui/section-card";
 
 export function StudentSurveyList({ survey, tasks }: { survey: Survey; tasks: StudentSurveyTask[] }) {

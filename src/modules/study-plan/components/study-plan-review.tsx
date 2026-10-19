@@ -6,8 +6,8 @@ import { Magnifier } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { StatusTag } from "@/shared/components/ui/status-tag";
 import { dayjs, formatDateTime } from "@/shared/libs/date.lib";
-import { PENDING_TOO_LONG_DAYS, STUDY_PLAN_CREDIT_LIMIT, STUDY_PLAN_STATUS } from "../study-plan.constant";
-import type { StudyPlan, StudyPlanStatus } from "../study-plan.type";
+import { PENDING_TOO_LONG_DAYS, STUDY_PLAN_CREDIT_LIMIT, STUDY_PLAN_STATUS } from "@/modules/study-plan/study-plan.constant";
+import type { StudyPlan, StudyPlanStatus } from "@/modules/study-plan/study-plan.type";
 import { paginationItemRender } from "@/shared/constants/antd.constant";
 
 const STATUS_ORDER: Record<StudyPlanStatus, number> = { pending: 0, returned: 1, draft: 2, approved: 3 };

@@ -1,9 +1,9 @@
 import { sql } from "drizzle-orm";
 import { boolean, check, date, index, numeric, pgTable, smallint, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
-import { primaryId, timestamps } from "../../shared/libs/db-column.lib";
-import { terms } from "../course-registration/course-registration.schema";
-import { majors } from "../curriculum/curriculum.schema";
-import { students } from "../users/users.schema";
+import { primaryId, timestamps } from "@/shared/libs/db-column.lib";
+import { terms } from "@/modules/course-registration/course-registration.schema";
+import { majors } from "@/modules/curriculum/curriculum.schema";
+import { students } from "@/modules/users/users.schema";
 
 const money = () => numeric({ precision: 14, scale: 0, mode: "number" });
 

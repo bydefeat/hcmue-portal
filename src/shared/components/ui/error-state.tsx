@@ -1,7 +1,7 @@
 "use client";
 
 import { Button, Card, Result } from "antd";
-import { Illustration } from "./illustration";
+import { Illustration } from "@/shared/components/ui/illustration";
 
 export function errorDigest(error: unknown) {
   return typeof error === "object" && error !== null && "digest" in error && error.digest ? String(error.digest) : undefined;

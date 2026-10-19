@@ -6,7 +6,7 @@ import { StatusTag } from "@/shared/components/ui/status-tag";
 import { periodLabel, periodTimeRange, weekdayLabel } from "@/shared/constants/period.constant";
 import type { StatusMeta } from "@/shared/constants/status.constant";
 import { weekdayOf } from "@/shared/libs/date.lib";
-import type { ClassSectionView } from "../course-registration.type";
+import type { ClassSectionView } from "@/modules/course-registration/course-registration.type";
 
 export type LecturerClassItem = {
   section: ClassSectionView;

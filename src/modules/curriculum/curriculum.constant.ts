@@ -1,5 +1,5 @@
 import type { StatusMeta } from "@/shared/constants/status.constant";
-import type { CourseType, KnowledgeBlock, ProgramStatus } from "./curriculum.type";
+import type { CourseType, KnowledgeBlock, ProgramStatus } from "@/modules/curriculum/curriculum.type";
 
 export const PROGRAM_STATUS: Record<ProgramStatus, StatusMeta> = {
   active: { label: "Đang áp dụng", tone: "neutral" },

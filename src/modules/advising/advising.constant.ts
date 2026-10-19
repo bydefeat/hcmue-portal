@@ -1,5 +1,5 @@
 import type { StatusMeta } from "@/shared/constants/status.constant";
-import type { AppointmentMode, AppointmentStatus } from "./advising.type";
+import type { AppointmentMode, AppointmentStatus } from "@/modules/advising/advising.type";
 
 export const APPOINTMENT_STATUS: Record<AppointmentStatus, StatusMeta> = {
   scheduled: { label: "Đã hẹn", tone: "neutral" },

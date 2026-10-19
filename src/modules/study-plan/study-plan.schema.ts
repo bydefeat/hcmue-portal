@@ -1,8 +1,8 @@
 import { sql } from "drizzle-orm";
 import { boolean, check, index, pgEnum, pgTable, primaryKey, smallint, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
-import { primaryId, timestamps } from "../../shared/libs/db-column.lib";
-import { courses } from "../curriculum/curriculum.schema";
-import { lecturers, students } from "../users/users.schema";
+import { primaryId, timestamps } from "@/shared/libs/db-column.lib";
+import { courses } from "@/modules/curriculum/curriculum.schema";
+import { lecturers, students } from "@/modules/users/users.schema";
 
 export const studyPlanStatusEnum = pgEnum("study_plan_status", ["draft", "pending", "approved", "returned"]);
 

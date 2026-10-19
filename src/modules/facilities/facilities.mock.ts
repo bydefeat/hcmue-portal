@@ -1,4 +1,4 @@
-import type { Campus, Room } from "./facilities.type";
+import type { Campus, Room } from "@/modules/facilities/facilities.type";
 
 export const CAMPUSES: Campus[] = [
   { id: "adv", name: "Cơ sở An Dương Vương", address: "280 An Dương Vương, Phường Chợ Quán, TP. Hồ Chí Minh" },

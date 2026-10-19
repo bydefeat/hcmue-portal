@@ -5,7 +5,7 @@ import type { Dayjs } from "dayjs";
 import { DatePicker, Form, Input, InputNumber, Modal, Select } from "antd";
 import { dayjs } from "@/shared/libs/date.lib";
 import { MOCK_COHORTS } from "@/shared/libs/mock.lib";
-import type { RegistrationPeriod } from "../course-registration.type";
+import type { RegistrationPeriod } from "@/modules/course-registration/course-registration.type";
 
 export type PeriodFormResult = {
   name: string;

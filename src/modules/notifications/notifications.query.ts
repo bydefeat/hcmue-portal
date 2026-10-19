@@ -1,6 +1,6 @@
 import { mockDelay } from "@/shared/libs/mock-request.lib";
-import { NOTIFICATIONS } from "./notifications.mock";
-import type { NotificationAudience } from "./notifications.type";
+import { NOTIFICATIONS } from "@/modules/notifications/notifications.mock";
+import type { NotificationAudience } from "@/modules/notifications/notifications.type";
 
 export async function getNotifications(audience: NotificationAudience) {
   await mockDelay();

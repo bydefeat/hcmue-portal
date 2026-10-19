@@ -1,5 +1,5 @@
 import { mockDelay } from "@/shared/libs/mock-request.lib";
-import { APPOINTMENTS, MEETING_NOTES } from "./advising.mock";
+import { APPOINTMENTS, MEETING_NOTES } from "@/modules/advising/advising.mock";
 
 export async function getAppointments(advisorId: string) {
   await mockDelay();

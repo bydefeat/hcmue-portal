@@ -3,8 +3,8 @@
 import { Steps } from "antd";
 import { StatusTag } from "@/shared/components/ui/status-tag";
 import { formatDateTime } from "@/shared/libs/date.lib";
-import { STEP_STATUS } from "../requests.constant";
-import type { ApprovalStep, StepStatus } from "../requests.type";
+import { STEP_STATUS } from "@/modules/requests/requests.constant";
+import type { ApprovalStep, StepStatus } from "@/modules/requests/requests.type";
 
 const STEP_STATE: Record<StepStatus, "wait" | "process" | "finish" | "error"> = {
   waiting: "wait",

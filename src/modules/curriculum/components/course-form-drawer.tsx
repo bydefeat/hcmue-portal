@@ -2,8 +2,8 @@
 
 import { useEffect } from "react";
 import { Button, Drawer, Form, Input, InputNumber, Select, Switch } from "antd";
-import { COURSE_TYPE_OPTIONS, KNOWLEDGE_BLOCK_OPTIONS } from "../curriculum.constant";
-import type { Course, CourseFormValues } from "../curriculum.type";
+import { COURSE_TYPE_OPTIONS, KNOWLEDGE_BLOCK_OPTIONS } from "@/modules/curriculum/curriculum.constant";
+import type { Course, CourseFormValues } from "@/modules/curriculum/curriculum.type";
 
 type CourseFormDrawerProps = {
   open: boolean;

@@ -1,5 +1,5 @@
-import { GRADUATION_CLASSIFICATION, GRADUATION_MIN_CPA } from "./graduation.constant";
-import type { GraduationCandidate, GraduationCheck, GraduationInput } from "./graduation.type";
+import { GRADUATION_CLASSIFICATION, GRADUATION_MIN_CPA } from "@/modules/graduation/graduation.constant";
+import type { GraduationCandidate, GraduationCheck, GraduationInput } from "@/modules/graduation/graduation.type";
 
 function point(value: number) {
   return value.toFixed(2).replace(".", ",");

@@ -1,9 +1,9 @@
 import { sql } from "drizzle-orm";
 import { check, date, index, integer, jsonb, pgEnum, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
-import { createdAt, primaryId, timestamps } from "../../shared/libs/db-column.lib";
-import { user } from "../authentication/authentication.schema";
-import { terms } from "../course-registration/course-registration.schema";
-import type { RegulationSettings } from "./settings.type";
+import { createdAt, primaryId, timestamps } from "@/shared/libs/db-column.lib";
+import { user } from "@/modules/authentication/authentication.schema";
+import { terms } from "@/modules/course-registration/course-registration.schema";
+import type { RegulationSettings } from "@/modules/settings/settings.type";
 
 export type RegulationRules = Pick<RegulationSettings, "grading" | "credits" | "warning" | "attendance" | "workflow">;
 

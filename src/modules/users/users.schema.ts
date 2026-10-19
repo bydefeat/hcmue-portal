@@ -1,0 +1,107 @@
+import { sql } from "drizzle-orm";
+import { check, date, index, pgEnum, pgTable, smallint, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import { primaryId, timestamps } from "../../shared/libs/db-column.lib";
+import { user } from "../authentication/authentication.schema";
+import { faculties, majors } from "../curriculum/curriculum.schema";
+
+export const genderEnum = pgEnum("gender", ["female", "male"]);
+export const studentStatusEnum = pgEnum("student_status", ["studying", "reserved", "suspended", "graduated"]);
+export const lecturerStatusEnum = pgEnum("lecturer_status", ["active", "on-leave"]);
+export const decisionKindEnum = pgEnum("decision_kind", ["reserve", "resume", "suspend", "expel", "major-change", "reward", "discipline", "graduate"]);
+export const decisionStatusEnum = pgEnum("decision_status", ["draft", "pending-signature", "signed", "revoked"]);
+
+export const lecturers = pgTable(
+  "lecturers",
+  {
+    id: primaryId(),
+    userId: uuid()
+      .unique()
+      .references(() => user.id, { onDelete: "set null" }),
+    code: text().notNull().unique(),
+    fullName: text().notNull(),
+    title: text().notNull(),
+    gender: genderEnum().notNull(),
+    facultyId: uuid()
+      .notNull()
+      .references(() => faculties.id, { onDelete: "restrict" }),
+    email: text().notNull().unique(),
+    phone: text().notNull().default(""),
+    status: lecturerStatusEnum().notNull().default("active"),
+    ...timestamps(),
+  },
+  (table) => [index().on(table.facultyId)],
+);
+
+export const staffMembers = pgTable("staff_members", {
+  id: primaryId(),
+  userId: uuid()
+    .unique()
+    .references(() => user.id, { onDelete: "set null" }),
+  code: text().notNull().unique(),
+  fullName: text().notNull(),
+  unit: text().notNull(),
+  email: text().notNull().unique(),
+  ...timestamps(),
+});
+
+export const administrativeClasses = pgTable(
+  "administrative_classes",
+  {
+    id: primaryId(),
+    code: text().notNull().unique(),
+    majorId: uuid()
+      .notNull()
+      .references(() => majors.id, { onDelete: "restrict" }),
+    cohort: smallint().notNull(),
+    advisorId: uuid().references(() => lecturers.id, { onDelete: "set null" }),
+    ...timestamps(),
+  },
+  (table) => [index().on(table.majorId, table.cohort), index().on(table.advisorId)],
+);
+
+export const students = pgTable(
+  "students",
+  {
+    id: primaryId(),
+    userId: uuid()
+      .unique()
+      .references(() => user.id, { onDelete: "set null" }),
+    code: text().notNull().unique(),
+    fullName: text().notNull(),
+    gender: genderEnum().notNull(),
+    dateOfBirth: date({ mode: "string" }).notNull(),
+    email: text().notNull().unique(),
+    phone: text().notNull().default(""),
+    hometown: text().notNull().default(""),
+    administrativeClassId: uuid()
+      .notNull()
+      .references(() => administrativeClasses.id, { onDelete: "restrict" }),
+    status: studentStatusEnum().notNull().default("studying"),
+    ...timestamps(),
+  },
+  (table) => [index().on(table.administrativeClassId), index().on(table.status)],
+);
+
+export const studentDecisions = pgTable(
+  "student_decisions",
+  {
+    id: primaryId(),
+    number: text(),
+    kind: decisionKindEnum().notNull(),
+    studentId: uuid()
+      .notNull()
+      .references(() => students.id, { onDelete: "restrict" }),
+    title: text().notNull(),
+    basis: text().notNull(),
+    effectiveDate: date({ mode: "string" }).notNull(),
+    status: decisionStatusEnum().notNull().default("draft"),
+    signedBy: text(),
+    signedAt: timestamp({ withTimezone: true }),
+    ...timestamps(),
+  },
+  (table) => [
+    uniqueIndex().on(table.number),
+    index().on(table.studentId),
+    check("student_decisions_signed_fields", sql`(${table.status} IN ('signed', 'revoked')) = (${table.number} IS NOT NULL AND ${table.signedAt} IS NOT NULL)`),
+  ],
+);

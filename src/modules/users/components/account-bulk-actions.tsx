@@ -20,7 +20,7 @@ export function AccountBulkActions({ kind, selectedIds, onUpdated }: AccountBulk
   const [messageApi, contextHolder] = message.useMessage();
   const [modal, modalContextHolder] = Modal.useModal();
   const [isPending, startTransition] = useTransition();
-  const noun = kind === "student" ? "sinh viên" : "giảng viên";
+  const noun = { student: "sinh viên", lecturer: "giảng viên", staff: "cán bộ" }[kind];
 
   const call = (action: AccountBatchAction) => {
     const input = { kind, ids: selectedIds };

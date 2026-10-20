@@ -6,6 +6,22 @@ export type LetterStep = {
   point4: number;
 };
 
+// Ngưỡng CPA (thang 4) thấp nhất của từng mức xếp loại học lực; dùng cho cả xếp loại tốt nghiệp (mức Trung bình trở lên mới tốt nghiệp).
+export type StandingThresholds = {
+  excellent: number;
+  veryGood: number;
+  good: number;
+  average: number;
+  weak: number;
+};
+
+export type CefrLevel = "A1" | "A2" | "B1" | "B2" | "C1" | "C2";
+
+// Mức kỷ luật sinh viên từ nhẹ đến nặng.
+export type DisciplineLevel = "reprimand" | "warning" | "suspension" | "expulsion";
+
+export type RankedStanding = "excellent" | "very-good" | "good" | "average";
+
 export type RegulationSettings = {
   version: string;
   effectiveFrom: string;
@@ -13,8 +29,9 @@ export type RegulationSettings = {
   updatedBy: string;
   grading: {
     scale: LetterStep[];
-    passScore: number;
-    roundingStep: number;
+    // Bước làm tròn điểm tổng kết học phần (thang 10): 0,1, 0,5 hoặc 1.
+    roundingStep: 0.1 | 0.5 | 1;
+    standing: StandingThresholds;
   };
   credits: {
     minPerTerm: number;
@@ -29,6 +46,8 @@ export type RegulationSettings = {
     level2Cpa: number;
     level2FailedCredits: number;
     level3Cpa: number;
+    // Số học kỳ chính liên tiếp bị cảnh báo thì đưa vào danh sách đề xuất xét buộc thôi học.
+    expelAfterWarnings: number;
   };
   attendance: {
     absenceLimitPercent: number;
@@ -39,6 +58,16 @@ export type RegulationSettings = {
     studyPlanReviewDays: number;
     regradeWindowDays: number;
     registrationClosingSoonHours: number;
+  };
+  graduation: {
+    // Khối lượng học lại vượt quá phần trăm này của tổng tín chỉ chương trình thì hạng tốt nghiệp bị giảm một mức.
+    retakeLimitPercent: number;
+    // Bị kỷ luật từ mức này trở lên trong thời gian học thì hạng tốt nghiệp bị giảm một mức.
+    downgradeDisciplineLevel: DisciplineLevel;
+    // Các hạng bị giảm khi vi phạm một trong hai điều kiện trên (thông lệ: Xuất sắc, Giỏi).
+    downgradeStandings: RankedStanding[];
+    languageMinLevel: CefrLevel;
+    requireItCertificate: boolean;
   };
 };
 

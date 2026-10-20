@@ -11,6 +11,7 @@ import { publishDueClassAnnouncements } from "@/modules/teaching/teaching.lib";
 import { sweepOrphanExamFiles } from "@/modules/exams/exams.lib";
 import { runRequestSlaJob, sweepOrphanRequestFiles } from "@/modules/requests/requests.lib";
 import { purgeReportExports } from "@/modules/settings/settings.lib";
+import { runDecisionEffectsJob } from "@/modules/users/users.decision";
 
 // Tác vụ định kỳ, gọi từ bộ hẹn giờ ngoài (crontab của máy chủ, Vercel Cron...): GET hoặc POST /api/cron/<tác vụ> với header
 // Authorization: Bearer <khóa>, khóa là DEFEAT_CRON_SECRET hoặc CRON_SECRET (Vercel Cron tự gửi CRON_SECRET bằng GET).
@@ -38,6 +39,8 @@ const JOBS: Record<string, () => Promise<Record<string, number>>> = {
   "report-exports": () => purgeReportExports(),
   // Xóa nhật ký thao tác cũ hơn DEFEAT_AUDIT_RETENTION_DAYS (mặc định 3 năm). Nên chạy mỗi tuần.
   "audit-cleanup": () => purgeOldAuditLogs(),
+  // Quyết định sinh viên đã ký trước ngày hiệu lực: tới ngày thì đổi tình trạng, lớp của sinh viên. Nên chạy mỗi ngày, sau 0 giờ.
+  "decision-effects": runDecisionEffectsJob,
 };
 
 function matches(given: Buffer, secret: string | undefined) {

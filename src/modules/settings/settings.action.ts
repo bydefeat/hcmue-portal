@@ -4,7 +4,7 @@ import { desc, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/shared/libs/db.lib";
 import { actionError, actionFailure, actionOk, parseInput, type ActionResult } from "@/shared/libs/action.lib";
-import { dayjs, formatDate, schoolTime } from "@/shared/libs/date.lib";
+import { formatDate, schoolTime, schoolToday } from "@/shared/libs/date.lib";
 import { bytesToBase64 } from "@/shared/libs/spreadsheet.lib";
 import { isUuid, newId } from "@/shared/libs/id.lib";
 import { newStorageKey, readFile, withStoredFiles } from "@/shared/libs/storage.lib";
@@ -39,7 +39,7 @@ export async function saveRegulation(input: RegulationSaveInput): Promise<Action
   const parsed = parseInput(REGULATION_SAVE_SCHEMA, input);
   if (!parsed.ok) return parsed;
   const { rules, decision, reason, effectiveFrom } = parsed.data;
-  if (effectiveFrom < dayjs().format("YYYY-MM-DD")) return actionError("Ngày áp dụng không được trước hôm nay.", { effectiveFrom: "Không được trước hôm nay" });
+  if (effectiveFrom < schoolToday()) return actionError("Ngày áp dụng không được trước hôm nay.", { effectiveFrom: "Không được trước hôm nay" });
   let outcome: "unchanged" | "saved";
   try {
     outcome = await db.transaction(async (tx) => {

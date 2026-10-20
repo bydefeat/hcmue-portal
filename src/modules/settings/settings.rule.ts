@@ -1,9 +1,21 @@
 import { z } from "zod";
 import type { AuditChange } from "@/modules/audit/audit.type";
 import { dayjs } from "@/shared/libs/date.lib";
-import { CALENDAR_TERM_MARGIN_DAYS, MANUAL_CALENDAR_EVENT_KINDS, REGULATION_FIELD_LABEL, REPORT_DEFINITIONS, REPORT_FORMATS } from "@/modules/settings/settings.constant";
+import {
+  CALENDAR_TERM_MARGIN_DAYS,
+  CEFR_LEVELS,
+  DISCIPLINE_LEVEL_LABEL,
+  DISCIPLINE_LEVELS,
+  MANUAL_CALENDAR_EVENT_KINDS,
+  RANKED_STANDING_LABEL,
+  REGULATION_FIELD_LABEL,
+  REPORT_DEFINITIONS,
+  REPORT_FORMATS,
+  ROUNDING_STEPS,
+  type RegulationFieldPath,
+} from "@/modules/settings/settings.constant";
 import type { RegulationRules } from "@/modules/settings/settings.schema";
-import type { ReportCell } from "@/modules/settings/settings.type";
+import type { CefrLevel, DisciplineLevel, RankedStanding, ReportCell } from "@/modules/settings/settings.type";
 
 const decimal = (min: number, max: number) => z.number("Chưa nhập").min(min, `Không nhỏ hơn ${min}`).max(max, `Không lớn hơn ${max}`);
 const whole = (min: number, max: number) => z.int("Phải là số nguyên").min(min, `Không nhỏ hơn ${min}`).max(max, `Không lớn hơn ${max}`);
@@ -14,7 +26,14 @@ const LETTER_STEP = z.object({
   point4: decimal(0, 4),
 });
 
-// Quy chế lưu jsonb nên phải kiểm đủ từng tham số ở đây; DB chỉ kiểm có đủ 5 nhóm (regulations_rules_object).
+const STANDING = z
+  .object({ excellent: decimal(0, 4), veryGood: decimal(0, 4), good: decimal(0, 4), average: decimal(0, 4), weak: decimal(0, 4) })
+  .refine((standing) => standing.excellent > standing.veryGood, { path: ["veryGood"], message: "Thấp hơn ngưỡng Xuất sắc" })
+  .refine((standing) => standing.veryGood > standing.good, { path: ["good"], message: "Thấp hơn ngưỡng Giỏi" })
+  .refine((standing) => standing.good > standing.average, { path: ["average"], message: "Thấp hơn ngưỡng Khá" })
+  .refine((standing) => standing.average > standing.weak, { path: ["weak"], message: "Thấp hơn ngưỡng Trung bình" });
+
+// Quy chế lưu jsonb nên phải kiểm đủ từng tham số ở đây; DB chỉ kiểm có đủ 6 nhóm (regulations_rules_object).
 export const REGULATION_RULES_SCHEMA = z.object({
   grading: z.object({
     scale: z
@@ -23,9 +42,11 @@ export const REGULATION_RULES_SCHEMA = z.object({
       .max(12, "Tối đa 12 mức")
       .refine((scale) => scale.every((step, index) => index === 0 || step.min < scale[index - 1].min), "Thang điểm chữ phải xếp ngưỡng giảm dần từ A đến F")
       .refine((scale) => scale.every((step, index) => index === 0 || step.point4 <= scale[index - 1].point4), "Điểm thang 4 không được tăng khi ngưỡng giảm")
-      .refine((scale) => scale.at(-1)?.min === 0, "Mức thấp nhất phải bắt đầu từ 0 điểm"),
-    passScore: decimal(0, 10),
-    roundingStep: decimal(0.1, 1),
+      .refine((scale) => scale.at(-1)?.min === 0 && scale.at(-1)?.letter === "F", "Mức thấp nhất phải là F, bắt đầu từ 0 điểm")
+      // Ngưỡng so với điểm tổng kết đã làm tròn một chữ số nên chỉ nhận tối đa một chữ số thập phân.
+      .refine((scale) => scale.every((step) => Number.isInteger(Math.round(step.min * 1000) / 100)), "Ngưỡng điểm chữ lấy tối đa một chữ số thập phân"),
+    roundingStep: z.literal([...ROUNDING_STEPS], "Chọn 0,1, 0,5 hoặc 1"),
+    standing: STANDING,
   }),
   credits: z
     .object({
@@ -40,10 +61,11 @@ export const REGULATION_RULES_SCHEMA = z.object({
   warning: z
     .object({
       level1TermGpa: decimal(0, 4),
-      level1FailedCredits: whole(0, 60),
+      level1FailedCredits: whole(1, 60),
       level2Cpa: decimal(0, 4),
-      level2FailedCredits: whole(0, 60),
+      level2FailedCredits: whole(1, 60),
       level3Cpa: decimal(0, 4),
+      expelAfterWarnings: whole(1, 6),
     })
     .refine((warning) => warning.level3Cpa <= warning.level2Cpa, { path: ["level3Cpa"], message: "Ngưỡng mức 3 không cao hơn mức 2" })
     .refine((warning) => warning.level1FailedCredits <= warning.level2FailedCredits, { path: ["level2FailedCredits"], message: "Mức 2 phải nợ nhiều tín chỉ hơn mức 1" }),
@@ -54,6 +76,16 @@ export const REGULATION_RULES_SCHEMA = z.object({
     studyPlanReviewDays: whole(1, 14),
     regradeWindowDays: whole(1, 30),
     registrationClosingSoonHours: whole(1, 168),
+  }),
+  graduation: z.object({
+    retakeLimitPercent: decimal(0, 100),
+    downgradeDisciplineLevel: z.enum(DISCIPLINE_LEVELS as [DisciplineLevel, ...DisciplineLevel[]], "Chọn mức kỷ luật"),
+    downgradeStandings: z
+      .array(z.enum(["excellent", "very-good", "good", "average"]))
+      .max(4)
+      .transform((standings) => (["excellent", "very-good", "good", "average"] as const).filter((standing) => standings.includes(standing))),
+    languageMinLevel: z.enum(CEFR_LEVELS as [CefrLevel, ...CefrLevel[]], "Chọn bậc ngoại ngữ"),
+    requireItCertificate: z.boolean(),
   }),
 });
 
@@ -73,29 +105,34 @@ export function nextRegulationVersion(versions: string[], effectiveFrom: string)
   return `${year}.${Math.max(0, ...used) + 1}`;
 }
 
-function formatValue(value: number) {
+function formatValue(path: RegulationFieldPath, value: unknown): string {
+  if (value === undefined || value === null) return "Không có";
+  if (typeof value === "boolean") return value ? "Có" : "Không";
+  if (Array.isArray(value)) return value.length === 0 ? "Không có" : value.map((item) => RANKED_STANDING_LABEL[item as RankedStanding] ?? String(item)).join(", ");
+  if (path === "graduation.downgradeDisciplineLevel") return DISCIPLINE_LEVEL_LABEL[value as DisciplineLevel] ?? String(value);
   return String(value).replace(".", ",");
 }
 
-function valueAt(rules: RegulationRules, path: string) {
-  const [group, key] = path.split(".") as [keyof RegulationRules, string];
-  return (rules[group] as Record<string, number>)[key];
+function valueAt(rules: RegulationRules, path: string): unknown {
+  return path.split(".").reduce<unknown>((node, key) => (node && typeof node === "object" ? (node as Record<string, unknown>)[key] : undefined), rules);
 }
 
-// Các tham số đổi giữa hai bản quy chế, ghi vào nhật ký thao tác.
+const point = (value: number | undefined) => (value === undefined ? "Không có" : String(value).replace(".", ","));
+
+// Các tham số đổi giữa hai bản quy chế, ghi vào nhật ký thao tác. Bản cũ có thể thiếu tham số mới thêm sau.
 export function regulationChanges(before: RegulationRules, after: RegulationRules): AuditChange[] {
   const changes: AuditChange[] = [];
-  for (const [path, field] of Object.entries(REGULATION_FIELD_LABEL)) {
-    const previous = valueAt(before, path);
-    const next = valueAt(after, path);
-    if (previous !== next) changes.push({ field, before: formatValue(previous), after: formatValue(next) });
+  for (const [path, field] of Object.entries(REGULATION_FIELD_LABEL) as [RegulationFieldPath, string][]) {
+    const previous = formatValue(path, valueAt(before, path));
+    const next = formatValue(path, valueAt(after, path));
+    if (previous !== next) changes.push({ field, before: previous, after: next });
   }
   const letters = [...new Set([...before.grading.scale, ...after.grading.scale].map((step) => step.letter))];
   for (const letter of letters) {
     const previous = before.grading.scale.find((step) => step.letter === letter);
     const next = after.grading.scale.find((step) => step.letter === letter);
-    if (previous?.min !== next?.min) changes.push({ field: `Điểm ${letter}: từ điểm`, before: previous ? formatValue(previous.min) : "Không có", after: next ? formatValue(next.min) : "Không có" });
-    if (previous?.point4 !== next?.point4) changes.push({ field: `Điểm ${letter}: thang 4`, before: previous ? formatValue(previous.point4) : "Không có", after: next ? formatValue(next.point4) : "Không có" });
+    if (previous?.min !== next?.min) changes.push({ field: `Điểm ${letter}: từ điểm`, before: point(previous?.min), after: point(next?.min) });
+    if (previous?.point4 !== next?.point4) changes.push({ field: `Điểm ${letter}: thang 4`, before: point(previous?.point4), after: point(next?.point4) });
   }
   return changes;
 }

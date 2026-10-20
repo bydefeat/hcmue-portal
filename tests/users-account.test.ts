@@ -8,7 +8,18 @@ import { createAuth } from "@/modules/authentication/authentication.lib";
 import { account, session, signInFailures, user } from "@/modules/authentication/authentication.schema";
 import { mailOutbox } from "@/modules/mail/mail.schema";
 import { createAccounts, lockAccountProfiles, queueActivationMails, randomPasswordHashes, readAccountStates, setAccountsLocked, staffProfile } from "@/modules/users/users.account";
-import { accountBatchSummary, accountStatusOf, activationLink, activationMail, LECTURER_SCHEMA, STAFF_SCHEMA, studentAccountIdentity } from "@/modules/users/users.rule";
+import {
+  accountBatchSummary,
+  accountStatusOf,
+  activationLink,
+  activationMail,
+  LECTURER_SCHEMA,
+  PHONE_MESSAGE,
+  STAFF_SCHEMA,
+  STUDENT_SCHEMA,
+  studentAccountIdentity,
+  validateImportRow,
+} from "@/modules/users/users.rule";
 import { lecturers, staffMembers, students } from "@/modules/users/users.schema";
 
 after(() => db.$client.end());
@@ -100,6 +111,40 @@ describe("users: hàm thuần của tài khoản", () => {
     const lecturer = { fullName: "Lê Văn Bình", gender: "male", title: "ThS.", faculty: "Khoa Công nghệ Thông tin", email: "binhlv@hcmue.edu.vn", phone: "", status: "active" } as const;
     assert.equal(LECTURER_SCHEMA.parse({ ...lecturer, code: "gv104099" }).code, "GV104099");
     assert.ok(!LECTURER_SCHEMA.safeParse({ ...lecturer, code: "GV.104099" }).success);
+  });
+});
+
+describe("users: email trường, email cá nhân, điện thoại", () => {
+  const student = { code: "50.01.104.099", fullName: "Nguyễn Văn An", gender: "male", dateOfBirth: "2008-01-01", majorCode: "104", cohort: 50, className: "50.01.CNTT.A" } as const;
+
+  test("hồ sơ không nhận email trường làm email cá nhân, không có ô tình trạng; điện thoại lưu dạng đã chuẩn hóa", () => {
+    const parsed = STUDENT_SCHEMA.parse({ ...student, personalEmail: " An.Nguyen@Gmail.com ", phone: "090 123 4567" });
+    assert.equal(parsed.personalEmail, "an.nguyen@gmail.com");
+    assert.equal(parsed.phone, "0901234567");
+    assert.ok(!("status" in parsed));
+    const school = STUDENT_SCHEMA.safeParse({ ...student, personalEmail: "5001104099@student.hcmue.edu.vn", phone: "" });
+    assert.ok(!school.success && school.error.issues[0].path[0] === "personalEmail");
+    const phone = STUDENT_SCHEMA.safeParse({ ...student, personalEmail: "", phone: "12345" });
+    assert.ok(!phone.success && phone.error.issues[0].message === PHONE_MESSAGE);
+  });
+
+  test("tệp nhập: cột email là email cá nhân, email trường tự sinh", () => {
+    const catalog = { majorCodes: ["104"], cohorts: [51] };
+    const row = (email: string) => validateImportRow({ line: 2, cells: ["5101104201", "Nguyễn Văn An", "Nam", "15/03/2007", email, "0901234567", "104", "51", "51.01.CNTT.A"] }, new Set(), new Set(), catalog);
+    assert.equal(row("an@gmail.com").values?.personalEmail, "an@gmail.com");
+    assert.ok(row("5101104201@student.hcmue.edu.vn").errors.some((error) => /email trường/.test(error)));
+  });
+});
+
+describe("users: tài khoản cán bộ trên DB", () => {
+  test("khóa dòng hồ sơ cán bộ, đọc trạng thái tài khoản cán bộ", async () => {
+    const [staff] = await db.select({ id: staffMembers.id, userId: staffMembers.userId }).from(staffMembers).limit(1);
+    await inRollback(async (tx) => {
+      const [profile] = await lockAccountProfiles(tx, "staff", [staff.id]);
+      assert.equal(profile.role, "admin");
+      assert.equal(profile.userId, staff.userId);
+      assert.equal((await readAccountStates(tx, "staff", [staff.id]))[staff.id].status, "active");
+    });
   });
 });
 

@@ -1,5 +1,6 @@
 import { dayjs } from "@/shared/libs/date.lib";
 import { mockDate, mockId, mockTermId } from "@/shared/libs/mock.lib";
+import type { RegulationRules } from "@/modules/settings/settings.schema";
 import type { CalendarEvent, ManualCalendarEventKind, RegulationSettings, RegulationVersion } from "@/modules/settings/settings.type";
 
 export const REGULATION: RegulationSettings = {
@@ -18,23 +19,34 @@ export const REGULATION: RegulationSettings = {
       { letter: "D", min: 4, point4: 1 },
       { letter: "F", min: 0, point4: 0 },
     ],
-    passScore: 4,
     roundingStep: 0.1,
+    standing: { excellent: 3.6, veryGood: 3.2, good: 2.5, average: 2, weak: 1 },
   },
   credits: { minPerTerm: 14, maxPerTerm: 25, maxSummer: 12, maxWhenWarned: 14, overloadMinCpa: 2.5 },
-  warning: { level1TermGpa: 1, level1FailedCredits: 6, level2Cpa: 1.5, level2FailedCredits: 12, level3Cpa: 1 },
+  warning: { level1TermGpa: 1, level1FailedCredits: 6, level2Cpa: 1.5, level2FailedCredits: 12, level3Cpa: 1, expelAfterWarnings: 2 },
   attendance: { absenceLimitPercent: 20 },
   workflow: { gradeEntryDays: 10, gradeDueSoonDays: 5, studyPlanReviewDays: 5, regradeWindowDays: 7, registrationClosingSoonHours: 48 },
+  graduation: { retakeLimitPercent: 5, downgradeDisciplineLevel: "warning", downgradeStandings: ["excellent", "very-good"], languageMinLevel: "B1", requireItCertificate: true },
+};
+
+// Tham số của bản quy chế đang áp dụng trong dữ liệu mẫu, seed và test dùng để tính điểm, cảnh báo như app.
+export const REGULATION_RULES: RegulationRules = {
+  grading: REGULATION.grading,
+  credits: REGULATION.credits,
+  warning: REGULATION.warning,
+  attendance: REGULATION.attendance,
+  workflow: REGULATION.workflow,
+  graduation: REGULATION.graduation,
 };
 
 // Các bản quy chế cũ: 2023.1 chưa có hạn mức riêng cho sinh viên bị cảnh báo, 2021.1 chưa có điểm cộng (B+, C+, D+).
-export const REGULATION_VERSIONS: (RegulationVersion & { id: string; rules: Pick<RegulationSettings, "grading" | "credits" | "warning" | "attendance" | "workflow"> })[] = [
+export const REGULATION_VERSIONS: (RegulationVersion & { id: string; rules: RegulationRules })[] = [
   { version: "2025.1", effectiveFrom: "2025-09-01", decision: "2150/QĐ-ĐHSP", summary: "Cảnh báo học vụ 3 mức, giới hạn 14 tín chỉ cho sinh viên bị cảnh báo." },
   { version: "2023.1", effectiveFrom: "2023-09-01", decision: "1980/QĐ-ĐHSP", summary: "Áp dụng thang điểm chữ có điểm cộng (B+, C+, D+)." },
   { version: "2021.1", effectiveFrom: "2021-09-01", decision: "1604/QĐ-ĐHSP", summary: "Quy chế đào tạo theo tín chỉ theo Thông tư 08/2021/TT-BGDĐT." },
 ].map((version) => {
-  const { grading, credits, warning, attendance, workflow } = REGULATION;
-  const rules = { grading, credits, warning, attendance, workflow };
+  const { grading, credits } = REGULATION_RULES;
+  const rules = { ...REGULATION_RULES };
   if (version.version === "2023.1") rules.credits = { ...credits, maxWhenWarned: credits.maxPerTerm };
   if (version.version === "2021.1") {
     rules.credits = { ...credits, maxWhenWarned: credits.maxPerTerm };

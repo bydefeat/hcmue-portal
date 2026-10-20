@@ -1,6 +1,6 @@
 import type { MockGender } from "@/shared/libs/mock.lib";
 
-export type StudentStatus = "studying" | "reserved" | "suspended" | "graduated";
+export type StudentStatus = "studying" | "reserved" | "suspended" | "graduated" | "withdrawn";
 
 export type Student = {
   id: string;
@@ -17,6 +17,7 @@ export type Student = {
   className: string;
   status: StudentStatus;
   hometown: string;
+  personalEmail: string;
 };
 
 // Ngành trong danh mục (đọc từ curriculum), page truyền xuống cho ô chọn ngành.
@@ -63,17 +64,17 @@ export type AdvisorAssignment = {
   advisorName: string | null;
 };
 
+// Email trường tự sinh từ MSSV nên form chỉ có email cá nhân; tình trạng học tập đổi bằng quyết định, không sửa ở form.
 export type StudentFormValues = {
   code: string;
   fullName: string;
   gender: MockGender;
   dateOfBirth: string;
-  email: string;
+  personalEmail: string;
   phone: string;
   majorCode: string;
   cohort: number;
   className: string;
-  status: StudentStatus;
 };
 
 export type LecturerFormValues = {
@@ -91,6 +92,8 @@ export type DecisionKind = "reserve" | "resume" | "suspend" | "expel" | "major-c
 
 export type DecisionStatus = "draft" | "pending-signature" | "signed" | "revoked";
 
+export type DisciplineLevel = "reprimand" | "warning" | "suspension";
+
 export type StudentDecision = {
   id: string;
   number: string | null;
@@ -106,6 +109,17 @@ export type StudentDecision = {
   signedAt: string | null;
   status: DecisionStatus;
   basis: string;
+  disciplineLevel: DisciplineLevel | null;
+  // Chuyển ngành: lớp và ngành đích.
+  targetClassName: string | null;
+  targetMajorName: string | null;
+  // Đã áp dụng vào hồ sơ (tới ngày hiệu lực); ký trước ngày hiệu lực thì null cho tới ngày đó.
+  appliedAt: string | null;
+  createdByUserId: string | null;
+  returnReason: string | null;
+  revokedAt: string | null;
+  revokedBy: string | null;
+  revokeReason: string | null;
 };
 
 // Tài khoản đăng nhập của một hồ sơ: chưa cấp, đã cấp nhưng chưa từng đăng nhập, đang dùng, bị khóa.
@@ -116,7 +130,7 @@ export type AccountState = {
   lastSignInAt: string | null;
 };
 
-export type AccountKind = "student" | "lecturer";
+export type AccountKind = "student" | "lecturer" | "staff";
 
 // Kết quả một thao tác tài khoản hàng loạt: trạng thái mới theo id hồ sơ, số dòng bị bỏ qua kèm lý do.
 export type AccountBatchResult = {
@@ -133,6 +147,19 @@ export type StaffFormValues = {
   unit: string;
   email: string;
   provisionAccount: boolean;
+  // Vai trò quản trị cấp ngay khi tạo; bỏ trống thì tài khoản chưa vào được cổng quản trị cho tới khi được cấp vai trò.
+  roleId?: string;
+  faculty?: string;
+};
+
+export type StaffMember = {
+  id: string;
+  code: string;
+  fullName: string;
+  unit: string;
+  email: string;
+  userId: string | null;
+  roles: string[];
 };
 
 export type MailOutcome = { queued: number };

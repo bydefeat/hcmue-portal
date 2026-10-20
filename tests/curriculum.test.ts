@@ -15,8 +15,9 @@ import {
   PROGRAM_COURSE_CHANGE_SCHEMA,
   PROGRAM_SCHEMA,
   programSemesterLimit,
+  programStatusChangeError,
 } from "@/modules/curriculum/curriculum.rule";
-import { courseRelations, courses, programCourses, programs } from "@/modules/curriculum/curriculum.schema";
+import { courseRelations, courses, programCohorts, programCourses, programs } from "@/modules/curriculum/curriculum.schema";
 import type { Course, ProgramCourseChange, ProgramDetail } from "@/modules/curriculum/curriculum.type";
 import { GRANT_ROLE_SCHEMA, ROLE_PERMISSIONS_SCHEMA } from "@/modules/access/access.rule";
 
@@ -189,6 +190,19 @@ async function inRollback(run: (tx: Transaction) => Promise<void>) {
     });
 }
 
+// Chạy trong savepoint, ép kiểm ràng buộc hoãn ngay rồi so câu báo lỗi (null là không lỗi).
+async function failureOrNull(tx: Transaction, run: (inner: Transaction) => Promise<unknown>, expected: string | null) {
+  const error = await tx
+    .transaction(async (inner) => {
+      await run(inner);
+      await inner.execute(sql`SET CONSTRAINTS ALL IMMEDIATE`);
+      throw new Rollback();
+    })
+    .then(() => null)
+    .catch((caught: unknown) => (caught instanceof Rollback ? null : caught));
+  assert.equal(error === null ? null : pgErrorMessage(error, CURRICULUM_CONSTRAINT_MESSAGE), expected);
+}
+
 async function failureOf(tx: Transaction, run: (inner: Transaction) => Promise<unknown>) {
   const error = await tx
     .transaction(async (inner) => {
@@ -260,12 +274,35 @@ describe("curriculum: sửa khung chương trình trên DB", () => {
         await failureOf(tx, (inner) => inner.insert(programCourses).values({ programId: archived.id, courseId: first.id, semester: 1 })),
         CURRICULUM_CONSTRAINT_MESSAGE.program_courses_program_archived,
       );
-      await tx.update(programs).set({ status: "draft" }).where(eq(programs.id, archived.id));
-      await tx.insert(programCourses).values({ programId: archived.id, courseId: first.id, semester: 1 });
-      await tx.update(programs).set({ status: "archived" }).where(eq(programs.id, archived.id));
+      // Ngừng áp dụng là trạng thái cuối: không mở lại được.
       assert.equal(
-        await failureOf(tx, (inner) => inner.delete(programCourses).where(eq(programCourses.programId, archived.id))),
+        await failureOf(tx, (inner) => inner.update(programs).set({ status: "draft" }).where(eq(programs.id, archived.id))),
+        CURRICULUM_CONSTRAINT_MESSAGE.programs_archived_final,
+      );
+      const [draft] = await tx.select().from(programs).where(eq(programs.name, "Công nghệ thông tin (cập nhật 2027)"));
+      await tx.insert(programCourses).values({ programId: draft.id, courseId: first.id, semester: 1 });
+      await tx.update(programs).set({ status: "archived" }).where(eq(programs.id, draft.id));
+      assert.equal(
+        await failureOf(tx, (inner) => inner.delete(programCourses).where(eq(programCourses.programId, draft.id))),
         CURRICULUM_CONSTRAINT_MESSAGE.program_courses_program_archived,
+      );
+    });
+  });
+
+  test("mỗi ngành, khóa chỉ một chương trình đang áp dụng (kiểm lúc commit); quy tắc chuyển trạng thái", async () => {
+    assert.equal(programStatusChangeError("archived", "active"), "Chương trình đã ngừng áp dụng, không mở lại được. Tạo chương trình mới nếu cần áp dụng lại.");
+    assert.equal(programStatusChangeError("draft", "active"), null);
+    await inRollback(async (tx) => {
+      const [draft] = await tx.select().from(programs).where(eq(programs.name, "Công nghệ thông tin (cập nhật 2027)"));
+      // Khóa 52 chưa có chương trình nào đang áp dụng: kích hoạt được.
+      await failureOrNull(tx, (inner) => inner.update(programs).set({ status: "active" }).where(eq(programs.id, draft.id)), null);
+      await failureOrNull(
+        tx,
+        async (inner) => {
+          await inner.update(programs).set({ status: "active" }).where(eq(programs.id, draft.id));
+          await inner.insert(programCohorts).values({ programId: draft.id, cohort: 50 });
+        },
+        CURRICULUM_CONSTRAINT_MESSAGE.programs_single_active_cohort!,
       );
     });
   });

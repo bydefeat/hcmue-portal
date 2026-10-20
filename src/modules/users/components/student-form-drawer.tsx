@@ -3,9 +3,10 @@
 import { useEffect, useTransition } from "react";
 import { AutoComplete, Button, Checkbox, DatePicker, Drawer, Form, Input, Radio, Select } from "antd";
 import { dayjs } from "@/shared/libs/date.lib";
-import { classSuggestions, cohortOptions, majorOptions, STUDENT_STATUS_OPTIONS } from "@/modules/users/users.constant";
+import { classSuggestions, cohortOptions, majorOptions } from "@/modules/users/users.constant";
+import { EMAIL_MESSAGE, PHONE_MESSAGE } from "@/modules/users/users.rule";
 import type { ClassRef, MajorRef, Student, StudentFormValues } from "@/modules/users/users.type";
-import { formatStudentCode, isStudentCode } from "@/shared/libs/student-code.lib";
+import { formatStudentCode, isStudentCode, isStudentEmail, studentEmailOf } from "@/shared/libs/student-code.lib";
 import { toFormFields } from "@/shared/libs/form.lib";
 
 type StudentFormDrawerProps = {
@@ -25,6 +26,7 @@ export function StudentFormDrawer({ open, student, majors, cohorts, classes, onC
   const [form] = Form.useForm<FormShape>();
   const cohort = Form.useWatch("cohort", form);
   const majorCode = Form.useWatch("majorCode", form);
+  const code = Form.useWatch("code", form);
   const isEdit = student !== null;
   const [isPending, startTransition] = useTransition();
 
@@ -54,12 +56,12 @@ export function StudentFormDrawer({ open, student, majors, cohorts, classes, onC
       <Form
         form={form}
         layout="vertical"
-        initialValues={{ status: "studying", provisionAccount: true }}
+        initialValues={{ provisionAccount: true }}
         onFinish={({ provisionAccount, ...values }) =>
           startTransition(async () => {
             const fieldErrors = await onSubmit(
               // Ô điện thoại để trống thì antd trả undefined; server cần chuỗi.
-              { ...values, phone: values.phone ?? "", code: formatStudentCode(values.code), dateOfBirth: values.dateOfBirth?.format("YYYY-MM-DD") ?? "" },
+              { ...values, phone: values.phone ?? "", personalEmail: values.personalEmail ?? "", code: formatStudentCode(values.code), dateOfBirth: values.dateOfBirth?.format("YYYY-MM-DD") ?? "" },
               { provisionAccount: !isEdit && provisionAccount === true },
             );
             if (fieldErrors) form.setFields(toFormFields(fieldErrors));
@@ -108,20 +110,20 @@ export function StudentFormDrawer({ open, student, majors, cohorts, classes, onC
           >
             <AutoComplete options={classSuggestions(classes, cohort, majorCode)} />
           </Form.Item>
-          <Form.Item name="status" label="Tình trạng">
-            <Select options={STUDENT_STATUS_OPTIONS} />
+          <Form.Item label="Email trường" extra="Tự sinh theo mã sinh viên, tài khoản nhận thư ở đây">
+            <Input value={code && isStudentCode(code) ? studentEmailOf(code) : ""} disabled />
           </Form.Item>
           <Form.Item
-            name="email"
-            label="Email"
+            name="personalEmail"
+            label="Email cá nhân"
             rules={[
-              { required: true, message: "Chưa nhập email" },
-              { type: "email", message: "Email cần có dấu @ và tên miền" },
+              { type: "email", message: EMAIL_MESSAGE },
+              { validator: (_, value?: string) => (value && isStudentEmail(value) ? Promise.reject(new Error("Email cá nhân không dùng email trường")) : Promise.resolve()) },
             ]}
           >
             <Input autoComplete="off" inputMode="email" />
           </Form.Item>
-          <Form.Item name="phone" label="Điện thoại" rules={[{ pattern: /^0\d{9}$/, message: "Số điện thoại gồm 10 số, bắt đầu bằng 0" }]}>
+          <Form.Item name="phone" label="Điện thoại" rules={[{ pattern: /^0\d{9}$/, message: PHONE_MESSAGE }]}>
             <Input autoComplete="off" inputMode="tel" className="tabular-nums" />
           </Form.Item>
         </div>

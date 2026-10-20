@@ -1,4 +1,4 @@
-export type AuditAction = "create" | "update" | "delete" | "approve" | "reject" | "publish" | "lock" | "assign" | "export" | "sign-in" | "permission" | "cancel" | "download";
+export type AuditAction = "create" | "update" | "delete" | "approve" | "reject" | "publish" | "lock" | "assign" | "export" | "sign-in" | "permission" | "submit" | "sign" | "revoke" | "return" | "cancel" | "download";
 
 export type AuditEntityType =
   | "student"
@@ -15,6 +15,9 @@ export type AuditEntityType =
   | "calendar-event"
   | "report"
   | "program"
+  | "staff"
+  | "course"
+  | "graduation"
   | "mail";
 
 export type AuditChange = {

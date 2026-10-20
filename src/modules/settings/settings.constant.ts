@@ -1,4 +1,4 @@
-import type { CalendarEventKind, ReportDefinition } from "@/modules/settings/settings.type";
+import type { CalendarEventKind, CefrLevel, DisciplineLevel, RankedStanding, ReportDefinition } from "@/modules/settings/settings.type";
 
 export const CALENDAR_EVENT_LABEL: Record<CalendarEventKind, string> = {
   teaching: "Giảng dạy",
@@ -20,8 +20,12 @@ export const CALENDAR_TERM_MARGIN_DAYS = 31;
 
 // Nhãn từng tham số quy chế, dùng để ghi nhật ký thay đổi theo đúng tên ô trên form.
 export const REGULATION_FIELD_LABEL = {
-  "grading.passScore": "Điểm đạt học phần",
-  "grading.roundingStep": "Làm tròn điểm học phần",
+  "grading.roundingStep": "Làm tròn điểm học phần đến",
+  "grading.standing.excellent": "Xuất sắc: CPA từ",
+  "grading.standing.veryGood": "Giỏi: CPA từ",
+  "grading.standing.good": "Khá: CPA từ",
+  "grading.standing.average": "Trung bình: CPA từ",
+  "grading.standing.weak": "Yếu: CPA từ",
   "credits.minPerTerm": "Tín chỉ tối thiểu mỗi học kỳ",
   "credits.maxPerTerm": "Tín chỉ tối đa mỗi học kỳ",
   "credits.maxSummer": "Tín chỉ tối đa học kỳ hè",
@@ -32,13 +36,41 @@ export const REGULATION_FIELD_LABEL = {
   "warning.level2Cpa": "Mức 2: CPA dưới",
   "warning.level2FailedCredits": "Mức 2: nợ từ (tín chỉ)",
   "warning.level3Cpa": "Mức 3: CPA dưới",
+  "warning.expelAfterWarnings": "Đề xuất thôi học khi bị cảnh báo liên tiếp (học kỳ)",
   "attendance.absenceLimitPercent": "Vắng quá thì cấm thi (%)",
   "workflow.gradeEntryDays": "Hạn nhập điểm sau ngày thi (ngày)",
   "workflow.gradeDueSoonDays": "Nhắc sắp hết hạn trước (ngày)",
   "workflow.studyPlanReviewDays": "Cố vấn duyệt kế hoạch trong (ngày)",
   "workflow.regradeWindowDays": "Nhận đơn phúc khảo trong (ngày)",
   "workflow.registrationClosingSoonHours": "Báo đợt sắp đóng trước (giờ)",
+  "graduation.retakeLimitPercent": "Giảm hạng khi học lại vượt (% tín chỉ chương trình)",
+  "graduation.downgradeDisciplineLevel": "Giảm hạng khi bị kỷ luật từ mức",
+  "graduation.downgradeStandings": "Hạng tốt nghiệp bị giảm",
+  "graduation.languageMinLevel": "Chuẩn ngoại ngữ tối thiểu",
+  "graduation.requireItCertificate": "Bắt buộc chứng chỉ tin học",
 } as const;
+
+export type RegulationFieldPath = keyof typeof REGULATION_FIELD_LABEL;
+
+export const ROUNDING_STEPS = [0.1, 0.5, 1] as const;
+
+export const CEFR_LEVELS: CefrLevel[] = ["A1", "A2", "B1", "B2", "C1", "C2"];
+
+export const DISCIPLINE_LEVEL_LABEL: Record<DisciplineLevel, string> = {
+  reprimand: "Khiển trách",
+  warning: "Cảnh cáo",
+  suspension: "Đình chỉ học tập có thời hạn",
+  expulsion: "Buộc thôi học",
+};
+
+export const DISCIPLINE_LEVELS = Object.keys(DISCIPLINE_LEVEL_LABEL) as DisciplineLevel[];
+
+export const RANKED_STANDING_LABEL: Record<RankedStanding, string> = {
+  excellent: "Xuất sắc",
+  "very-good": "Giỏi",
+  good: "Khá",
+  average: "Trung bình",
+};
 
 export const REPORT_DEFINITIONS: ReportDefinition[] = [
   {

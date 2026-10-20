@@ -20,7 +20,8 @@ export async function graduationWorkbook(rows: GraduationCandidate[]) {
     { header: "Tín chỉ tích lũy", width: 14 },
     { header: "Tín chỉ yêu cầu", width: 14 },
     { header: "Điểm TBTL hệ 4", width: 14 },
-    { header: "Xếp loại", width: 14 },
+    { header: "Hạng tốt nghiệp", width: 16 },
+    { header: "Lý do giảm hạng", width: 36 },
     { header: "Trạng thái", width: 22 },
     ...checks.map((check) => ({ header: check.label, width: 30 })),
   ];
@@ -39,6 +40,7 @@ export async function graduationWorkbook(rows: GraduationCandidate[]) {
       row.requiredCredits,
       row.cpa4,
       row.classification,
+      row.downgradeReasons.join("; "),
       GRADUATION_STATUS[row.status].label,
       ...row.checks.map((check) => `${check.passed ? "Đạt" : "Chưa đạt"}: ${check.detail}`),
     ]);

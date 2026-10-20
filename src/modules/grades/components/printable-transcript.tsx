@@ -1,5 +1,6 @@
 import { dayjs, formatDate } from "@/shared/libs/date.lib";
-import { formatPoint, STANDING_LABEL } from "@/modules/grades/grades.constant";
+import { formatPoint, standingLabel } from "@/modules/grades/grades.constant";
+import { attemptNote } from "@/modules/grades/grades.rule";
 import type { StudentStanding, TranscriptTerm } from "@/modules/grades/grades.type";
 
 type PrintableStudent = {
@@ -58,9 +59,12 @@ export function PrintableTranscript({ student, terms, standing }: PrintableTrans
             </thead>
             <tbody>
               {term.courses.map((course) => (
-                <tr key={course.courseCode}>
+                <tr key={`${course.courseCode}:${course.attempt}`}>
                   <td className="border border-black px-1 py-0.5">{course.courseCode}</td>
-                  <td className="border border-black px-1 py-0.5">{course.courseName}</td>
+                  <td className="border border-black px-1 py-0.5">
+                    {course.courseName}
+                    {attemptNote(course)}
+                  </td>
                   <td className="border border-black px-1 py-0.5 text-right">{course.credits}</td>
                   <td className="border border-black px-1 py-0.5 text-right">{formatPoint(course.score10, 1)}</td>
                   <td className="border border-black px-1 py-0.5 text-center">{course.letter}</td>
@@ -76,8 +80,9 @@ export function PrintableTranscript({ student, terms, standing }: PrintableTrans
         </div>
       ))}
       <p className="mt-4 font-medium">
-        Tổng số tín chỉ tích lũy: {standing.earnedCredits}. Điểm trung bình tích lũy: {formatPoint(standing.cpa4)}. Xếp loại: {STANDING_LABEL[standing.standing]}.
+        Tổng số tín chỉ tích lũy: {standing.earnedCredits}. Điểm trung bình tích lũy: {formatPoint(standing.cpa4) || "chưa có"}. Xếp loại: {standingLabel(standing.standing)}.
       </p>
+      <p className="mt-1">Học phần học lại hoặc học cải thiện: điểm tính vào điểm trung bình tích lũy là điểm của lần học cuối.</p>
       <div className="mt-8 flex justify-end">
         <p className="w-64 text-center">
           TP. Hồ Chí Minh, ngày in {formatDate(dayjs())}

@@ -4,15 +4,16 @@ import { Layout } from "antd";
 import { Logo } from "@/shared/components/ui/logo";
 import { NavSections } from "@/shared/components/ui/nav-tree";
 import { UserMenu, type MenuUser, type RoleSwitcher } from "@/shared/components/ui/user-menu";
-import { ADMINISTRATOR_ACCOUNT_LINKS, ADMINISTRATOR_HOME_HREF, type NavGroup } from "@/shared/constants/navigation.constant";
+import { ADMINISTRATOR_HOME_HREF, type NavGroup, type NavItem } from "@/shared/constants/navigation.constant";
 
 type AdministratorSidebarProps = {
   user: MenuUser;
   groups: NavGroup[];
   switcher?: RoleSwitcher;
+  accountLinks: NavItem[];
 };
 
-export function AdministratorSidebar({ user, groups, switcher }: AdministratorSidebarProps) {
+export function AdministratorSidebar({ user, groups, switcher, accountLinks }: AdministratorSidebarProps) {
   return (
     <Layout.Sider width={248} theme="light" className="sticky top-0 hidden h-dvh border-r border-border-strong lg:block print:!hidden">
       <div className="flex h-full flex-col select-none">
@@ -23,7 +24,7 @@ export function AdministratorSidebar({ user, groups, switcher }: AdministratorSi
           <NavSections groups={groups} idPrefix="administrator-nav" />
         </nav>
         <div className="shrink-0 border-t border-border-strong p-3">
-          <UserMenu user={user} links={ADMINISTRATOR_ACCOUNT_LINKS} switcher={switcher} />
+          <UserMenu user={user} links={accountLinks} switcher={switcher} />
         </div>
       </div>
     </Layout.Sider>

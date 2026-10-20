@@ -4,6 +4,7 @@ import { markNotificationsRead } from "@/modules/notifications/notifications.act
 import { NOTIFICATION_KIND_LABEL } from "@/modules/notifications/notifications.constant";
 import { getNotifications, getUnreadNotificationCount } from "@/modules/notifications/notifications.query";
 import { getCurrentLecturer } from "@/modules/users/users.query";
+import { ADMINISTRATOR_PORTAL_LINK } from "@/shared/constants/navigation.constant";
 
 export default async function Layout({ children }: { children: React.ReactNode }) {
   const session = await requireRole("lecturer");
@@ -16,6 +17,7 @@ export default async function Layout({ children }: { children: React.ReactNode }
       notifications={notifications.map((notification) => ({ ...notification, kindLabel: NOTIFICATION_KIND_LABEL[notification.kind] }))}
       unreadNotifications={unread}
       onMarkNotificationsRead={markNotificationsRead}
+      portalLinks={session.roles.includes("admin") ? [ADMINISTRATOR_PORTAL_LINK] : []}
     >
       {children}
     </LecturerLayout>

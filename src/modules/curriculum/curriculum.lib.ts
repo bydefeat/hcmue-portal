@@ -1,11 +1,75 @@
 import "server-only";
 import { and, eq, inArray } from "drizzle-orm";
-import type { Transaction } from "@/shared/libs/db.lib";
+import { alias } from "drizzle-orm/pg-core";
+import type { db, Transaction } from "@/shared/libs/db.lib";
 import { inScope } from "@/modules/access/access.constant";
 import { recordAudit, type AuditActor } from "@/modules/audit/audit.lib";
 import { frameworkChangeError, isProgramEditable, programSemesterLimit } from "@/modules/curriculum/curriculum.rule";
-import { courses, faculties, majors, programCourses, programs } from "@/modules/curriculum/curriculum.schema";
+import { courseRelations, courses, faculties, majors, programCohorts, programCourses, programs } from "@/modules/curriculum/curriculum.schema";
 import type { ProgramCourseChange } from "@/modules/curriculum/curriculum.type";
+
+type Executor = Transaction | typeof db;
+
+export type StudentProgram = { id: string; code: string; name: string; degree: string; totalCredits: number; durationYears: number; majorId: string };
+
+const programKey = (majorId: string, cohort: number) => `${majorId}:${cohort}`;
+
+// Chương trình đào tạo áp dụng cho sinh viên: chương trình đang áp dụng (active) của đúng ngành có khóa của sinh viên trong
+// program_cohorts. Mỗi ngành, khóa chỉ có một chương trình đang áp dụng (trigger programs_single_active_cohort). Một nguồn cho
+// xét tốt nghiệp, kế hoạch học tập và các trang của sinh viên.
+export async function programsOf(executor: Executor, students: { majorId: string; cohort: number }[]): Promise<Map<string, StudentProgram>> {
+  const majorIds = [...new Set(students.map((student) => student.majorId))];
+  if (majorIds.length === 0) return new Map();
+  const rows = await executor
+    .select({
+      id: programs.id,
+      code: programs.code,
+      name: programs.name,
+      degree: programs.degree,
+      totalCredits: programs.totalCredits,
+      durationYears: programs.durationYears,
+      majorId: programs.majorId,
+      cohort: programCohorts.cohort,
+    })
+    .from(programs)
+    .innerJoin(programCohorts, eq(programCohorts.programId, programs.id))
+    .where(and(eq(programs.status, "active"), inArray(programs.majorId, majorIds)));
+  return new Map(rows.map(({ cohort, ...program }) => [programKey(program.majorId, cohort), program]));
+}
+
+export function programFor(map: Map<string, StudentProgram>, student: { majorId: string; cohort: number }) {
+  return map.get(programKey(student.majorId, student.cohort)) ?? null;
+}
+
+export type ProgramRequirement = { code: string; name: string; credits: number; equivalentCodes: string[] };
+
+const equivalentCourses = alias(courses, "equivalent_courses");
+
+// Học phần bắt buộc trong khung của từng chương trình, kèm học phần tương đương (học đạt học phần tương đương cũng được tính).
+export async function requiredCoursesOf(executor: Executor, programIds: string[]): Promise<Map<string, ProgramRequirement[]>> {
+  const ids = [...new Set(programIds)];
+  if (ids.length === 0) return new Map();
+  const [rows, equivalents] = await Promise.all([
+    executor
+      .select({ programId: programCourses.programId, code: courses.code, name: courses.name, credits: courses.credits })
+      .from(programCourses)
+      .innerJoin(courses, eq(courses.id, programCourses.courseId))
+      .where(and(inArray(programCourses.programId, ids), eq(courses.type, "required"))),
+    executor
+      .select({ code: courses.code, equivalent: equivalentCourses.code })
+      .from(courseRelations)
+      .innerJoin(courses, eq(courses.id, courseRelations.courseId))
+      .innerJoin(equivalentCourses, eq(equivalentCourses.id, courseRelations.relatedCourseId))
+      .where(eq(courseRelations.kind, "equivalent")),
+  ]);
+  const equivalentsOf = new Map<string, string[]>();
+  for (const row of equivalents) equivalentsOf.set(row.code, [...(equivalentsOf.get(row.code) ?? []), row.equivalent]);
+  const result = new Map<string, ProgramRequirement[]>();
+  for (const { programId, ...course } of rows.toSorted((a, b) => a.code.localeCompare(b.code))) {
+    result.set(programId, [...(result.get(programId) ?? []), { ...course, equivalentCodes: equivalentsOf.get(course.code) ?? [] }]);
+  }
+  return result;
+}
 
 // Lỗi nghiệp vụ khi sửa khung: hủy giao dịch, câu báo đưa thẳng cho người dùng.
 export class FrameworkError extends Error {}

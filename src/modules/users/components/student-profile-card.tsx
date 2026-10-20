@@ -44,13 +44,26 @@ export function StudentProfileCard({ student, advisorName }: StudentProfileCardP
             { key: "hometown", label: "Quê quán", children: student.hometown },
             {
               key: "email",
-              label: "Email",
+              label: "Email trường",
               children: (
                 <a href={`mailto:${student.email}`} title={student.email} className="block truncate">
                   {student.email}
                 </a>
               ),
             },
+            ...(student.personalEmail
+              ? [
+                  {
+                    key: "personal-email",
+                    label: "Email cá nhân",
+                    children: (
+                      <a href={`mailto:${student.personalEmail}`} title={student.personalEmail} className="block truncate">
+                        {student.personalEmail}
+                      </a>
+                    ),
+                  },
+                ]
+              : []),
             { key: "phone", label: "Điện thoại", children: <a href={`tel:${student.phone}`} className="tabular-nums">{student.phone}</a> },
           ]}
         />

@@ -5,7 +5,7 @@ import { user } from "@/modules/authentication/authentication.schema";
 import { terms } from "@/modules/course-registration/course-registration.schema";
 import type { RegulationSettings } from "@/modules/settings/settings.type";
 
-export type RegulationRules = Pick<RegulationSettings, "grading" | "credits" | "warning" | "attendance" | "workflow">;
+export type RegulationRules = Pick<RegulationSettings, "grading" | "credits" | "warning" | "attendance" | "workflow" | "graduation">;
 
 export const reportExportStatusEnum = pgEnum("report_export_status", ["queued", "running", "done", "failed"]);
 export const calendarEventKindEnum = pgEnum("calendar_event_kind", ["teaching", "registration", "exam", "grading", "holiday", "event"]);
@@ -24,7 +24,7 @@ export const regulations = pgTable(
   },
   (table) => [
     index().on(table.createdByUserId),
-    check("regulations_rules_object", sql`jsonb_typeof(${table.rules}) = 'object' AND ${table.rules} ?& array['grading', 'credits', 'warning', 'attendance', 'workflow']`),
+    check("regulations_rules_object", sql`jsonb_typeof(${table.rules}) = 'object' AND ${table.rules} ?& array['grading', 'credits', 'warning', 'attendance', 'workflow', 'graduation']`),
   ],
 );
 

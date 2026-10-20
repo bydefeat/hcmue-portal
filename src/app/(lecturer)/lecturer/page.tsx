@@ -10,7 +10,7 @@ import { getCurrentTerm, getLecturerClassSections } from "@/modules/course-regis
 import type { ClassMeeting, ClassSectionView } from "@/modules/course-registration/course-registration.type";
 import { GRADE_SHEET_STATE } from "@/modules/grades/grades.constant";
 import { getAcademicWarnings, getGradeSheetSummaries } from "@/modules/grades/grades.query";
-import { PENDING_TOO_LONG_DAYS } from "@/modules/study-plan/study-plan.constant";
+import { getRegulation } from "@/modules/settings/settings.query";
 import { getStudyPlans } from "@/modules/study-plan/study-plan.query";
 import { getAdvisees, getCurrentLecturer } from "@/modules/users/users.query";
 import { EmptyState } from "@/shared/components/ui/empty-state";
@@ -45,7 +45,9 @@ function deadlineText(deadline: string) {
 }
 
 export default async function Page() {
-  const [lecturer, term] = await Promise.all([getCurrentLecturer(), getCurrentTerm()]);
+  const [lecturer, term, regulation] = await Promise.all([getCurrentLecturer(), getCurrentTerm(), getRegulation()]);
+  // Cố vấn duyệt kế hoạch trong số ngày quy chế quy định.
+  const reviewDays = regulation.workflow.studyPlanReviewDays;
   const sections = await getLecturerClassSections(lecturer.id, term.id);
   const summaries = await getGradeSheetSummaries(sections.map((section) => section.id));
   const advisees = lecturer.isAdvisor ? await getAdvisees(lecturer.id) : [];
@@ -75,7 +77,7 @@ export default async function Page() {
     .filter((summary) => summary.state === "overdue" || summary.state === "due-soon")
     .toSorted((a, b) => dayjs(a.deadline).valueOf() - dayjs(b.deadline).valueOf());
   const pendingPlans = plans.filter((plan) => plan.status === "pending");
-  const stalePlans = pendingPlans.filter((plan) => plan.submittedAt && -daysUntil(plan.submittedAt) > PENDING_TOO_LONG_DAYS);
+  const stalePlans = pendingPlans.filter((plan) => plan.submittedAt && -daysUntil(plan.submittedAt) > reviewDays);
   const openWarnings = warnings.filter((warning) => warning.status !== "resolved");
   const totalStudents = sections.reduce((sum, section) => sum + section.enrolled, 0);
 
@@ -260,7 +262,7 @@ export default async function Page() {
             <StatTile
               label="Kế hoạch chờ duyệt"
               value={pendingPlans.length}
-              hint={stalePlans.length > 0 ? `${stalePlans.length} kế hoạch chờ quá ${PENDING_TOO_LONG_DAYS} ngày` : "Không có kế hoạch chờ lâu"}
+              hint={stalePlans.length > 0 ? `${stalePlans.length} kế hoạch chờ quá ${reviewDays} ngày` : "Không có kế hoạch chờ lâu"}
               tone={stalePlans.length > 0 ? "warning" : undefined}
               href="/lecturer/advising/study-plans"
             />

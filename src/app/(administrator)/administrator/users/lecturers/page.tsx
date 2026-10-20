@@ -3,13 +3,17 @@ import { LecturerTable } from "@/modules/users/components/lecturer-table";
 import { getAccountStates, getLecturers } from "@/modules/users/users.query";
 import { NO_ACCOUNT } from "@/modules/users/users.constant";
 import { getFacultyNames } from "@/modules/curriculum/curriculum.query";
+import { can, inScope } from "@/modules/access/access.constant";
 import { requirePermission } from "@/modules/access/access.query";
 
 export const metadata: Metadata = { title: "Giảng viên" };
 
 export default async function Page({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
-  await requirePermission("lecturers.manage");
-  const [{ q }, lecturers, faculties, accounts] = await Promise.all([searchParams, getLecturers(), getFacultyNames(), getAccountStates("lecturer")]);
+  const viewer = await requirePermission("lecturers.manage");
+  const [{ q }, allLecturers, allFaculties, accounts] = await Promise.all([searchParams, getLecturers(), getFacultyNames(), getAccountStates("lecturer")]);
+  // Vai trò theo khoa chỉ thấy, sửa giảng viên của khoa mình (server action cũng kiểm phạm vi).
+  const lecturers = allLecturers.filter((lecturer) => inScope(viewer, lecturer.faculty));
+  const faculties = allFaculties.filter((faculty) => inScope(viewer, faculty));
   const advisorCount = lecturers.filter((lecturer) => lecturer.isAdvisor).length;
 
   return (
@@ -22,6 +26,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ q
       lecturers={lecturers.map((lecturer) => ({ ...lecturer, account: accounts[lecturer.id] ?? NO_ACCOUNT }))}
       faculties={faculties}
       initialQuery={q ?? ""}
+      canManage={can(viewer, "lecturers.manage")}
     />
   );
 }

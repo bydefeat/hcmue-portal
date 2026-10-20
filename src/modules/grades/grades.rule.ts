@@ -1,111 +1,254 @@
 import { z } from "zod";
-import { dayjs } from "@/shared/libs/date.lib";
-import { DUE_SOON_DAYS, formatPoint, STANDING_SCALE, toLetter, toStanding, WARNING_THRESHOLD } from "@/modules/grades/grades.constant";
+import { dayjs, schoolTime } from "@/shared/libs/date.lib";
+import { formatPoint, STANDINGS } from "@/modules/grades/grades.constant";
 import type {
   AcademicStanding,
   FacultyStandingSummary,
+  GradeComponent,
   GradeSheet,
   GradeSheetState,
   GradeSheetSummary,
   GradeSheetStatus,
+  GradingRules,
+  LetterGrade,
   StudentStanding,
   TranscriptCourse,
+  TranscriptCourseInput,
   TranscriptTerm,
   WarningStatus,
 } from "@/modules/grades/grades.type";
+import type { RegulationSettings, StandingThresholds } from "@/modules/settings/settings.type";
 
-export type TranscriptTermInput = Pick<TranscriptTerm, "termId" | "termName" | "isInProgress" | "courses">;
+export type TranscriptTermInput = Pick<TranscriptTerm, "termId" | "termName" | "isInProgress"> & { courses: TranscriptCourseInput[] };
 
-// Điểm trung bình có trọng số tín chỉ, làm tròn 2 chữ số; chỉ tính học phần đã có điểm.
-export function creditAverage(courses: Pick<TranscriptCourse, "credits" | "point4" | "score10">[], key: "point4" | "score10") {
+export type WarningThresholds = RegulationSettings["warning"];
+
+// Tham số quy chế cần để xếp loại và xét cảnh báo.
+export type StandingRules = { standing: StandingThresholds; warning: WarningThresholds };
+
+export function standingRulesOf(rules: { grading: { standing: StandingThresholds }; warning: WarningThresholds }): StandingRules {
+  return { standing: rules.grading.standing, warning: rules.warning };
+}
+
+// ---------- Quy đổi điểm học phần ----------
+
+// Điểm tổng kết học phần theo trọng số, làm tròn theo bước của quy chế (0,1, 0,5 hoặc 1), thiếu một cột thì chưa có điểm.
+// Điểm thành phần tối đa 2 chữ số thập phân, trọng số là phần trăm nguyên nên tổng tính bằng số nguyên (phần vạn điểm) và làm tròn
+// trên số nguyên: tránh lệch do số thực (0,02 / 0,30 / 6,43 với 10/30/60% là đúng 3,95 nên lên 4,0, không phải 3,9).
+export function weightedScore(components: GradeComponent[], row: Record<string, number | null>, roundingStep: number) {
+  if (components.some((component) => row[component.key] === null || row[component.key] === undefined)) return null;
+  const units = components.reduce((sum, component) => sum + Math.round((row[component.key] as number) * 100) * component.weight, 0);
+  const step = Math.round(roundingStep * 10000);
+  return (Math.floor((units + step / 2) / step) * step) / 10000;
+}
+
+// Công thức Excel tương ứng: làm tròn tổng về 6 chữ số trước để bỏ sai số cộng dồn của số thực trong Excel, rồi làm tròn theo bước.
+export function roundingFormula(weightedSum: string, roundingStep: number) {
+  const perPoint = Math.round(1 / roundingStep);
+  return perPoint === 10 ? `ROUND(ROUND(${weightedSum},6)/100,1)` : `ROUND(ROUND(${weightedSum},6)/100*${perPoint},0)/${perPoint}`;
+}
+
+// Điểm chữ của một điểm tổng kết theo thang điểm của quy chế (ngưỡng giảm dần, mức cuối từ 0).
+export function letterOf(score10: number, scale: GradingRules["scale"]) {
+  const step = scale.find((entry) => score10 >= entry.min) ?? scale.at(-1)!;
+  return { letter: step.letter as LetterGrade, point4: step.point4 };
+}
+
+// Điểm tổng kết (thang 10) đổi sang điểm chữ và thang 4, lưu vào course_results lúc công bố theo bản quy chế đang áp dụng.
+export function courseGrade(score10: number, scale: GradingRules["scale"]) {
+  return { score10, ...letterOf(score10, scale) };
+}
+
+export function isPassing(course: { letter: string | null; point4: number | null }) {
+  return course.point4 !== null && course.letter !== null && course.letter !== "F";
+}
+
+// ---------- Bảng điểm, CPA, xếp loại ----------
+
+// Trung bình có trọng số tín chỉ, làm tròn 2 chữ số (nửa lên); chỉ tính học phần đã có điểm. Tính trên số nguyên (phần trăm điểm)
+// để khớp round(..., 2) của Postgres trên kiểu numeric.
+export function creditAverage(courses: Pick<TranscriptCourseInput, "credits" | "point4" | "score10">[], key: "point4" | "score10") {
   const graded = courses.filter((course) => course[key] !== null);
   const credits = graded.reduce((sum, course) => sum + course.credits, 0);
   if (credits === 0) return null;
-  return Math.round((graded.reduce((sum, course) => sum + (course[key] as number) * course.credits, 0) / credits) * 100) / 100;
+  const total = graded.reduce((sum, course) => sum + Math.round((course[key] as number) * 100) * course.credits, 0);
+  return Math.floor((2 * total + credits) / (2 * credits)) / 100;
 }
 
-// GPA từng kỳ và CPA tích lũy đến hết kỳ đó. CPA tính mọi lần học (kể cả lần trượt), kỳ đang học không có CPA.
+// Lần học cuối (đã có điểm) của từng học phần trong danh sách các lần học đã xếp theo thời gian (học kỳ, rồi thời điểm ghi điểm).
+// Dùng cho mọi nơi cần "đã học đạt" hay điểm đang tính: CPA, tín chỉ tích lũy, nợ, tiên quyết khi đăng ký.
+export function latestAttempts<T extends { courseCode: string; point4: number | null }>(attempts: T[]): Map<string, T> {
+  const latest = new Map<string, T>();
+  for (const attempt of attempts) if (attempt.point4 !== null) latest.set(attempt.courseCode, attempt);
+  return latest;
+}
+
+// Điểm chữ lần học cuối của từng học phần ở các học kỳ đã kết thúc (có thể là F: đang nợ). Thay cho điểm cao nhất của các lần học.
+export function latestGrades(terms: { isInProgress: boolean; courses: { courseCode: string; letter: string | null }[] }[]): Record<string, string> {
+  const latest: Record<string, string> = {};
+  for (const term of terms) {
+    if (term.isInProgress) continue;
+    for (const course of term.courses) if (course.letter) latest[course.courseCode] = course.letter;
+  }
+  return latest;
+}
+
+// GPA từng kỳ (theo các học phần học trong kỳ) và CPA tích lũy đến hết kỳ đó theo lần học cuối của mỗi học phần. Kỳ đang học
+// không có CPA và không thay thế lần học trước. Mỗi dòng ghi lần học thứ mấy và đã bị lần sau thay thế chưa.
 export function buildTranscript(terms: TranscriptTermInput[]): TranscriptTerm[] {
-  const accumulated: TranscriptCourse[] = [];
-  return terms.map((term) => {
-    accumulated.push(...term.courses.filter((course) => course.point4 !== null));
-    const attemptedCredits = term.courses.reduce((sum, course) => sum + course.credits, 0);
-    const earnedCredits = term.courses.filter((course) => (course.point4 ?? 0) > 0).reduce((sum, course) => sum + course.credits, 0);
+  const previousLetters = new Map<string, (string | null)[]>();
+  const latest = new Map<string, TranscriptCourseInput & { termIndex: number }>();
+  const replaced = new Set<string>();
+  const rows = terms.map((term, termIndex) => {
+    const courses = term.courses.map((course) => {
+      const previous = previousLetters.get(course.courseCode) ?? [];
+      const last = previous.at(-1);
+      if (course.point4 !== null) previousLetters.set(course.courseCode, [...previous, course.letter]);
+      return { ...course, attempt: previous.length + 1, retakeKind: previous.length === 0 ? null : last === "F" ? ("retake" as const) : ("improve" as const) };
+    });
+    if (!term.isInProgress) {
+      for (const course of term.courses) {
+        if (course.point4 === null) continue;
+        const earlier = latest.get(course.courseCode);
+        if (earlier) replaced.add(`${earlier.termIndex}:${course.courseCode}`);
+        latest.set(course.courseCode, { ...course, termIndex });
+      }
+    }
     return {
       ...term,
-      attemptedCredits,
-      earnedCredits: term.isInProgress ? 0 : earnedCredits,
+      courses,
+      attemptedCredits: term.courses.reduce((sum, course) => sum + course.credits, 0),
+      earnedCredits: term.isInProgress ? 0 : term.courses.filter(isPassing).reduce((sum, course) => sum + course.credits, 0),
       gpa4: creditAverage(term.courses, "point4"),
       gpa10: creditAverage(term.courses, "score10"),
-      cpa4: term.isInProgress ? null : creditAverage(accumulated, "point4"),
+      cpa4: term.isInProgress ? null : creditAverage([...latest.values()], "point4"),
     };
   });
+  return rows.map((term, termIndex) => ({
+    ...term,
+    courses: term.courses.map((course): TranscriptCourse => ({ ...course, replaced: replaced.has(`${termIndex}:${course.courseCode}`) })),
+  }));
 }
 
-export function warningLevelOf(input: { hasCourses: boolean; cpa4: number; failedCredits: number; lastTermGpa4: number | null }): 0 | 1 | 2 | 3 {
+// Ghi chú lần học trên bảng điểm: học lại, học cải thiện, lần đã bị lần sau thay thế (không tính tích lũy).
+export function attemptNote(course: Pick<TranscriptCourse, "retakeKind" | "replaced">) {
+  const notes = [course.retakeKind === "retake" ? "học lại" : course.retakeKind === "improve" ? "học cải thiện" : null, course.replaced ? "không tính tích lũy" : null].filter(Boolean);
+  return notes.length > 0 ? ` (${notes.join(", ")})` : "";
+}
+
+export function toStanding(cpa4: number, thresholds: StandingThresholds): AcademicStanding {
+  if (cpa4 >= thresholds.excellent) return "excellent";
+  if (cpa4 >= thresholds.veryGood) return "very-good";
+  if (cpa4 >= thresholds.good) return "good";
+  if (cpa4 >= thresholds.average) return "average";
+  if (cpa4 >= thresholds.weak) return "weak";
+  return "poor";
+}
+
+export function warningLevelOf(input: { hasCourses: boolean; cpa4: number; failedCredits: number; lastTermGpa4: number | null }, thresholds: WarningThresholds): 0 | 1 | 2 | 3 {
   if (!input.hasCourses) return 0;
-  if (input.cpa4 < WARNING_THRESHOLD.cpaLevel3) return 3;
-  if (input.cpa4 < WARNING_THRESHOLD.cpaLevel2 || input.failedCredits >= WARNING_THRESHOLD.failedLevel2) return 2;
-  if ((input.lastTermGpa4 !== null && input.lastTermGpa4 < WARNING_THRESHOLD.termGpa) || input.failedCredits >= WARNING_THRESHOLD.failedLevel1) return 1;
+  if (input.cpa4 < thresholds.level3Cpa) return 3;
+  if (input.cpa4 < thresholds.level2Cpa || input.failedCredits >= thresholds.level2FailedCredits) return 2;
+  if ((input.lastTermGpa4 !== null && input.lastTermGpa4 < thresholds.level1TermGpa) || input.failedCredits >= thresholds.level1FailedCredits) return 1;
   return 0;
 }
 
-// Xếp loại và mức cảnh báo chỉ tính các kỳ đã kết thúc.
-export function computeStanding(studentId: string, transcript: TranscriptTerm[]): StudentStanding {
+// Kết quả tích lũy chỉ tính các kỳ đã kết thúc và lần học cuối của mỗi học phần: CPA, tín chỉ tích lũy (lần cuối đạt), tín chỉ nợ
+// (lần cuối F). Chưa có điểm thì Chưa xếp loại (standing null), không bị coi là Kém.
+export function computeStanding(studentId: string, transcript: TranscriptTerm[], rules: StandingRules): StudentStanding {
   const completed = transcript.filter((term) => !term.isInProgress);
-  const courses = completed.flatMap((term) => term.courses);
-  const cpa4 = creditAverage(courses, "point4") ?? 0;
-  const cpa10 = creditAverage(courses, "score10") ?? 0;
-  const failedCredits = courses.filter((course) => course.letter === "F").reduce((sum, course) => sum + course.credits, 0);
-  const lastTerm = completed.filter((term) => term.courses.length > 0).at(-1);
-  const lastTermGpa4 = lastTerm?.gpa4 ?? 0;
+  const attempts = completed.flatMap((term) => term.courses.filter((course) => course.point4 !== null));
+  const latest = attempts.filter((course) => !course.replaced);
+  const cpa4 = creditAverage(latest, "point4");
+  const cpa10 = creditAverage(latest, "score10");
+  const failedCredits = latest.filter((course) => course.letter === "F").reduce((sum, course) => sum + course.credits, 0);
+  const lastTerm = completed.filter((term) => term.courses.some((course) => course.point4 !== null)).at(-1);
+  const lastTermGpa4 = lastTerm?.gpa4 ?? null;
   return {
     studentId,
     cpa4,
     cpa10,
-    earnedCredits: completed.reduce((sum, term) => sum + term.earnedCredits, 0),
+    earnedCredits: latest.filter(isPassing).reduce((sum, course) => sum + course.credits, 0),
     failedCredits,
+    retakeCredits: attempts.filter((course) => course.letter === "F").reduce((sum, course) => sum + course.credits, 0),
     lastTermGpa4,
-    standing: toStanding(cpa4),
-    warningLevel: warningLevelOf({ hasCourses: courses.length > 0, cpa4, failedCredits, lastTermGpa4: lastTerm ? lastTermGpa4 : null }),
+    standing: cpa4 === null ? null : toStanding(cpa4, rules.standing),
+    warningLevel: cpa4 === null ? 0 : warningLevelOf({ hasCourses: true, cpa4, failedCredits, lastTermGpa4 }, rules.warning),
   };
 }
 
-export function warningReasons(standing: Pick<StudentStanding, "cpa4" | "lastTermGpa4" | "failedCredits">) {
+// Lý do cảnh báo ghi theo ngưỡng của bản quy chế đã dùng để xét.
+export function warningReasons(standing: Pick<StudentStanding, "cpa4" | "lastTermGpa4" | "failedCredits">, thresholds: WarningThresholds) {
   const reasons: string[] = [];
-  if (standing.cpa4 < WARNING_THRESHOLD.cpaLevel2) reasons.push(`CPA ${formatPoint(standing.cpa4)} dưới ngưỡng 1,5`);
-  if (standing.lastTermGpa4 < WARNING_THRESHOLD.termGpa) reasons.push(`ĐTB học kỳ gần nhất ${formatPoint(standing.lastTermGpa4)}`);
-  if (standing.failedCredits >= WARNING_THRESHOLD.failedLevel1) reasons.push(`Nợ ${standing.failedCredits} tín chỉ`);
+  const cpa4 = standing.cpa4 ?? 0;
+  if (cpa4 < thresholds.level3Cpa) reasons.push(`CPA ${formatPoint(cpa4)} dưới ngưỡng ${formatPoint(thresholds.level3Cpa, 1)}`);
+  else if (cpa4 < thresholds.level2Cpa) reasons.push(`CPA ${formatPoint(cpa4)} dưới ngưỡng ${formatPoint(thresholds.level2Cpa, 1)}`);
+  if (standing.lastTermGpa4 !== null && standing.lastTermGpa4 < thresholds.level1TermGpa) {
+    reasons.push(`ĐTB học kỳ gần nhất ${formatPoint(standing.lastTermGpa4)} dưới ngưỡng ${formatPoint(thresholds.level1TermGpa, 1)}`);
+  }
+  if (standing.failedCredits >= thresholds.level1FailedCredits) {
+    const limit = standing.failedCredits >= thresholds.level2FailedCredits ? thresholds.level2FailedCredits : thresholds.level1FailedCredits;
+    reasons.push(`Nợ ${standing.failedCredits} tín chỉ (từ ${limit} tín chỉ)`);
+  }
   return reasons;
 }
 
-export function summarizeStandings(entries: { faculty: string; standing: StudentStanding }[]): FacultyStandingSummary[] {
+// Ngưỡng cảnh báo hiện trên trang danh sách cảnh báo, viết từ quy chế đang áp dụng.
+export function warningRules(thresholds: WarningThresholds) {
+  return [
+    `Mức 1: ĐTB học kỳ dưới ${formatPoint(thresholds.level1TermGpa, 1)} hoặc nợ từ ${thresholds.level1FailedCredits} tín chỉ trở lên`,
+    `Mức 2: CPA dưới ${formatPoint(thresholds.level2Cpa, 1)} hoặc nợ từ ${thresholds.level2FailedCredits} tín chỉ trở lên`,
+    `Mức 3: CPA dưới ${formatPoint(thresholds.level3Cpa, 1)}`,
+    `Bị cảnh báo ${thresholds.expelAfterWarnings} học kỳ chính liên tiếp hoặc ở mức 3: Phòng Đào tạo xem xét buộc thôi học`,
+  ];
+}
+
+// Tổng hợp xếp loại theo khoa. Sinh viên chưa có điểm không vào phân bố và CPA trung bình; cảnh báo đếm theo cảnh báo chính thức.
+export function summarizeStandings(entries: { faculty: string; standing: Pick<StudentStanding, "cpa4" | "standing">; warned: boolean }[]): FacultyStandingSummary[] {
   const summary = new Map<string, FacultyStandingSummary & { cpaTotal: number }>();
-  for (const { faculty, standing } of entries) {
+  for (const { faculty, standing, warned } of entries) {
     const entry =
       summary.get(faculty) ??
       ({
         faculty,
         total: 0,
+        unranked: 0,
         averageCpa: 0,
         cpaTotal: 0,
         warnings: 0,
-        counts: Object.fromEntries(STANDING_SCALE.map((step) => [step.standing, 0])) as Record<AcademicStanding, number>,
+        counts: Object.fromEntries(STANDINGS.map((step) => [step.standing, 0])) as Record<AcademicStanding, number>,
       } satisfies FacultyStandingSummary & { cpaTotal: number });
-    entry.total += 1;
-    entry.cpaTotal += standing.cpa4;
-    entry.counts[standing.standing] += 1;
-    if (standing.warningLevel > 0) entry.warnings += 1;
+    if (warned) entry.warnings += 1;
+    if (standing.standing === null || standing.cpa4 === null) entry.unranked += 1;
+    else {
+      entry.total += 1;
+      entry.cpaTotal += Math.round(standing.cpa4 * 100);
+      entry.counts[standing.standing] += 1;
+    }
     summary.set(faculty, entry);
   }
-  return [...summary.values()].map(({ cpaTotal, ...entry }) => ({ ...entry, averageCpa: Math.round((cpaTotal / entry.total) * 100) / 100 }));
+  return [...summary.values()].map(({ cpaTotal, ...entry }) => ({ ...entry, averageCpa: entry.total > 0 ? Math.round(cpaTotal / entry.total) / 100 : 0 }));
 }
 
-// Trạng thái hiển thị: bảng điểm chưa chốt thì suy từ hạn nhập so với hiện tại.
-export function sheetState(status: GradeSheetStatus, deadline: string, now = dayjs()): GradeSheetState {
+// ---------- Bảng điểm lớp: hạn nhập, trạng thái ----------
+
+// Hạn nhập điểm theo quy chế: gradeEntryDays ngày sau ngày thi cuối kỳ của lớp, lớp chưa có lịch thi thì sau ngày kết thúc học kỳ;
+// hết hạn lúc 23:59 giờ Việt Nam.
+export function gradeEntryDeadline(input: { finalExamDate: string | null; termEnd: string }, gradeEntryDays: number) {
+  return schoolTime(input.finalExamDate ?? input.termEnd)
+    .add(gradeEntryDays, "day")
+    .hour(23)
+    .minute(59)
+    .second(0)
+    .millisecond(0)
+    .toISOString();
+}
+
+// Trạng thái hiển thị: bảng điểm chưa chốt thì suy từ hạn nhập so với hiện tại, "sắp hết hạn" theo số ngày nhắc của quy chế.
+export function sheetState(status: GradeSheetStatus, deadline: string, dueSoonDays: number, now = dayjs()): GradeSheetState {
   if (status === "published" || status === "approved" || status === "locked" || status === "returned") return status;
   if (now.isAfter(deadline)) return "overdue";
-  if (dayjs(deadline).startOf("day").diff(now.startOf("day"), "day") <= DUE_SOON_DAYS) return "due-soon";
+  if (schoolTime(deadline).startOf("day").diff(schoolTime(now).startOf("day"), "day") <= dueSoonDays) return "due-soon";
   return "in-progress";
 }
 
@@ -119,12 +262,6 @@ export function sheetSummary(sheet: GradeSheet & { state: GradeSheetState }): Gr
     filledCells: values.filter((value) => value !== null).length,
     totalCells: values.length,
   };
-}
-
-// Điểm tổng kết học phần (thang 10, một chữ số) đổi sang điểm chữ và thang 4.
-export function courseGrade(score10: number) {
-  const step = toLetter(score10);
-  return { score10, letter: step.letter, point4: step.point4 };
 }
 
 export const NEXT_WARNING_STATUS: Partial<Record<WarningStatus, WarningStatus>> = { new: "notified", notified: "resolved" };
@@ -276,16 +413,32 @@ export function parseScoreMatrix(matrix: string[][], components: { key: string; 
 // Server action nhận tối đa 1 MB (mặc định của Next); bảng điểm một lớp chỉ vài chục KB.
 export const GRADE_IMPORT_MAX_BYTES = 900 * 1024;
 
-// Cảnh báo học vụ của một sinh viên sau một học kỳ, null nếu không dưới ngưỡng.
-export function academicWarningOf(standing: StudentStanding) {
-  if (standing.warningLevel === 0) return null;
+// Cảnh báo học vụ của một sinh viên sau một học kỳ theo ngưỡng quy chế, null nếu không dưới ngưỡng.
+export function academicWarningOf(standing: StudentStanding, thresholds: WarningThresholds) {
+  if (standing.warningLevel === 0 || standing.cpa4 === null) return null;
   return {
     level: standing.warningLevel,
-    termGpa4: standing.lastTermGpa4,
+    termGpa4: standing.lastTermGpa4 ?? 0,
     cpa4: standing.cpa4,
     failedCredits: standing.failedCredits,
-    reasons: warningReasons(standing),
+    reasons: warningReasons(standing, thresholds),
   };
+}
+
+// Số học kỳ chính liên tiếp (tính lùi từ học kỳ cuối của danh sách) sinh viên bị cảnh báo.
+export function consecutiveWarnings(mainTermIds: string[], warnedTermIds: Set<string>) {
+  let count = 0;
+  for (let index = mainTermIds.length - 1; index >= 0 && warnedTermIds.has(mainTermIds[index]); index -= 1) count += 1;
+  return count;
+}
+
+// Đề xuất xét buộc thôi học: bị cảnh báo đủ số học kỳ chính liên tiếp theo quy chế, hoặc cảnh báo mức 3 ở học kỳ đang xét.
+// Chỉ là danh sách cho Phòng Đào tạo xem xét; quyết định buộc thôi học lập ở mục Quyết định sinh viên.
+export function expulsionReasons(input: { consecutive: number; level: number }, thresholds: WarningThresholds) {
+  const reasons: string[] = [];
+  if (input.consecutive >= thresholds.expelAfterWarnings) reasons.push(`Bị cảnh báo ${input.consecutive} học kỳ chính liên tiếp (quy chế: ${thresholds.expelAfterWarnings})`);
+  if (input.level === 3) reasons.push(`Cảnh báo mức 3: CPA dưới ${formatPoint(thresholds.level3Cpa, 1)}`);
+  return reasons;
 }
 
 export type ComputedWarning = NonNullable<ReturnType<typeof academicWarningOf>> & { studentId: string };

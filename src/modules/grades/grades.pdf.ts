@@ -1,8 +1,9 @@
 import "server-only";
 import { formatDate, formatDateTime } from "@/shared/libs/date.lib";
 import { buildPdf } from "@/shared/libs/pdf.lib";
-import { formatPoint, STANDING_LABEL, toLetter, weightedScore } from "@/modules/grades/grades.constant";
-import type { GradeComponent, ScoreRow, StudentStanding, TranscriptTerm } from "@/modules/grades/grades.type";
+import { formatPoint, standingLabel } from "@/modules/grades/grades.constant";
+import { attemptNote, letterOf, weightedScore } from "@/modules/grades/grades.rule";
+import type { GradeComponent, GradingRules, ScoreRow, StudentStanding, TranscriptTerm } from "@/modules/grades/grades.type";
 
 type TranscriptStudent = { code: string; fullName: string; dateOfBirth: string; className: string; majorName: string; faculty: string; cohort: number };
 
@@ -33,7 +34,14 @@ export function transcriptPdf(student: TranscriptStudent, terms: TranscriptTerm[
           type: "table" as const,
           caption: term.termName,
           columns: [{ header: "Mã HP" }, { header: "Tên học phần" }, { header: "TC" }, { header: "Điểm 10" }, { header: "Điểm chữ", align: "center" as const }, { header: "Điểm 4" }],
-          rows: term.courses.map((course) => [course.courseCode, course.courseName, course.credits, formatPoint(course.score10, 1), course.letter ?? "", formatPoint(course.point4, 1)]),
+          rows: term.courses.map((course) => [
+            course.courseCode,
+            `${course.courseName}${attemptNote(course)}`,
+            course.credits,
+            formatPoint(course.score10, 1),
+            course.letter ?? "",
+            formatPoint(course.point4, 1),
+          ]),
         },
         {
           type: "paragraph" as const,
@@ -44,8 +52,9 @@ export function transcriptPdf(student: TranscriptStudent, terms: TranscriptTerm[
       {
         type: "paragraph",
         bold: true,
-        text: `Tổng số tín chỉ tích lũy: ${standing.earnedCredits}. Điểm trung bình tích lũy: ${formatPoint(standing.cpa4)}. Xếp loại: ${STANDING_LABEL[standing.standing]}.`,
+        text: `Tổng số tín chỉ tích lũy: ${standing.earnedCredits}. Điểm trung bình tích lũy: ${formatPoint(standing.cpa4) || "chưa có"}. Xếp loại: ${standingLabel(standing.standing)}.`,
       },
+      { type: "paragraph", size: 8.5, text: "Học phần học lại hoặc học cải thiện: điểm tính vào điểm trung bình tích lũy là điểm của lần học cuối." },
       { type: "paragraph", size: 8.5, text: "Bảng điểm tra cứu từ cổng thông tin đào tạo, dùng để tham khảo. Bản có giá trị xác nhận do Phòng Đào tạo cấp." },
     ],
   });
@@ -61,13 +70,14 @@ type GradeSheetPdfInput = {
   components: GradeComponent[];
   students: { studentId: string; studentCode: string; fullName: string }[];
   scores: Record<string, ScoreRow>;
+  grading: GradingRules;
 };
 
 // Bảng điểm lớp đã chốt để giảng viên in, ký nộp khoa: điểm thành phần, tổng, điểm chữ, thống kê đạt / không đạt.
 export function gradeSheetPdf(input: GradeSheetPdfInput) {
-  const totals = input.students.map((student) => weightedScore(input.components, input.scores[student.studentId] ?? {}));
+  const totals = input.students.map((student) => weightedScore(input.components, input.scores[student.studentId] ?? {}, input.grading.roundingStep));
   const graded = totals.filter((total): total is number => total !== null);
-  const failed = graded.filter((total) => toLetter(total).letter === "F").length;
+  const failed = graded.filter((total) => letterOf(total, input.grading.scale).letter === "F").length;
   return buildPdf({
     title: "Bảng điểm lớp học phần",
     subtitle: `${input.classCode} · ${input.courseName} · ${input.termName}`,
@@ -105,7 +115,7 @@ export function gradeSheetPdf(input: GradeSheetPdfInput) {
             student.fullName,
             ...input.components.map((component) => formatPoint(row[component.key] ?? null, 1)),
             formatPoint(total, 1),
-            total === null ? "" : toLetter(total).letter,
+            total === null ? "" : letterOf(total, input.grading.scale).letter,
           ];
         }),
         emptyText: "Lớp chưa có sinh viên.",

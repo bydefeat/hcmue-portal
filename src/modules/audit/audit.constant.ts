@@ -15,6 +15,10 @@ export const AUDIT_ACTION: Record<AuditAction, StatusMeta> = {
   permission: { label: "Đổi quyền", tone: "warning" },
   cancel: { label: "Hủy", tone: "neutral" },
   download: { label: "Tải xuống", tone: "neutral" },
+  submit: { label: "Trình ký", tone: "neutral" },
+  sign: { label: "Ký", tone: "success" },
+  revoke: { label: "Thu hồi", tone: "danger" },
+  return: { label: "Trả lại", tone: "warning" },
 };
 
 export const AUDIT_ENTITY_LABEL: Record<AuditEntityType, string> = {
@@ -33,6 +37,9 @@ export const AUDIT_ENTITY_LABEL: Record<AuditEntityType, string> = {
   report: "Báo cáo",
   program: "Chương trình đào tạo",
   mail: "Thư gửi đi",
+  staff: "Cán bộ",
+  course: "Học phần",
+  graduation: "Xét tốt nghiệp",
 };
 
 export const AUDIT_PAGE_SIZE = 50;

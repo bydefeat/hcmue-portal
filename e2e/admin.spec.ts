@@ -49,7 +49,8 @@ test("thêm sinh viên, cấp tài khoản, sinh viên tự kích hoạt bằng 
   await chooseOption(page, form.getByLabel("Khóa", { exact: true }), "Khóa 51");
   await form.getByLabel("Lớp sinh hoạt").fill("51.01.CNTT.A");
   await form.getByLabel("Lớp sinh hoạt").press("Escape");
-  await form.getByLabel("Email").fill(email);
+  // Email trường tự sinh theo MSSV, không nhập.
+  await expect(form.getByLabel("Email trường")).toHaveValue(email);
   await expect(form.getByLabel("Cấp tài khoản và gửi thư kích hoạt")).toBeChecked();
   await form.getByRole("button", { name: "Thêm sinh viên" }).click();
   await expect(toast(page, `Đã thêm ${fullName} vào lớp 51.01.CNTT.A`)).toBeVisible();

@@ -35,7 +35,8 @@ export const PERMISSION_GROUPS: { label: string; permissions: { key: Permission;
       { key: "registration.manage", label: "Cấu hình đợt đăng ký" },
       { key: "grades.approve", label: "Duyệt bảng điểm cấp khoa" },
       { key: "grades.publish", label: "Công bố điểm" },
-      { key: "decisions.manage", label: "Lập quyết định sinh viên" },
+      { key: "decisions.manage", label: "Lập, trình ký quyết định sinh viên" },
+      { key: "decisions.sign", label: "Ký, trả lại, thu hồi quyết định sinh viên" },
       { key: "graduation.manage", label: "Xét tốt nghiệp" },
       { key: "exams.manage", label: "Xếp lịch thi, điều kiện dự thi" },
       { key: "tuition.manage", label: "Ghi nhận học phí, nhập sao kê ngân hàng" },
@@ -54,6 +55,7 @@ export const PERMISSION_GROUPS: { label: string; permissions: { key: Permission;
     label: "Báo cáo",
     permissions: [
       { key: "reports.view", label: "Xem thống kê, cảnh báo học vụ" },
+      { key: "warnings.manage", label: "Xử lý cảnh báo học vụ, gửi thông báo cho sinh viên" },
       { key: "surveys.view", label: "Xem kết quả khảo sát giảng dạy" },
     ],
   },

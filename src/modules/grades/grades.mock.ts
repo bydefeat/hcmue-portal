@@ -1,7 +1,9 @@
 import { createRandom, mockDate, mockId, mockSectionId, mockStudentIdentity, mockStudentIndex, mockTermId } from "@/shared/libs/mock.lib";
 import { COURSES_IN_CURRENT_TERM, COURSES_PER_PAST_TERM, mockCourseSequence, TERMS_DONE_BY_COHORT } from "@/shared/libs/mock-course.lib";
-import { DEFAULT_COMPONENTS, toLetter } from "@/modules/grades/grades.constant";
-import type { GradeComponent, GradeSheetStatus, ScoreRow, TranscriptCourse, WarningStatus } from "@/modules/grades/grades.type";
+import { DEFAULT_COMPONENTS } from "@/modules/grades/grades.constant";
+import { letterOf } from "@/modules/grades/grades.rule";
+import { REGULATION_RULES } from "@/modules/settings/settings.mock";
+import type { GradeComponent, GradeSheetStatus, ScoreRow, TranscriptCourseInput, WarningStatus } from "@/modules/grades/grades.type";
 
 // Dữ liệu mẫu chỉ còn seed dùng (scripts/seed/grades.seed.ts); query đọc từ Postgres.
 
@@ -22,12 +24,20 @@ function clamp(value: number) {
   return Math.min(10, Math.max(0, Math.round(value * 10) / 10));
 }
 
-export function abilityOf(index: number) {
+function abilityOf(index: number) {
   const random = createRandom(index * 97 + 3);
   if (index % 23 === 5) return 3.9 + random();
   if (index % 37 === 11) return 4.4 + random();
   return 5.8 + random() * 3.4;
 }
+
+const graded = (courseCode: string, courseName: string, credits: number, score10: number): TranscriptCourseInput => ({
+  courseCode,
+  courseName,
+  credits,
+  score10,
+  ...letterOf(score10, REGULATION_RULES.grading.scale),
+});
 
 export function mockTranscriptTerms(index: number) {
   const student = mockStudentIdentity(index);
@@ -48,18 +58,30 @@ export function mockTranscriptTerms(index: number) {
     termId: term.id,
     termName: term.name,
     isInProgress: false,
-    courses: takeCourses(COURSES_PER_PAST_TERM).map(([courseCode, courseName, credits]): TranscriptCourse => {
-      const score10 = clamp(ability + (random() - 0.5) * 3);
-      const scale = toLetter(score10);
-      return { courseCode, courseName, credits, score10, letter: scale.letter, point4: scale.point4 };
-    }),
+    courses: takeCourses(COURSES_PER_PAST_TERM).map(([courseCode, courseName, credits]) => graded(courseCode, courseName, credits, clamp(ability + (random() - 0.5) * 3))),
   }));
+
+  // Học lại và học cải thiện ở học kỳ chính kế tiếp (luồng ngẫu nhiên riêng để điểm lần đầu không đổi): phần lớn học phần F được học lại,
+  // một số sinh viên học cải thiện một học phần điểm D. Điểm tính CPA là lần học cuối.
+  const retakeRandom = createRandom(index * 211 + 17);
+  let improved = index % 7 !== 3;
+  terms.forEach((term, position) => {
+    const next = terms[position + 1];
+    if (!next) return;
+    for (const course of term.courses) {
+      const isFailed = course.letter === "F";
+      const improve = !improved && (course.letter === "D" || course.letter === "D+");
+      if (!(isFailed && retakeRandom() < 0.75) && !improve) continue;
+      if (improve) improved = true;
+      next.courses.push(graded(course.courseCode, course.courseName, course.credits, clamp(Math.max(ability, 5) + retakeRandom() * 2)));
+    }
+  });
 
   const current = {
     termId: CURRENT_TERM.id,
     termName: CURRENT_TERM.name,
     isInProgress: true,
-    courses: takeCourses(COURSES_IN_CURRENT_TERM).map(([courseCode, courseName, credits]): TranscriptCourse => ({
+    courses: takeCourses(COURSES_IN_CURRENT_TERM).map(([courseCode, courseName, credits]): TranscriptCourseInput => ({
       courseCode,
       courseName,
       credits,
@@ -72,7 +94,7 @@ export function mockTranscriptTerms(index: number) {
   return student.cohort === 48 ? terms : [...terms, current];
 }
 
-export const PROJECT_COMPONENTS: GradeComponent[] = [
+const PROJECT_COMPONENTS: GradeComponent[] = [
   { key: "attendance", label: "Chuyên cần", weight: 10 },
   { key: "project", label: "Đồ án", weight: 40 },
   { key: "final", label: "Cuối kỳ", weight: 50 },
@@ -121,6 +143,10 @@ export function mockScoreRow(classSectionId: string, studentId: string, seed: Gr
 
 // Cảnh báo học vụ sau học kỳ 2, năm học 2025-2026: trạng thái xử lý và ngày lập của từng sinh viên.
 export const WARNING_TERM_KEY = "hk2-2025";
+
+// Cảnh báo của học kỳ chính trước đó đã xử lý xong (đã gặp sinh viên): sinh viên bị cảnh báo cả hai học kỳ vào danh sách đề xuất
+// xét buộc thôi học.
+export const PREVIOUS_WARNING_TERM_KEY = "hk1-2025";
 
 export function mockWarningMeta(index: number): { id: string; status: WarningStatus; createdAt: string } {
   const random = createRandom(index + 404);

@@ -13,9 +13,11 @@ import { SURVEY, SURVEY_RESULTS } from "@/modules/surveys/surveys.mock";
 import { surveyAnswers, surveyQuestions, surveyResponses, surveys, surveySubmissions } from "@/modules/surveys/surveys.schema";
 import { GRADE_SHEET_SEEDS, mockTranscriptTerms, mockWarningMeta } from "@/modules/grades/grades.mock";
 import { academicWarnings, courseResults, gradeSheets } from "@/modules/grades/grades.schema";
-import { graduationRecords } from "@/modules/graduation/graduation.schema";
+import { GRADUATION_ROUND } from "@/modules/graduation/graduation.mock";
+import { graduationRecords, graduationRounds } from "@/modules/graduation/graduation.schema";
 import { CURRENT_LECTURER_ID, CURRENT_STUDENT_ID, STUDENTS } from "@/modules/users/users.mock";
-import { lecturers, students } from "@/modules/users/users.schema";
+import { lecturers, studentDecisions, students } from "@/modules/users/users.schema";
+import { roleAssignments, rolePermissions } from "@/modules/access/access.schema";
 import { REQUESTS } from "@/modules/requests/requests.mock";
 import { academicRequests, requestAttachments, requestCodeCounters, requestSteps } from "@/modules/requests/requests.schema";
 import { ANNOUNCEMENTS } from "@/modules/announcements/announcements.mock";
@@ -169,6 +171,8 @@ describe("seed khớp dữ liệu mẫu: học phí, thông báo, nhật ký, c�
     const [latest] = await db.select().from(regulations).orderBy(desc(regulations.effectiveFrom)).limit(1);
     assert.equal(latest.version, REGULATION.version);
     assert.deepEqual(latest.rules.credits, REGULATION.credits);
+    assert.deepEqual(latest.rules.graduation, REGULATION.graduation);
+    assert.deepEqual(latest.rules.grading.standing, REGULATION.grading.standing);
     const [[versions], [events]] = await Promise.all([db.select({ total: count() }).from(regulations), db.select({ total: count() }).from(calendarEvents)]);
     assert.equal(versions.total, REGULATION_VERSIONS.length);
     assert.equal(events.total, CALENDAR_EVENTS.length);
@@ -237,7 +241,9 @@ describe("seed grades, graduation khớp dữ liệu mẫu", () => {
     assert.ok(warnings.length > 0);
     assert.ok(STUDENTS.some((_, index) => ids.has(mockWarningMeta(index).id)));
     const [{ total }] = await db.select({ total: count() }).from(graduationRecords);
-    assert.equal(total, STUDENTS.filter((student) => student.cohort === 48).length);
+    assert.equal(total, STUDENTS.filter((student) => GRADUATION_ROUND.cohorts.includes(student.cohort)).length);
+    const rounds = await db.select({ cohorts: graduationRounds.cohorts }).from(graduationRounds).where(eq(graduationRounds.isOpen, true));
+    assert.deepEqual(rounds, [{ cohorts: GRADUATION_ROUND.cohorts }]);
   });
 });
 
@@ -283,5 +289,46 @@ describe("seed khớp dữ liệu mẫu: giảng dạy, kế hoạch học tập
     assert.equal(await total(advisingNotes), MEETING_NOTES.length);
     const [appointment] = await db.select({ advisorId: advisingAppointments.advisorId }).from(advisingAppointments).where(eq(advisingAppointments.id, mockId("appointment:lh-03")));
     assert.equal(appointment?.advisorId, CURRENT_LECTURER_ID);
+  });
+});
+
+describe("seed: quyết định sinh viên khớp tình trạng", () => {
+  test("sinh viên bảo lưu, tạm ngừng có quyết định đã ký và đã có hiệu lực; quyết định có hiệu lực ghi tình trạng trước", async () => {
+    const rows = await db.select({ id: students.id, status: students.status }).from(students).where(inArray(students.status, ["reserved", "suspended"]));
+    const signed = await db
+      .select({ studentId: studentDecisions.studentId, kind: studentDecisions.kind, appliedAt: studentDecisions.appliedAt })
+      .from(studentDecisions)
+      .where(eq(studentDecisions.status, "signed"));
+    const expected = { reserved: "reserve", suspended: "suspend" } as const;
+    for (const row of rows) {
+      assert.ok(
+        signed.some((decision) => decision.studentId === row.id && decision.kind === expected[row.status as "reserved" | "suspended"] && decision.appliedAt),
+        `thiếu quyết định cho sinh viên ${row.id}`,
+      );
+    }
+    const [{ missing }] = await db
+      .select({ missing: count() })
+      .from(studentDecisions)
+      .where(and(isNotNull(studentDecisions.appliedAt), sql`${studentDecisions.previousStatus} IS NULL`));
+    assert.equal(missing, 0);
+  });
+
+  test("không có dự thảo tốt nghiệp cho người đã tốt nghiệp; người ký mẫu có quyền ký", async () => {
+    const graduatedDrafts = await db
+      .select({ id: studentDecisions.id })
+      .from(studentDecisions)
+      .innerJoin(students, eq(students.id, studentDecisions.studentId))
+      .where(and(eq(studentDecisions.kind, "graduate"), eq(students.status, "graduated"), inArray(studentDecisions.status, ["draft", "pending-signature"])));
+    assert.equal(graduatedDrafts.length, 0);
+    const signers = await db.selectDistinct({ userId: studentDecisions.signedByUserId }).from(studentDecisions).where(isNotNull(studentDecisions.signedByUserId));
+    assert.ok(signers.length > 0);
+    for (const { userId } of signers) {
+      const [{ grants }] = await db
+        .select({ grants: count() })
+        .from(roleAssignments)
+        .innerJoin(rolePermissions, eq(rolePermissions.roleId, roleAssignments.roleId))
+        .where(and(eq(roleAssignments.userId, userId!), eq(rolePermissions.permission, "decisions.sign")));
+      assert.ok(grants > 0, "người ký có quyền decisions.sign");
+    }
   });
 });

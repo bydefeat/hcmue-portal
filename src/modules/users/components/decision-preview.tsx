@@ -1,6 +1,6 @@
 import { Card } from "antd";
 import { formatDate } from "@/shared/libs/date.lib";
-import { DECISION_KIND_LABEL } from "@/modules/users/users.constant";
+import { DECISION_KIND_LABEL, decisionDetail } from "@/modules/users/users.constant";
 import type { StudentDecision } from "@/modules/users/users.type";
 
 export function DecisionPreview({ decision }: { decision: StudentDecision }) {
@@ -25,7 +25,7 @@ export function DecisionPreview({ decision }: { decision: StudentDecision }) {
       <p className="text-pretty">Xét đề nghị của Trưởng phòng Đào tạo,</p>
       <p className="text-center font-semibold">QUYẾT ĐỊNH:</p>
       <p className="text-pretty">
-        <span className="font-semibold">Điều 1.</span> {decision.title} đối với sinh viên {decision.studentName}, mã số {decision.studentCode}, lớp {decision.className}, {decision.faculty}.
+        <span className="font-semibold">Điều 1.</span> {decision.title} đối với sinh viên {decision.studentName}, mã số {decision.studentCode}, lớp {decision.className}, {decision.faculty}.{decisionDetail(decision)}
       </p>
       <p className="text-pretty">
         <span className="font-semibold">Điều 2.</span> Quyết định có hiệu lực từ ngày {formatDate(decision.effectiveDate)}.

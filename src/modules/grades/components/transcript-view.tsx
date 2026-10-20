@@ -5,9 +5,29 @@ import { EmptyState } from "@/shared/components/ui/empty-state";
 import { formatPoint, letterTextClass } from "@/modules/grades/grades.constant";
 import type { TranscriptCourse, TranscriptTerm } from "@/modules/grades/grades.type";
 
+// Học lại, học cải thiện: điểm tính tích lũy là lần học cuối; lần trước đó vẫn hiện nhưng ghi đã được thay thế.
+function AttemptTags({ course }: { course: TranscriptCourse }) {
+  if (!course.retakeKind && !course.replaced) return null;
+  return (
+    <span className="flex flex-wrap gap-x-2 text-xs text-muted">
+      {course.retakeKind && <span className="font-medium text-foreground">{course.retakeKind === "retake" ? `Học lại lần ${course.attempt}` : "Học cải thiện"}</span>}
+      {course.replaced && <span>Đã học lại, không tính tích lũy</span>}
+    </span>
+  );
+}
+
 const COLUMNS: TableColumnsType<TranscriptCourse> = [
   { title: "Mã HP", dataIndex: "courseCode", width: 110, render: (code: string) => <span className="text-xs">{code}</span> },
-  { title: "Tên học phần", dataIndex: "courseName", render: (name: string) => <span className="text-pretty">{name}</span> },
+  {
+    title: "Tên học phần",
+    dataIndex: "courseName",
+    render: (name: string, row) => (
+      <span className={`flex flex-col text-pretty ${row.replaced ? "text-muted" : ""}`}>
+        {name}
+        <AttemptTags course={row} />
+      </span>
+    ),
+  },
   { title: "TC", dataIndex: "credits", width: 56, align: "right", render: (value: number) => <span className="tabular-nums">{value}</span> },
   {
     title: "Thang 10",
@@ -41,7 +61,8 @@ function CourseList({ courses }: { courses: TranscriptCourse[] }) {
       {courses.map((course) => (
         <li key={course.courseCode} className="flex items-start gap-3 py-2">
           <span className="flex min-w-0 flex-1 flex-col">
-            <span className="text-sm text-pretty">{course.courseName}</span>
+            <span className={`text-sm text-pretty ${course.replaced ? "text-muted" : ""}`}>{course.courseName}</span>
+            <AttemptTags course={course} />
             <span className="text-xs text-muted tabular-nums">
               {course.courseCode} · {course.credits} TC
             </span>

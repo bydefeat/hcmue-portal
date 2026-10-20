@@ -6,7 +6,7 @@ import { Magnifier, Pen, Plus } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { PageHeader } from "@/shared/components/ui/page-header";
 import { StatusTag } from "@/shared/components/ui/status-tag";
-import { ACCOUNT_STATUS_OPTIONS, facultyOptions, LECTURER_STATUS, USER_ROLES } from "@/modules/users/users.constant";
+import { ACCOUNT_STATUS_OPTIONS, facultyOptions, LECTURER_ROLES, LECTURER_STATUS } from "@/modules/users/users.constant";
 import type { AccountState, AccountStatus as AccountStatusValue, Lecturer, LecturerFormValues } from "@/modules/users/users.type";
 import { AccountBulkActions } from "@/modules/users/components/account-bulk-actions";
 import { AccountStatus } from "@/modules/users/components/account-status";
@@ -15,7 +15,7 @@ import { paginationItemRender } from "@/shared/constants/antd.constant";
 import { normalizeSearch } from "@/shared/libs/search.lib";
 import { saveLecturer } from "@/modules/users/users.action";
 
-const ROLE_LABEL = Object.fromEntries(USER_ROLES.map((role) => [role.value, role.label]));
+const ROLE_LABEL = Object.fromEntries(LECTURER_ROLES.map((role) => [role.value, role.label]));
 
 export type LecturerRow = Lecturer & { account: AccountState };
 
@@ -24,8 +24,11 @@ export function LecturerTable({
   faculties,
   initialQuery = "",
   header,
+  canManage,
 }: {
   lecturers: LecturerRow[];
+  // Có quyền quản lý giảng viên: thêm, sửa, thao tác tài khoản. Không có thì bảng chỉ để xem.
+  canManage: boolean;
   // Danh sách khoa đọc từ DB.
   faculties: string[];
   initialQuery?: string;
@@ -106,7 +109,9 @@ export function LecturerTable({
       render: (value: Lecturer["status"]) => (value === "active" ? <span className="text-muted">Đang giảng dạy</span> : <StatusTag status={LECTURER_STATUS[value]} />),
     },
     { title: "Tài khoản", key: "account", width: 130, responsive: ["md"], render: (_, row) => <AccountStatus account={row.account} /> },
-    {
+  ];
+  if (canManage) {
+    columns.push({
       title: "",
       key: "actions",
       width: 80,
@@ -126,8 +131,8 @@ export function LecturerTable({
           Sửa
         </Button>
       ),
-    },
-  ];
+    });
+  }
 
   return (
     <>
@@ -135,16 +140,18 @@ export function LecturerTable({
       <PageHeader
         {...header}
         actions={
-          <Button
-            type="primary"
-            icon={<Plus size={16} aria-hidden />}
-            onClick={() => {
-              setEditing(null);
-              setIsDrawerOpen(true);
-            }}
-          >
-            Thêm giảng viên
-          </Button>
+          canManage ? (
+            <Button
+              type="primary"
+              icon={<Plus size={16} aria-hidden />}
+              onClick={() => {
+                setEditing(null);
+                setIsDrawerOpen(true);
+              }}
+            >
+              Thêm giảng viên
+            </Button>
+          ) : undefined
         }
       />
       <div className="flex flex-col gap-3">
@@ -159,7 +166,7 @@ export function LecturerTable({
             className="w-full sm:w-72"
           />
           <Select allowClear value={faculty} onChange={setFaculty} placeholder="Mọi khoa" aria-label="Khoa" options={facultyFilterOptions} className="w-full sm:w-60" />
-          <Select allowClear value={role} onChange={setRole} placeholder="Mọi vai trò" aria-label="Vai trò" options={USER_ROLES} className="w-full sm:w-48" />
+          <Select allowClear value={role} onChange={setRole} placeholder="Mọi vai trò" aria-label="Vai trò" options={LECTURER_ROLES} className="w-full sm:w-48" />
           <Select
             allowClear
             value={accountStatus}
@@ -170,7 +177,7 @@ export function LecturerTable({
             className="w-full sm:w-40"
           />
         </div>
-        {selectedIds.length > 0 && (
+        {canManage && selectedIds.length > 0 && (
           <Card size="small" classNames={{ body: "flex flex-wrap items-center gap-3 py-2" }}>
             <span className="text-sm tabular-nums">Đã chọn {selectedIds.length} giảng viên</span>
             <AccountBulkActions
@@ -188,7 +195,7 @@ export function LecturerTable({
           size="middle"
           columns={columns}
           dataSource={filtered}
-          rowSelection={{ selectedRowKeys: selectedIds, onChange: setSelectedIds }}
+          rowSelection={canManage ? { selectedRowKeys: selectedIds, onChange: setSelectedIds } : undefined}
           scroll={{ x: "max-content" }}
           pagination={{ itemRender: paginationItemRender, pageSize: 20, hideOnSinglePage: true, showTotal: (total) => `${total} giảng viên` }}
           locale={{ emptyText: <EmptyState illustration="search" title="Không có giảng viên khớp bộ lọc" description="Thử tìm theo mã giảng viên hoặc bỏ bớt điều kiện lọc." /> }}

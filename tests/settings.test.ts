@@ -5,7 +5,8 @@ import { db } from "@/shared/libs/db.lib";
 import { parseInput } from "@/shared/libs/action.lib";
 import { pgErrorMessage } from "@/shared/libs/pg-error.lib";
 import { SETTINGS_CONSTRAINT_MESSAGE } from "@/modules/settings/settings.constant";
-import { REGULATION } from "@/modules/settings/settings.mock";
+import { REGULATION, REGULATION_RULES } from "@/modules/settings/settings.mock";
+import { regulationAt } from "@/modules/settings/settings.lib";
 import { CALENDAR_EVENT_SCHEMA, nextRegulationVersion, REGULATION_RULES_SCHEMA, REGULATION_SAVE_SCHEMA, regulationChanges, REPORT_EXPORT_SCHEMA, reportCellText, reportFileName } from "@/modules/settings/settings.rule";
 import { buildSpreadsheet, readSpreadsheet } from "@/shared/libs/spreadsheet.lib";
 import ExcelJS from "exceljs";
@@ -13,8 +14,9 @@ import { calendarEvents, regulations, reportExports } from "@/modules/settings/s
 
 after(() => db.$client.end());
 
-const { grading, credits, warning, attendance, workflow } = REGULATION;
-const rules = { grading, credits, warning, attendance, workflow };
+const rules = REGULATION_RULES;
+const save = (next: unknown) => parseInput(REGULATION_SAVE_SCHEMA, { rules: next, decision: "1/QĐ", reason: "Thử", effectiveFrom: "2027-01-01" });
+const { grading, credits, warning } = rules;
 
 describe("settings: quy chế đào tạo", () => {
   test("quy chế mẫu hợp lệ", () => {
@@ -31,6 +33,26 @@ describe("settings: quy chế đào tạo", () => {
     assert.deepEqual(Object.keys(!missing.ok ? (missing.fieldErrors ?? {}) : {}).toSorted(), ["decision", "effectiveFrom", "reason"]);
   });
 
+  test("thang điểm phải kết thúc bằng F từ 0, ngưỡng một chữ số thập phân; bước làm tròn 0,1, 0,5 hoặc 1; ngưỡng xếp loại giảm dần", () => {
+    const twoDigits = save({ ...rules, grading: { ...grading, scale: grading.scale.map((step) => (step.letter === "A" ? { ...step, min: 8.55 } : step)) } });
+    assert.ok(!twoDigits.ok && twoDigits.fieldErrors?.["rules.grading.scale"]);
+    const rounding = save({ ...rules, grading: { ...grading, roundingStep: 0.25 } });
+    assert.ok(!rounding.ok && rounding.fieldErrors?.["rules.grading.roundingStep"]);
+    const standing = save({ ...rules, grading: { ...grading, standing: { ...grading.standing, good: 3.3 } } });
+    assert.ok(!standing.ok && standing.fieldErrors?.["rules.grading.standing.good"]);
+    const graduation = save({ ...rules, graduation: { ...rules.graduation, languageMinLevel: "B3" } });
+    assert.ok(!graduation.ok && graduation.fieldErrors?.["rules.graduation.languageMinLevel"]);
+    assert.ok(save({ ...rules, graduation: { ...rules.graduation, downgradeStandings: ["very-good", "excellent"] } }).ok);
+  });
+
+  test("bản quy chế áp dụng theo ngày: bản mới chỉ có hiệu lực từ ngày áp dụng", async () => {
+    const at = await regulationAt(db, "2024-01-01");
+    assert.equal(at.version, "2023.1");
+    assert.equal((await regulationAt(db, "2026-10-20")).version, REGULATION.version);
+    // Trước bản sớm nhất thì lấy bản sớm nhất.
+    assert.equal((await regulationAt(db, "2000-01-01")).version, "2021.1");
+  });
+
   test("số hiệu phiên bản tăng theo năm áp dụng", () => {
     assert.equal(nextRegulationVersion(["2025.1", "2026.1", "2026.2"], "2026-11-01"), "2026.3");
     assert.equal(nextRegulationVersion(["2025.1"], "2027-09-01"), "2027.1");
@@ -42,6 +64,14 @@ describe("settings: quy chế đào tạo", () => {
       { field: "Mức 2: CPA dưới", before: "1,5", after: "1,4" },
       { field: "Điểm A: từ điểm", before: "8,5", after: "9" },
     ]);
+    const graduationChange = { ...rules, graduation: { ...rules.graduation, downgradeDisciplineLevel: "suspension" as const, downgradeStandings: ["excellent" as const] } };
+    assert.deepEqual(regulationChanges(rules, graduationChange), [
+      { field: "Giảm hạng khi bị kỷ luật từ mức", before: "Cảnh cáo", after: "Đình chỉ học tập có thời hạn" },
+      { field: "Hạng tốt nghiệp bị giảm", before: "Xuất sắc, Giỏi", after: "Xuất sắc" },
+    ]);
+    // Bản cũ thiếu tham số mới vẫn so được.
+    const { graduation: _graduation, ...older } = rules;
+    assert.ok(regulationChanges(older as typeof rules, rules).some((change) => change.field === "Chuẩn ngoại ngữ tối thiểu" && change.before === "Không có"));
     assert.deepEqual(regulationChanges(rules, rules), []);
   });
 });

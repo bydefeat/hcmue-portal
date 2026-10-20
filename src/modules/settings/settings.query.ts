@@ -1,54 +1,38 @@
 import "server-only";
 import { cache } from "react";
-import { and, asc, avg, count, countDistinct, desc, eq, inArray, isNotNull, lte, sql } from "drizzle-orm";
+import { and, avg, count, countDistinct, desc, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/shared/libs/db.lib";
+import { schoolTime, schoolToday } from "@/shared/libs/date.lib";
 import { can } from "@/modules/access/access.constant";
 import { requirePermission } from "@/modules/access/access.query";
 import { requireSession } from "@/modules/authentication/authentication.query";
 import { user } from "@/modules/authentication/authentication.schema";
 import { formatStudentCode } from "@/shared/libs/student-code.lib";
-import { schoolTime } from "@/shared/libs/date.lib";
 import { CLASS_SECTION_STATUS } from "@/modules/course-registration/course-registration.constant";
 import { classSections, registrationPeriods, terms } from "@/modules/course-registration/course-registration.schema";
 import { courses, faculties, majors } from "@/modules/curriculum/curriculum.schema";
-import { STANDING_LABEL, WARNING_STATUS } from "@/modules/grades/grades.constant";
-import { buildTranscript, computeStanding, type TranscriptTermInput } from "@/modules/grades/grades.rule";
-import type { TranscriptCourse } from "@/modules/grades/grades.type";
-import { academicWarnings, courseResults } from "@/modules/grades/grades.schema";
-import { graduationRecords } from "@/modules/graduation/graduation.schema";
+import { STANDING_LABEL, UNRANKED_LABEL, WARNING_STATUS } from "@/modules/grades/grades.constant";
+import { cumulativeResults } from "@/modules/grades/grades.lib";
+import { toStanding } from "@/modules/grades/grades.rule";
+import { academicWarnings } from "@/modules/grades/grades.schema";
+import { GRADUATION_STATUS } from "@/modules/graduation/graduation.constant";
+import { loadGraduationCandidates } from "@/modules/graduation/graduation.lib";
 import { surveyAnswers, surveyResponses, surveys } from "@/modules/surveys/surveys.schema";
 import { STUDENT_STATUS } from "@/modules/users/users.constant";
 import { administrativeClasses, lecturers, students } from "@/modules/users/users.schema";
 import { REPORT_DEFINITIONS } from "@/modules/settings/settings.constant";
-import { calendarEvents, regulations, reportExports, type RegulationRules } from "@/modules/settings/settings.schema";
+import { regulationAt, REGULATION_COLUMNS, toRegulation } from "@/modules/settings/settings.lib";
+import { calendarEvents, regulations, reportExports } from "@/modules/settings/settings.schema";
 import type { CalendarEvent, RegulationSettings, RegulationVersion, ReportCell, ReportExportJob, ReportExportStatus } from "@/modules/settings/settings.type";
 
-const REGULATION_COLUMNS = {
-  version: regulations.version,
-  effectiveFrom: regulations.effectiveFrom,
-  rules: regulations.rules,
-  createdAt: regulations.createdAt,
-  createdBy: user.name,
-};
+// Bản quy chế đang áp dụng hôm nay (giờ Việt Nam). Nhiều trang và quy tắc (đăng ký, điểm danh, điểm, cảnh báo) gọi trong cùng request
+// nên cache theo request. Module khác cần tham số quy chế thì gọi hàm này (hoặc regulationAt trong settings.lib khi ở trong transaction).
+export const getRegulation = cache(async (): Promise<RegulationSettings> => getRegulationAt(schoolToday()));
 
-type RegulationRow = { version: string; effectiveFrom: string; rules: RegulationRules; createdAt: Date; createdBy: string | null };
-
-function toRegulation({ version, effectiveFrom, rules, createdAt, createdBy }: RegulationRow): RegulationSettings {
-  return { version, effectiveFrom, updatedAt: createdAt.toISOString(), updatedBy: createdBy ?? "Hệ thống", ...rules };
-}
-
-// Bản quy chế đang áp dụng hôm nay: ngày áp dụng gần nhất không sau hôm nay. Chưa có bản nào tới ngày thì lấy bản sớm nhất.
-// Nhiều trang và quy tắc (đăng ký, điểm danh, lịch thi) gọi trong cùng request nên cache theo request.
-export const getRegulation = cache(async (): Promise<RegulationSettings> => {
+// Bản quy chế áp dụng tại một ngày ("YYYY-MM-DD", ngày của trường).
+export const getRegulationAt = cache(async (date: string): Promise<RegulationSettings> => {
   await requireSession();
-  const [row] = await db
-    .select(REGULATION_COLUMNS)
-    .from(regulations)
-    .leftJoin(user, eq(user.id, regulations.createdByUserId))
-    .orderBy(sql`${regulations.effectiveFrom} <= current_date DESC`, sql`CASE WHEN ${regulations.effectiveFrom} <= current_date THEN ${regulations.effectiveFrom} END DESC`, asc(regulations.effectiveFrom))
-    .limit(1);
-  if (!row) throw new Error("Chưa có quy chế đào tạo trong hệ thống");
-  return toRegulation(row);
+  return regulationAt(db, date);
 });
 
 // Trang sửa quy chế mở bản mới nhất, kể cả bản đã lưu nhưng chưa tới ngày áp dụng.
@@ -175,8 +159,6 @@ export async function getReportExports(id?: string): Promise<ReportExportJob[]> 
 
 export type ReportTable = { header: string[]; rows: ReportCell[][] };
 
-const GRADUATION_RECORD_LABEL = { pending: "Chờ xét", approved: "Hội đồng đã công nhận", graduated: "Đã tốt nghiệp" } as const;
-
 // Tỉ lệ và điểm giữ cả giá trị số (để Excel tính được) lẫn chữ theo kiểu Việt Nam (dấu phẩy thập phân) cho CSV.
 const percent = (part: number, whole: number): ReportCell =>
   whole > 0 ? { value: Math.round((part / whole) * 1000) / 1000, text: `${Math.round((part / whole) * 1000) / 10}%`.replace(".", ","), numFmt: "0.0%" } : "";
@@ -224,7 +206,8 @@ export async function getReportTable(reportKey: string, termId: string, faculty:
       };
     }
     case "standing": {
-      const [people, results] = await Promise.all([
+      // CPA, tín chỉ theo lần học cuối của mỗi học phần đến hết học kỳ đã chọn, tính trong SQL; chưa có điểm thì Chưa xếp loại.
+      const [people, results, regulation] = await Promise.all([
         db
           .select(studentColumns)
           .from(students)
@@ -233,46 +216,23 @@ export async function getReportTable(reportKey: string, termId: string, faculty:
           .innerJoin(faculties, eq(faculties.id, majors.facultyId))
           .where(and(eq(students.status, "studying"), byFaculty))
           .orderBy(faculties.name, administrativeClasses.code, students.code),
-        db
-          .select({
-            studentId: courseResults.studentId,
-            termId: courseResults.termId,
-            termName: terms.name,
-            courseCode: courses.code,
-            courseName: courses.name,
-            credits: courses.credits,
-            score10: courseResults.score10,
-            letter: courseResults.letter,
-            point4: courseResults.point4,
-          })
-          .from(courseResults)
-          .innerJoin(terms, eq(terms.id, courseResults.termId))
-          .innerJoin(courses, eq(courses.id, courseResults.courseId))
-          .where(and(isNotNull(courseResults.point4), lte(terms.startDate, term.startDate)))
-          .orderBy(terms.startDate),
+        cumulativeResults(db, { upToTermStart: term.startDate }),
+        getRegulation(),
       ]);
-      // Kết quả theo sinh viên, giữ thứ tự học kỳ để CPA tính như trang kết quả học tập.
-      const termsOf = new Map<string, Map<string, TranscriptTermInput>>();
-      for (const { studentId, termId: resultTermId, termName, letter, ...course } of results) {
-        const byTerm = termsOf.get(studentId) ?? new Map<string, TranscriptTermInput>();
-        const entry = byTerm.get(resultTermId) ?? { termId: resultTermId, termName, isInProgress: false, courses: [] };
-        entry.courses.push({ ...course, letter: letter as TranscriptCourse["letter"] });
-        byTerm.set(resultTermId, entry);
-        termsOf.set(studentId, byTerm);
-      }
       return {
-        header: ["MSSV", "Họ và tên", "Lớp", "Khoa", "Tín chỉ tích lũy", "CPA hệ 4", "CPA hệ 10", "Xếp loại"],
+        header: ["MSSV", "Họ và tên", "Lớp", "Khoa", "Tín chỉ tích lũy", "Tín chỉ nợ", "CPA hệ 4", "CPA hệ 10", "Xếp loại"],
         rows: people.map((person) => {
-          const standing = computeStanding(person.id, buildTranscript([...(termsOf.get(person.id)?.values() ?? [])]));
+          const result = results.get(person.id);
           return [
             formatStudentCode(person.code),
             person.fullName,
             person.className,
             person.faculty,
-            standing.earnedCredits,
-            decimal(standing.cpa4),
-            decimal(standing.cpa10),
-            standing.earnedCredits > 0 ? STANDING_LABEL[standing.standing] : "Chưa có điểm",
+            result?.earnedCredits ?? 0,
+            result?.failedCredits ?? 0,
+            decimal(result?.cpa4 ?? null),
+            decimal(result?.cpa10 ?? null),
+            result ? STANDING_LABEL[toStanding(result.cpa4, regulation.grading.standing)] : UNRANKED_LABEL,
           ];
         }),
       };
@@ -344,27 +304,29 @@ export async function getReportTable(reportKey: string, termId: string, faculty:
       };
     }
     case "graduation": {
-      const rows = await db
-        .select({ ...studentColumns, language: graduationRecords.languageCertificate, it: graduationRecords.itCertificate, tuitionCleared: graduationRecords.tuitionCleared, disciplineFree: graduationRecords.disciplineFree, status: graduationRecords.status })
-        .from(graduationRecords)
-        .innerJoin(students, eq(students.id, graduationRecords.studentId))
-        .innerJoin(administrativeClasses, eq(administrativeClasses.id, students.administrativeClassId))
-        .innerJoin(majors, eq(majors.id, administrativeClasses.majorId))
-        .innerJoin(faculties, eq(faculties.id, majors.facultyId))
-        .where(byFaculty)
-        .orderBy(faculties.name, administrativeClasses.code, students.code);
+      // Cùng kết quả xét với trang Xét tốt nghiệp (đợt đang mở): điều kiện, hạng tốt nghiệp đã xét giảm hạng.
+      const { candidates } = await loadGraduationCandidates({ faculty: faculty === "all" ? null : faculty });
+      const check = (candidate: (typeof candidates)[number], key: string) => candidate.checks.find((entry) => entry.key === key);
       return {
-        header: ["MSSV", "Họ và tên", "Lớp", "Khoa", "Chứng chỉ ngoại ngữ", "Chứng chỉ tin học", "Hoàn thành học phí", "Không bị kỷ luật", "Trạng thái hồ sơ"],
-        rows: rows.map((row) => [
-          formatStudentCode(row.code),
-          row.fullName,
-          row.className,
-          row.faculty,
-          row.language ?? "Chưa nộp",
-          row.it ?? "Chưa nộp",
-          row.tuitionCleared ? "Đã hoàn thành" : "Còn nợ",
-          row.disciplineFree ? "Đạt" : "Đang bị kỷ luật",
-          GRADUATION_RECORD_LABEL[row.status],
+        header: ["MSSV", "Họ và tên", "Lớp", "Khoa", "Tín chỉ tích lũy", "Tín chỉ yêu cầu", "CPA hệ 4", "Hạng tốt nghiệp", "Chuẩn ngoại ngữ", "Chuẩn tin học", "Học phí", "Kỷ luật", "Điều kiện chưa đạt", "Trạng thái"],
+        rows: candidates.map((candidate) => [
+          candidate.code,
+          candidate.fullName,
+          candidate.className,
+          candidate.faculty,
+          candidate.earnedCredits,
+          candidate.requiredCredits,
+          decimal(candidate.cpa4),
+          candidate.classification,
+          check(candidate, "language")?.detail ?? "",
+          check(candidate, "it")?.detail ?? "",
+          check(candidate, "tuition")?.detail ?? "",
+          check(candidate, "discipline")?.detail ?? "",
+          candidate.checks
+            .filter((entry) => !entry.passed)
+            .map((entry) => entry.label)
+            .join("; "),
+          GRADUATION_STATUS[candidate.status].label,
         ]),
       };
     }

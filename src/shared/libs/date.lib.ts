@@ -20,6 +20,11 @@ export function schoolTime(value?: ConfigType) {
   return dayjs(value).tz(SCHOOL_TIMEZONE);
 }
 
+// Ngày hôm nay của trường dạng "YYYY-MM-DD" (không theo UTC của server).
+export function schoolToday() {
+  return schoolTime().format("YYYY-MM-DD");
+}
+
 export function formatDate(value: ConfigType) {
   return schoolTime(value).format("DD/MM/YYYY");
 }

@@ -8,10 +8,6 @@ export const STUDY_PLAN_STATUS: Record<StudyPlanStatus, StatusMeta> = {
   returned: { label: "Đã trả lại", tone: "danger" },
 };
 
-export const PENDING_TOO_LONG_DAYS = 5;
-
-export const STUDY_PLAN_CREDIT_LIMIT = { min: 14, max: 25 };
-
 export const STUDY_PLAN_CONSTRAINT_MESSAGE: Partial<Record<string, string>> = {
   study_plans_single_active: "Bạn đã có một kế hoạch học tập đang dùng, tải lại trang để sửa kế hoạch đó.",
   study_plans_submitted_fields: "Kế hoạch đã gửi phải có thời điểm gửi.",

@@ -307,6 +307,38 @@ Hàm thuần trong `modules/course-registration/course-registration.rule.ts`, d�
 
 Giờ tiết học ở `shared/constants/period.constant.ts`: 12 tiết, mỗi tiết 50 phút, bắt đầu 06:30, giải lao sau tiết 3 và 9, nghỉ trưa 11:40 đến 12:30, kết thúc 17:40.
 
+### Lõi ghi đăng ký (`course-registration.lib.ts`)
+
+Mọi thao tác đổi đăng ký của sinh viên, của Phòng Đào tạo và của hệ thống đi qua cùng một lõi, trong transaction; server kiểm lại bằng chính các hàm thuần mà giao diện dùng:
+
+| Việc | Cách làm |
+|---|---|
+| Khóa theo sinh viên + học kỳ | `lockRegistration`: `pg_advisory_xact_lock(hashtextextended('registration:<sinh viên>:<học kỳ>', 0))` trước khi đọc trạng thái, nên hai yêu cầu song song của cùng sinh viên (hai tab, bấm hai lần) chạy nối tiếp, không cùng lọt phép kiểm hạn mức, trùng lịch, song hành. Xếp từ danh sách chờ dùng `pg_try_advisory_xact_lock`: sinh viên đang có thao tác khác thì bỏ qua lượt, giữ vị trí chờ |
+| Giữ chỗ | `claimSeat` khóa dòng lớp (`FOR UPDATE`), trừ chỗ dành riêng cho đối tượng khác, dùng chỗ dành riêng của đối tượng mình nếu còn; trigger `enrollments_sync_counts` cộng sĩ số, `CHECK` chặn vượt sức chứa |
+| Sinh viên tự thao tác | `registerForStudent`, `dropForStudent` (kiểm `dropProblem`: song hành bắt buộc, tối thiểu tín chỉ), `swapForStudent` (đổi lớp hoặc đổi nhóm thực hành một bước: không được chỗ mới thì rollback, giữ chỗ cũ), `joinWaitlistForStudent`. Điều kiện chung (`selfServiceState`): đang học, đợt của khóa đang mở (`periodOf` / `applicablePeriod`: đang mở > sắp mở gần nhất > vừa đóng), không bị khóa (`registrationBlockOf`: khóa do cán bộ đặt, hoặc học phí học kỳ hiện tại đã chốt, quá hạn, còn nợ) |
+| Điều kiện học vụ | `eligibilityOf`: điểm lần học cuối (`gradeFactsOf`), quan hệ tiên quyết, song hành, tương đương của đúng các học phần liên quan, học phần đang học, hạn mức tín chỉ (quy chế đang áp dụng, hạn mức riêng của đợt, cảnh báo chính thức, số tín chỉ còn lại của chương trình) |
+| Phòng Đào tạo | `adminRegisterStudent` (bỏ qua được điều kiện học vụ và khóa đăng ký khi chọn "Bỏ qua" và ghi lý do; sĩ số, nhóm thực hành, trùng lịch luôn chặn), `adminDropStudent`, `cancelSection` (một đường duy nhất cho mọi nơi hủy lớp: rút sinh viên, hủy danh sách chờ, bỏ buổi học tương lai, cập nhật học phí, báo sinh viên), `moveStudents` (chuyển sinh viên của lớp đã hủy sang lớp mở cùng học phần; ai không đủ điều kiện thì trả lý do) |
+| Nhật ký | Mỗi lượt ghi `registration_events` (đăng ký, hủy, đổi, vào chờ, được xếp, lượt chờ hết hạn, Phòng Đào tạo đăng ký/hủy hộ, lớp bị hủy) với người thao tác và kênh; lịch sử đăng ký của sinh viên và nhịp đăng ký (`registrationActivityOf`) đọc từ đây |
+| Học phí đi kèm | Mọi thao tác trên gọi `syncTermInvoice` trong cùng transaction (mục "Học phí theo đăng ký") |
+
+**Danh sách chờ** (`waitlist_entries`, trạng thái `waiting` / `promoted` / `cancelled` / `expired`, unique index một lượt chờ mỗi sinh viên mỗi lớp): chỉ vào được khi lớp không còn chỗ cho sinh viên (đầy, phần còn lại là chỗ dành riêng, hoặc mọi nhóm thực hành đều đầy) và sinh viên đủ mọi điều kiện khác. `promoteWaitlist` chạy trong transaction của thao tác làm trống chỗ (sinh viên hủy, đổi lớp, Phòng Đào tạo hủy hộ, tăng sĩ số lớp, tăng sĩ số hoặc thêm nhóm thực hành: `addsSeats`; nút "Xếp lại" ở trang danh sách chờ): xếp lần lượt người đầu danh sách còn đủ điều kiện và đang trong đợt đăng ký mở của khóa, chọn nhóm thực hành còn chỗ không trùng lịch; người không đủ thì bỏ qua lượt này, giữ vị trí; người được xếp nhận thông báo. `expireWaitlists`: lượt chờ của sinh viên mà khóa không còn đợt nào của học kỳ chưa đóng (kể cả đợt điều chỉnh sắp mở) chuyển `expired`, ghi sự kiện `waitlist-expired`, báo sinh viên một lần. Chạy khi Phòng Đào tạo đóng sớm hoặc sửa đợt và bằng tác vụ `waitlist-expiry`; chỉ lấy lượt đang chờ (`FOR UPDATE SKIP LOCKED`) nên chạy lại không trùng.
+
+**Lớp học phần:** phòng chọn theo id (mã phòng chỉ unique trong một cơ sở: `rooms_campus_id_code_unique`); ô chọn hiện mã, cơ sở, sức chứa; phòng bảo trì nằm cuối danh sách, không chọn được. `scheduleProblemOf` chặn phòng bảo trì, phòng thiếu chỗ (phòng lý thuyết theo sĩ số lớp, phòng thực hành theo sĩ số nhóm), trùng phòng, trùng giờ giảng viên với mọi lớp trong học kỳ (`conflictsOf`, so phòng theo id). Học kỳ hiện tại, học kỳ nhận đăng ký đặt bằng `switchTermFlag` (mỗi loại một học kỳ, unique index).
+
+### Học phí theo đăng ký (`tuition.lib.ts`)
+
+| Việc | Cách làm |
+|---|---|
+| Hóa đơn tạm tính | `syncTermInvoice` lập hoặc tính lại cả hóa đơn theo tín chỉ đang đăng ký × đơn giá của ngành, năm học (`tuition_rates`), cộng khoản thu bắt buộc (`tuition_fees`, chỉ học kỳ 1). Hủy hết lớp: chưa nộp thì bỏ hóa đơn, đã nộp thì giữ để còn số cần hoàn. Ngành chưa có đơn giá thì chưa lập (lúc chốt sẽ báo) |
+| Chốt | `finalizeTermTuition` (`tuition.manage`, toàn trường): tính lại mọi hóa đơn tạm tính, lập cho sinh viên chưa có, đặt hạn nộp chính thức, ghi `finalized_at`, báo sinh viên, ghi nhật ký. Còn ngành thiếu đơn giá thì không chốt |
+| Sau chốt | Không tính lại các dòng đã chốt; đổi đăng ký thì thêm một dòng `adjustment` bằng phần chênh tín chỉ (`billedCredits`, `adjustmentLine`) theo **đơn giá đã chốt trên hóa đơn** (`finalizedPricePerCredit`: dòng học phí), không theo bảng đơn giá hiện hành; hóa đơn đã có đơn giá thì ngành mất đơn giá năm học vẫn điều chỉnh được |
+| Miễn giảm, hoàn | Miễn giảm trừ vào tổng (bắt buộc lý do, check `tuition_invoices_discount_reason`). Nộp thừa (hủy lớp, giảm tín chỉ sau khi nộp) thì ghi nhận hoàn (`tuition_refunds`, không chuyển tiền tự động); trigger `tuition_refunds_within_overpaid` chặn hoàn vượt số nộp thừa, `payments_within_invoice_total` chặn nộp vượt số phải nộp (số đã nộp tính trừ phần đã hoàn) |
+| Khóa đăng ký | Hóa đơn học kỳ hiện tại đã chốt, quá hạn, còn nợ thì chặn đăng ký (`tuitionBlockOf`), nộp đủ là hết chặn. Phòng Kế hoạch - Tài chính (`tuition.manage`) đặt, gỡ khóa loại học phí ở trang Khóa đăng ký (menu hiện cho `registration.manage` hoặc `tuition.manage`); khóa đặt tay tự gỡ khi hết nợ quá hạn (`releaseClearedTuitionHolds`) |
+
+### Buổi học, ngày nghỉ (`schedule.lib.ts`)
+
+Buổi học (`class_sessions`) sinh từ lịch tuần của lớp (lý thuyết cho cả lớp, thực hành theo nhóm) trong khoảng ngày học, bỏ ngày nghỉ lễ của lịch năm học (`holidaysBetween`). `syncClassSessions` chạy trong transaction của mọi thao tác sửa, hủy lớp: buổi đã qua, buổi đã điểm danh giữ nguyên; buổi tương lai không còn trong lịch thì bỏ, buổi mới thì thêm (`diffClassSessions`); lịch tuần thật sự đổi thì báo sinh viên và giảng viên. Buổi theo lịch rơi vào ngày nghỉ lễ hiện ở sổ điểm danh là "cần xếp dạy bù" (`holidaySessions`). Đổi ngày nghỉ ở lịch năm học không đi qua lớp học phần nên tác vụ `class-sessions` (`resyncOpenClassSessions`) sinh lại buổi học của mọi lớp đang mở.
+
 ## 9. Hiệu năng khi phát triển
 
 | Vấn đề | Cách xử lý |
@@ -335,6 +367,8 @@ Giờ tiết học ở `shared/constants/period.constant.ts`: 12 tiết, mỗi t
 | `reserved_seats_within_capacity` | Tổng chỗ dành riêng không vượt sĩ số, kể cả khi giảm sĩ số lớp (kiểm tra lúc commit) |
 | `terms_no_overlap` (`EXCLUDE USING gist`) | Hai học kỳ không chồng khoảng ngày |
 | `exam_proctor_swap_requests` (bảng) | Đề nghị đổi ca coi thi giữa hai giảng viên, chờ Phòng Khảo thí duyệt |
+| `payments_within_invoice_total`, `tuition_refunds_within_overpaid` | Không nộp vượt số phải nộp, không hoàn vượt số nộp thừa (số đã nộp tính trừ phần đã hoàn) |
+| `syllabus_assessments_weights_versioned` | Đề cương đã công bố: cách tính điểm (khóa, tên, trọng số theo thứ tự) chỉ đổi khi cùng giao dịch lưu bản cũ vào `syllabus_revisions` và tăng `syllabi.version` (như `writeSyllabus`). Lần đầu sửa, xóa dòng đánh giá trong giao dịch, trigger `syllabus_assessments_remember_grading` nhớ cách tính điểm lúc đó (biến cấu hình cục bộ của giao dịch); lúc commit (`DEFERRABLE INITIALLY DEFERRED`) so với cách tính điểm cuối cùng. `syllabi_published_final`: đề cương đã công bố không về nháp, phiên bản không giảm |
 
 Trigger báo lỗi bằng `RAISE ... USING CONSTRAINT = '<tên>'` nên `pgErrorMessage()` tra được câu tiếng Việt như ràng buộc thường.
 
@@ -395,7 +429,7 @@ npm run db:studio                 # xem dữ liệu
 | Seed | `scripts/db-seed.ts` gọi lần lượt `scripts/seed/*.seed.ts` (mỗi module một file, nhận `tx` và `SeedContext`). Seed lấy dữ liệu từ `*.mock.ts` của module, giữ nguyên id của mock, giữ ngày giờ tương đối (`mockDate`) để trạng thái "sắp hết hạn", "quá hạn" vẫn hiện |
 | Query | Viết lại `*.query.ts` trả đúng kiểu cũ trong `*.type.ts` để component không phải sửa. MSSV trả ra bằng `formatStudentCode` |
 | Sau khi chuyển | `*.mock.ts` chỉ còn seed dùng; không query nào import mock nữa. Test seed khớp mock trong `tests/seed.test.ts` |
-| Tài khoản seed | Sinh viên `50.01.104.009`, giảng viên `GV104011` (ThS. Phạm Thùy Hạnh, kiêm cố vấn, email `hanhpt@hcmue.edu.vn`), Phòng Đào tạo `CB0021` (Trần Minh Khoa, email `khoatm@hcmue.edu.vn`), mật khẩu `Hcmue@2026`. Đây chính là sinh viên và giảng viên "hiện tại" của dữ liệu mẫu (`CURRENT_STUDENT_ID`, `CURRENT_LECTURER_ID`) |
+| Tài khoản seed | Sinh viên `50.01.104.009`, giảng viên `GV104011` (ThS. Phạm Thùy Hạnh, kiêm cố vấn, email `hanhpt@hcmue.edu.vn`), Phòng Đào tạo `CB0021` (Trần Minh Khoa, email `khoatm@hcmue.edu.vn`, hai vai trò Trưởng phòng Đào tạo và Quản trị hệ thống), Phòng Kế hoạch - Tài chính `CB0034` (Nguyễn Thị Thu Hà, chỉ vai trò `finance-office`: Học phí, Khóa đăng ký loại học phí), mật khẩu `Hcmue@2026`. Đây chính là sinh viên và giảng viên "hiện tại" của dữ liệu mẫu (`CURRENT_STUDENT_ID`, `CURRENT_LECTURER_ID`) |
 
 Phân quyền cổng quản trị đọc từ DB: `getViewer()` lấy các vai trò trong `role_assignments` của tài khoản đang đăng nhập; có nhiều vai trò thì đổi qua menu tài khoản (`switchActiveRole`, chỉ trong số vai trò của chính mình). Vai trò có sẵn mang `roles.key` cố định (`faculty-secretary`…) để code nhận ra, không so theo `id`.
 
@@ -428,6 +462,27 @@ Phân quyền cổng quản trị đọc từ DB: `getViewer()` lấy các vai t
 | Kết quả đơn | `onRequestApproved(kind, request, tx)` chạy khi đơn duyệt xong bước cuối, trong cùng transaction (`REQUEST_APPROVED_HANDLERS`, hiện chưa có handler: kết quả đơn chưa tự đổi điểm, hạn mức, W, quyết định) |
 | Nhật ký | Gửi, đồng ý, từ chối, xử lý thay, chuyển người, yêu cầu bổ sung, bổ sung, hủy đơn đều ghi `recordAudit` (đối tượng `request`) |
 
+### Lịch thi (`exams.lib.ts`)
+
+| Việc | Cách làm |
+|---|---|
+| Nhiều phòng | Một ca thi chia nhiều phòng (`exam_session_rooms`, theo sức chứa thi `rooms.exam_capacity`); mỗi phòng ít nhất 2 cán bộ coi thi (`exam_proctors`, khóa ngoại kép để phòng thuộc đúng ca), một cán bộ chỉ coi một phòng của ca |
+| Thí sinh, số báo danh | `exam_candidates`: ca giữa kỳ, cuối kỳ là sinh viên đang học lớp trừ người được hoãn kỳ thi đó (`exam_deferrals`); ca thi bù là danh sách chọn từ ca gốc. `syncCandidates` xếp thí sinh theo tên lần lượt vào các phòng (`assignCandidates`), số báo danh liên tục từ 1 (unique theo ca); thiếu chỗ thì không lưu. Công bố (`publishDrafts`) xếp lại theo danh sách lớp mới nhất rồi báo sinh viên kèm phòng và số báo danh |
+| Xung đột | `assertNoConflicts` so với cả học kỳ (`termSchedule`, theo khoảng giờ chồng nhau, không chỉ cùng giờ bắt đầu): trùng phòng, trùng cán bộ coi thi chặn hẳn; trùng lịch thi của sinh viên (`sharedCandidateCounts`) và cán bộ coi thi trùng giờ dạy (`teachingClashes`) là cảnh báo mềm, lưu được khi ghi lý do (vào nhật ký). Mọi thao tác ghi lịch thi của một học kỳ chạy nối tiếp nhờ `pg_advisory_xact_lock('exam-term:<học kỳ>')` (`lockExamTerm`) |
+| Sinh hàng loạt | `generateFinals`: ca cuối kỳ dự kiến cho lớp mở chưa có ca, lớp đông xếp trước vào giờ thi sớm nhất đủ phòng, đủ cán bộ cùng khoa không dạy lớp đó, không trùng lịch thi của sinh viên; hình thức thi theo bài cuối kỳ trong đề cương đã công bố của lớp (`finalExamFormatOf`), không có thì theo hình thức mặc định người dùng chọn |
+| Đề thi | Giảng viên nộp đề; Phòng Khảo thí (quyền `exams.review`, tách khỏi `exams.manage` là quyền xếp lịch) duyệt, trả lại, mở khóa đề đã duyệt; trigger `exam_sessions_paper_locked`, `exam_sessions_paper_after_start` (tới giờ thi không nộp, thay đề được) |
+| Đổi ca coi thi | `exam_proctor_swap_requests`: Phòng Khảo thí chấp nhận (người thay vào đúng phòng của người gửi) hoặc từ chối; trigger `exam_proctor_swap_requests_proctor` (lúc gửi phải đang coi ca đó) |
+| Trạng thái | Ca đã công bố mà quá giờ kết thúc chuyển "Đã thi" bằng tác vụ `exam-sessions` (`refreshExamStatuses`); các chốt chặn tự kiểm theo giờ thi nên tác vụ chạy chậm không mở lỗ hổng |
+
+### Khảo sát giảng dạy, cố vấn
+
+- **Niêm phong phiếu:** `survey_submissions` ghi ai đã nộp lớp nào (để nhắc, chặn nộp lại); phiếu (`survey_responses`, id `gen_random_uuid()` không mang thời điểm) và câu trả lời không trỏ tới sinh viên. Đợt đóng thì `sealSurvey` chép mọi phiếu sang id mới theo thứ tự ngẫu nhiên rồi xóa bản cũ (ghi `sealed_at`) để phiếu không ghép được với thứ tự nộp; tác vụ `surveys` (`sealClosedSurveys`) làm việc này. Giảng viên chỉ xem kết quả đợt đã đóng **và** đã niêm phong, chỉ lớp có từ `MIN_RESPONSES_FOR_LECTURER` (5) phiếu; chọn được mọi đợt như vậy có lớp mình dạy trong học kỳ của đợt (`sealedSurveyIdsForLecturer`, `?survey=` trên trang Khối lượng giảng dạy, mặc định đợt mới nhất). Phòng Đào tạo, khoa xem kết quả (`surveys.view`); tạo, mở, đóng đợt, nhắc sinh viên chưa làm cần `surveys.manage`; trigger `survey_questions_locked` (câu hỏi đã có câu trả lời không sửa, xóa được; đợt đã có phiếu không thêm câu hỏi).
+- **Cố vấn** (`advising.lib.ts`): buổi hẹn nhóm ghi có mặt, vắng theo từng sinh viên (ghi chú chỉ vào hồ sơ người có mặt, chỉ sau giờ hẹn); dời, hủy buổi hẹn có báo sinh viên; server chặn hai buổi "đã hẹn" chồng giờ của cùng cố vấn (khóa theo cố vấn); ghi chú cố vấn độc lập trong hồ sơ sinh viên.
+
+### Quyết định sinh viên
+
+Quyết định đã ký có ngày hiệu lực về sau: tới ngày thì tác vụ `decision-effects` (`runDecisionEffectsJob`, `users.decision.ts`) áp dụng tác dụng (đổi tình trạng, lớp của sinh viên), mỗi quyết định một transaction, đánh dấu `applied_at` nên chạy lại không áp dụng hai lần; điều kiện không còn đúng (tình trạng đã đổi) thì bỏ qua để người ký xem và thu hồi.
+
 ### Báo cáo
 
 Xuất báo cáo (`requestReportExport`): đọc bảng dữ liệu, dựng tệp đúng định dạng một lần (`buildReportFile`: Excel, PDF, CSV có BOM), lưu vào kho (`reports/<uuid>`), ghi lịch sử với số dòng, tên tệp, kiểu, kích thước của chính tệp đó; tải về (`downloadReportExport`) đọc lại đúng tệp đã lưu. Quyền: `reports.view` và quyền riêng của báo cáo (khảo sát `surveys.view`, xét tốt nghiệp `graduation.manage`); cán bộ theo khoa chỉ xuất, tải báo cáo khoa mình. Mỗi báo cáo ghi rõ lọc theo khoa của sinh viên hay khoa quản lý học phần; báo cáo số liệu hiện tại (thống kê sinh viên, xét tốt nghiệp) không theo học kỳ, tên tệp ghi ngày xuất. Xuất, tải đều ghi nhật ký (`export`, `download`). Lịch sử giữ 30 ngày (tác vụ `report-exports`).
@@ -438,7 +493,7 @@ Trang `/administrator/settings/audit-log` (`audit.view`) lọc ở DB theo thờ
 
 ### Tác vụ định kỳ
 
-Route `/api/cron/<tác vụ>` nhận GET (Vercel Cron) và POST, header `Authorization: Bearer <khóa>` với khóa là `DEFEAT_CRON_SECRET` hoặc `CRON_SECRET` (từ 32 ký tự; chưa đặt khóa nào thì mọi lời gọi 401). Tác vụ lỗi trả 500 với tên tác vụ, chi tiết chỉ ghi log máy chủ. Mọi tác vụ chạy lặp lại không sinh trùng.
+Bảng dưới khớp đúng map `JOBS` trong `src/app/api/cron/[job]/route.ts` (15 tác vụ). Route `/api/cron/<tác vụ>` nhận GET (Vercel Cron) và POST, header `Authorization: Bearer <khóa>` với khóa là `DEFEAT_CRON_SECRET` hoặc `CRON_SECRET` (từ 32 ký tự; chưa đặt khóa nào thì mọi lời gọi 401). Tác vụ lỗi trả 500 với tên tác vụ, chi tiết chỉ ghi log máy chủ. Mọi tác vụ chạy lặp lại không sinh trùng.
 
 | Tác vụ | Việc | Tần suất đề nghị |
 |---|---|---|
@@ -446,8 +501,12 @@ Route `/api/cron/<tác vụ>` nhận GET (Vercel Cron) và POST, header `Authori
 | `class-announcements` | Báo sinh viên thông báo lớp hẹn giờ đã tới giờ | 5 phút |
 | `announcement-notifications` | Gửi thông báo cá nhân, email của thông báo chung hẹn giờ đã tới giờ | 5 phút |
 | `request-sla` | Nhắc bước đơn sắp hết hạn, quá hạn | Mỗi giờ |
+| `exam-sessions` | Ca thi đã công bố mà đã thi xong chuyển "Đã thi" | 15 phút |
+| `surveys` | Niêm phong (xáo) phiếu các đợt khảo sát vừa đóng; giảng viên xem kết quả từ lúc này | Mỗi giờ |
+| `waitlist-expiry` | Lượt chờ của khóa đã hết mọi đợt đăng ký trong học kỳ chuyển "hết hạn", báo sinh viên | Mỗi giờ |
 | `academic-warnings` | Sinh cảnh báo học vụ học kỳ chính vừa kết thúc | Mỗi ngày |
-| `decision-effects` | Quyết định đã ký tới ngày hiệu lực thì đổi tình trạng sinh viên | Mỗi ngày, sau 0 giờ |
+| `decision-effects` | Quyết định đã ký tới ngày hiệu lực thì đổi tình trạng, lớp của sinh viên | Mỗi ngày, sau 0 giờ |
+| `class-sessions` | Sinh lại buổi học của các lớp đang mở theo ngày nghỉ lễ mới nhất của lịch năm học | Mỗi ngày |
 | `sign-in-failures` | Dọn bộ đếm đăng nhập sai đã hết hạn | Mỗi ngày |
 | `orphan-files` | Xóa tệp minh chứng, đề thi không còn dòng DB trỏ tới | Mỗi ngày |
 | `notifications-cleanup` | Xóa thông báo đã đọc quá 180 ngày, chưa đọc quá 365 ngày | Mỗi ngày |
@@ -460,9 +519,13 @@ Crontab trên máy chủ (giờ Việt Nam):
 */5 * * * *  curl -fsS -X POST -H "Authorization: Bearer $CRON_SECRET" https://portal.example/api/cron/mail-outbox
 */5 * * * *  curl -fsS -X POST -H "Authorization: Bearer $CRON_SECRET" https://portal.example/api/cron/class-announcements
 */5 * * * *  curl -fsS -X POST -H "Authorization: Bearer $CRON_SECRET" https://portal.example/api/cron/announcement-notifications
+*/15 * * * * curl -fsS -X POST -H "Authorization: Bearer $CRON_SECRET" https://portal.example/api/cron/exam-sessions
 7 * * * *    curl -fsS -X POST -H "Authorization: Bearer $CRON_SECRET" https://portal.example/api/cron/request-sla
+12 * * * *   curl -fsS -X POST -H "Authorization: Bearer $CRON_SECRET" https://portal.example/api/cron/surveys
+17 * * * *   curl -fsS -X POST -H "Authorization: Bearer $CRON_SECRET" https://portal.example/api/cron/waitlist-expiry
 10 0 * * *   curl -fsS -X POST -H "Authorization: Bearer $CRON_SECRET" https://portal.example/api/cron/decision-effects
 20 1 * * *   curl -fsS -X POST -H "Authorization: Bearer $CRON_SECRET" https://portal.example/api/cron/academic-warnings
+45 1 * * *   curl -fsS -X POST -H "Authorization: Bearer $CRON_SECRET" https://portal.example/api/cron/class-sessions
 30 2 * * *   curl -fsS -X POST -H "Authorization: Bearer $CRON_SECRET" https://portal.example/api/cron/sign-in-failures
 40 2 * * *   curl -fsS -X POST -H "Authorization: Bearer $CRON_SECRET" https://portal.example/api/cron/orphan-files
 50 2 * * *   curl -fsS -X POST -H "Authorization: Bearer $CRON_SECRET" https://portal.example/api/cron/notifications-cleanup

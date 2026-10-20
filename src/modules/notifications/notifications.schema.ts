@@ -25,5 +25,7 @@ export const notifications = pgTable(
   (table) => [
     index().on(table.recipientUserId, table.audience, table.createdAt),
     index("notifications_unread").on(table.recipientUserId).where(sql`${table.readAt} IS NULL`),
+    // Tác vụ dọn thông báo đã đọc quá lâu.
+    index("notifications_read_at").on(table.readAt).where(sql`${table.readAt} IS NOT NULL`),
   ],
 );

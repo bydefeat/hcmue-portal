@@ -10,7 +10,7 @@ import type { StatusMeta } from "@/shared/constants/status.constant";
 import { formatDateTime } from "@/shared/libs/date.lib";
 import { downloadFile } from "@/shared/libs/download.lib";
 import { base64ToBytes } from "@/shared/libs/spreadsheet.lib";
-import { REPORT_FORMAT_LABEL, REPORT_FORMATS } from "@/modules/settings/settings.constant";
+import { REPORT_FACULTY_BASIS_LABEL, REPORT_FORMAT_LABEL, REPORT_FORMATS } from "@/modules/settings/settings.constant";
 import { downloadReportExport, requestReportExport } from "@/modules/settings/settings.action";
 import type { ReportDefinition, ReportExportJob as ExportJob, ReportFormat } from "@/modules/settings/settings.type";
 
@@ -35,11 +35,13 @@ type ReportExportCenterProps = {
   reports: ReportDefinition[];
   terms: { id: string; name: string }[];
   faculties: string[];
+  // Cán bộ theo khoa không chọn được toàn trường.
+  allowAllFaculties: boolean;
   defaultTermId: string;
   jobs: ExportJob[];
 };
 
-export function ReportExportCenter({ reports, terms, faculties, defaultTermId, jobs: initialJobs }: ReportExportCenterProps) {
+export function ReportExportCenter({ reports, terms, faculties, allowAllFaculties, defaultTermId, jobs: initialJobs }: ReportExportCenterProps) {
   const [messageApi, contextHolder] = message.useMessage();
   const [form] = Form.useForm<ExportValues>();
   const [openId, setOpenId] = useState<string | null>(null);
@@ -144,7 +146,10 @@ export function ReportExportCenter({ reports, terms, faculties, defaultTermId, j
                   <div className="flex min-w-0 flex-1 flex-col gap-1">
                     <h3 className="text-base font-medium text-pretty">{report.name}</h3>
                     <p className="text-sm text-pretty text-muted">{report.description}</p>
-                    <p className="text-xs text-muted">Nơi nhận: {report.audience}</p>
+                    <p className="text-xs text-muted">
+                      Nơi nhận: {report.audience} · {REPORT_FACULTY_BASIS_LABEL[report.facultyBasis]}
+                      {report.usesTerm ? "" : " · số liệu tại thời điểm xuất"}
+                    </p>
                   </div>
                 </div>
                 <Button
@@ -187,12 +192,13 @@ export function ReportExportCenter({ reports, terms, faculties, defaultTermId, j
           </div>
         }
       >
-        <Form form={form} layout="vertical" onFinish={create} initialValues={{ termId: defaultTermId, faculty: "all", format: "xlsx" }}>
-          <Form.Item name="termId" label="Học kỳ">
+        <Form form={form} layout="vertical" onFinish={create} initialValues={{ termId: defaultTermId, faculty: allowAllFaculties ? "all" : faculties[0], format: "xlsx" }}>
+          {/* Báo cáo số liệu hiện tại không theo học kỳ: giữ học kỳ mặc định ở form để action nhận đủ tham số. */}
+          <Form.Item name="termId" label="Học kỳ" hidden={opened ? !opened.usesTerm : false}>
             <Select options={terms.map((term) => ({ value: term.id, label: term.name }))} />
           </Form.Item>
-          <Form.Item name="faculty" label="Phạm vi">
-            <Select options={[{ value: "all", label: "Toàn trường" }, ...faculties.map((value) => ({ value, label: value }))]} />
+          <Form.Item name="faculty" label="Phạm vi" extra={opened ? REPORT_FACULTY_BASIS_LABEL[opened.facultyBasis] : undefined}>
+            <Select options={[...(allowAllFaculties ? [{ value: "all", label: "Toàn trường" }] : []), ...faculties.map((value) => ({ value, label: value }))]} />
           </Form.Item>
           <Form.Item
             name="format"

@@ -16,7 +16,7 @@ import { getExamsForClassSections } from "@/modules/exams/exams.query";
 import { formatPoint, STANDING_LABEL, WARNING_LEVEL } from "@/modules/grades/grades.constant";
 import { getStudentStandings, getTranscript } from "@/modules/grades/grades.query";
 import { NOTIFICATION_KIND_LABEL } from "@/modules/notifications/notifications.constant";
-import { getNotifications } from "@/modules/notifications/notifications.query";
+import { getNotifications, getUnreadNotificationCount } from "@/modules/notifications/notifications.query";
 import { REQUEST_KINDS, REQUEST_STATUS } from "@/modules/requests/requests.constant";
 import { getRequestsOf } from "@/modules/requests/requests.query";
 import { formatMoney } from "@/modules/tuition/tuition.constant";
@@ -34,13 +34,14 @@ export const metadata: Metadata = { title: "Tổng quan" };
 
 export default async function Page() {
   const [student, term, targetTerm, courses] = await Promise.all([getCurrentStudent(), getCurrentTerm(), getRegistrationTargetTerm(), getCourses()]);
-  const [enrollments, transcript, [standing], periods, requests, notifications] = await Promise.all([
+  const [enrollments, transcript, [standing], periods, requests, notifications, unreadCount] = await Promise.all([
     getStudentEnrollments(student.id, term.id),
     getTranscript(student.id),
     getStudentStandings([student.id]),
     getRegistrationPeriods(targetTerm.id),
     getRequestsOf(student.id),
     getNotifications("student"),
+    getUnreadNotificationCount("student"),
   ]);
   const timetable = pickTimetable(enrollments, bestGrades(transcript), {
     faculty: student.faculty,
@@ -57,7 +58,7 @@ export default async function Page() {
   const nextSlot = slots.find((slot) => slot.meeting.dayOfWeek > today) ?? slots[0];
   const period = periods.find((entry) => entry.cohorts.includes(student.cohort)) ?? null;
   const upcomingExams = exams.filter((exam) => daysUntil(exam.date) >= 0 && exam.status !== "draft").slice(0, 3);
-  const openRequests = requests.filter((request) => request.status === "pending" || request.status === "in-review");
+  const openRequests = requests.filter((request) => request.status === "pending" || request.status === "in-review" || request.status === "needs-info");
   const unread = notifications.filter((notification) => !notification.isRead);
   const totalCredits = 130;
   const showTuition = invoice && invoice.balance > 0 && invoice.daysToDue <= 14;
@@ -100,7 +101,7 @@ export default async function Page() {
             tone={openRequests.some((request) => request.isOverdue) ? "warning" : undefined}
             href="/application/requests"
           />
-          <StatTile label="Thông báo chưa đọc" value={unread.length} hint="Hạn chót, điểm, lịch thi" href="/application/notifications" />
+          <StatTile label="Thông báo chưa đọc" value={unreadCount} hint="Hạn chót, điểm, lịch thi" href="/application/notifications" />
         </div>
 
         <div className="grid gap-4 sm:gap-6 lg:grid-cols-3">

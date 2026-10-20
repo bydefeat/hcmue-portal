@@ -21,6 +21,7 @@ export async function seedRequests(tx: Transaction, context: SeedContext) {
       requesterStudentId: request.requesterType === "student" ? request.requesterId : null,
       requesterLecturerId: request.requesterType === "lecturer" ? request.requesterId : null,
       facultyId: context.facultyByName.get(request.faculty)!.id,
+      classSectionId: request.classSectionId,
       subject: request.subject,
       details: request.details,
       reason: request.reason,
@@ -34,7 +35,8 @@ export async function seedRequests(tx: Transaction, context: SeedContext) {
       position: index + 1,
       role: step.role,
       label: step.label,
-      assigneeLecturerId: step.role === "lecturer" ? step.assigneeId : null,
+      // Bước cố vấn chỉ lưu người xử lý khi đã xử lý; chưa xử lý thì đi theo cố vấn hiện tại của lớp.
+      assigneeLecturerId: step.role === "lecturer" || (step.role === "advisor" && step.actedAt) ? step.assigneeId : null,
       status: step.status,
       dueAt: date(step.dueAt),
       // Người xử lý trong mock là cán bộ chưa có tài khoản, trừ giảng viên có tài khoản seed.
@@ -55,7 +57,7 @@ export async function seedRequests(tx: Transaction, context: SeedContext) {
         contentType: attachment.contentType,
         sizeBytes: data.byteLength,
         storageKey: newStorageKey("requests", attachment.id),
-        uploadedAt: new Date(request.createdAt),
+        uploadedAt: new Date(attachment.uploadedAt),
         data,
       };
     }),

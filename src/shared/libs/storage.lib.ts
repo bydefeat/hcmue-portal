@@ -11,13 +11,14 @@ import { assertCleanUpload } from "@/shared/libs/virus-scan.lib";
 // Kho tệp tải lên. Nơi gọi chỉ biết khóa (`requests/<uuid>`), không biết tệp nằm ở đâu: DEFEAT_STORAGE_DRIVER=local ghi đĩa
 // cục bộ dưới DEFEAT_STORAGE_DIRECTORY, =s3 ghi vào bucket S3/R2/MinIO (khóa đối tượng trùng khóa lưu trữ).
 
-export type StorageNamespace = "requests" | "exams";
+// requests: minh chứng đơn từ; exams: đề thi, đáp án; reports: tệp báo cáo đã xuất (Excel, PDF, CSV) để tải lại đúng tệp lúc xuất.
+export type StorageNamespace = "requests" | "exams" | "reports";
 
-const NAMESPACES: readonly StorageNamespace[] = ["requests", "exams"];
+const NAMESPACES: readonly StorageNamespace[] = ["requests", "exams", "reports"];
 
 // Khóa luôn do server sinh: thư mục cố định + uuid. Không có dấu chấm, gạch chéo ngược hay tên tệp của người dùng nên không thoát
 // ra ngoài thư mục lưu trữ được.
-const KEY = /^(requests|exams)\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+const KEY = /^(requests|exams|reports)\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 export class StorageKeyError extends Error {
   constructor(key: string) {

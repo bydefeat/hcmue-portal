@@ -78,6 +78,7 @@ export const APPLICATION_NAVIGATION: NavGroup[] = [
       { label: "Đăng ký học phần", shortLabel: "Đăng ký", href: "/application/registration", icon: ClipboardCheck },
       { label: "Đơn từ", href: "/application/requests", icon: Inbox },
       { label: "Học phí", href: "/application/tuition", icon: Receipt },
+      { label: "Thông báo chung", href: "/application/announcements", icon: Megaphone },
     ],
   },
   {
@@ -121,6 +122,7 @@ export const LECTURER_NAVIGATION: NavItem[] = [
   { label: "Lớp học phần", shortLabel: "Lớp", href: "/lecturer/classes", icon: PresentationScreen },
   { label: "Lịch thi", href: "/lecturer/exams", icon: CalendarClock },
   { label: "Đơn từ", href: "/lecturer/requests", icon: Inbox },
+  { label: "Thông báo", href: "/lecturer/announcements", icon: Megaphone },
 ];
 
 export const LECTURER_DOCK_ITEMS = LECTURER_NAVIGATION.slice(0, 3);

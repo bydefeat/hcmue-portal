@@ -52,13 +52,12 @@ export default async function Page() {
   const adviseeIds = advisees.map((student) => student.id);
   const [plans, warnings] = lecturer.isAdvisor ? await Promise.all([getStudyPlans(adviseeIds), getAcademicWarnings(adviseeIds)]) : [[], []];
   const [assignedRequests, exams, appointments] = await Promise.all([
-    getRequestsForAssignee(lecturer.id, ["advisor", "lecturer"]),
+    getRequestsForAssignee(),
     getExamsForLecturer(lecturer.id),
     lecturer.isAdvisor ? getAppointments(lecturer.id) : Promise.resolve([]),
   ]);
-  const waitingRequests = assignedRequests.filter(
-    (request) => request.currentStep && request.currentStep.assigneeId === lecturer.id && (request.status === "pending" || request.status === "in-review"),
-  );
+  // Chỉ đơn đang chờ ở bước của chính giảng viên (quyền tính ở server, cùng hàm với action duyệt).
+  const waitingRequests = assignedRequests.filter((request) => request.can.decide);
   const overdueRequests = waitingRequests.filter((request) => request.isOverdue).length;
   const upcomingProctoring = exams
     .filter((exam) => exam.proctors.some((proctor) => proctor.id === lecturer.id) && !dayjs(exam.date).isBefore(dayjs(), "day"))

@@ -22,17 +22,21 @@ export type MarkNotificationsRead = (input: { ids: string[] }) => Promise<unknow
 
 type NotificationBellProps = {
   items: BellItem[];
+  // Số chưa đọc đếm ở server trên toàn bộ thông báo (items chỉ là vài dòng mới nhất).
+  unreadCount?: number;
   viewAllHref: string;
   onMarkRead?: MarkNotificationsRead;
 };
 
 const VISIBLE = 6;
 
-export function NotificationBell({ items, viewAllHref, onMarkRead }: NotificationBellProps) {
+export function NotificationBell({ items, unreadCount, viewAllHref, onMarkRead }: NotificationBellProps) {
   const [open, setOpen] = useState(false);
   const [readIds, setReadIds] = useState<string[]>([]);
   const isRead = (item: BellItem) => item.isRead || readIds.includes(item.id);
-  const unread = items.filter((item) => !isRead(item)).length;
+  const unreadShown = items.filter((item) => !isRead(item)).length;
+  const markedHere = items.filter((item) => !item.isRead && readIds.includes(item.id)).length;
+  const unread = unreadCount === undefined ? unreadShown : Math.max(unreadShown, unreadCount - markedHere);
   const markRead = (ids: string[]) => {
     const unreadIds = items.filter((item) => ids.includes(item.id) && !isRead(item)).map((item) => item.id);
     if (unreadIds.length === 0) return;

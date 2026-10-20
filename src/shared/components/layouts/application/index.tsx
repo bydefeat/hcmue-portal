@@ -20,6 +20,7 @@ type ApplicationLayoutProps = {
   user: MenuUser;
   termLabel: string;
   notifications: BellItem[];
+  unreadNotifications?: number;
   onMarkNotificationsRead?: MarkNotificationsRead;
   children: React.ReactNode;
 };
@@ -45,7 +46,7 @@ function breadcrumbItems(pathname: string) {
   ];
 }
 
-export function ApplicationLayout({ user, termLabel, notifications, onMarkNotificationsRead, children }: ApplicationLayoutProps) {
+export function ApplicationLayout({ user, termLabel, notifications, unreadNotifications, onMarkNotificationsRead, children }: ApplicationLayoutProps) {
   const pathname = usePathname();
   const breadcrumb = breadcrumbItems(pathname);
 
@@ -58,7 +59,7 @@ export function ApplicationLayout({ user, termLabel, notifications, onMarkNotifi
           <Breadcrumb items={breadcrumb} className="hidden min-w-0 lg:block" />
           <span className="ml-auto hidden shrink-0 text-sm text-muted sm:block">{termLabel}</span>
           <div className="ml-auto flex shrink-0 items-center gap-1 leading-normal sm:ml-0">
-            <NotificationBell items={notifications} viewAllHref={APPLICATION_NOTIFICATIONS_HREF} onMarkRead={onMarkNotificationsRead} />
+            <NotificationBell items={notifications} unreadCount={unreadNotifications} viewAllHref={APPLICATION_NOTIFICATIONS_HREF} onMarkRead={onMarkNotificationsRead} />
             <div className="lg:hidden">
               <UserMenu user={user} links={[APPLICATION_PROFILE]} compact />
             </div>

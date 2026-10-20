@@ -1,15 +1,21 @@
 import { mockDate, mockId } from "@/shared/libs/mock.lib";
 import type { Announcement } from "@/modules/announcements/announcements.type";
 
+// Thông báo mẫu: đối tượng có cấu trúc; gửi thông báo cá nhân, email chỉ áp khi đăng thật nên mẫu coi như đã gửi.
+type AnnouncementSeed = Omit<Announcement, "audienceLabel" | "isExpired" | "notifyPortal" | "notifyEmail" | "notifiedAt">;
+
+const STUDENTS = { students: true, lecturers: false, cohorts: [], facultyIds: [], majorIds: [] };
+const EVERYONE = { students: true, lecturers: true, cohorts: [], facultyIds: [], majorIds: [] };
+
 const AUTHOR = "Phòng Đào tạo";
 
-export const ANNOUNCEMENTS: Announcement[] = [
+export const ANNOUNCEMENTS: AnnouncementSeed[] = [
   {
     id: mockId("announcement:tb-01"),
     slug: "dang-ky-hoc-phan-hk2-2026-2027-dot-1",
     title: "Đăng ký học phần học kỳ 2, năm học 2026-2027, đợt 1 cho khóa 48 và 49",
     category: "registration",
-    audiences: ["Khóa 48", "Khóa 49"],
+    audience: { ...STUDENTS, cohorts: [48, 49] },
     status: "published",
     isPinned: true,
     publishedAt: mockDate(-6, "09:00"),
@@ -25,7 +31,7 @@ export const ANNOUNCEMENTS: Announcement[] = [
     slug: "lich-thi-giua-ky-hk1-2026-2027",
     title: "Lịch thi giữa kỳ học kỳ 1, năm học 2026-2027",
     category: "exam",
-    audiences: ["Sinh viên", "Giảng viên"],
+    audience: EVERYONE,
     status: "published",
     isPinned: false,
     publishedAt: mockDate(-3, "14:30"),
@@ -40,7 +46,7 @@ export const ANNOUNCEMENTS: Announcement[] = [
     slug: "hoc-phi-hk1-2026-2027",
     title: "Thông báo thu học phí học kỳ 1, năm học 2026-2027",
     category: "tuition",
-    audiences: ["Sinh viên"],
+    audience: STUDENTS,
     status: "published",
     isPinned: false,
     publishedAt: mockDate(-15, "08:00"),
@@ -55,7 +61,7 @@ export const ANNOUNCEMENTS: Announcement[] = [
     slug: "canh-bao-hoc-vu-hk2-2025-2026",
     title: "Danh sách sinh viên bị cảnh báo học vụ học kỳ 2, năm học 2025-2026",
     category: "academic",
-    audiences: ["Sinh viên", "Cố vấn học tập"],
+    audience: EVERYONE,
     status: "published",
     isPinned: false,
     publishedAt: mockDate(-20, "10:00"),
@@ -70,7 +76,7 @@ export const ANNOUNCEMENTS: Announcement[] = [
     slug: "dang-ky-hoc-phan-hk2-2026-2027-dot-2",
     title: "Đăng ký học phần học kỳ 2, năm học 2026-2027, đợt 2 cho khóa 50 và 51",
     category: "registration",
-    audiences: ["Khóa 50", "Khóa 51"],
+    audience: { ...STUDENTS, cohorts: [50, 51] },
     status: "scheduled",
     isPinned: false,
     publishedAt: mockDate(3, "09:00"),
@@ -85,7 +91,7 @@ export const ANNOUNCEMENTS: Announcement[] = [
     slug: "hoi-thao-nghien-cuu-khoa-hoc-sinh-vien-2026",
     title: "Hội thảo nghiên cứu khoa học sinh viên năm 2026",
     category: "event",
-    audiences: ["Toàn trường"],
+    audience: EVERYONE,
     status: "draft",
     isPinned: false,
     publishedAt: null,
@@ -100,7 +106,7 @@ export const ANNOUNCEMENTS: Announcement[] = [
     slug: "ke-hoach-hoc-tap-hk2-2026-2027",
     title: "Sinh viên nộp kế hoạch học tập học kỳ 2 cho cố vấn trước khi đăng ký học phần",
     category: "academic",
-    audiences: ["Sinh viên", "Cố vấn học tập"],
+    audience: EVERYONE,
     status: "published",
     isPinned: false,
     publishedAt: mockDate(-11, "07:30"),
@@ -115,7 +121,7 @@ export const ANNOUNCEMENTS: Announcement[] = [
     slug: "dieu-chinh-dang-ky-hk1-2026-2027",
     title: "Điều chỉnh đăng ký học phần học kỳ 1, năm học 2026-2027",
     category: "registration",
-    audiences: ["Sinh viên"],
+    audience: STUDENTS,
     status: "archived",
     isPinned: false,
     publishedAt: "2026-09-04T02:00:00Z",
@@ -124,5 +130,21 @@ export const ANNOUNCEMENTS: Announcement[] = [
     summary: "Đợt điều chỉnh cho sinh viên rút hoặc đổi lớp trong tuần đầu học kỳ.",
     content: "Sinh viên rút học phần sau thời hạn điều chỉnh sẽ nhận điểm W.",
     views: 2740,
+  },
+  {
+    id: mockId("announcement:tb-09"),
+    slug: "nop-de-thi-cuoi-ky-hk1-2026-2027",
+    title: "Giảng viên nộp đề thi cuối kỳ học kỳ 1 cho Phòng Khảo thí",
+    category: "exam",
+    // Chỉ gửi giảng viên: không hiện trên trang công khai.
+    audience: { students: false, lecturers: true, cohorts: [], facultyIds: [], majorIds: [] },
+    status: "published",
+    isPinned: false,
+    publishedAt: mockDate(-3, "08:00"),
+    deadline: mockDate(25, "17:00"),
+    author: "Phòng Khảo thí",
+    summary: "Nộp đề và đáp án trên cổng giảng viên, mục Lịch thi, trước hạn để Phòng Khảo thí duyệt.",
+    content: "Đề thi nộp dạng PDF, mỗi lớp học phần một đề kèm đáp án. Đề bị trả lại thì giảng viên sửa và nộp lại trong 3 ngày.",
+    views: 0,
   },
 ];

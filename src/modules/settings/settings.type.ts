@@ -1,3 +1,5 @@
+import type { Permission } from "@/modules/access/access.type";
+
 export type LetterStep = {
   letter: string;
   min: number;
@@ -50,7 +52,13 @@ export type CalendarEvent = {
   startDate: string;
   endDate: string;
   audience: string;
+  // manual: mốc tự nhập ở trang Lịch năm học (sửa, xóa được); term, registration: lấy từ học kỳ, đợt đăng ký (chỉ đọc,
+  // sửa ở trang Học kỳ) để lịch không có hai nguồn ngày.
+  source: "manual" | "term" | "registration";
 };
+
+// Loại mốc tự nhập: thời gian học kỳ và đợt đăng ký lấy từ học kỳ, đợt đăng ký.
+export type ManualCalendarEventKind = Exclude<CalendarEventKind, "teaching" | "registration">;
 
 export type RegulationVersion = {
   version: string;
@@ -64,7 +72,18 @@ export type ReportFormat = "xlsx" | "pdf" | "csv";
 // Ô số kèm định dạng: Excel nhận giá trị số với định dạng hiển thị, CSV nhận chữ đã định dạng kiểu Việt Nam.
 export type ReportCell = string | number | { value: number; text: string; numFmt: string };
 
-export type ReportDefinition = { id: string; name: string; description: string; audience: string };
+export type ReportDefinition = {
+  id: string;
+  name: string;
+  description: string;
+  audience: string;
+  // Báo cáo theo học kỳ hay số liệu hiện tại (không chọn học kỳ).
+  usesTerm: boolean;
+  // Lọc theo khoa: khoa của sinh viên hay khoa quản lý học phần.
+  facultyBasis: "student" | "course";
+  // Quyền cần để xuất, tải (ngoài reports.view).
+  permission: Permission;
+};
 
 export type ReportExportStatus = "running" | "ready" | "failed";
 

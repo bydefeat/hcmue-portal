@@ -8,9 +8,10 @@ import { StatusTag } from "@/shared/components/ui/status-tag";
 import { dayjs, formatDate, formatDateTime } from "@/shared/libs/date.lib";
 import { formatFileSize } from "@/shared/libs/upload.lib";
 import { REQUEST_KINDS, REQUEST_STATUS, requestAttachmentHref } from "@/modules/requests/requests.constant";
-import { cancelRequest, decideAsLecturer, decideAsOffice } from "@/modules/requests/requests.action";
-import type { RequestKind, RequestStatus, RequestView, StepRole } from "@/modules/requests/requests.type";
+import { askForSupplement, cancelRequest, decideAsLecturer, decideAsOffice } from "@/modules/requests/requests.action";
+import type { RequestKind, RequestStatus, RequestView } from "@/modules/requests/requests.type";
 import { ApprovalSteps } from "@/modules/requests/components/approval-steps";
+import { ReassignModal, ResubmitModal, SuperviseModal, SupplementForm, type ReassignCandidate } from "@/modules/requests/components/request-actions";
 import { paginationItemRender } from "@/shared/constants/antd.constant";
 import { normalizeSearch } from "@/shared/libs/search.lib";
 
@@ -18,13 +19,19 @@ type RequestInboxProps = {
   requests: RequestView[];
   mode: "process" | "own";
   processAs?: "lecturer" | "office";
-  actorId?: string;
-  actorRoles?: StepRole[];
   initialStatus?: RequestStatus;
+  // Mở sẵn một đơn (đường dẫn từ thông báo: ?open=<id>).
+  initialOpenId?: string;
   showRequester?: boolean;
+  // Phòng Đào tạo chuyển người xử lý: danh sách giảng viên để chọn.
+  reassignCandidates?: ReassignCandidate[];
+  // Đơn mới gửi lại từ đơn bị từ chối: trang cha thêm vào danh sách.
+  onCreated?: (request: RequestView) => void;
 };
 
 type Scope = "mine" | "all";
+
+const canOpenFiles = (request: RequestView) => request.can.openFiles;
 
 function waitingText(request: RequestView) {
   if (!request.currentStep?.dueAt) return null;
@@ -38,31 +45,26 @@ export function RequestInbox({
   requests,
   mode,
   processAs = "office",
-  actorId,
-  actorRoles = [],
   initialStatus,
+  initialOpenId,
   showRequester = true,
+  reassignCandidates = [],
+  onCreated,
 }: RequestInboxProps) {
   const [messageApi, contextHolder] = message.useMessage();
   const [modal, modalContextHolder] = Modal.useModal();
   const [rows, setRows] = useState<RequestView[]>(requests);
-  const [openId, setOpenId] = useState<string | null>(null);
+  const [openId, setOpenId] = useState<string | null>(initialOpenId && requests.some((row) => row.id === initialOpenId) ? initialOpenId : null);
+  const [dialog, setDialog] = useState<"supervise" | "reassign" | "resubmit" | null>(null);
   const [comment, setComment] = useState("");
   const [query, setQuery] = useState("");
   const [kind, setKind] = useState<RequestKind>();
   const [status, setStatus] = useState<RequestStatus | undefined>(initialStatus);
   const [isPending, startTransition] = useTransition();
-  const [decision, setDecision] = useState<"approved" | "rejected">();
+  const [decision, setDecision] = useState<"approved" | "rejected" | "supplement">();
 
-  const canAct = (request: RequestView) =>
-    mode === "process" &&
-    request.currentStep !== null &&
-    (request.status === "pending" || request.status === "in-review") &&
-    actorRoles.includes(request.currentStep.role) &&
-    (request.currentStep.assigneeId === null || request.currentStep.assigneeId === actorId || request.currentStep.role === "faculty");
-
-  // Cán bộ chỉ tải minh chứng của đơn có bước thuộc vai trò mình (server kiểm lại ở route tải tệp).
-  const canOpenFiles = (request: RequestView) => mode === "own" || processAs === "lecturer" || request.steps.some((step) => actorRoles.includes(step.role));
+  // Quyền tính ở server bằng cùng hàm với action (request.can); ở đây chỉ để ẩn hiện nút.
+  const canAct = (request: RequestView) => mode === "process" && request.can.decide;
 
   const actionable = rows.filter(canAct);
   const [scope, setScope] = useState<Scope>(mode === "process" && actionable.length > 0 && !initialStatus ? "mine" : "all");
@@ -80,6 +82,47 @@ export function RequestInbox({
 
   const update = (next: RequestView) => setRows((current) => current.map((row) => (row.id === next.id ? next : row)));
 
+  const rowLink = (target: { id: string; code: string }) =>
+    rows.some((row) => row.id === target.id) ? (
+      <Button type="link" size="small" className="h-auto p-0" onClick={() => setOpenId(target.id)}>
+        {target.code}
+      </Button>
+    ) : (
+      target.code
+    );
+
+  const done = (next: RequestView, text: string) => {
+    if (rows.some((row) => row.id === next.id)) update(next);
+    else {
+      // Đơn gửi lại: đơn mới lên đầu, đơn cũ không gửi lại được nữa.
+      setRows((current) => [next, ...current.map((row) => (row.id === next.resubmittedFrom?.id ? { ...row, resubmittedAs: { id: next.id, code: next.code }, can: { ...row.can, resubmit: false } } : row))]);
+      onCreated?.(next);
+      setOpenId(next.id);
+    }
+    setDialog(null);
+    messageApi.success(text);
+  };
+
+  const askSupplement = () => {
+    if (!opened) return;
+    if (!comment.trim()) {
+      messageApi.warning("Ghi rõ cần bổ sung gì vào ô ý kiến");
+      return;
+    }
+    const step = opened.steps.findIndex((entry) => entry.status === "pending");
+    setDecision("supplement");
+    startTransition(async () => {
+      const result = await askForSupplement(opened.id, processAs, { step, note: comment }).catch(() => null);
+      if (!result?.ok) {
+        messageApi.error(result?.fieldErrors?.note ?? result?.message ?? "Chưa lưu được, kiểm tra kết nối rồi thử lại.");
+        return;
+      }
+      update(result.data);
+      setComment("");
+      messageApi.success(`Đã yêu cầu người gửi bổ sung đơn ${opened.code}`);
+    });
+  };
+
   const decide = (choice: "approved" | "rejected") => {
     if (!opened) return;
     if (choice === "rejected" && !comment.trim()) {
@@ -90,7 +133,11 @@ export function RequestInbox({
     const action = processAs === "lecturer" ? decideAsLecturer : decideAsOffice;
     setDecision(choice);
     startTransition(async () => {
-      const result = await action(opened.id, { step, decision: choice, comment });
+      const result = await action(opened.id, { step, decision: choice, comment }).catch(() => null);
+      if (!result) {
+        messageApi.error("Chưa lưu được, kiểm tra kết nối rồi thử lại.");
+        return;
+      }
       if (!result.ok) {
         messageApi.error(result.fieldErrors?.comment ?? result.message);
         return;
@@ -307,7 +354,12 @@ export function RequestInbox({
                 aria-label="Ý kiến xử lý"
                 className="mb-5"
               />
-              <div className="flex justify-end gap-2">
+              <div className="flex flex-wrap justify-end gap-2">
+                {opened.can.requestSupplement && (
+                  <Button className="mr-auto" disabled={isPending && decision !== "supplement"} loading={isPending && decision === "supplement"} onClick={askSupplement}>
+                    Yêu cầu bổ sung
+                  </Button>
+                )}
                 <Button danger disabled={isPending && decision !== "rejected"} loading={isPending && decision === "rejected"} onClick={() => decide("rejected")}>
                   Không đồng ý
                 </Button>
@@ -316,11 +368,23 @@ export function RequestInbox({
                 </Button>
               </div>
             </div>
-          ) : opened && mode === "own" && opened.status === "pending" ? (
-            <div className="flex justify-end">
-              <Button danger onClick={() => cancel(opened)}>
-                Hủy đơn
-              </Button>
+          ) : opened && mode === "own" && (opened.can.cancel || opened.can.resubmit) ? (
+            <div className="flex justify-end gap-2">
+              {opened.can.cancel && (
+                <Button danger onClick={() => cancel(opened)}>
+                  Hủy đơn
+                </Button>
+              )}
+              {opened.can.resubmit && (
+                <Button type="primary" onClick={() => setDialog("resubmit")}>
+                  Gửi lại đơn
+                </Button>
+              )}
+            </div>
+          ) : opened && mode === "process" && (opened.can.supervise || opened.can.reassign) ? (
+            <div className="flex justify-end gap-2">
+              {opened.can.reassign && <Button onClick={() => setDialog("reassign")}>Chuyển người xử lý</Button>}
+              {opened.can.supervise && <Button onClick={() => setDialog("supervise")}>Xử lý thay</Button>}
             </div>
           ) : null
         }
@@ -332,7 +396,26 @@ export function RequestInbox({
               <span className="text-xs text-muted tabular-nums">Gửi lúc {formatDateTime(opened.createdAt)}</span>
             </div>
             {opened.isOverdue && (
-              <Alert type="error" showIcon title="Đơn đã quá hạn xử lý ở bước hiện tại" description="Xử lý ngay hoặc báo người có thẩm quyền chuyển người xử lý." />
+              <Alert type="error" showIcon title="Đơn đã quá hạn xử lý ở bước hiện tại" description="Xử lý ngay hoặc báo Phòng Đào tạo chuyển người xử lý." />
+            )}
+            {opened.openSupplement && (
+              <Alert
+                type="warning"
+                showIcon
+                title={`${opened.openSupplement.requestedByName} yêu cầu bổ sung`}
+                description={
+                  <span className="flex flex-col gap-3">
+                    <span className="text-pretty">{opened.openSupplement.requestNote}</span>
+                    {opened.can.supplement && <SupplementForm request={opened} onDone={done} onFail={(text) => messageApi.error(text)} />}
+                  </span>
+                }
+              />
+            )}
+            {(opened.resubmittedFrom || opened.resubmittedAs) && (
+              <span className="text-sm text-muted">
+                {opened.resubmittedFrom && <>Gửi lại từ đơn {rowLink(opened.resubmittedFrom)}. </>}
+                {opened.resubmittedAs && <>Đã gửi lại thành đơn {rowLink(opened.resubmittedAs)}.</>}
+              </span>
             )}
             <Descriptions
               size="small"
@@ -359,7 +442,10 @@ export function RequestInbox({
                     ) : (
                       <span className="truncate">{file.fileName}</span>
                     )}
-                    <span className="shrink-0 text-xs text-muted tabular-nums">{formatFileSize(file.sizeBytes)}</span>
+                    <span className="shrink-0 text-xs text-muted tabular-nums">
+                      {formatFileSize(file.sizeBytes)}
+                      {file.uploadedAt.slice(0, 16) !== opened.createdAt.slice(0, 16) && ` · bổ sung ${formatDateTime(file.uploadedAt)}`}
+                    </span>
                   </span>
                 ))}
                 {!canOpenFiles(opened) && <span className="text-xs text-muted">Chỉ người gửi và người có bước duyệt đơn này tải được minh chứng.</span>}
@@ -369,9 +455,34 @@ export function RequestInbox({
               <span className="text-xs font-medium text-muted">Tiến độ xử lý</span>
               <ApprovalSteps steps={opened.steps} submittedAt={opened.createdAt} requesterName={opened.requesterName} />
             </div>
+            {opened.supplements.some((supplement) => supplement.respondedAt) && (
+              <div className="flex flex-col gap-2">
+                <span className="text-xs font-medium text-muted">Lịch sử bổ sung</span>
+                <ul className="flex flex-col gap-2 text-sm">
+                  {opened.supplements
+                    .filter((supplement) => supplement.respondedAt)
+                    .map((supplement) => (
+                      <li key={supplement.id} className="flex flex-col gap-0.5">
+                        <span className="text-pretty">
+                          {supplement.requestedByName} ({supplement.stepLabel.toLowerCase()}): {supplement.requestNote}
+                        </span>
+                        <span className="text-xs text-muted tabular-nums">
+                          Yêu cầu {formatDateTime(supplement.requestedAt)} · bổ sung {formatDateTime(supplement.respondedAt!)}
+                          {supplement.responseNote && `: ${supplement.responseNote}`}
+                        </span>
+                      </li>
+                    ))}
+                </ul>
+              </div>
+            )}
           </div>
         )}
       </Drawer>
+      {opened && dialog === "supervise" && <SuperviseModal open request={opened} onClose={() => setDialog(null)} onDone={done} onFail={(text) => messageApi.error(text)} />}
+      {opened && dialog === "reassign" && (
+        <ReassignModal open request={opened} candidates={reassignCandidates} onClose={() => setDialog(null)} onDone={done} onFail={(text) => messageApi.error(text)} />
+      )}
+      {opened && dialog === "resubmit" && <ResubmitModal open request={opened} onClose={() => setDialog(null)} onDone={done} onFail={(text) => messageApi.error(text)} />}
     </div>
   );
 }

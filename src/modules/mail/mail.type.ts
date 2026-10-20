@@ -1,6 +1,6 @@
 export type MailStatus = "pending" | "sending" | "sent" | "failed";
 
-export type MailKind = "account-activation" | "registration-reminder" | "class-announcement";
+export type MailKind = "account-activation" | "registration-reminder" | "class-announcement" | "announcement";
 
 export type MailOutboxStats = {
   // Chờ gửi lần đầu hoặc chờ tới lượt gửi lại (kể cả đang gửi).

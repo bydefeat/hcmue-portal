@@ -18,6 +18,10 @@ import { classSections, terms } from "@/modules/course-registration/course-regis
 import { faculties, majors } from "@/modules/curriculum/curriculum.schema";
 import { gradeSheets } from "@/modules/grades/grades.schema";
 import { reportExports } from "@/modules/settings/settings.schema";
+import { auditLogs } from "@/modules/audit/audit.schema";
+import { deleteFiles, newStorageKey, putFile } from "@/shared/libs/storage.lib";
+import { newId } from "@/shared/libs/id.lib";
+import { buildReportFile } from "@/modules/settings/settings.lib";
 import { administrativeClasses, lecturers, studentDecisions, students } from "@/modules/users/users.schema";
 // Chỉ lấy kiểu: các module này nạp động sau khi dựng môi trường request của Next (xem bên dưới).
 import type * as GradesAction from "@/modules/grades/grades.action";
@@ -294,24 +298,44 @@ describe("pdf: server action tải PDF kiểm quyền như trang", () => {
     const [faculty] = await db.select({ id: faculties.id }).from(faculties).where(eq(faculties.name, student.faculty));
     await db.insert(roleAssignments).values({ userId: secretary.id, roleId: role.id, facultyId: faculty.id });
 
-    const [term] = await db.select({ id: terms.id }).from(terms).where(eq(terms.isCurrent, true));
-    const [job] = await db
-      .insert(reportExports)
-      .values({ reportKey: "registration", params: { termId: term.id, faculty: "all", format: "pdf" }, status: "done", rowCount: 0, storageKey: `reports/pdf-test-${Date.now()}.pdf`, finishedAt: new Date(), requestedByUserId: adminUserId })
-      .returning({ id: reportExports.id });
-    ids.reportJobId = job.id;
-
     cookies = {
       student: await sessionCookieOf(student.userId),
       lecturer: await sessionCookieOf(lecturer.userId),
       admin: await sessionCookieOf(adminUserId),
       secretary: await sessionCookieOf(secretary.id),
     };
+
+    // Tệp báo cáo dựng như action xuất (buildReportFile) và lưu vào kho; tải về phải trả đúng tệp đã lưu. Action xuất gọi
+    // revalidatePath nên không chạy được ngoài Next.
+    const [term] = await db.select({ id: terms.id, name: terms.name }).from(terms).where(eq(terms.isCurrent, true));
+    const table = (await asRequest(cookies.admin, () => settingsQuery.getReportTable("registration", term.id, "all")))!;
+    const file = await buildReportFile(table, { title: "Tỉ lệ đăng ký học phần", subtitle: `${term.name} · Toàn trường` }, "pdf");
+    const jobId = newId();
+    const storageKey = newStorageKey("reports", jobId);
+    await putFile(storageKey, file.data);
+    await db.insert(reportExports).values({
+      id: jobId,
+      reportKey: "registration",
+      params: { termId: term.id, faculty: "all", format: "pdf" },
+      status: "done",
+      rowCount: table.rows.length,
+      storageKey,
+      fileName: "registration-test.pdf",
+      contentType: file.contentType,
+      sizeBytes: file.data.byteLength,
+      finishedAt: new Date(),
+      requestedByUserId: adminUserId,
+    });
+    ids.reportJobId = jobId;
   });
 
   after(async () => {
     if (createdSessions.length > 0) await db.delete(session).where(inArray(session.id, createdSessions));
-    if (ids.reportJobId) await db.delete(reportExports).where(eq(reportExports.id, ids.reportJobId));
+    if (ids.reportJobId) {
+      const removed = await db.delete(reportExports).where(eq(reportExports.id, ids.reportJobId)).returning({ storageKey: reportExports.storageKey });
+      await deleteFiles(removed.flatMap((row) => (row.storageKey ? [row.storageKey] : [])));
+      await db.delete(auditLogs).where(eq(auditLogs.entityId, ids.reportJobId));
+    }
     if (ids.secretaryUserId) {
       await db.delete(roleAssignments).where(eq(roleAssignments.userId, ids.secretaryUserId));
       await db.delete(user).where(eq(user.id, ids.secretaryUserId));

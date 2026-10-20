@@ -12,12 +12,11 @@ const SYSADMIN = ["Lê Hoàng Phúc", "Quản trị hệ thống"] as const;
 const EXAM = ["Huỳnh Văn Sơn", "Phòng Khảo thí"] as const;
 
 const SEEDS: Seed[] = [
-  [0, "08:12", ...OFFICER, "sign-in", "role", "cb-012", "Nguyễn Thị Thu Hà", "Đăng nhập từ trình duyệt Chrome trên Windows"],
   [0, "08:40", ...OFFICER, "update", "class-section", mockSectionId("hk2-2026", "ENGL2001.02"), "ENGL2001.02", "Đổi phòng học", [{ field: "Phòng", before: "H.3.11", after: "H.2.04" }]],
   [0, "09:05", ...SECRETARY, "approve", "grade-sheet", mockSectionId("hk1-2026", "COMP1040.01"), "COMP1040.01 Cơ sở dữ liệu", "Duyệt bảng điểm cấp khoa"],
-  [0, "09:31", ...OFFICER, "approve", "request", "don-7", "DT-2026-01258", "Đồng ý đơn xin mở lớp COMP1031"],
+  [0, "09:31", ...OFFICER, "approve", "request", mockId("request:7"), "DT-2026-01258", 'Đồng ý bước "Phòng Đào tạo xếp lớp". Mở lớp COMP1031.03'],
   [1, "10:12", ...SECRETARY, "approve", "grade-sheet", mockSectionId("hk1-2026", "COMP1010.01"), "COMP1010.01 Lập trình cơ bản", "Duyệt bảng điểm cấp khoa"],
-  [1, "14:02", ...LECTURER, "lock", "grade-sheet", mockSectionId("hk1-2026", "LITR1010.01"), "LITR1010.01 Văn học Việt Nam hiện đại", "Chốt bảng điểm 47 sinh viên"],
+  [1, "14:02", ...LECTURER, "update", "grade-sheet", mockSectionId("hk1-2026", "LITR1010.01"), "LITR1010.01 Văn học Việt Nam hiện đại", "Sửa cột điểm lớp LITR1010.01"],
   [1, "16:45", ...OFFICER2, "update", "student", mockId("student:60"), "Hồ sơ 50.01.104.009", "Cập nhật số điện thoại", [{ field: "Điện thoại", before: "0903112233", after: "0977554410" }]],
   [2, "09:40", ...HEAD, "publish", "grade-sheet", mockSectionId("hk1-2026", "MATH1011.01"), "MATH1011.01 Giải tích 1", "Công bố điểm cho 58 sinh viên"],
   [2, "11:20", ...SECRETARY, "reject", "grade-sheet", mockSectionId("hk1-2026", "PSYC1001.01"), "PSYC1001.01 Tâm lý học giáo dục", "Trả lại bảng điểm: tổng trọng số cột giữa kỳ sai", [{ field: "Trạng thái", before: "Đã chốt", after: "Trả lại" }]],

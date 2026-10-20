@@ -7,7 +7,7 @@ import { getClassSections, getCurrentTerm, getRegistrationTargetTerm } from "@/m
 import { getCourses } from "@/modules/curriculum/curriculum.query";
 import { NOTIFICATION_KIND_LABEL } from "@/modules/notifications/notifications.constant";
 import { markNotificationsRead } from "@/modules/notifications/notifications.action";
-import { getNotifications } from "@/modules/notifications/notifications.query";
+import { getNotifications, getUnreadNotificationCount } from "@/modules/notifications/notifications.query";
 import { getLecturers, getStudents } from "@/modules/users/users.query";
 
 async function searchEntries(viewer: Viewer): Promise<SearchEntry[]> {
@@ -66,10 +66,11 @@ async function searchEntries(viewer: Viewer): Promise<SearchEntry[]> {
 export default async function Layout({ children }: { children: React.ReactNode }) {
   // getViewer() gọi requireRole("admin"): chưa đăng nhập về trang đăng nhập, không phải cán bộ quản trị thì 403.
   const viewer = await getViewer();
-  const [entries, currentTerm, notifications, assignments] = await Promise.all([
+  const [entries, currentTerm, notifications, unread, assignments] = await Promise.all([
     searchEntries(viewer),
     getCurrentTerm(),
     getNotifications("administrator"),
+    getUnreadNotificationCount("administrator"),
     getViewerAssignments(viewer.id),
   ]);
   const switcher =
@@ -92,6 +93,7 @@ export default async function Layout({ children }: { children: React.ReactNode }
       permissions={viewer.permissions}
       searchEntries={entries}
       notifications={notifications.map((notification) => ({ ...notification, kindLabel: NOTIFICATION_KIND_LABEL[notification.kind] }))}
+      unreadNotifications={unread}
       onMarkNotificationsRead={markNotificationsRead}
       switcher={switcher}
     >

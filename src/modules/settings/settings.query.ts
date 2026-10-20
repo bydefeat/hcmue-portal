@@ -1,13 +1,15 @@
 import "server-only";
 import { cache } from "react";
-import { and, asc, avg, count, countDistinct, desc, eq, isNotNull, lte, sql } from "drizzle-orm";
+import { and, asc, avg, count, countDistinct, desc, eq, inArray, isNotNull, lte, sql } from "drizzle-orm";
 import { db } from "@/shared/libs/db.lib";
+import { can } from "@/modules/access/access.constant";
 import { requirePermission } from "@/modules/access/access.query";
 import { requireSession } from "@/modules/authentication/authentication.query";
 import { user } from "@/modules/authentication/authentication.schema";
 import { formatStudentCode } from "@/shared/libs/student-code.lib";
+import { schoolTime } from "@/shared/libs/date.lib";
 import { CLASS_SECTION_STATUS } from "@/modules/course-registration/course-registration.constant";
-import { classSections, terms } from "@/modules/course-registration/course-registration.schema";
+import { classSections, registrationPeriods, terms } from "@/modules/course-registration/course-registration.schema";
 import { courses, faculties, majors } from "@/modules/curriculum/curriculum.schema";
 import { STANDING_LABEL, WARNING_STATUS } from "@/modules/grades/grades.constant";
 import { buildTranscript, computeStanding, type TranscriptTermInput } from "@/modules/grades/grades.rule";
@@ -75,21 +77,58 @@ export const CALENDAR_EVENT_COLUMNS = {
   audience: calendarEvents.audience,
 };
 
-// Công khai: lịch năm học hiện trên trang chủ.
+// Công khai: lịch năm học hiện trên trang chủ. Thời gian học kỳ và đợt đăng ký đọc thẳng từ học kỳ, đợt đăng ký (một nguồn
+// ngày duy nhất, chỉ đọc ở đây); mốc tự nhập là các sự kiện khác (thi, nhập điểm, nghỉ lễ, sự kiện).
 export async function getCalendarEvents(termId?: string): Promise<CalendarEvent[]> {
-  return db
-    .select(CALENDAR_EVENT_COLUMNS)
-    .from(calendarEvents)
-    .where(termId ? eq(calendarEvents.termId, termId) : undefined)
-    .orderBy(asc(calendarEvents.startDate), asc(calendarEvents.id));
+  const [manual, termRows, periods] = await Promise.all([
+    db
+      .select(CALENDAR_EVENT_COLUMNS)
+      .from(calendarEvents)
+      .where(termId ? eq(calendarEvents.termId, termId) : undefined),
+    db
+      .select({ id: terms.id, name: terms.name, startDate: terms.startDate, endDate: terms.endDate })
+      .from(terms)
+      .where(termId ? eq(terms.id, termId) : undefined),
+    db
+      .select({ id: registrationPeriods.id, termId: registrationPeriods.termId, name: registrationPeriods.name, cohorts: registrationPeriods.cohorts, opensAt: registrationPeriods.opensAt, closesAt: registrationPeriods.closesAt })
+      .from(registrationPeriods)
+      .where(termId ? eq(registrationPeriods.termId, termId) : undefined),
+  ]);
+  const events: CalendarEvent[] = [
+    ...manual.map((event) => ({ ...event, source: "manual" as const })),
+    ...termRows.map((term) => ({
+      id: `term:${term.id}`,
+      termId: term.id,
+      kind: "teaching" as const,
+      title: `Thời gian ${term.name.charAt(0).toLowerCase()}${term.name.slice(1)}`,
+      startDate: term.startDate,
+      endDate: term.endDate,
+      audience: "Toàn trường",
+      source: "term" as const,
+    })),
+    ...periods.map((period) => ({
+      id: `registration:${period.id}`,
+      termId: period.termId,
+      kind: "registration" as const,
+      title: `Đăng ký học phần: ${period.name}`,
+      startDate: schoolTime(period.opensAt).format("YYYY-MM-DD"),
+      endDate: schoolTime(period.closesAt).format("YYYY-MM-DD"),
+      audience: `Khóa ${period.cohorts.toSorted((a, b) => a - b).join(", ")}`,
+      source: "registration" as const,
+    })),
+  ];
+  return events.toSorted((a, b) => a.startDate.localeCompare(b.startDate) || a.id.localeCompare(b.id));
 }
 
 const JOB_STATUS: Record<"queued" | "running" | "done" | "failed", ReportExportStatus> = { queued: "running", running: "running", done: "ready", failed: "failed" };
 
 export type ReportParams = { termId: string; faculty: string; format: string };
 
+// Lịch sử xuất: chỉ báo cáo mà vai trò đang dùng được xem (khảo sát cần surveys.view, xét tốt nghiệp cần graduation.manage),
+// cán bộ theo khoa chỉ thấy báo cáo của khoa mình.
 export async function getReportExports(id?: string): Promise<ReportExportJob[]> {
   const viewer = await requirePermission("reports.view");
+  const allowedKeys = REPORT_DEFINITIONS.filter((report) => can(viewer, report.permission)).map((report) => report.id);
   const [rows, termRows] = await Promise.all([
     db
       .select({
@@ -103,7 +142,13 @@ export async function getReportExports(id?: string): Promise<ReportExportJob[]> 
       })
       .from(reportExports)
       .leftJoin(user, eq(user.id, reportExports.requestedByUserId))
-      .where(id ? eq(reportExports.id, id) : viewer.faculty ? sql`${reportExports.params}->>'faculty' = ${viewer.faculty}` : undefined)
+      .where(
+        and(
+          inArray(reportExports.reportKey, allowedKeys),
+          id ? eq(reportExports.id, id) : undefined,
+          viewer.faculty ? sql`${reportExports.params}->>'faculty' = ${viewer.faculty}` : undefined,
+        ),
+      )
       .orderBy(desc(reportExports.createdAt))
       .limit(100),
     db.select({ id: terms.id, shortName: terms.shortName }).from(terms),
@@ -112,11 +157,13 @@ export async function getReportExports(id?: string): Promise<ReportExportJob[]> 
   return rows.map((row) => {
     const params = row.params as Partial<ReportParams>;
     const scope = !params.faculty || params.faculty === "all" ? "toàn trường" : params.faculty;
+    const report = REPORT_DEFINITIONS.find((entry) => entry.id === row.reportKey);
     return {
       id: row.id,
       reportId: row.reportKey,
-      reportName: REPORT_DEFINITIONS.find((report) => report.id === row.reportKey)?.name ?? row.reportKey,
-      params: [params.termId ? termName.get(params.termId) : null, scope].filter(Boolean).join(", "),
+      reportName: report?.name ?? row.reportKey,
+      // Báo cáo số liệu hiện tại (không theo học kỳ) không ghi học kỳ.
+      params: [report?.usesTerm && params.termId ? termName.get(params.termId) : null, scope].filter(Boolean).join(", "),
       format: (params.format ?? "").toUpperCase(),
       createdAt: row.createdAt.toISOString(),
       createdBy: row.createdBy ?? "Hệ thống",
@@ -136,8 +183,9 @@ const percent = (part: number, whole: number): ReportCell =>
 const decimal = (value: number | null, digits = 2): ReportCell =>
   value === null ? "" : { value: Number(value.toFixed(digits)), text: value.toFixed(digits).replace(".", ","), numFmt: `0.${"0".repeat(digits)}` };
 
-// Bảng dữ liệu của từng báo cáo theo học kỳ và khoa ("all" là toàn trường), đọc trên dữ liệu hiện tại lúc gọi.
-// Chưa có kho lưu tệp nên mỗi lần tải là đọc lại; trả null khi học kỳ không còn hoặc báo cáo không có trong danh mục.
+// Bảng dữ liệu của từng báo cáo theo học kỳ và khoa ("all" là toàn trường), đọc trên dữ liệu hiện tại lúc gọi; action xuất
+// dựng tệp từ bảng này một lần và lưu vào kho (tải về là tệp đã lưu). Trả null khi học kỳ không còn hoặc báo cáo không có
+// trong danh mục. Báo cáo moet, graduation là số liệu hiện tại, không lọc theo học kỳ.
 export async function getReportTable(reportKey: string, termId: string, faculty: string): Promise<ReportTable | null> {
   await requirePermission("reports.view");
   const [term] = await db.select({ startDate: terms.startDate }).from(terms).where(eq(terms.id, termId));

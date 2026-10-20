@@ -14,11 +14,12 @@ export function deadlineHint(deadline: string | null, withTime = false) {
   return { text: `Hạn ${when}`, className: "text-muted", type: "info" as const };
 }
 
-export function PublicAnnouncementItem({ announcement }: { announcement: Announcement }) {
+// basePath: trang công khai (/announcements) hoặc trang thông báo trong cổng sinh viên, giảng viên.
+export function PublicAnnouncementItem({ announcement, basePath = "/announcements" }: { announcement: Announcement; basePath?: string }) {
   const hint = deadlineHint(announcement.deadline);
   return (
     <Link
-      href={`/announcements/${announcement.slug}`}
+      href={`${basePath}/${announcement.slug}`}
       className="flex flex-col gap-2 px-4 py-4 text-foreground transition-colors hover:bg-surface-hover sm:flex-row sm:gap-5 sm:px-5"
     >
       <span className="flex shrink-0 flex-row gap-2 text-xs text-muted sm:w-24 sm:flex-col sm:gap-1">
@@ -32,7 +33,7 @@ export function PublicAnnouncementItem({ announcement }: { announcement: Announc
         </span>
         <span className="line-clamp-2 text-sm text-pretty text-muted">{announcement.summary}</span>
         <span className="text-xs text-muted">
-          {announcement.audiences.join(", ")}
+          {announcement.audienceLabel}
           {hint && (
             <>
               {" · "}

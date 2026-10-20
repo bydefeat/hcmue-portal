@@ -12,3 +12,9 @@ export type AppNotification = {
   createdAt: string;
   isRead: boolean;
 };
+
+export type NotificationPage = {
+  items: AppNotification[];
+  // Con trỏ để tải trang kế tiếp; null là đã hết.
+  nextCursor: string | null;
+};

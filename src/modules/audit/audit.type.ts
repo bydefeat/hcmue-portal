@@ -1,4 +1,4 @@
-export type AuditAction = "create" | "update" | "delete" | "approve" | "reject" | "publish" | "lock" | "assign" | "export" | "sign-in" | "permission" | "submit" | "sign" | "revoke" | "return";
+export type AuditAction = "create" | "update" | "delete" | "approve" | "reject" | "publish" | "lock" | "assign" | "export" | "sign-in" | "permission" | "submit" | "sign" | "revoke" | "return" | "cancel" | "download";
 
 export type AuditEntityType =
   | "student"
@@ -19,13 +19,16 @@ export type AuditEntityType =
   | "course"
   | "graduation"
   | "term"
-  | "tuition";
+  | "tuition"
+  | "mail";
 
 export type AuditChange = {
   field: string;
   before: string;
   after: string;
 };
+
+export type AuditPage = { entries: AuditEntry[]; total: number; page: number; pageSize: number };
 
 export type AuditEntry = {
   id: string;

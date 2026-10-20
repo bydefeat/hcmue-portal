@@ -109,11 +109,10 @@ describe("settings: ràng buộc ở DB", () => {
   });
 
   test("báo cáo đã xong phải có tệp và số dòng", async () => {
-    const [job] = await db.select().from(reportExports).where(eq(reportExports.status, "done")).limit(1);
+    // Seed không có lịch sử xuất (mỗi lần xuất lưu tệp thật): báo cáo đã xong mà thiếu tệp bị chặn ngay khi ghi.
     const error = await db
-      .update(reportExports)
-      .set({ storageKey: null })
-      .where(eq(reportExports.id, job.id))
+      .insert(reportExports)
+      .values({ reportKey: "moet", status: "done", rowCount: 1, fileName: "moet.csv", contentType: "text/csv", sizeBytes: 1, finishedAt: new Date() })
       .then(() => null)
       .catch((caught: unknown) => caught);
     assert.equal(pgErrorMessage(error, SETTINGS_CONSTRAINT_MESSAGE), SETTINGS_CONSTRAINT_MESSAGE.report_exports_done_fields);
@@ -129,6 +128,8 @@ describe("settings: xuất báo cáo Excel", () => {
     assert.equal(reportFileName("registration", "hk1-2026", "xlsx"), "registration-hk1-2026.xlsx");
     assert.equal(reportFileName("registration", "hk1-2026", "pdf"), "registration-hk1-2026.pdf");
     assert.equal(reportFileName("registration", "hk1-2026", undefined), "registration-hk1-2026.csv");
+    // Báo cáo số liệu hiện tại không ghi mã học kỳ mà ghi ngày xuất.
+    assert.equal(reportFileName("moet", null, "xlsx", "2026-10-20"), "moet-2026-10-20.xlsx");
     assert.equal(reportCellText({ value: 0.853, text: "85,3%", numFmt: "0.0%" }), "85,3%");
     assert.equal(reportCellText(42), 42);
   });

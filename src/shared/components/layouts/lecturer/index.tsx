@@ -21,13 +21,14 @@ type LecturerLayoutProps = {
   user: MenuUser;
   isAdvisor: boolean;
   notifications: BellItem[];
+  unreadNotifications?: number;
   onMarkNotificationsRead?: MarkNotificationsRead;
   // Liên kết chuyển cổng (giảng viên kiêm quản trị), thêm vào menu tài khoản.
   portalLinks?: NavItem[];
   children: React.ReactNode;
 };
 
-export function LecturerLayout({ user, isAdvisor, notifications, onMarkNotificationsRead, portalLinks = [], children }: LecturerLayoutProps) {
+export function LecturerLayout({ user, isAdvisor, notifications, unreadNotifications, onMarkNotificationsRead, portalLinks = [], children }: LecturerLayoutProps) {
   const accountLinks = [...LECTURER_ACCOUNT_LINKS, ...portalLinks];
   const sections = [
     { title: "Giảng dạy", items: LECTURER_NAVIGATION },
@@ -37,7 +38,14 @@ export function LecturerLayout({ user, isAdvisor, notifications, onMarkNotificat
 
   return (
     <Layout className="min-h-dvh">
-      <LecturerHeader user={user} isAdvisor={isAdvisor} notifications={notifications} onMarkNotificationsRead={onMarkNotificationsRead} accountLinks={accountLinks} />
+      <LecturerHeader
+        user={user}
+        isAdvisor={isAdvisor}
+        notifications={notifications}
+        unreadNotifications={unreadNotifications}
+        onMarkNotificationsRead={onMarkNotificationsRead}
+        accountLinks={accountLinks}
+      />
       <Layout.Content className="mx-auto w-full max-w-7xl min-w-0 p-4 pb-28 sm:p-6 sm:pb-28 md:pb-6">{children}</Layout.Content>
       <MobileNavigation dockItems={LECTURER_DOCK_ITEMS} sections={sections} homeHref={LECTURER_HOME_HREF} hideFrom="md" />
     </Layout>

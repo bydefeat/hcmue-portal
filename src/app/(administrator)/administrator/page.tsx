@@ -65,9 +65,8 @@ export default async function Page() {
   const students = allStudents.filter((student) => inScope(viewer, student.faculty));
   const sections = allSections.filter((section) => inScope(viewer, section.faculty));
   const warnings = allWarnings.filter((warning) => inScope(viewer, warning.faculty));
-  const openRequests = allRequests.filter(
-    (request) => inScope(viewer, request.faculty) && (request.status === "pending" || request.status === "in-review") && request.currentStep?.role !== "advisor" && request.currentStep?.role !== "lecturer",
-  );
+  // Đơn đang chờ ở bước vai trò này xử lý được (quyền tính ở server như trang Đơn từ).
+  const openRequests = allRequests.filter((request) => request.can.decide);
   const overdueRequests = openRequests.filter((request) => request.isOverdue).length;
 
   const studying = students.filter((student) => student.status === "studying").length;

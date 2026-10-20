@@ -17,7 +17,7 @@ import { formatPoint, standingLabel, WARNING_LEVEL } from "@/modules/grades/grad
 import { getCurrentWarnings, getStudentStandings } from "@/modules/grades/grades.query";
 import { getRegulation } from "@/modules/settings/settings.query";
 import { NOTIFICATION_KIND_LABEL } from "@/modules/notifications/notifications.constant";
-import { getNotifications } from "@/modules/notifications/notifications.query";
+import { getNotifications, getUnreadNotificationCount } from "@/modules/notifications/notifications.query";
 import { REQUEST_KINDS, REQUEST_STATUS } from "@/modules/requests/requests.constant";
 import { getRequestsOf } from "@/modules/requests/requests.query";
 import { formatMoney } from "@/modules/tuition/tuition.constant";
@@ -35,12 +35,13 @@ export const metadata: Metadata = { title: "Tổng quan" };
 
 export default async function Page() {
   const [student, term, targetTerm] = await Promise.all([getCurrentStudent(), getCurrentTerm(), getRegistrationTargetTerm()]);
-  const [enrollments, [standing], periods, requests, notifications, warnings, program, regulation] = await Promise.all([
+  const [enrollments, [standing], periods, requests, notifications, unreadCount, warnings, program, regulation] = await Promise.all([
     getStudentEnrollments(student.id, term.id),
     getStudentStandings([student.id]),
     getRegistrationPeriods(targetTerm.id),
     getRequestsOf(student.id),
     getNotifications("student"),
+    getUnreadNotificationCount("student"),
     getCurrentWarnings([student.id]),
     getProgramOf(student.majorCode, student.cohort),
     getRegulation(),
@@ -59,7 +60,7 @@ export default async function Page() {
   const nextSlot = slots.find((slot) => slot.meeting.dayOfWeek > today) ?? slots[0];
   const period = applicablePeriod(periods, student.cohort);
   const upcomingExams = exams.filter((exam) => daysUntil(exam.date) >= 0 && exam.status !== "draft").slice(0, 3);
-  const openRequests = requests.filter((request) => request.status === "pending" || request.status === "in-review");
+  const openRequests = requests.filter((request) => request.status === "pending" || request.status === "in-review" || request.status === "needs-info");
   const unread = notifications.filter((notification) => !notification.isRead);
   const totalCredits = program?.totalCredits ?? null;
   const showTuition = invoice && invoice.balance > 0 && invoice.daysToDue <= 14;
@@ -102,7 +103,7 @@ export default async function Page() {
             tone={openRequests.some((request) => request.isOverdue) ? "warning" : undefined}
             href="/application/requests"
           />
-          <StatTile label="Thông báo chưa đọc" value={unread.length} hint="Hạn chót, điểm, lịch thi" href="/application/notifications" />
+          <StatTile label="Thông báo chưa đọc" value={unreadCount} hint="Hạn chót, điểm, lịch thi" href="/application/notifications" />
         </div>
 
         <div className="grid gap-4 sm:gap-6 lg:grid-cols-3">

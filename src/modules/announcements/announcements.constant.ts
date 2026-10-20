@@ -16,7 +16,6 @@ export const ANNOUNCEMENT_STATUS: Record<AnnouncementStatus, StatusMeta> = {
   archived: { label: "Đã gỡ", tone: "neutral" },
 };
 
-export const ANNOUNCEMENT_AUDIENCES = ["Toàn trường", "Sinh viên", "Giảng viên", "Khóa 48", "Khóa 49", "Khóa 50", "Khóa 51", "Cố vấn học tập"];
 
 export const ANNOUNCEMENT_CATEGORY_OPTIONS = Object.entries(ANNOUNCEMENT_CATEGORY_LABEL).map(([value, label]) => ({ value, label }));
 

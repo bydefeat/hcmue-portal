@@ -11,7 +11,7 @@ const STEP_STATE: Record<StepStatus, "wait" | "process" | "finish" | "error"> = 
   pending: "process",
   approved: "finish",
   rejected: "error",
-  skipped: "wait",
+  skipped: "finish",
 };
 
 export function ApprovalSteps({ steps, submittedAt, requesterName }: { steps: ApprovalStep[]; submittedAt: string; requesterName: string }) {
@@ -41,9 +41,15 @@ export function ApprovalSteps({ steps, submittedAt, requesterName }: { steps: Ap
           content: (
             <span className="flex flex-col gap-1 pb-2 text-xs text-muted">
               {step.assigneeName && <span>Người xử lý: {step.assigneeName}</span>}
+              {step.reassigned && (
+                <span className="text-pretty">
+                  {step.reassigned.byName} chuyển người xử lý lúc {formatDateTime(step.reassigned.at)}: {step.reassigned.reason}
+                </span>
+              )}
               {step.actedAt && (
                 <span className="tabular-nums">
-                  {step.actorName} · {formatDateTime(step.actedAt)}
+                  {step.actorName}
+                  {step.onBehalf && " (Phòng Đào tạo xử lý thay)"} · {formatDateTime(step.actedAt)}
                 </span>
               )}
               {step.status === "pending" && step.dueAt && <span className="tabular-nums">Hạn xử lý {formatDateTime(step.dueAt)}</span>}

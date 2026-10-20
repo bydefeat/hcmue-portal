@@ -1,7 +1,9 @@
 import "server-only";
 import { headers } from "next/headers";
+import { lt } from "drizzle-orm";
 import { clientIpFrom } from "@/shared/libs/client-ip.lib";
-import type { db, Transaction } from "@/shared/libs/db.lib";
+import { db, type Transaction } from "@/shared/libs/db.lib";
+import { env } from "@/shared/libs/env.lib";
 import { auditLogs } from "@/modules/audit/audit.schema";
 import type { AuditAction, AuditChange, AuditEntityType } from "@/modules/audit/audit.type";
 
@@ -48,4 +50,12 @@ export async function recordAudit(tx: Transaction | typeof db, record: AuditReco
     changes: record.changes ?? [],
     ip,
   });
+}
+
+// Tác vụ audit-cleanup: xóa bản ghi nhật ký cũ hơn DEFEAT_AUDIT_RETENTION_DAYS ngày (mặc định 3 năm). Nhật ký không sửa được,
+// chỉ hết hạn lưu theo cấu hình.
+export async function purgeOldAuditLogs(executor: Transaction | typeof db = db, now = new Date(), retentionDays = env.DEFEAT_AUDIT_RETENTION_DAYS) {
+  const cutoff = new Date(now.getTime() - retentionDays * 24 * 3_600_000);
+  const removed = await executor.delete(auditLogs).where(lt(auditLogs.at, cutoff)).returning({ id: auditLogs.id });
+  return { auditLogsRemoved: removed.length };
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
-import { Button, DatePicker, Drawer, Form, Input, message, Segmented, Select } from "antd";
+import { Button, DatePicker, Drawer, Form, Input, message, Modal, Select } from "antd";
 import type { Dayjs } from "dayjs";
 import { Plus } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
@@ -9,14 +9,14 @@ import { PageHeader } from "@/shared/components/ui/page-header";
 import { StatusTag } from "@/shared/components/ui/status-tag";
 import type { StatusMeta } from "@/shared/constants/status.constant";
 import { dayjs, formatDate, schoolTime } from "@/shared/libs/date.lib";
-import { saveCalendarEvent } from "@/modules/settings/settings.action";
-import { CALENDAR_EVENT_LABEL, CALENDAR_EVENT_OPTIONS } from "@/modules/settings/settings.constant";
-import type { CalendarEvent, CalendarEventKind } from "@/modules/settings/settings.type";
+import { deleteCalendarEvent, saveCalendarEvent } from "@/modules/settings/settings.action";
+import { CALENDAR_EVENT_LABEL, CALENDAR_EVENT_OPTIONS, CALENDAR_TERM_MARGIN_DAYS, MANUAL_CALENDAR_EVENT_OPTIONS } from "@/modules/settings/settings.constant";
+import type { CalendarEvent, CalendarEventKind, ManualCalendarEventKind } from "@/modules/settings/settings.type";
 import { SectionCard } from "@/shared/components/ui/section-card";
 
 type TermOption = { id: string; name: string };
 
-type EventValues = { title: string; kind: CalendarEventKind; range: [Dayjs, Dayjs]; audience: string };
+type EventValues = { title: string; kind: ManualCalendarEventKind; range: [Dayjs, Dayjs]; audience: string };
 
 const ONGOING: StatusMeta = { label: "Đang diễn ra", tone: "success" };
 const UPCOMING: StatusMeta = { label: "Sắp tới", tone: "neutral" };
@@ -40,6 +40,7 @@ export function AcademicCalendar({
   header: { title: string; description?: React.ReactNode };
 }) {
   const [messageApi, contextHolder] = message.useMessage();
+  const [modal, modalContextHolder] = Modal.useModal();
   const [rows, setRows] = useState(events);
   const [termId, setTermId] = useState(defaultTermId);
   const [kind, setKind] = useState<CalendarEventKind>();
@@ -51,7 +52,7 @@ export function AcademicCalendar({
   useEffect(() => {
     if (!open) return;
     form.resetFields();
-    if (editing) form.setFieldsValue({ title: editing.title, kind: editing.kind, audience: editing.audience, range: [dayjs(editing.startDate), dayjs(editing.endDate)] });
+    if (editing) form.setFieldsValue({ title: editing.title, kind: editing.kind as ManualCalendarEventKind, audience: editing.audience, range: [dayjs(editing.startDate), dayjs(editing.endDate)] });
   }, [open, editing, form]);
 
   const visible = rows
@@ -86,9 +87,30 @@ export function AcademicCalendar({
       setOpen(false);
     });
 
+  const remove = (event: CalendarEvent) =>
+    modal.confirm({
+      title: `Xóa mốc ${event.title}?`,
+      content: "Mốc biến mất khỏi lịch năm học trên mọi cổng. Thao tác được ghi nhật ký.",
+      okText: "Xóa mốc",
+      okButtonProps: { danger: true },
+      cancelText: "Giữ lại",
+      mask: { closable: false },
+      onOk: async () => {
+        const result = await deleteCalendarEvent(event.id).catch(() => null);
+        if (!result?.ok) {
+          messageApi.error(result?.message ?? "Chưa xóa được, kiểm tra kết nối rồi thử lại.");
+          return;
+        }
+        setRows((current) => current.filter((row) => row.id !== event.id));
+        setOpen(false);
+        messageApi.success(`Đã xóa ${event.title}`);
+      },
+    });
+
   return (
     <>
       {contextHolder}
+      {modalContextHolder}
       <PageHeader
         {...header}
         actions={
@@ -106,11 +128,13 @@ export function AcademicCalendar({
       />
       <div className="flex flex-col gap-4">
         <div className="flex flex-wrap items-center gap-2">
-          <Segmented
+          {/* Mọi học kỳ đều có mốc (thời gian học kỳ lấy từ bảng học kỳ) nên chọn bằng ô chọn, không trải ngang. */}
+          <Select
             value={termId}
-            onChange={(value) => setTermId(value as string)}
+            onChange={setTermId}
+            aria-label="Học kỳ"
             options={terms.map((term) => ({ value: term.id, label: term.name }))}
-            className="w-fit max-w-full"
+            className="w-full sm:w-56"
           />
           <Select allowClear value={kind} onChange={setKind} placeholder="Mọi loại mốc" aria-label="Loại mốc" options={CALENDAR_EVENT_OPTIONS} className="w-full sm:w-48" />
         </div>
@@ -132,6 +156,10 @@ export function AcademicCalendar({
                           type="text"
                           block
                           onClick={() => {
+                            if (event.source !== "manual") {
+                              messageApi.info(`${event.source === "term" ? "Thời gian học kỳ" : "Đợt đăng ký"} lấy từ trang Học kỳ, sửa ở đó để mọi nơi cùng một ngày.`);
+                              return;
+                            }
                             setEditing(event);
                             setOpen(true);
                           }}
@@ -144,6 +172,7 @@ export function AcademicCalendar({
                             <span className="font-medium text-pretty">{event.title}</span>
                             <span className="text-xs text-muted">
                               {CALENDAR_EVENT_LABEL[event.kind]} · {event.audience}
+                              {event.source !== "manual" && " · từ trang Học kỳ"}
                             </span>
                           </span>
                           {state !== "past" && <StatusTag status={state === "ongoing" ? ONGOING : UPCOMING} className="w-fit" />}
@@ -164,6 +193,11 @@ export function AcademicCalendar({
           title={editing ? "Sửa mốc lịch" : "Thêm mốc lịch"}
           footer={
             <div className="flex justify-end gap-2">
+              {editing && (
+                <Button danger className="mr-auto" onClick={() => remove(editing)}>
+                  Xóa mốc
+                </Button>
+              )}
               <Button onClick={() => setOpen(false)}>Hủy</Button>
               <Button type="primary" loading={isPending} onClick={() => form.submit()}>
                 {editing ? "Lưu thay đổi" : "Thêm mốc"}
@@ -176,9 +210,9 @@ export function AcademicCalendar({
               <Input />
             </Form.Item>
             <Form.Item name="kind" label="Loại" rules={[{ required: true, message: "Chưa chọn loại" }]}>
-              <Select placeholder="Chọn loại mốc" options={CALENDAR_EVENT_OPTIONS} />
+              <Select placeholder="Chọn loại mốc" options={MANUAL_CALENDAR_EVENT_OPTIONS} />
             </Form.Item>
-            <Form.Item name="range" label="Thời gian" rules={[{ required: true, message: "Chưa chọn thời gian" }]}>
+            <Form.Item name="range" label="Thời gian" extra={`Trong thời gian học kỳ; nghỉ lễ, nhập và công bố điểm được giáp trước sau học kỳ tối đa ${CALENDAR_TERM_MARGIN_DAYS} ngày.`} rules={[{ required: true, message: "Chưa chọn thời gian" }]}>
               <DatePicker.RangePicker format="DD/MM/YYYY" placeholder={["Từ ngày", "Đến ngày"]} className="w-full" />
             </Form.Item>
             <Form.Item name="audience" label="Đối tượng" rules={[{ required: true, whitespace: true, message: "Chưa nhập đối tượng" }]}>

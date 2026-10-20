@@ -17,13 +17,16 @@ type LecturerRequestBoardProps = {
   requester: { id: string; name: string; code: string; unit: string };
   initialTab?: "assigned" | "own";
   initialStatus?: RequestStatus;
+  initialOpenId?: string;
 };
 
-export function LecturerRequestBoard({ assigned, own, classes, busySlots, rooms, requester, initialTab, initialStatus }: LecturerRequestBoardProps) {
+export function LecturerRequestBoard({ assigned, own, classes, busySlots, rooms, requester, initialTab, initialStatus, initialOpenId }: LecturerRequestBoardProps) {
   const [messageApi, contextHolder] = message.useMessage();
   const [ownRows, setOwnRows] = useState(own);
-  const [tab, setTab] = useState(initialTab ?? (assigned.some((request) => request.status === "pending" || request.status === "in-review") ? "assigned" : "own"));
+  const opensOwn = initialOpenId !== undefined && own.some((request) => request.id === initialOpenId);
+  const [tab, setTab] = useState(initialTab ?? (opensOwn ? "own" : assigned.some((request) => request.can.decide) || initialOpenId ? "assigned" : "own"));
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [ownOpenId, setOwnOpenId] = useState(opensOwn ? initialOpenId : undefined);
 
   return (
     <div className="flex flex-col gap-3">
@@ -42,20 +45,26 @@ export function LecturerRequestBoard({ assigned, own, classes, busySlots, rooms,
             key: "assigned",
             label: "Đơn được giao",
             children: (
-              <RequestInbox
-                requests={assigned}
-                mode="process"
-                processAs="lecturer"
-                actorId={requester.id}
-                actorRoles={["advisor", "lecturer"]}
-                initialStatus={initialStatus}
-              />
+              <RequestInbox requests={assigned} mode="process" processAs="lecturer" initialStatus={initialStatus} initialOpenId={opensOwn ? undefined : initialOpenId} />
             ),
           },
           {
             key: "own",
             label: `Đơn của tôi (${ownRows.length})`,
-            children: <RequestInbox key={ownRows.length} requests={ownRows} mode="own" showRequester={false} />,
+            children: (
+              <RequestInbox
+                key={ownRows.length}
+                requests={ownRows}
+                mode="own"
+                showRequester={false}
+                initialOpenId={ownOpenId}
+                onCreated={(request) => {
+                  setOwnRows((current) => [request, ...current.filter((row) => row.id !== request.id).map((row) => (row.id === request.resubmittedFrom?.id ? { ...row, resubmittedAs: { id: request.id, code: request.code }, can: { ...row.can, resubmit: false } } : row))]);
+                  setOwnOpenId(request.id);
+                  messageApi.success(`Đã gửi lại thành đơn ${request.code}`);
+                }}
+              />
+            ),
           },
         ]}
       />

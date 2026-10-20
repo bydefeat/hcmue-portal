@@ -1,5 +1,6 @@
-import { dayjs } from "@/shared/libs/date.lib";
-import { mockDate, mockId, mockLecturerIdentity, mockStudentIdentity } from "@/shared/libs/mock.lib";
+import { weekdayLabel } from "@/shared/constants/period.constant";
+import { dayjs, formatDate, weekdayOf } from "@/shared/libs/date.lib";
+import { mockDate, mockId, mockLecturerIdentity, mockSectionId, mockStudentIdentity } from "@/shared/libs/mock.lib";
 import { ADVISOR_ASSIGNMENTS } from "@/modules/users/users.mock";
 import { REQUEST_KINDS } from "@/modules/requests/requests.constant";
 import type { AcademicRequest, ApprovalStep, RequestAttachment, RequestDetail, RequestKind } from "@/modules/requests/requests.type";
@@ -11,6 +12,8 @@ type Seed = {
   student?: number;
   lecturer?: number;
   handlerLecturer?: number;
+  // Mã lớp học phần học kỳ 1 năm 2026 của đơn (rút học phần, phúc khảo, hoãn thi, sửa điểm, nghỉ dạy).
+  section?: string;
   subject: string;
   details: RequestDetail[];
   reason: string;
@@ -35,7 +38,7 @@ function buildSteps(seed: Seed, createdAt: string, advisor: { id: string; name: 
           : template.role === "lecturer"
             ? null
             : { id: null, name: OFFICERS[template.role] };
-    const base = { role: template.role, label: template.label, assigneeId: assignee?.id ?? null, assigneeName: assignee?.name ?? null };
+    const base = { role: template.role, label: template.label, assigneeId: assignee?.id ?? null, assigneeName: assignee?.name ?? null, onBehalf: false, reassigned: null };
     if (seed.cancelled && index >= seed.approved) {
       return { ...base, status: "waiting" as const, actorName: null, actedAt: null, comment: null, dueAt: null };
     }
@@ -68,13 +71,23 @@ function buildSteps(seed: Seed, createdAt: string, advisor: { id: string; name: 
 }
 
 // Minh chứng mẫu đều là PDF; seed ghi một tệp PDF nhỏ cho mỗi tệp và lưu kích thước thật của tệp đó.
-function attachmentsOf(seed: Seed, index: number): RequestAttachment[] {
+function attachmentsOf(seed: Seed, index: number, createdAt: string): RequestAttachment[] {
   return (seed.attachments ?? []).map((fileName, position) => ({
     id: mockId(`request:${index + 1}:attachment:${position + 1}`),
     fileName,
     contentType: "application/pdf",
     sizeBytes: 0,
+    uploadedAt: createdAt,
   }));
+}
+
+const leaveDay = (offset: number) => {
+  const date = mockDate(offset, "07:00");
+  return `${weekdayLabel(weekdayOf(date))}, ${formatDate(date)}`;
+};
+
+function extras(seed: Seed) {
+  return { supplements: [], classSectionId: seed.section ? mockSectionId("hk1-2026", seed.section) : null, resubmittedFrom: null, resubmittedAs: null };
 }
 
 function build(seed: Seed, index: number): AcademicRequest {
@@ -98,10 +111,11 @@ function build(seed: Seed, index: number): AcademicRequest {
       subject: seed.subject,
       details: seed.details,
       reason: seed.reason,
-      attachments: attachmentsOf(seed, index),
+      attachments: attachmentsOf(seed, index, createdAt),
       createdAt,
       cancelledAt: seed.cancelled ? mockDate(-seed.daysAgo + 1, "10:00") : null,
       steps: buildSteps(seed, createdAt, advisor),
+      ...extras(seed),
     };
   }
   const lecturer = mockLecturerIdentity(seed.lecturer ?? 0);
@@ -118,22 +132,23 @@ function build(seed: Seed, index: number): AcademicRequest {
     subject: seed.subject,
     details: seed.details,
     reason: seed.reason,
-    attachments: attachmentsOf(seed, index),
+    attachments: attachmentsOf(seed, index, createdAt),
     createdAt,
     cancelledAt: seed.cancelled ? mockDate(-seed.daysAgo + 1, "10:00") : null,
     steps: buildSteps(seed, createdAt, null),
+    ...extras(seed),
   };
 }
 
+// Chi tiết đơn đúng định dạng studentRequestContent ghép ở server (nhãn ô của form, "sinh viên khai", giá trị trên hệ thống).
 const SEEDS: Seed[] = [
   {
     kind: "overload",
     student: 12,
-    subject: "Học kỳ 2, năm học 2026-2027",
+    subject: "Học vượt tín chỉ",
     details: [
       { label: "Số tín chỉ xin đăng ký", value: "28" },
-      { label: "CPA hiện tại", value: "3,71" },
-      { label: "Học phần thêm", value: "COMP1120 An toàn và bảo mật thông tin" },
+      { label: "Học phần muốn học thêm", value: "COMP1120 An toàn và bảo mật thông tin" },
     ],
     reason: "Em muốn học trước An toàn và bảo mật thông tin để kịp đi thực tập ở học kỳ 1 năm sau.",
     daysAgo: 4,
@@ -143,10 +158,11 @@ const SEEDS: Seed[] = [
   {
     kind: "transcript",
     student: 12,
-    subject: "Bảng điểm tiếng Việt và tiếng Anh",
+    subject: "Cấp bảng điểm",
     details: [
-      { label: "Số bản", value: "2 bản tiếng Việt, 1 bản tiếng Anh" },
-      { label: "Hình thức nhận", value: "Nhận trực tiếp tại Phòng Đào tạo" },
+      { label: "Số bản", value: "3" },
+      { label: "Ngôn ngữ", value: "Cả hai" },
+      { label: "Hình thức nhận", value: "Nhận tại Phòng Đào tạo" },
     ],
     reason: "Nộp hồ sơ học bổng trao đổi sinh viên.",
     daysAgo: 20,
@@ -156,9 +172,14 @@ const SEEDS: Seed[] = [
   {
     kind: "exam-postpone",
     student: 12,
-    handlerLecturer: 1,
-    subject: "MATH1013 Xác suất thống kê, thi giữa kỳ",
-    details: [{ label: "Ngày thi", value: "Thứ 4 tuần sau" }],
+    handlerLecturer: 7,
+    section: "MATH1013.01",
+    subject: "MATH1013.01 Xác suất thống kê",
+    details: [
+      { label: "Lớp học phần", value: "MATH1013.01 Xác suất thống kê" },
+      { label: "Ngày thi (sinh viên khai)", value: formatDate(mockDate(7, "07:30")) },
+      { label: "Lịch thi trên hệ thống", value: "Chưa có" },
+    ],
     reason: "Trùng lịch thi đấu giải bóng chuyền sinh viên toàn quốc, có giấy triệu tập của Đoàn trường.",
     attachments: ["giay-trieu-tap.pdf"],
     daysAgo: 1,
@@ -168,10 +189,10 @@ const SEEDS: Seed[] = [
   {
     kind: "overload",
     student: 54,
-    subject: "Học kỳ 2, năm học 2026-2027",
+    subject: "Học vượt tín chỉ",
     details: [
       { label: "Số tín chỉ xin đăng ký", value: "27" },
-      { label: "CPA hiện tại", value: "3,60" },
+      { label: "Học phần muốn học thêm", value: "COMP1050 Mạng máy tính" },
     ],
     reason: "Em học bù học phần Mạng máy tính bị hoãn ở học kỳ trước.",
     daysAgo: 2,
@@ -180,8 +201,9 @@ const SEEDS: Seed[] = [
   {
     kind: "withdraw",
     student: 6,
+    section: "COMP1080.01",
     subject: "COMP1080.01 Trí tuệ nhân tạo",
-    details: [{ label: "Lớp học phần", value: "COMP1080.01" }],
+    details: [{ label: "Lớp học phần", value: "COMP1080.01 Trí tuệ nhân tạo" }],
     reason: "Em đang nợ Xác suất thống kê, học tiếp sẽ không theo kịp.",
     daysAgo: 6,
     approved: 0,
@@ -189,12 +211,9 @@ const SEEDS: Seed[] = [
   {
     kind: "reserve",
     student: 60,
-    subject: "Bảo lưu học kỳ 2, năm học 2026-2027",
-    details: [
-      { label: "Thời gian bảo lưu", value: "1 học kỳ" },
-      { label: "Lý do", value: "Điều trị bệnh dài ngày" },
-    ],
-    reason: "Em phải điều trị tại Bệnh viện Chợ Rẫy, có giấy xác nhận của bệnh viện.",
+    subject: "Bảo lưu kết quả học tập",
+    details: [{ label: "Thời gian bảo lưu", value: "1 học kỳ" }],
+    reason: "Em phải điều trị bệnh dài ngày tại Bệnh viện Chợ Rẫy, có giấy xác nhận của bệnh viện.",
     attachments: ["giay-xac-nhan-benh-vien.pdf"],
     daysAgo: 3,
     approved: 0,
@@ -202,9 +221,9 @@ const SEEDS: Seed[] = [
   {
     kind: "open-class",
     student: 102,
-    subject: "COMP1031 Lập trình hướng đối tượng, học kỳ 2",
+    subject: "COMP1031 Lập trình hướng đối tượng",
     details: [
-      { label: "Học phần", value: "COMP1031 Lập trình hướng đối tượng" },
+      { label: "Mã và tên học phần", value: "COMP1031 Lập trình hướng đối tượng" },
       { label: "Số sinh viên cùng đề nghị", value: "37" },
     ],
     reason: "Lớp COMP1031.01 đã đủ 45/45 chỗ, còn nhiều bạn khóa 49 chưa đăng ký được.",
@@ -215,9 +234,9 @@ const SEEDS: Seed[] = [
   {
     kind: "open-class",
     student: 18,
-    subject: "MATH2001 Giải tích 2, học kỳ 2",
+    subject: "MATH2001 Giải tích 2",
     details: [
-      { label: "Học phần", value: "MATH2001 Giải tích 2" },
+      { label: "Mã và tên học phần", value: "MATH2001 Giải tích 2" },
       { label: "Số sinh viên cùng đề nghị", value: "22" },
     ],
     reason: "Lớp hiện có học buổi tối, nhiều bạn không đi được.",
@@ -227,24 +246,26 @@ const SEEDS: Seed[] = [
   {
     kind: "overload",
     student: 30,
-    subject: "Học kỳ 2, năm học 2026-2027",
+    subject: "Học vượt tín chỉ",
     details: [
       { label: "Số tín chỉ xin đăng ký", value: "29" },
-      { label: "CPA hiện tại", value: "2,10" },
+      { label: "Học phần muốn học thêm", value: "MATH2001 Giải tích 2" },
     ],
     reason: "Em muốn ra trường đúng hạn.",
     daysAgo: 8,
     approved: 1,
-    rejectedComment: "CPA dưới 2,5 nên không đủ điều kiện học vượt. Đăng ký tối đa 25 tín chỉ.",
+    rejectedComment: "CPA dưới ngưỡng quy chế nên không đủ điều kiện học vượt. Đăng ký trong hạn mức tín chỉ của học kỳ.",
   },
   {
     kind: "regrade",
     student: 156,
     handlerLecturer: 0,
-    subject: "COMP1070.01 Phát triển ứng dụng web, cuối kỳ",
+    section: "COMP1070.01",
+    subject: "COMP1070.01 Phát triển ứng dụng web",
     details: [
-      { label: "Điểm hiện tại", value: "4,5" },
-      { label: "Lớp học phần", value: "COMP1070.01" },
+      { label: "Lớp học phần", value: "COMP1070.01 Phát triển ứng dụng web" },
+      { label: "Điểm thi hiện tại (sinh viên khai)", value: "4,5" },
+      { label: "Điểm cuối kỳ trên hệ thống", value: "4,5" },
     ],
     reason: "Em làm đủ 4 câu nhưng câu 3 được 0 điểm, xin chấm lại.",
     daysAgo: 4,
@@ -254,10 +275,12 @@ const SEEDS: Seed[] = [
     kind: "regrade",
     student: 216,
     handlerLecturer: 0,
-    subject: "COMP1070.01 Phát triển ứng dụng web, cuối kỳ",
+    section: "COMP1070.01",
+    subject: "COMP1070.01 Phát triển ứng dụng web",
     details: [
-      { label: "Điểm hiện tại", value: "6,0" },
-      { label: "Lớp học phần", value: "COMP1070.01" },
+      { label: "Lớp học phần", value: "COMP1070.01 Phát triển ứng dụng web" },
+      { label: "Điểm thi hiện tại (sinh viên khai)", value: "6" },
+      { label: "Điểm cuối kỳ trên hệ thống", value: "6" },
     ],
     reason: "Em nghĩ phần đồ án chưa được cộng điểm báo cáo.",
     daysAgo: 3,
@@ -267,22 +290,29 @@ const SEEDS: Seed[] = [
     kind: "regrade",
     student: 37,
     handlerLecturer: 7,
-    subject: "MATH1013 Xác suất thống kê, cuối kỳ học kỳ 2",
+    subject: "MATH1013.01 Xác suất thống kê",
     details: [
-      { label: "Điểm cũ", value: "3,5" },
-      { label: "Điểm sau phúc khảo", value: "4,25" },
+      { label: "Lớp học phần", value: "MATH1013.01 Xác suất thống kê" },
+      { label: "Điểm thi hiện tại (sinh viên khai)", value: "3,5" },
+      { label: "Điểm cuối kỳ trên hệ thống", value: "3,5" },
     ],
     reason: "Xin chấm lại câu 2.",
     daysAgo: 30,
     approved: 3,
-    comments: ["Đã tiếp nhận.", "Cộng 0,75 điểm câu 2b do chấm sót.", "Đã cập nhật điểm."],
+    // Hệ thống chưa tự đổi điểm khi duyệt đơn: kết quả phúc khảo do giảng viên gửi đơn sửa điểm riêng.
+    comments: ["Đã tiếp nhận.", "Cộng 0,75 điểm câu 2b do chấm sót, điểm sau phúc khảo 4,25.", "Đã công bố kết quả phúc khảo; giảng viên gửi đơn sửa điểm để cập nhật bảng điểm."],
   },
   {
     kind: "exam-postpone",
     student: 74,
     handlerLecturer: 0,
-    subject: "COMP1020.02 Cấu trúc dữ liệu và giải thuật, thi giữa kỳ",
-    details: [{ label: "Ngày thi", value: "Tuần sau" }],
+    section: "COMP1020.02",
+    subject: "COMP1020.02 Cấu trúc dữ liệu và giải thuật",
+    details: [
+      { label: "Lớp học phần", value: "COMP1020.02 Cấu trúc dữ liệu và giải thuật" },
+      { label: "Ngày thi (sinh viên khai)", value: formatDate(mockDate(6, "07:30")) },
+      { label: "Lịch thi trên hệ thống", value: "Chưa có" },
+    ],
     reason: "Em đi thi Olympic Tin học sinh viên tại Hà Nội.",
     attachments: ["quyet-dinh-cu-doan-thi.pdf"],
     daysAgo: 1,
@@ -292,7 +322,7 @@ const SEEDS: Seed[] = [
     kind: "withdraw",
     student: 41,
     subject: "LITR1020.01 Lý luận văn học",
-    details: [{ label: "Lớp học phần", value: "LITR1020.01" }],
+    details: [{ label: "Lớp học phần", value: "LITR1020.01 Lý luận văn học" }],
     reason: "Trùng giờ đi làm thêm.",
     daysAgo: 12,
     approved: 2,
@@ -300,8 +330,12 @@ const SEEDS: Seed[] = [
   {
     kind: "transcript",
     student: 99,
-    subject: "Bảng điểm tiếng Anh",
-    details: [{ label: "Số bản", value: "3" }],
+    subject: "Cấp bảng điểm",
+    details: [
+      { label: "Số bản", value: "3" },
+      { label: "Ngôn ngữ", value: "Tiếng Anh" },
+      { label: "Hình thức nhận", value: "Bản điện tử qua email" },
+    ],
     reason: "Xin việc.",
     daysAgo: 2,
     approved: 0,
@@ -309,9 +343,10 @@ const SEEDS: Seed[] = [
   {
     kind: "reserve",
     student: 133,
-    subject: "Bảo lưu học kỳ 2, năm học 2026-2027",
+    subject: "Bảo lưu kết quả học tập",
     details: [{ label: "Thời gian bảo lưu", value: "2 học kỳ" }],
     reason: "Gia đình khó khăn, em cần đi làm một thời gian.",
+    attachments: ["xac-nhan-hoan-canh-gia-dinh.pdf"],
     daysAgo: 11,
     approved: 2,
   },
@@ -319,7 +354,10 @@ const SEEDS: Seed[] = [
     kind: "open-class",
     student: 147,
     subject: "PSYC2010 Tham vấn tâm lý học đường",
-    details: [{ label: "Số sinh viên cùng đề nghị", value: "18" }],
+    details: [
+      { label: "Mã và tên học phần", value: "PSYC2010 Tham vấn tâm lý học đường" },
+      { label: "Số sinh viên cùng đề nghị", value: "18" },
+    ],
     reason: "Học phần tự chọn chưa mở 2 học kỳ liền.",
     daysAgo: 7,
     approved: 0,
@@ -327,11 +365,11 @@ const SEEDS: Seed[] = [
   {
     kind: "credit-transfer",
     student: 42,
-    subject: "Công nhận học phần khi chuyển ngành sang Sư phạm Toán học",
+    subject: "Công nhận, chuyển điểm",
     details: [
-      { label: "Học phần đã học", value: "PHYS1001 Cơ học, 3 TC, điểm 7,8" },
-      { label: "Học phần xin công nhận", value: "MATH1011 Giải tích 1, 3 TC" },
+      { label: "Học phần đã học (mã, tên, số tín chỉ, điểm)", value: "PHYS1001 Cơ học, 3 TC, điểm 7,8" },
       { label: "Nơi học", value: "Khoa Vật lý, HCMUE" },
+      { label: "Học phần xin công nhận", value: "MATH1011 Giải tích 1, 3 TC" },
     ],
     reason: "Em đã chuyển ngành theo quyết định của Trường, xin công nhận các học phần nền tảng đã học.",
     attachments: ["bang-diem-khoa-vat-ly.pdf", "de-cuong-co-hoc.pdf"],
@@ -341,26 +379,29 @@ const SEEDS: Seed[] = [
   {
     kind: "credit-transfer",
     student: 222,
-    subject: "Công nhận Tiếng Anh 1, 2 bằng chứng chỉ IELTS 6.5",
+    subject: "Công nhận, chuyển điểm",
     details: [
-      { label: "Chứng chỉ", value: "IELTS Academic 6.5, còn hạn đến 03/2028" },
-      { label: "Học phần xin công nhận", value: "ENGL1001, ENGL1002" },
+      { label: "Học phần đã học (mã, tên, số tín chỉ, điểm)", value: "Chứng chỉ IELTS Academic 6.5, còn hạn đến 03/2028" },
+      { label: "Nơi học", value: "IDP Việt Nam" },
+      { label: "Học phần xin công nhận", value: "ENGL1001 Tiếng Anh 1, ENGL1002 Tiếng Anh 2" },
     ],
     reason: "Theo quy định miễn học ngoại ngữ không chuyên khi có chứng chỉ tương đương B2.",
     attachments: ["ielts.pdf"],
     daysAgo: 14,
     approved: 2,
-    comments: ["Chứng chỉ hợp lệ, đủ điều kiện.", "Đã ghi điểm miễn (M) cho 2 học phần."],
+    // Đơn chỉ ghi nhận kết quả xét; điểm miễn do Phòng Đào tạo nhập ở hồ sơ sinh viên.
+    comments: ["Chứng chỉ hợp lệ, đủ điều kiện.", "Đồng ý công nhận 2 học phần, chuyển bộ phận nhập điểm miễn (M)."],
   },
   {
     kind: "grade-change",
     lecturer: 0,
+    section: "COMP1070.01",
     subject: "COMP1070.01 Phát triển ứng dụng web",
     details: [
       { label: "Sinh viên", value: "Ngô Thu Quỳnh, 50.01.104.108" },
       { label: "Cột điểm", value: "Đồ án" },
-      { label: "Điểm cũ", value: "6,5" },
-      { label: "Điểm mới", value: "8,5" },
+      { label: "Điểm cũ", value: "6,50" },
+      { label: "Điểm mới", value: "8,50" },
     ],
     reason: "Nhập nhầm điểm đồ án của hai sinh viên cùng nhóm.",
     attachments: ["bien-ban-cham-do-an.pdf"],
@@ -370,10 +411,11 @@ const SEEDS: Seed[] = [
   {
     kind: "teaching-leave",
     lecturer: 0,
-    subject: "COMP1020.01, thứ 2 tuần sau",
+    section: "COMP1020.01",
+    subject: `COMP1020.01, ${leaveDay(2)}`,
     details: [
-      { label: "Buổi nghỉ", value: "Thứ 2, tiết 1-3, phòng B.405" },
-      { label: "Dạy bù", value: "Thứ 7, tiết 1-3, đề xuất phòng B.405" },
+      { label: "Buổi nghỉ", value: `${leaveDay(2)}, tiết 1-3, phòng B.405` },
+      { label: "Dạy bù", value: "Thứ 7, tiết 1-3 (06:30 - 09:00), đề xuất phòng B.405" },
     ],
     reason: "Đi hội thảo khoa học tại Đại học Quốc gia Hà Nội.",
     daysAgo: 5,
@@ -383,10 +425,11 @@ const SEEDS: Seed[] = [
   {
     kind: "teaching-leave",
     lecturer: 12,
-    subject: "COMP1060.01, thứ 5",
+    section: "COMP1060.01",
+    subject: `COMP1060.01, ${leaveDay(3)}`,
     details: [
-      { label: "Buổi nghỉ", value: "Thứ 5, tiết 7-9" },
-      { label: "Dạy bù", value: "Chủ nhật, tiết 1-3" },
+      { label: "Buổi nghỉ", value: `${leaveDay(3)}, tiết 7-9, phòng B.408` },
+      { label: "Dạy bù", value: "Chủ nhật, tiết 1-3 (06:30 - 09:00), đề xuất phòng B.408" },
     ],
     reason: "Coi thi tuyển sinh sau đại học.",
     daysAgo: 1,
@@ -395,14 +438,16 @@ const SEEDS: Seed[] = [
   {
     kind: "grade-change",
     lecturer: 7,
+    section: "MATH1013.01",
     subject: "MATH1013.01 Xác suất thống kê",
     details: [
       { label: "Sinh viên", value: "Lê Văn Hiếu, 51.01.104.010" },
       { label: "Cột điểm", value: "Cuối kỳ" },
-      { label: "Điểm cũ", value: "3,5" },
+      { label: "Điểm cũ", value: "3,50" },
       { label: "Điểm mới", value: "4,25" },
     ],
     reason: "Điều chỉnh sau phúc khảo.",
+    attachments: ["bien-ban-phuc-khao.pdf"],
     daysAgo: 6,
     approved: 1,
   },

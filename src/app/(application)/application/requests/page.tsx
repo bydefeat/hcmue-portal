@@ -10,7 +10,8 @@ import { getAdvisorOf, getCurrentStudent } from "@/modules/users/users.query";
 
 export const metadata: Metadata = { title: "Đơn từ" };
 
-export default async function Page() {
+export default async function Page({ searchParams }: { searchParams: Promise<{ open?: string }> }) {
+  const { open } = await searchParams;
   const [student, term, courses, regulation] = await Promise.all([getCurrentStudent(), getCurrentTerm(), getCourses(), getRegulation()]);
   const [requests, advisor, [standing], enrollments, transcript] = await Promise.all([
     getRequestsOf(student.id),
@@ -27,7 +28,8 @@ export default async function Page() {
   return (
     <StudentRequestCenter
       requests={requests}
-      overloadMinCpa={regulation.credits.overloadMinCpa}
+      rules={{ maxPerTerm: regulation.credits.maxPerTerm, overloadMinCpa: regulation.credits.overloadMinCpa, regradeWindowDays: regulation.workflow.regradeWindowDays }}
+      initialOpenId={open}
       sections={timetable.map(({ section }) => ({ value: section.id, label: `${section.code} ${section.courseName}` }))}
       requester={{
         id: student.id,

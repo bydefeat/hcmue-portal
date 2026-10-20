@@ -3,7 +3,7 @@ import { check, index, integer, pgEnum, pgTable, text, timestamp } from "drizzle
 import { createdAt, primaryId } from "@/shared/libs/db-column.lib";
 
 export const mailStatusEnum = pgEnum("mail_status", ["pending", "sending", "sent", "failed"]);
-export const mailKindEnum = pgEnum("mail_kind", ["account-activation", "registration-reminder", "class-announcement"]);
+export const mailKindEnum = pgEnum("mail_kind", ["account-activation", "registration-reminder", "class-announcement", "announcement"]);
 
 // Hàng đợi thư: ghi cùng transaction với thao tác sinh ra thư, gửi sau commit và gửi lại khi lỗi.
 // Mỗi dòng một người nhận để thử lại riêng từng người, không lộ địa chỉ của nhau.

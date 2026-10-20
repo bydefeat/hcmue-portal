@@ -14,7 +14,7 @@ import {
   ANNOUNCEMENT_STATUS,
   ANNOUNCEMENT_STATUS_OPTIONS,
 } from "@/modules/announcements/announcements.constant";
-import type { Announcement, AnnouncementFormValues, AnnouncementStatus } from "@/modules/announcements/announcements.type";
+import type { Announcement, AnnouncementAudienceOptions, AnnouncementFormValues, AnnouncementStatus } from "@/modules/announcements/announcements.type";
 import { AnnouncementFormDrawer } from "@/modules/announcements/components/announcement-form-drawer";
 import { paginationItemRender } from "@/shared/constants/antd.constant";
 import { normalizeSearch } from "@/shared/libs/search.lib";
@@ -45,7 +45,15 @@ function sortRows(rows: Announcement[]) {
 const statusOf = (value: AnnouncementStatus) =>
   value === "published" ? <span className="text-xs text-muted">{ANNOUNCEMENT_STATUS.published.label}</span> : <StatusTag status={ANNOUNCEMENT_STATUS[value]} />;
 
-export function AnnouncementTable({ announcements, header }: { announcements: Announcement[]; header: { title: string; description?: React.ReactNode } }) {
+export function AnnouncementTable({
+  announcements,
+  audienceOptions,
+  header,
+}: {
+  announcements: Announcement[];
+  audienceOptions: AnnouncementAudienceOptions;
+  header: { title: string; description?: React.ReactNode };
+}) {
   const [messageApi, contextHolder] = message.useMessage();
   const [modal, modalContextHolder] = Modal.useModal();
   const [rows, setRows] = useState(announcements);
@@ -78,9 +86,9 @@ export function AnnouncementTable({ announcements, header }: { announcements: An
     const saved = result.data;
     setRows((current) => (editing ? current.map((row) => (row.id === saved.id ? saved : row)) : [saved, ...current]));
     const feedback = {
-      draft: "Đã lưu nháp, thông báo chưa hiện với sinh viên",
+      draft: "Đã lưu nháp, thông báo chưa hiện với ai",
       scheduled: `Thông báo sẽ tự đăng lúc ${saved.publishedAt ? formatDateTime(saved.publishedAt) : ""}`,
-      published: "Đã đăng thông báo lên trang chủ",
+      published: saved.audience.students ? "Đã đăng thông báo lên trang chủ và cổng của đối tượng" : "Đã đăng thông báo trên cổng giảng viên",
       archived: "Đã lưu thông báo",
     }[saved.status];
     messageApi.success(feedback);
@@ -123,7 +131,10 @@ export function AnnouncementTable({ announcements, header }: { announcements: An
             {row.isPinned && <Pin size={14} aria-label="Đã ghim" className="mt-0.5 shrink-0 text-primary" />}
             {row.title}
           </span>
-          <span className="line-clamp-1 text-xs text-muted">{row.audiences.join(", ")}</span>
+          <span className="line-clamp-1 text-xs text-muted">
+            {row.audienceLabel}
+            {row.isExpired && row.status === "published" && " · đã hết hạn, không còn trong danh sách"}
+          </span>
           <span className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted md:hidden">
             {statusOf(row.status)}
             {row.publishedAt && <span className="tabular-nums">{formatDate(row.publishedAt)}</span>}
@@ -237,7 +248,7 @@ export function AnnouncementTable({ announcements, header }: { announcements: An
             ),
           }}
         />
-        <AnnouncementFormDrawer open={isDrawerOpen} announcement={editing} onClose={() => setIsDrawerOpen(false)} onSubmit={handleSubmit} />
+        <AnnouncementFormDrawer open={isDrawerOpen} announcement={editing} audienceOptions={audienceOptions} onClose={() => setIsDrawerOpen(false)} onSubmit={handleSubmit} />
       </div>
     </>
   );

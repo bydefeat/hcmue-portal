@@ -43,6 +43,12 @@ export function useAttachmentPicker(onError: (message: string) => void) {
   };
 }
 
+// Lỗi theo ô từ server, bỏ lỗi minh chứng: ô tệp không phải ô của form (lỗi đã hiện bằng thông báo). Gắn lỗi vào tên ô không có
+// trong form thì antd giữ lỗi đó và chặn lần gửi sau dù người dùng đã chọn tệp.
+export function formErrorsWithoutAttachments(fieldErrors: Record<string, string> | undefined) {
+  return Object.fromEntries(Object.entries(fieldErrors ?? {}).filter(([key]) => key !== "attachments"));
+}
+
 // Dữ liệu form đi dạng JSON ở ô "input", tệp ở các ô "files" (xem readRequestForm).
 export function requestFormData(input: unknown, files: File[]) {
   const formData = new FormData();

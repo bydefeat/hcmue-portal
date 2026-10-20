@@ -9,7 +9,7 @@ import { getClassSections, getCurrentTerm, getRegistrationTargetTerm } from "@/m
 import { getCourses } from "@/modules/curriculum/curriculum.query";
 import { NOTIFICATION_KIND_LABEL } from "@/modules/notifications/notifications.constant";
 import { markNotificationsRead } from "@/modules/notifications/notifications.action";
-import { getNotifications } from "@/modules/notifications/notifications.query";
+import { getNotifications, getUnreadNotificationCount } from "@/modules/notifications/notifications.query";
 import { getLecturers, getStudents } from "@/modules/users/users.query";
 
 // Ô tìm kiếm chung: chỉ đọc nhóm dữ liệu người xem có quyền mở, và chỉ trong khoa của mình.
@@ -68,10 +68,11 @@ async function searchEntries(viewer: Viewer): Promise<SearchEntry[]> {
 export default async function Layout({ children }: { children: React.ReactNode }) {
   // getViewer() gọi requireRole("admin"): chưa đăng nhập về trang đăng nhập, không phải cán bộ quản trị thì 403.
   const viewer = await getViewer();
-  const [entries, currentTerm, notifications, assignments, session] = await Promise.all([
+  const [entries, currentTerm, notifications, unread, assignments, session] = await Promise.all([
     searchEntries(viewer),
     getCurrentTerm(),
     getNotifications("administrator"),
+    getUnreadNotificationCount("administrator"),
     getViewerAssignments(viewer.id),
     requireSession(),
   ]);
@@ -97,6 +98,7 @@ export default async function Layout({ children }: { children: React.ReactNode }
       portalLinks={session.roles.includes("lecturer") ? [LECTURER_PORTAL_LINK] : []}
       searchEntries={entries}
       notifications={notifications.map((notification) => ({ ...notification, kindLabel: NOTIFICATION_KIND_LABEL[notification.kind] }))}
+      unreadNotifications={unread}
       onMarkNotificationsRead={markNotificationsRead}
       switcher={switcher}
     >

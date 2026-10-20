@@ -7,6 +7,7 @@ export const MAIL_KIND_LABEL: Record<MailKind, string> = {
   "account-activation": "Kích hoạt tài khoản",
   "registration-reminder": "Nhắc đăng ký học phần",
   "class-announcement": "Thông báo lớp",
+  announcement: "Thông báo chung",
 };
 
 export const MAIL_STATUS: Record<MailStatus, StatusMeta> = {

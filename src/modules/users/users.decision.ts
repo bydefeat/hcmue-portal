@@ -1,5 +1,5 @@
 import "server-only";
-import { and, eq, inArray, isNull, lte, ne, sql } from "drizzle-orm";
+import { and, eq, isNull, lte, ne, sql } from "drizzle-orm";
 import { db, type Transaction } from "@/shared/libs/db.lib";
 import { schoolTime } from "@/shared/libs/date.lib";
 import { formatStudentCode } from "@/shared/libs/student-code.lib";
@@ -198,6 +198,11 @@ export async function returnDecision(tx: Transaction, actor: DecisionActor, id: 
   });
 }
 
+async function classCode(tx: Transaction, id: string) {
+  const [row] = await tx.select({ code: administrativeClasses.code }).from(administrativeClasses).where(eq(administrativeClasses.id, id));
+  return row?.code ?? "";
+}
+
 async function resetGraduationRecord(tx: Transaction, studentId: string) {
   await tx
     .update(graduationRecords)
@@ -219,7 +224,7 @@ async function applyEffect(tx: Transaction, actor: DecisionActor, row: DecisionR
   }
   if (row.kind === "major-change" && row.targetClassId) {
     await tx.update(students).set({ administrativeClassId: row.targetClassId }).where(eq(students.id, student.id));
-    changes.push({ field: "Lớp sinh hoạt", before: student.administrativeClassId, after: row.targetClassId });
+    changes.push({ field: "Lớp sinh hoạt", before: await classCode(tx, student.administrativeClassId), after: await classCode(tx, row.targetClassId) });
   }
   if (row.kind === "graduate") {
     await tx.update(graduationRecords).set({ status: "graduated" }).where(eq(graduationRecords.studentId, student.id));
@@ -296,7 +301,7 @@ export async function revokeDecision(tx: Transaction, actor: DecisionActor, id: 
     }
     if (row.kind === "major-change" && row.previousClassId) {
       await tx.update(students).set({ administrativeClassId: row.previousClassId }).where(eq(students.id, student.id));
-      changes.push({ field: "Lớp sinh hoạt", before: student.administrativeClassId, after: row.previousClassId });
+      changes.push({ field: "Lớp sinh hoạt", before: await classCode(tx, student.administrativeClassId), after: await classCode(tx, row.previousClassId) });
     }
   }
   if (row.kind === "graduate") await resetGraduationRecord(tx, row.studentId);
@@ -337,14 +342,4 @@ export async function runDecisionEffectsJob(): Promise<Record<string, number>> {
     else skipped += 1;
   }
   return { due: due.length, applied, skipped };
-}
-
-// Ids sinh viên có quyết định đổi hồ sơ đang dở (đã ký chưa áp dụng): dùng cho trang để báo trước.
-export async function studentsWithPendingEffects(studentIds: string[]) {
-  if (studentIds.length === 0) return new Set<string>();
-  const rows = await db
-    .select({ studentId: studentDecisions.studentId })
-    .from(studentDecisions)
-    .where(and(inArray(studentDecisions.studentId, studentIds), eq(studentDecisions.status, "signed"), isNull(studentDecisions.appliedAt)));
-  return new Set(rows.map((row) => row.studentId));
 }

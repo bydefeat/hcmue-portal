@@ -31,7 +31,7 @@ export async function approveGraduation(studentIds: string[]): Promise<ActionRes
       for (const candidate of eligible) {
         const [decision] = await tx
           .insert(studentDecisions)
-          .values({ kind: "graduate", studentId: candidate.studentId, title, basis: "Kết quả xét tốt nghiệp của Hội đồng", effectiveDate: dayjs().format("YYYY-MM-DD") })
+          .values({ kind: "graduate", studentId: candidate.studentId, title, basis: "Kết quả xét tốt nghiệp của Hội đồng", effectiveDate: dayjs().format("YYYY-MM-DD"), createdByUserId: viewer.id })
           .returning({ id: studentDecisions.id });
         const [record] = await tx
           .insert(graduationRecords)

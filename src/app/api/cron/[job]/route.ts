@@ -7,6 +7,7 @@ import { runMailOutboxJob } from "@/modules/mail/mail.lib";
 import { publishDueClassAnnouncements } from "@/modules/teaching/teaching.lib";
 import { sweepOrphanExamFiles } from "@/modules/exams/exams.lib";
 import { sweepOrphanRequestFiles } from "@/modules/requests/requests.lib";
+import { runDecisionEffectsJob } from "@/modules/users/users.decision";
 import { resyncOpenClassSessions } from "@/modules/schedule/schedule.lib";
 
 // Tác vụ định kỳ, gọi từ bộ hẹn giờ ngoài (cron của máy chủ, Vercel Cron, ...): POST /api/cron/<tác vụ>
@@ -24,6 +25,8 @@ const JOBS: Record<string, () => Promise<Record<string, number>>> = {
   "mail-outbox": runMailOutboxJob,
   // Dọn bộ đếm đăng nhập sai đã hết hạn (tên dò bừa không tồn tại để lại dòng). Nên chạy mỗi ngày.
   "sign-in-failures": () => sweepSignInFailures(db),
+  // Quyết định sinh viên đã ký trước ngày hiệu lực: tới ngày thì đổi tình trạng, lớp của sinh viên. Nên chạy mỗi ngày, sau 0 giờ.
+  "decision-effects": runDecisionEffectsJob,
   // Sinh lại buổi học của các lớp đang mở theo ngày nghỉ lễ mới nhất của lịch năm học. Nên chạy mỗi ngày.
   "class-sessions": () => resyncOpenClassSessions(db),
 };

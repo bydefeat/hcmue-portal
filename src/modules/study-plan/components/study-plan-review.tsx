@@ -8,7 +8,8 @@ import { StatusTag } from "@/shared/components/ui/status-tag";
 import { dayjs, formatDateTime } from "@/shared/libs/date.lib";
 import { toFormFields } from "@/shared/libs/form.lib";
 import { reviewStudyPlan } from "@/modules/study-plan/study-plan.action";
-import { PENDING_TOO_LONG_DAYS, STUDY_PLAN_CREDIT_LIMIT, STUDY_PLAN_STATUS } from "@/modules/study-plan/study-plan.constant";
+import { STUDY_PLAN_STATUS } from "@/modules/study-plan/study-plan.constant";
+import { termCreditLimitsByName, type CreditRules } from "@/modules/study-plan/study-plan.rule";
 import type { StudyPlan, StudyPlanStatus } from "@/modules/study-plan/study-plan.type";
 import { paginationItemRender } from "@/shared/constants/antd.constant";
 import { normalizeSearch } from "@/shared/libs/search.lib";
@@ -19,11 +20,21 @@ function waitingDays(plan: StudyPlan) {
   return plan.submittedAt ? dayjs().diff(plan.submittedAt, "day") : 0;
 }
 
-function isCreditOutOfRange(credits: number) {
-  return credits < STUDY_PLAN_CREDIT_LIMIT.min || credits > STUDY_PLAN_CREDIT_LIMIT.max;
-}
+type StudyPlanReviewProps = {
+  plans: StudyPlan[];
+  // Hạn mức tín chỉ theo quy chế đang áp dụng và sinh viên đang bị cảnh báo học vụ chính thức (hạn mức riêng).
+  credits: CreditRules;
+  warnedStudentIds: string[];
+  // Số ngày cố vấn cần duyệt theo quy chế.
+  reviewDays: number;
+};
 
-export function StudyPlanReview({ plans }: { plans: StudyPlan[] }) {
+export function StudyPlanReview({ plans, credits, warnedStudentIds, reviewDays }: StudyPlanReviewProps) {
+  const limitsOf = (plan: Pick<StudyPlan, "studentId" | "targetTermName">) => termCreditLimitsByName(plan.targetTermName, credits, warnedStudentIds.includes(plan.studentId));
+  const isCreditOutOfRange = (plan: Pick<StudyPlan, "studentId" | "targetTermName">, value: number) => {
+    const limits = limitsOf(plan);
+    return value < limits.min || value > limits.max;
+  };
   const [messageApi, contextHolder] = message.useMessage();
   const [updates, setUpdates] = useState<Record<string, Partial<StudyPlan>>>({});
   const [openId, setOpenId] = useState<string | null>(null);
@@ -75,12 +86,12 @@ export function StudyPlanReview({ plans }: { plans: StudyPlan[] }) {
       messageApi.success(decision === "approved" ? `Đã duyệt kế hoạch của ${plan.fullName}, sinh viên nhận thông báo trên cổng` : `Đã trả lại kế hoạch cho ${plan.fullName}, sinh viên nhận thông báo kèm nhận xét trên cổng`);
     });
 
-  const creditText = (value: number) =>
-    isCreditOutOfRange(value) ? (
+  const creditText = (row: StudyPlan, value: number) =>
+    isCreditOutOfRange(row, value) ? (
       <span className="flex flex-col items-end tabular-nums">
         <span className="font-medium text-amber-700">{value}</span>
         <span className="text-xs text-amber-700">
-          Ngoài {STUDY_PLAN_CREDIT_LIMIT.min}-{STUDY_PLAN_CREDIT_LIMIT.max} TC
+          Ngoài {limitsOf(row).min}-{limitsOf(row).max} TC
         </span>
       </span>
     ) : (
@@ -120,7 +131,7 @@ export function StudyPlanReview({ plans }: { plans: StudyPlan[] }) {
       dataIndex: "totalCredits",
       width: 110,
       align: "right",
-      render: (value: number) => creditText(value),
+      render: (value: number, row) => creditText(row, value),
     },
     {
       title: "Nộp lúc",
@@ -132,7 +143,7 @@ export function StudyPlanReview({ plans }: { plans: StudyPlan[] }) {
         return (
           <span className="flex flex-col text-xs tabular-nums">
             <span className="text-muted">{formatDateTime(row.submittedAt)}</span>
-            {row.status === "pending" && days > PENDING_TOO_LONG_DAYS && <span className="font-medium text-amber-700">Chờ {days} ngày</span>}
+            {row.status === "pending" && days > reviewDays && <span className="font-medium text-amber-700">Chờ {days} ngày</span>}
           </span>
         );
       },
@@ -213,9 +224,9 @@ export function StudyPlanReview({ plans }: { plans: StudyPlan[] }) {
                     <StatusTag status={STUDY_PLAN_STATUS[row.status]} />
                   </span>
                   <span className="flex flex-wrap items-center gap-x-2 text-xs text-muted tabular-nums">
-                    <span className={isCreditOutOfRange(row.totalCredits) ? "font-medium text-amber-700" : ""}>{row.totalCredits} tín chỉ kỳ tới</span>
+                    <span className={isCreditOutOfRange(row, row.totalCredits) ? "font-medium text-amber-700" : ""}>{row.totalCredits} tín chỉ kỳ tới</span>
                     <span>{row.submittedAt ? `Nộp ${formatDateTime(row.submittedAt)}` : "Chưa nộp"}</span>
-                    {row.status === "pending" && days > PENDING_TOO_LONG_DAYS && <span className="font-medium text-amber-700">Chờ {days} ngày</span>}
+                    {row.status === "pending" && days > reviewDays && <span className="font-medium text-amber-700">Chờ {days} ngày</span>}
                   </span>
                   {row.status !== "draft" && <div className="flex justify-end">{actionButton(row)}</div>}
                 </Card>
@@ -250,21 +261,21 @@ export function StudyPlanReview({ plans }: { plans: StudyPlan[] }) {
               <span>{openPlan.className}</span>
               <StatusTag status={STUDY_PLAN_STATUS[openPlan.status]} />
             </div>
-            {isCreditOutOfRange(nextTermCredits) && (
+            {isCreditOutOfRange(openPlan, nextTermCredits) && (
               <Alert
                 type="warning"
                 showIcon
                 title={`Học kỳ tới có ${nextTermCredits} tín chỉ`}
-                description={`Hạn mức đăng ký từ ${STUDY_PLAN_CREDIT_LIMIT.min} đến ${STUDY_PLAN_CREDIT_LIMIT.max} tín chỉ. Nên trả lại để sinh viên điều chỉnh.`}
+                description={`Hạn mức theo quy chế từ ${limitsOf(openPlan).min} đến ${limitsOf(openPlan).max} tín chỉ${warnedStudentIds.includes(openPlan.studentId) ? " (sinh viên đang bị cảnh báo học vụ)" : ""}. Nên trả lại để sinh viên điều chỉnh.`}
               />
             )}
             {openPlan.terms.map((term) => {
-              const credits = term.courses.reduce((sum, course) => sum + course.credits, 0);
+              const termCredits = term.courses.reduce((sum, course) => sum + course.credits, 0);
               return (
                 <section key={term.termName} className="flex flex-col gap-2">
                   <h3 className="flex items-baseline justify-between gap-3 text-sm font-semibold">
                     {term.termName}
-                    <span className="shrink-0 text-xs font-normal text-muted tabular-nums">{credits} tín chỉ</span>
+                    <span className="shrink-0 text-xs font-normal text-muted tabular-nums">{termCredits} tín chỉ</span>
                   </h3>
                   <ul className="flex flex-col divide-y divide-border-strong rounded-lg border border-border-strong">
                     {term.courses.map((course) => (

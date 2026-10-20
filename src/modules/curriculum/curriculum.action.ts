@@ -1,19 +1,22 @@
 "use server";
 
-import { eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, ne } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db, type Transaction } from "@/shared/libs/db.lib";
 import { actionError, actionFailure, actionOk, parseInput, type ActionResult } from "@/shared/libs/action.lib";
 import { isUuid } from "@/shared/libs/id.lib";
+import { inScope } from "@/modules/access/access.constant";
 import { requirePermission } from "@/modules/access/access.query";
-import { CURRICULUM_CONSTRAINT_MESSAGE } from "@/modules/curriculum/curriculum.constant";
-import { auditActorOf } from "@/modules/audit/audit.lib";
+import { COURSE_TYPE_LABEL, CURRICULUM_CONSTRAINT_MESSAGE, KNOWLEDGE_BLOCK_LABEL, PROGRAM_STATUS } from "@/modules/curriculum/curriculum.constant";
+import { auditActorOf, recordAudit } from "@/modules/audit/audit.lib";
+import { auditChanges } from "@/modules/audit/audit.rule";
 import { applyProgramCourseChange, FrameworkError } from "@/modules/curriculum/curriculum.lib";
 import { getCourseById, getProgram, getPrograms } from "@/modules/curriculum/curriculum.query";
 import {
   COURSE_SCHEMA,
   PROGRAM_COURSE_CHANGE_SCHEMA,
   PROGRAM_SCHEMA,
+  programStatusChangeError,
   type CourseInput,
   type ProgramCourseChangeInput,
   type ProgramInput,
@@ -65,12 +68,19 @@ function revalidateCurriculum() {
   revalidatePath("/administrator/programs", "layout");
 }
 
+const relationText = (codes: string[]) => (codes.length > 0 ? codes.join(", ") : "Không có");
+
+// Cán bộ theo khoa chỉ thêm, sửa học phần của khoa mình (cả khoa đang quản lý lẫn khoa sau khi sửa).
 export async function saveCourse(id: string | null, input: CourseInput): Promise<ActionResult<Course>> {
-  await requirePermission("curriculum.manage");
+  const viewer = await requirePermission("curriculum.manage");
   if (id !== null && !isUuid(id)) return actionError("Học phần không còn trong danh mục, tải lại trang.");
   const parsed = parseInput(COURSE_SCHEMA, input);
   if (!parsed.ok) return parsed;
   const { faculty, prerequisiteCodes, corequisiteCodes, equivalentCodes, code, ...values } = parsed.data;
+  if (!inScope(viewer, faculty)) return actionError("Bạn chỉ quản lý được học phần của khoa mình.", { faculty: `Chỉ chọn được ${viewer.faculty}` });
+  const before = id ? await getCourseById(id) : null;
+  if (id && !before) return actionError("Học phần không còn trong danh mục, tải lại trang.");
+  if (before && !inScope(viewer, before.faculty)) return actionError("Học phần thuộc khoa khác, bạn chỉ sửa được học phần của khoa mình.");
   let courseId: string;
   try {
     courseId = await db.transaction(async (tx) => {
@@ -81,6 +91,28 @@ export async function saveCourse(id: string | null, input: CourseInput): Promise
         : await tx.insert(courses).values({ ...values, code, facultyId }).returning({ id: courses.id });
       if (!row) throw new InputError("code", "Học phần không còn trong danh mục, tải lại trang.");
       await replaceRelations(tx, row.id, { prerequisiteCodes, corequisiteCodes, equivalentCodes });
+      await recordAudit(tx, {
+        actor: auditActorOf(viewer),
+        action: before ? "update" : "create",
+        entityType: "course",
+        entityId: row.id,
+        entityLabel: `${before?.code ?? code} ${values.name}`,
+        summary: before ? "Sửa học phần" : "Thêm học phần vào danh mục",
+        changes: before
+          ? auditChanges([
+              ["Tên học phần", before.name, values.name],
+              ["Số tín chỉ", String(before.credits), String(values.credits)],
+              ["Lý thuyết / thực hành", `${before.theoryCredits}/${before.practiceCredits}`, `${values.theoryCredits}/${values.practiceCredits}`],
+              ["Khoa", before.faculty, faculty],
+              ["Loại", COURSE_TYPE_LABEL[before.type], COURSE_TYPE_LABEL[values.type]],
+              ["Khối kiến thức", KNOWLEDGE_BLOCK_LABEL[before.block], KNOWLEDGE_BLOCK_LABEL[values.block]],
+              ["Đang mở", before.isActive ? "Có" : "Không", values.isActive ? "Có" : "Không"],
+              ["Tiên quyết", relationText(before.prerequisiteCodes), relationText(prerequisiteCodes)],
+              ["Song hành", relationText(before.corequisiteCodes), relationText(corequisiteCodes)],
+              ["Tương đương", relationText(before.equivalentCodes), relationText(equivalentCodes)],
+            ])
+          : [],
+      });
       return row.id;
     });
   } catch (error) {
@@ -91,23 +123,61 @@ export async function saveCourse(id: string | null, input: CourseInput): Promise
   return course ? actionOk(course) : actionError("Đã lưu nhưng chưa đọc lại được, tải lại trang.");
 }
 
+// Cán bộ theo khoa chỉ sửa chương trình của ngành thuộc khoa mình. Chương trình đã ngừng áp dụng không mở lại được; mỗi ngành, khóa
+// chỉ một chương trình đang áp dụng (DB chặn thêm bằng trigger programs_archived_final, programs_single_active_cohort).
 export async function saveProgram(id: string | null, input: ProgramInput): Promise<ActionResult<ProgramSummary>> {
-  await requirePermission("curriculum.manage");
+  const viewer = await requirePermission("curriculum.manage");
   if (id !== null && !isUuid(id)) return actionError("Chương trình không còn trong danh mục, tải lại trang.");
   const parsed = parseInput(PROGRAM_SCHEMA, input);
   if (!parsed.ok) return parsed;
   const { majorCode, cohorts, ...values } = parsed.data;
+  const [before] = id ? await getPrograms(id) : [];
+  if (id && !before) return actionError("Chương trình không còn trong danh mục, tải lại trang.");
+  if (before && !inScope(viewer, before.faculty)) return actionError("Chương trình thuộc khoa khác, bạn chỉ sửa được chương trình của khoa mình.");
+  const statusError = before ? programStatusChangeError(before.status, values.status) : null;
+  if (statusError) return actionError(statusError, { status: statusError });
   let programId: string;
   try {
     programId = await db.transaction(async (tx) => {
-      const [major] = await tx.select({ id: majors.id }).from(majors).where(eq(majors.code, majorCode));
+      const [major] = await tx.select({ id: majors.id, faculty: faculties.name }).from(majors).innerJoin(faculties, eq(faculties.id, majors.facultyId)).where(eq(majors.code, majorCode));
       if (!major) throw new InputError("majorCode", "Ngành không có trong danh mục");
+      if (!inScope(viewer, major.faculty)) throw new InputError("majorCode", "Bạn chỉ chọn được ngành thuộc khoa mình");
+      if (values.status === "active") {
+        const clash = await tx
+          .selectDistinct({ name: programs.name, cohort: programCohorts.cohort })
+          .from(programs)
+          .innerJoin(programCohorts, eq(programCohorts.programId, programs.id))
+          .where(and(eq(programs.majorId, major.id), eq(programs.status, "active"), inArray(programCohorts.cohort, cohorts), id ? ne(programs.id, id) : undefined));
+        if (clash.length > 0) {
+          throw new InputError("cohorts", `Khóa ${[...new Set(clash.map((row) => row.cohort))].join(", ")} đã có chương trình đang áp dụng (${clash[0].name}); chuyển chương trình đó sang ngừng áp dụng trước.`);
+        }
+      }
       const [row] = id
         ? await tx.update(programs).set({ ...values, majorId: major.id }).where(eq(programs.id, id)).returning({ id: programs.id })
         : await tx.insert(programs).values({ ...values, majorId: major.id }).returning({ id: programs.id });
       if (!row) throw new InputError("name", "Chương trình không còn trong danh mục, tải lại trang.");
       await tx.delete(programCohorts).where(eq(programCohorts.programId, row.id));
       await tx.insert(programCohorts).values(cohorts.map((cohort) => ({ programId: row.id, cohort })));
+      await recordAudit(tx, {
+        actor: auditActorOf(viewer),
+        action: before ? "update" : "create",
+        entityType: "program",
+        entityId: row.id,
+        entityLabel: values.name,
+        summary: before ? "Sửa thông tin chương trình đào tạo" : "Thêm chương trình đào tạo",
+        changes: before
+          ? auditChanges([
+              ["Mã ngành", before.code, values.code],
+              ["Tên chương trình", before.name, values.name],
+              ["Ngành", before.majorCode, majorCode],
+              ["Văn bằng", before.degree, values.degree],
+              ["Tổng tín chỉ", String(before.totalCredits), String(values.totalCredits)],
+              ["Thời gian đào tạo", `${before.durationYears} năm`, `${values.durationYears} năm`],
+              ["Khóa áp dụng", before.cohorts.join(", "), cohorts.join(", ")],
+              ["Trạng thái", PROGRAM_STATUS[before.status].label, PROGRAM_STATUS[values.status].label],
+            ])
+          : [],
+      });
       return row.id;
     });
   } catch (error) {

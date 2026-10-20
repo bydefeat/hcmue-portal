@@ -1,5 +1,6 @@
 import "server-only";
-import { asc, count, eq } from "drizzle-orm";
+import { cache } from "react";
+import { and, asc, count, eq } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { db } from "@/shared/libs/db.lib";
 import { isUuid } from "@/shared/libs/id.lib";
@@ -121,6 +122,22 @@ export async function getPrograms(id?: string): Promise<ProgramSummary[]> {
   const countOf = new Map(counts.map((entry) => [entry.programId, entry.total]));
   return rows.map((row) => ({ ...row, courseCount: countOf.get(row.id) ?? 0 }));
 }
+
+// Chương trình đang áp dụng cho ngành và khóa của sinh viên (program_cohorts, chỉ chương trình active), cùng cách chọn với
+// programsOf trong curriculum.lib (xét tốt nghiệp, kế hoạch học tập). Không có thì null.
+export const getProgramOf = cache(async (majorCode: string, cohort: number): Promise<ProgramSummary | null> => {
+  await requireSession();
+  const [row] = await db
+    .select({ id: programs.id })
+    .from(programs)
+    .innerJoin(majors, eq(majors.id, programs.majorId))
+    .innerJoin(programCohorts, eq(programCohorts.programId, programs.id))
+    .where(and(eq(majors.code, majorCode), eq(programCohorts.cohort, cohort), eq(programs.status, "active")))
+    .limit(1);
+  if (!row) return null;
+  const [program] = await getPrograms(row.id);
+  return program ?? null;
+});
 
 export async function getProgram(id: string): Promise<ProgramDetail | null> {
   await requireSession();

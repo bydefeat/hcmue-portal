@@ -1,27 +1,35 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { forbidden } from "next/navigation";
+import { eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { db, type Transaction } from "@/shared/libs/db.lib";
 import { actionError, actionFailure, actionOk, parseInput, type ActionResult } from "@/shared/libs/action.lib";
 import { isUuid } from "@/shared/libs/id.lib";
 import { PDF_MIME } from "@/shared/libs/pdf.lib";
 import { bytesToBase64 } from "@/shared/libs/spreadsheet.lib";
-import { studentEmailOf } from "@/shared/libs/student-code.lib";
-import { inScope } from "@/modules/access/access.constant";
-import { requirePermission } from "@/modules/access/access.query";
+import { formatStudentCode, studentEmailOf } from "@/shared/libs/student-code.lib";
+import { user as users } from "@/modules/authentication/authentication.schema";
+import { can, inScope } from "@/modules/access/access.constant";
+import { getViewer, requirePermission, requireSchoolWidePermission } from "@/modules/access/access.query";
+import { grantBlockedReason, isSystemAdmin, lockBlockedReason } from "@/modules/access/access.rule";
+import { roleAssignments, rolePermissions, roles } from "@/modules/access/access.schema";
+import type { Viewer } from "@/modules/access/access.type";
 import { auditActorOf, recordAudit, type AuditActor } from "@/modules/audit/audit.lib";
+import type { AuditChange } from "@/modules/audit/audit.type";
 import { deliverMailSoon } from "@/modules/mail/mail.lib";
+import { notifyLecturers } from "@/modules/notifications/notifications.lib";
 import { faculties, majors } from "@/modules/curriculum/curriculum.schema";
-import { ACCOUNT_STATUS, NO_ACCOUNT, USERS_CONSTRAINT_MESSAGE } from "@/modules/users/users.constant";
+import { ACCOUNT_STATUS, GENDER_LABEL, LECTURER_STATUS, NO_ACCOUNT, STUDENT_STATUS, USERS_CONSTRAINT_MESSAGE } from "@/modules/users/users.constant";
 import { decisionPdf } from "@/modules/users/users.pdf";
-import { getCurrentLecturer, getCurrentStudent, getDecision, getDecisions, getLecturer, getStudent } from "@/modules/users/users.query";
+import { getCurrentLecturer, getCurrentStudent, getDecision, getLecturer, getStaffMember, getStudent } from "@/modules/users/users.query";
 import {
   createAccounts,
   lockAccountProfiles,
   randomPasswordHashes,
   readAccountStates,
+  readHeldRoles,
   queueActivationMails,
   setAccountsLocked,
   staffProfile,
@@ -30,11 +38,25 @@ import {
   type NewAccount,
 } from "@/modules/users/users.account";
 import {
+  createDecisionDraft,
+  DecisionError,
+  deleteDecisionDraft,
+  returnDecision as returnDecisionStep,
+  revokeDecision as revokeDecisionStep,
+  signDecision as signDecisionStep,
+  submitDecision as submitDecisionStep,
+  updateDecisionDraft,
+  type DecisionActor,
+} from "@/modules/users/users.decision";
+import {
   ACCOUNT_BATCH_SCHEMA,
+  DECISION_REASON_SCHEMA,
   DECISION_SCHEMA,
   LECTURER_CONTACT_SCHEMA,
   LECTURER_SCHEMA,
   STAFF_SCHEMA,
+  STAFF_UPDATE_SCHEMA,
+  STATUS_OVERRIDE_SCHEMA,
   STUDENT_CONTACT_SCHEMA,
   STUDENT_SCHEMA,
   type AccountBatchInput,
@@ -42,22 +64,13 @@ import {
   type LecturerContactInput,
   type LecturerInput,
   type StaffInput,
+  type StaffUpdateInput,
+  type StatusOverrideInput,
   type StudentContactInput,
   type StudentInput,
 } from "@/modules/users/users.rule";
-import { administrativeClasses, lecturers, staffMembers, studentDecisions, students } from "@/modules/users/users.schema";
-import type {
-  AccountBatchResult,
-  AccountKind,
-  AccountState,
-  DecisionKind,
-  Lecturer,
-  MailOutcome,
-  SavedProfile,
-  Student,
-  StudentDecision,
-  StudentStatus,
-} from "@/modules/users/users.type";
+import { administrativeClasses, lecturers, staffMembers, students } from "@/modules/users/users.schema";
+import type { AccountBatchResult, AccountKind, AccountState, Lecturer, MailOutcome, SavedProfile, StaffMember, Student, StudentDecision } from "@/modules/users/users.type";
 
 class InputError extends Error {
   constructor(
@@ -70,7 +83,13 @@ class InputError extends Error {
 
 function failure(error: unknown) {
   if (error instanceof InputError) return actionError(error.message, { [error.field]: error.message });
+  if (error instanceof DecisionError) return actionError(error.message, error.field ? { [error.field]: error.message } : undefined);
   return actionFailure(error, USERS_CONSTRAINT_MESSAGE);
+}
+
+// Danh sách thay đổi cho nhật ký: chỉ các trường khác nhau.
+function diff(fields: [label: string, before: string, after: string][]): AuditChange[] {
+  return fields.filter(([, before, after]) => before !== after).map(([field, before, after]) => ({ field, before, after }));
 }
 
 // Lớp sinh hoạt theo mã; chưa có thì tạo mới cho ngành và khóa của sinh viên, có rồi thì phải đúng ngành và khóa.
@@ -90,19 +109,21 @@ async function classIdFor(tx: Transaction, className: string, majorCode: string,
   return { classId: created.id, faculty: major.faculty };
 }
 
+// Email trường luôn sinh từ MSSV; tình trạng học tập không ghi ở đây (chỉ quyết định hoặc quản trị hệ thống sửa).
 function studentColumns(values: z.output<typeof STUDENT_SCHEMA>, classId: string) {
   return {
     fullName: values.fullName,
     gender: values.gender,
     dateOfBirth: values.dateOfBirth,
-    email: values.email || studentEmailOf(values.code),
+    email: studentEmailOf(values.code),
+    personalEmail: values.personalEmail,
     phone: values.phone,
     administrativeClassId: classId,
-    status: values.status,
   };
 }
 
-const ENTITY_OF = { student: "student", lecturer: "lecturer" } as const;
+const ENTITY_OF = { student: "student", lecturer: "lecturer", staff: "staff" } as const;
+const KIND_OF_ROLE = { student: "student", lecturer: "lecturer", admin: "staff" } as const;
 
 // Ghi nhật ký cấp tài khoản và xếp thư kích hoạt trong cùng transaction: rollback thì không còn dòng nhật ký hay thư nào.
 // Trả id thư để gửi ngay sau commit.
@@ -111,7 +132,7 @@ async function recordCreatedAccounts(tx: Transaction, actor: AuditActor, created
     await recordAudit(tx, {
       actor,
       action: "create",
-      entityType: entry.role === "admin" ? "role" : ENTITY_OF[entry.role],
+      entityType: ENTITY_OF[KIND_OF_ROLE[entry.role]],
       entityId: entry.id,
       entityLabel: `${entry.loginName} ${entry.name}`,
       summary: `Cấp tài khoản đăng nhập ${entry.loginName}, gửi thư kích hoạt tới ${entry.email}`,
@@ -124,6 +145,15 @@ async function recordCreatedAccounts(tx: Transaction, actor: AuditActor, created
 function sendQueuedMails(mailIds: string[]): MailOutcome | null {
   deliverMailSoon(mailIds);
   return mailIds.length > 0 ? { queued: mailIds.length } : null;
+}
+
+async function studentSnapshot(tx: Transaction, id: string) {
+  const [row] = await tx
+    .select({ fullName: students.fullName, gender: students.gender, dateOfBirth: students.dateOfBirth, personalEmail: students.personalEmail, phone: students.phone, className: administrativeClasses.code })
+    .from(students)
+    .innerJoin(administrativeClasses, eq(administrativeClasses.id, students.administrativeClassId))
+    .where(eq(students.id, id));
+  return row ?? null;
 }
 
 export async function saveStudent(
@@ -142,20 +172,44 @@ export async function saveStudent(
   let mailIds: string[] = [];
   try {
     ({ studentId, mailIds } = await db.transaction(async (tx) => {
-      const { classId, faculty } = await classIdFor(tx, values.className, values.majorCode, values.cohort);
-      if (!inScope(viewer, faculty)) throw new InputError("majorCode", "Ngành thuộc khoa khác, bạn không quản lý hồ sơ này");
       // Sửa hồ sơ: khoa hiện tại của sinh viên cũng phải trong phạm vi, không thì chuyển được sinh viên khoa khác về khoa mình.
       const [current] = id ? await lockAccountProfiles(tx, "student", [id]) : [];
+      if (id && !current) throw new InputError("code", "Sinh viên không còn tồn tại, tải lại trang.");
       if (current && !inScope(viewer, current.faculty)) throw new InputError("majorCode", "Sinh viên thuộc khoa khác, bạn không sửa được hồ sơ này");
-      // MSSV không đổi sau khi tạo vì đã gắn với điểm, đăng ký và tài khoản đăng nhập.
+      const before = id ? await studentSnapshot(tx, id) : null;
+      const { classId, faculty } = await classIdFor(tx, values.className, values.majorCode, values.cohort);
+      if (!inScope(viewer, faculty)) throw new InputError("majorCode", "Ngành thuộc khoa khác, bạn không quản lý hồ sơ này");
+      // MSSV không đổi sau khi tạo vì đã gắn với điểm, đăng ký và tài khoản đăng nhập; email trường theo MSSV đã lưu.
+      const columns = studentColumns(values, classId);
       const [row] = id
-        ? await tx.update(students).set(studentColumns(values, classId)).where(eq(students.id, id)).returning({ id: students.id, userId: students.userId })
+        ? await tx
+            .update(students)
+            .set({ ...columns, email: studentEmailOf(current!.username ?? values.code) })
+            .where(eq(students.id, id))
+            .returning({ id: students.id, userId: students.userId, code: students.code })
         : await tx
             .insert(students)
-            .values({ ...studentColumns(values, classId), code: values.code })
-            .returning({ id: students.id, userId: students.userId });
-      if (!row) throw new InputError("code", "Sinh viên không còn tồn tại, tải lại trang.");
+            .values({ ...columns, code: values.code })
+            .returning({ id: students.id, userId: students.userId, code: students.code });
       await syncAccountProfile(tx, row.userId, { name: values.fullName });
+      await recordAudit(tx, {
+        actor: auditActorOf(viewer),
+        action: id ? "update" : "create",
+        entityType: "student",
+        entityId: row.id,
+        entityLabel: `${formatStudentCode(row.code)} ${values.fullName}`,
+        summary: id ? "Sửa hồ sơ sinh viên" : `Thêm hồ sơ sinh viên vào lớp ${values.className}`,
+        changes: before
+          ? diff([
+              ["Họ và tên", before.fullName, values.fullName],
+              ["Giới tính", GENDER_LABEL[before.gender], GENDER_LABEL[values.gender]],
+              ["Ngày sinh", before.dateOfBirth, values.dateOfBirth],
+              ["Lớp sinh hoạt", before.className, values.className],
+              ["Email cá nhân", before.personalEmail, values.personalEmail],
+              ["Điện thoại", before.phone, values.phone],
+            ])
+          : [],
+      });
       if (!provision) return { studentId: row.id, mailIds: [] };
       const result = await createAccounts(tx, await lockAccountProfiles(tx, "student", [row.id]), hashes);
       if (result.skipped.length > 0) throw new InputError("code", result.skipped[0].reason);
@@ -202,6 +256,14 @@ export async function importStudents(
           .values({ ...studentColumns(values, classId), code: values.code })
           .returning({ id: students.id });
         inserted.push(row.id);
+        await recordAudit(tx, {
+          actor: auditActorOf(viewer),
+          action: "create",
+          entityType: "student",
+          entityId: row.id,
+          entityLabel: `${formatStudentCode(values.code)} ${values.fullName}`,
+          summary: `Nhập hồ sơ sinh viên từ tệp (${rows.length} dòng) vào lớp ${values.className}`,
+        });
       }
       if (!options.provisionAccounts) return { ids: inserted, created: [], mailIds: [] };
       // MSSV, email trùng tài khoản cũ thì hồ sơ vẫn được nhập, chỉ không cấp tài khoản; bảng hiện "Chưa cấp".
@@ -221,22 +283,46 @@ export async function importStudents(
   });
 }
 
-export async function setStudentsStatus(ids: string[], status: StudentStatus): Promise<ActionResult<{ updated: number }>> {
+// Sửa tình trạng học tập không qua quyết định: chỉ quản trị hệ thống, để sửa dữ liệu sai; bắt buộc lý do, ghi nhật ký từng sinh viên.
+// Nghiệp vụ thường (bảo lưu, thôi học, tốt nghiệp...) đi qua trang Quyết định sinh viên.
+export async function overrideStudentsStatus(input: StatusOverrideInput): Promise<ActionResult<{ updated: number }>> {
   const viewer = await requirePermission("students.manage");
-  const parsed = z.object({ ids: z.array(z.uuid()).min(1).max(1000), status: z.enum(["studying", "reserved", "suspended", "graduated"]) }).safeParse({ ids, status });
-  if (!parsed.success) return actionError("Chọn sinh viên và trạng thái hợp lệ.");
+  if (!isSystemAdmin(viewer)) return actionError("Tình trạng học tập đổi qua quyết định sinh viên. Chỉ quản trị hệ thống sửa tay được để chữa dữ liệu sai.");
+  const parsed = parseInput(STATUS_OVERRIDE_SCHEMA, input);
+  if (!parsed.ok) return parsed;
+  const { ids, status, reason } = parsed.data;
   try {
-    const rows = await db
-      .select({ id: students.id, faculty: faculties.name })
-      .from(students)
-      .innerJoin(administrativeClasses, eq(administrativeClasses.id, students.administrativeClassId))
-      .innerJoin(majors, eq(majors.id, administrativeClasses.majorId))
-      .innerJoin(faculties, eq(faculties.id, majors.facultyId))
-      .where(inArray(students.id, parsed.data.ids));
-    if (rows.some((row) => !inScope(viewer, row.faculty))) return actionError("Có sinh viên thuộc khoa khác, bạn không đổi trạng thái được.");
-    const updated = await db.update(students).set({ status: parsed.data.status }).where(inArray(students.id, parsed.data.ids)).returning({ id: students.id });
+    const updated = await db.transaction(async (tx) => {
+      const rows = await tx
+        .select({ id: students.id, code: students.code, fullName: students.fullName, status: students.status, faculty: faculties.name })
+        .from(students)
+        .innerJoin(administrativeClasses, eq(administrativeClasses.id, students.administrativeClassId))
+        .innerJoin(majors, eq(majors.id, administrativeClasses.majorId))
+        .innerJoin(faculties, eq(faculties.id, majors.facultyId))
+        .where(inArray(students.id, ids))
+        .for("update", { of: students });
+      if (rows.some((row) => !inScope(viewer, row.faculty))) throw new InputError("ids", "Có sinh viên thuộc khoa khác, bạn không đổi tình trạng được.");
+      const changed = rows.filter((row) => row.status !== status);
+      if (changed.length === 0) return 0;
+      await tx
+        .update(students)
+        .set({ status })
+        .where(inArray(students.id, changed.map((row) => row.id)));
+      for (const row of changed) {
+        await recordAudit(tx, {
+          actor: auditActorOf(viewer),
+          action: "update",
+          entityType: "student",
+          entityId: row.id,
+          entityLabel: `${formatStudentCode(row.code)} ${row.fullName}`,
+          summary: `Sửa tay tình trạng học tập (không qua quyết định): ${reason}`,
+          changes: [{ field: "Tình trạng", before: STUDENT_STATUS[row.status].label, after: STUDENT_STATUS[status].label }],
+        });
+      }
+      return changed.length;
+    });
     revalidatePath("/administrator/users/students", "layout");
-    return actionOk({ updated: updated.length });
+    return actionOk({ updated });
   } catch (error) {
     return failure(error);
   }
@@ -263,20 +349,39 @@ export async function saveLecturer(
     const outcome = await db.transaction(async (tx) => {
       const [current] = id ? await lockAccountProfiles(tx, "lecturer", [id]) : [];
       if (current && !inScope(viewer, current.faculty)) throw new InputError("faculty", "Giảng viên thuộc khoa khác, bạn không sửa được hồ sơ này");
+      const [before] = id ? await tx.select().from(lecturers).where(eq(lecturers.id, id)) : [];
       const [row] = id
         ? await tx
             .update(lecturers)
             .set({ ...values, facultyId: facultyRow.id })
             .where(eq(lecturers.id, id))
-            .returning({ id: lecturers.id, userId: lecturers.userId })
+            .returning({ id: lecturers.id, userId: lecturers.userId, code: lecturers.code })
         : await tx
             .insert(lecturers)
             .values({ ...values, code, facultyId: facultyRow.id })
-            .returning({ id: lecturers.id, userId: lecturers.userId });
+            .returning({ id: lecturers.id, userId: lecturers.userId, code: lecturers.code });
       if (!row) return null;
       // Mã giảng viên (cũng là tên đăng nhập) không đổi sau khi tạo: ô mã khóa khi sửa và câu update không ghi cột code.
       // Email công vụ nhận mã kích hoạt, đặt lại mật khẩu: đổi ở hồ sơ thì đổi luôn email của tài khoản.
       await syncAccountProfile(tx, row.userId, { name: `${values.title} ${values.fullName}`, email: values.email });
+      await recordAudit(tx, {
+        actor: auditActorOf(viewer),
+        action: id ? "update" : "create",
+        entityType: "lecturer",
+        entityId: row.id,
+        entityLabel: `${row.code} ${values.title} ${values.fullName}`,
+        summary: id ? "Sửa hồ sơ giảng viên" : `Thêm giảng viên ${faculty}`,
+        changes: before
+          ? diff([
+              ["Họ và tên", before.fullName, values.fullName],
+              ["Học hàm, học vị", before.title, values.title],
+              ["Khoa", current?.faculty ?? "", faculty],
+              ["Email công vụ", before.email, values.email],
+              ["Điện thoại", before.phone, values.phone],
+              ["Tình trạng", LECTURER_STATUS[before.status].label, LECTURER_STATUS[values.status].label],
+            ])
+          : [],
+      });
       if (!provision) return { lecturerId: row.id, mailIds: [] };
       const result = await createAccounts(tx, await lockAccountProfiles(tx, "lecturer", [row.id]), hashes);
       if (result.skipped.length > 0) throw new InputError(result.skipped[0].field, result.skipped[0].reason);
@@ -295,19 +400,20 @@ export async function saveLecturer(
     : actionError("Đã lưu nhưng chưa đọc lại được, tải lại trang.");
 }
 
-const MANAGE_PERMISSION = { student: "students.manage", lecturer: "lecturers.manage" } as const;
-const PAGE_OF = { student: "/administrator/users/students", lecturer: "/administrator/users/lecturers" } as const;
+const PAGE_OF = { student: "/administrator/users/students", lecturer: "/administrator/users/lecturers", staff: "/administrator/users/staff" } as const;
 const OUT_OF_SCOPE = "Có hồ sơ thuộc khoa khác, bạn không quản lý tài khoản của hồ sơ đó. Bỏ chọn rồi thử lại.";
 
 type Skipped = { profile: AccountProfile; reason: string };
 
 // Quyền theo loại hồ sơ, đọc trước khi parse vì phải biết loại mới biết cần quyền nào; loại sai thì parse chặn ngay sau.
-function permissionFor(input: { kind?: unknown } | null | undefined) {
-  return MANAGE_PERMISSION[input?.kind === "lecturer" ? "lecturer" : "student"];
+// Tài khoản cán bộ (cổng quản trị) chỉ người phân quyền phạm vi toàn trường quản lý.
+async function requireAccountManager(input: { kind?: unknown } | null | undefined): Promise<Viewer> {
+  if (input?.kind === "staff") return requireSchoolWidePermission("access.manage");
+  return requirePermission(input?.kind === "lecturer" ? "lecturers.manage" : "students.manage");
 }
 
-function outOfScope(viewer: { faculty: string | null }, profiles: AccountProfile[]) {
-  return profiles.some((profile) => !inScope(viewer, profile.faculty));
+function outOfScope(viewer: Viewer, kind: AccountKind, profiles: AccountProfile[]) {
+  return kind !== "staff" && profiles.some((profile) => !inScope(viewer, profile.faculty));
 }
 
 async function batchResult(kind: AccountKind, ids: string[], changed: number, mail: MailOutcome | null, skipped: Skipped[]) {
@@ -320,8 +426,9 @@ async function batchResult(kind: AccountKind, ids: string[], changed: number, ma
 }
 
 // Cấp tài khoản cho các hồ sơ đã chọn; hồ sơ đã có tài khoản thì bỏ qua. Thư kích hoạt gửi sau khi commit.
+// Cán bộ cấp tài khoản sau khi tạo thì tài khoản chưa có vai trò "admin" cho tới khi được cấp vai trò ở trang Phân quyền.
 export async function provisionAccounts(input: AccountBatchInput): Promise<ActionResult<AccountBatchResult>> {
-  const viewer = await requirePermission(permissionFor(input));
+  const viewer = await requireAccountManager(input);
   const parsed = parseInput(ACCOUNT_BATCH_SCHEMA, input);
   if (!parsed.ok) return parsed;
   const { kind, ids } = parsed.data;
@@ -333,9 +440,10 @@ export async function provisionAccounts(input: AccountBatchInput): Promise<Actio
     const hashes = await randomPasswordHashes(ids.filter((id) => missing[id]?.status === "none").length);
     const outcome = await db.transaction(async (tx) => {
       const profiles = await lockAccountProfiles(tx, kind, ids);
-      if (outOfScope(viewer, profiles)) return null;
+      if (outOfScope(viewer, kind, profiles)) return null;
       // Hồ sơ vừa được người khác cấp giữa lúc đọc và lúc khóa dòng: createAccounts chỉ tạo cho dòng còn trống, thiếu mật khẩu thì báo thử lại.
       const result = await createAccounts(tx, profiles, hashes);
+      if (kind === "staff") await clearRoleWithoutAssignment(tx, result.created);
       const queued = await recordCreatedAccounts(tx, auditActorOf(viewer), result.created);
       const existing = profiles.filter((profile) => profile.userId !== null).map((profile) => ({ profile, reason: "Đã có tài khoản" }));
       return { created: result.created, skipped: [...existing, ...result.skipped], mailIds: queued };
@@ -351,9 +459,19 @@ export async function provisionAccounts(input: AccountBatchInput): Promise<Actio
   return batchResult(kind, ids, created.length, mail, skipped);
 }
 
+// Tài khoản cán bộ chỉ mang vai trò "admin" khi có ít nhất một phân quyền; chưa có thì để trống,
+// trang 403 hướng dẫn liên hệ quản trị thay vì vòng lặp vào cổng quản trị.
+async function clearRoleWithoutAssignment(tx: Transaction, created: NewAccount[]) {
+  if (created.length === 0) return;
+  await tx
+    .update(users)
+    .set({ role: null })
+    .where(inArray(users.id, created.map((entry) => entry.userId)));
+}
+
 // Gửi lại thư kích hoạt cho tài khoản đã cấp mà chưa từng đăng nhập.
 export async function resendActivation(input: AccountBatchInput): Promise<ActionResult<AccountBatchResult>> {
-  const viewer = await requirePermission(permissionFor(input));
+  const viewer = await requireAccountManager(input);
   const parsed = parseInput(ACCOUNT_BATCH_SCHEMA, input);
   if (!parsed.ok) return parsed;
   const { kind, ids } = parsed.data;
@@ -363,10 +481,20 @@ export async function resendActivation(input: AccountBatchInput): Promise<Action
   try {
     const outcome = await db.transaction(async (tx) => {
       const profiles = await lockAccountProfiles(tx, kind, ids);
-      if (outOfScope(viewer, profiles)) return null;
+      if (outOfScope(viewer, kind, profiles)) return null;
       const states = await readAccountStates(tx, kind, ids);
       const statusOf = (profile: AccountProfile) => states[profile.id]?.status ?? "none";
       const pending = profiles.filter((profile) => statusOf(profile) === "pending");
+      for (const profile of pending) {
+        await recordAudit(tx, {
+          actor: auditActorOf(viewer),
+          action: "update",
+          entityType: ENTITY_OF[kind],
+          entityId: profile.id,
+          entityLabel: `${profile.loginName} ${profile.name}`,
+          summary: `Gửi lại thư kích hoạt tới ${profile.email}`,
+        });
+      }
       return {
         targets: pending,
         skipped: profiles
@@ -388,8 +516,9 @@ export async function resendActivation(input: AccountBatchInput): Promise<Action
 }
 
 // Khóa: chặn đăng nhập và thu hồi mọi phiên đang mở. Mở khóa: đăng nhập lại được bằng mật khẩu cũ.
+// Tài khoản giữ vai trò quản trị cao hơn người khóa (quản trị hệ thống...) chỉ quản trị hệ thống khóa, mở được.
 export async function setAccountLock(input: AccountBatchInput & { locked: boolean }): Promise<ActionResult<AccountBatchResult>> {
-  const viewer = await requirePermission(permissionFor(input));
+  const viewer = await requireAccountManager(input);
   const parsed = parseInput(ACCOUNT_BATCH_SCHEMA.extend({ locked: z.boolean() }), input);
   if (!parsed.ok) return parsed;
   const { kind, ids, locked } = parsed.data;
@@ -398,8 +527,13 @@ export async function setAccountLock(input: AccountBatchInput & { locked: boolea
   try {
     const outcome = await db.transaction(async (tx) => {
       const profiles = await lockAccountProfiles(tx, kind, ids);
-      if (outOfScope(viewer, profiles)) return "scope" as const;
-      if (locked && profiles.some((profile) => profile.userId === viewer.id)) return "self" as const;
+      if (outOfScope(viewer, kind, profiles)) throw new InputError("ids", OUT_OF_SCOPE);
+      if (locked && profiles.some((profile) => profile.userId === viewer.id)) throw new InputError("ids", "Không khóa được tài khoản của chính bạn. Bỏ chọn hồ sơ của mình rồi thử lại.");
+      const held = await readHeldRoles(tx, profiles.flatMap((profile) => (profile.userId ? [profile.userId] : [])));
+      for (const profile of profiles) {
+        const blocked = profile.userId ? lockBlockedReason(viewer, held.get(profile.userId) ?? []) : null;
+        if (blocked) throw new InputError("ids", `${profile.name}: ${blocked}`);
+      }
       const states = await readAccountStates(tx, kind, ids);
       const statusOf = (profile: AccountProfile) => states[profile.id]?.status ?? "none";
       const target = profiles.filter((profile) => (locked ? ["pending", "active"].includes(statusOf(profile)) : statusOf(profile) === "locked"));
@@ -425,8 +559,6 @@ export async function setAccountLock(input: AccountBatchInput & { locked: boolea
       }
       return { changed: target, skipped: rest };
     });
-    if (outcome === "scope") return actionError(OUT_OF_SCOPE);
-    if (outcome === "self") return actionError("Không khóa được tài khoản của chính bạn. Bỏ chọn hồ sơ của mình rồi thử lại.");
     ({ changed, skipped } = outcome);
   } catch (error) {
     return failure(error);
@@ -438,46 +570,165 @@ export async function setAccountLock(input: AccountBatchInput & { locked: boolea
   return batchResult(kind, ids, changed.length, null, skipped);
 }
 
-// Cán bộ mới (Phòng Đào tạo, văn phòng khoa...) kèm tài khoản vai trò "admin"; quyền cụ thể cấp ở trang Phân quyền.
-export async function createStaffMember(input: StaffInput): Promise<ActionResult<{ id: string; name: string; hasAccount: boolean; mail: MailOutcome | null }>> {
-  const viewer = await requirePermission("access.manage");
-  if (viewer.faculty !== null) return actionError("Chỉ quản trị phạm vi toàn trường được thêm cán bộ.");
+// Cán bộ mới (Phòng Đào tạo, văn phòng khoa...). Chọn vai trò thì cấp ngay trong cùng transaction và tài khoản mang vai trò "admin";
+// không chọn thì tài khoản chưa vào được cổng quản trị cho tới khi được cấp vai trò ở trang Phân quyền.
+export async function createStaffMember(input: StaffInput): Promise<ActionResult<{ id: string; name: string; hasAccount: boolean; roleName: string | null; mail: MailOutcome | null }>> {
+  const viewer = await requireSchoolWidePermission("access.manage");
   const parsed = parseInput(STAFF_SCHEMA, input);
   if (!parsed.ok) return parsed;
-  const { provisionAccount, ...values } = parsed.data;
+  const { provisionAccount, roleId, faculty, ...values } = parsed.data;
+  if (roleId && !provisionAccount) return actionError("Cấp vai trò cần cấp tài khoản đăng nhập. Chọn cấp tài khoản hoặc bỏ vai trò.", { roleId: "Cần cấp tài khoản" });
   const hashes = provisionAccount ? await randomPasswordHashes(1) : [];
   let staffId: string;
+  let roleName: string | null = null;
   let mailIds: string[] = [];
   try {
-    ({ staffId, mailIds } = await db.transaction(async (tx) => {
+    ({ staffId, roleName, mailIds } = await db.transaction(async (tx) => {
       const [row] = await tx.insert(staffMembers).values(values).returning({ id: staffMembers.id });
-      if (!provisionAccount) return { staffId: row.id, mailIds: [] };
-      const profile = staffProfile({ id: row.id, userId: null, code: values.code, name: values.fullName, faculty: "", email: values.email }, "admin");
+      await recordAudit(tx, {
+        actor: auditActorOf(viewer),
+        action: "create",
+        entityType: "staff",
+        entityId: row.id,
+        entityLabel: `${values.code} ${values.fullName}`,
+        summary: `Thêm cán bộ ${values.fullName}, ${values.unit}`,
+      });
+      if (!provisionAccount) return { staffId: row.id, roleName: null, mailIds: [] };
+      const profile = staffProfile({ id: row.id, userId: null, code: values.code, name: values.fullName, faculty: values.unit, email: values.email }, "admin");
       const result = await createAccounts(tx, [profile], hashes);
       if (result.skipped.length > 0) throw new InputError(result.skipped[0].field, result.skipped[0].reason);
-      return { staffId: row.id, mailIds: await recordCreatedAccounts(tx, auditActorOf(viewer), result.created) };
+      const [account] = result.created;
+      let granted: string | null = null;
+      if (roleId) granted = await grantInitialRole(tx, viewer, account.userId, roleId, faculty ?? null, values);
+      else await clearRoleWithoutAssignment(tx, result.created);
+      return { staffId: row.id, roleName: granted, mailIds: await recordCreatedAccounts(tx, auditActorOf(viewer), result.created) };
     }));
   } catch (error) {
     return failure(error);
   }
   const mail = sendQueuedMails(mailIds);
   revalidatePath("/administrator/settings/access");
-  return actionOk({ id: staffId, name: values.fullName, hasAccount: mail !== null, mail });
+  revalidatePath("/administrator/users/staff");
+  return actionOk({ id: staffId, name: values.fullName, hasAccount: provisionAccount, roleName, mail });
 }
 
+async function grantInitialRole(tx: Transaction, viewer: Viewer, userId: string, roleId: string, faculty: string | null, staff: { code: string; fullName: string; unit: string }) {
+  const [role] = await tx.select().from(roles).where(eq(roles.id, roleId));
+  if (!role) throw new InputError("roleId", "Vai trò không còn tồn tại, tải lại trang.");
+  const permissions = (await tx.select({ permission: rolePermissions.permission }).from(rolePermissions).where(eq(rolePermissions.roleId, roleId))).map((entry) => entry.permission);
+  const scopedFaculty = role.scope === "faculty" ? faculty : null;
+  const blocked = grantBlockedReason(viewer, { ...role, permissions }, { userId, faculty: scopedFaculty, targetFaculty: staff.unit });
+  if (blocked) throw new InputError("roleId", blocked);
+  let facultyId: string | null = null;
+  if (role.scope === "faculty") {
+    const [row] = scopedFaculty ? await tx.select({ id: faculties.id }).from(faculties).where(eq(faculties.name, scopedFaculty)) : [];
+    if (!row) throw new InputError("faculty", "Vai trò theo khoa cần chọn khoa");
+    facultyId = row.id;
+  }
+  const [assignment] = await tx.insert(roleAssignments).values({ userId, roleId, facultyId, grantedByUserId: viewer.id }).returning({ id: roleAssignments.id });
+  await tx.update(users).set({ role: "admin" }).where(eq(users.id, userId));
+  const roleLabel = scopedFaculty ? `${role.name}, ${scopedFaculty}` : role.name;
+  await recordAudit(tx, {
+    actor: auditActorOf(viewer),
+    action: "permission",
+    entityType: "role",
+    entityId: assignment.id,
+    entityLabel: `${staff.code} ${staff.fullName}`,
+    summary: `Cấp vai trò ${roleLabel} cho ${staff.fullName} khi tạo cán bộ`,
+    changes: [{ field: "Vai trò", before: "", after: roleLabel }],
+  });
+  return roleLabel;
+}
+
+// Sửa họ tên, đơn vị, email công vụ của cán bộ; mã cán bộ (tên đăng nhập) không đổi.
+export async function updateStaffMember(id: string, input: StaffUpdateInput): Promise<ActionResult<StaffMember>> {
+  const viewer = await requireSchoolWidePermission("access.manage");
+  if (!isUuid(id)) return actionError("Cán bộ không còn tồn tại, tải lại trang.");
+  const parsed = parseInput(STAFF_UPDATE_SCHEMA, input);
+  if (!parsed.ok) return parsed;
+  const values = parsed.data;
+  try {
+    await db.transaction(async (tx) => {
+      const [before] = await tx.select().from(staffMembers).where(eq(staffMembers.id, id)).for("update");
+      if (!before) throw new InputError("fullName", "Cán bộ không còn tồn tại, tải lại trang.");
+      await tx.update(staffMembers).set(values).where(eq(staffMembers.id, id));
+      await syncAccountProfile(tx, before.userId, { name: values.fullName, email: values.email });
+      await recordAudit(tx, {
+        actor: auditActorOf(viewer),
+        action: "update",
+        entityType: "staff",
+        entityId: id,
+        entityLabel: `${before.code} ${values.fullName}`,
+        summary: "Sửa thông tin cán bộ",
+        changes: diff([
+          ["Họ và tên", before.fullName, values.fullName],
+          ["Đơn vị", before.unit, values.unit],
+          ["Email công vụ", before.email, values.email],
+        ]),
+      });
+    });
+  } catch (error) {
+    return failure(error);
+  }
+  revalidatePath("/administrator/users/staff");
+  revalidatePath("/administrator/settings/access");
+  const staff = await getStaffMember(id);
+  return staff ? actionOk(staff) : actionError("Đã lưu nhưng chưa đọc lại được, tải lại trang.");
+}
+
+// Phân công cố vấn: giảng viên cùng khoa với lớp, đang giảng dạy (không nghỉ phép); báo giảng viên được phân công.
 export async function assignAdvisor(className: string, lecturerId: string | null): Promise<ActionResult> {
   const viewer = await requirePermission("advisors.assign");
   if (lecturerId !== null && !isUuid(lecturerId)) return actionError("Giảng viên không còn tồn tại, tải lại trang.");
-  const [row] = await db
-    .select({ id: administrativeClasses.id, faculty: faculties.name })
-    .from(administrativeClasses)
-    .innerJoin(majors, eq(majors.id, administrativeClasses.majorId))
-    .innerJoin(faculties, eq(faculties.id, majors.facultyId))
-    .where(eq(administrativeClasses.code, className));
-  if (!row) return actionError("Lớp sinh hoạt không còn tồn tại, tải lại trang.");
-  if (!inScope(viewer, row.faculty)) return actionError("Lớp thuộc khoa khác, bạn không phân công được.");
   try {
-    await db.update(administrativeClasses).set({ advisorId: lecturerId }).where(eq(administrativeClasses.id, row.id));
+    await db.transaction(async (tx) => {
+      const [row] = await tx
+        .select({ id: administrativeClasses.id, advisorId: administrativeClasses.advisorId, facultyId: faculties.id, faculty: faculties.name })
+        .from(administrativeClasses)
+        .innerJoin(majors, eq(majors.id, administrativeClasses.majorId))
+        .innerJoin(faculties, eq(faculties.id, majors.facultyId))
+        .where(eq(administrativeClasses.code, className))
+        .for("update", { of: administrativeClasses });
+      if (!row) throw new InputError("className", "Lớp sinh hoạt không còn tồn tại, tải lại trang.");
+      if (!inScope(viewer, row.faculty)) throw new InputError("className", "Lớp thuộc khoa khác, bạn không phân công được.");
+      if (row.advisorId === lecturerId) return;
+      const ids = [lecturerId, row.advisorId].filter((value): value is string => value !== null);
+      const people = ids.length > 0 ? await tx.select().from(lecturers).where(inArray(lecturers.id, ids)) : [];
+      const next = people.find((person) => person.id === lecturerId);
+      const previous = people.find((person) => person.id === row.advisorId);
+      if (lecturerId !== null) {
+        if (!next) throw new InputError("lecturerId", "Giảng viên không còn tồn tại, tải lại trang.");
+        if (next.facultyId !== row.facultyId) throw new InputError("lecturerId", `Chỉ phân công giảng viên thuộc ${row.faculty} làm cố vấn lớp này.`);
+        if (next.status !== "active") throw new InputError("lecturerId", `${next.title} ${next.fullName} đang nghỉ phép, chọn giảng viên khác.`);
+      }
+      await tx.update(administrativeClasses).set({ advisorId: lecturerId }).where(eq(administrativeClasses.id, row.id));
+      const nameOf = (person: typeof next) => (person ? `${person.title} ${person.fullName}` : "Chưa phân công");
+      await recordAudit(tx, {
+        actor: auditActorOf(viewer),
+        action: "assign",
+        entityType: "lecturer",
+        entityId: next?.id ?? previous?.id ?? row.id,
+        entityLabel: `Lớp ${className}`,
+        summary: lecturerId ? `Phân công ${nameOf(next)} làm cố vấn lớp ${className}` : `Bỏ phân công cố vấn lớp ${className}`,
+        changes: [{ field: "Cố vấn", before: nameOf(previous), after: nameOf(next) }],
+      });
+      if (next) {
+        await notifyLecturers(tx, [next.id], {
+          kind: "advising",
+          title: `Bạn được phân công cố vấn lớp ${className}`,
+          body: `Phòng Đào tạo phân công bạn làm cố vấn học tập lớp sinh hoạt ${className}.`,
+          href: "/lecturer/advising/students",
+        });
+      }
+      if (previous) {
+        await notifyLecturers(tx, [previous.id], {
+          kind: "advising",
+          title: `Thôi cố vấn lớp ${className}`,
+          body: `Lớp sinh hoạt ${className} đã được chuyển cho ${lecturerId ? nameOf(next) : "cố vấn khác"}.`,
+          href: "/lecturer/advising/students",
+        });
+      }
+    });
   } catch (error) {
     return failure(error);
   }
@@ -516,82 +767,107 @@ export async function saveMyLecturerContact(input: LecturerContactInput): Promis
   return actionOk();
 }
 
-// Trạng thái học tập sinh viên nhận khi quyết định được ký; thu hồi thì trở lại đang học.
-const STATUS_AFTER_SIGN: Partial<Record<DecisionKind, StudentStatus>> = {
-  reserve: "reserved",
-  resume: "studying",
-  suspend: "suspended",
-  graduate: "graduated",
-};
+function actorOf(viewer: Viewer): DecisionActor {
+  return { id: viewer.id, name: viewer.name, roleName: viewer.roleName, faculty: viewer.faculty };
+}
 
-async function decisionOf(id: string) {
-  return (await getDecisions()).find((decision) => decision.id === id) ?? null;
+async function decisionResult(id: string) {
+  revalidatePath("/administrator", "layout");
+  const decision = await getDecision(id);
+  return decision ? actionOk(decision) : actionError("Đã lưu nhưng chưa đọc lại được, tải lại trang.");
 }
 
 export async function createDecision(input: DecisionInput): Promise<ActionResult<StudentDecision>> {
   const viewer = await requirePermission("decisions.manage");
   const parsed = parseInput(DECISION_SCHEMA, input);
   if (!parsed.ok) return parsed;
-  const student = await getStudent(parsed.data.studentId);
-  if (!student || !inScope(viewer, student.faculty)) return actionError("Sinh viên không còn tồn tại hoặc thuộc khoa khác.", { studentId: "Sinh viên không hợp lệ" });
   let id: string;
   try {
-    const [row] = await db.insert(studentDecisions).values(parsed.data).returning({ id: studentDecisions.id });
-    id = row.id;
+    id = await db.transaction((tx) => createDecisionDraft(tx, actorOf(viewer), parsed.data));
   } catch (error) {
     return failure(error);
   }
-  revalidatePath("/administrator/decisions");
-  const decision = await decisionOf(id);
-  return decision ? actionOk(decision) : actionError("Đã lưu nhưng chưa đọc lại được, tải lại trang.");
+  return decisionResult(id);
 }
 
-type DecisionStep = "submit" | "sign" | "revoke";
-
-const FROM_STATUS: Record<DecisionStep, StudentDecision["status"]> = { submit: "draft", sign: "pending-signature", revoke: "signed" };
-
-// Dự thảo → trình ký (cấp số) → ký (đổi trạng thái sinh viên) → thu hồi. Khóa dòng để hai người bấm cùng lúc không làm lệch số.
-export async function advanceDecision(id: string, step: DecisionStep): Promise<ActionResult<StudentDecision>> {
+export async function updateDecision(id: string, input: DecisionInput): Promise<ActionResult<StudentDecision>> {
   const viewer = await requirePermission("decisions.manage");
-  if (!isUuid(id) || !(step in FROM_STATUS)) return actionError("Quyết định không còn tồn tại, tải lại trang.");
+  if (!isUuid(id)) return actionError("Quyết định không còn tồn tại, tải lại trang.");
+  const parsed = parseInput(DECISION_SCHEMA, input);
+  if (!parsed.ok) return parsed;
   try {
-    const outcome = await db.transaction(async (tx) => {
-      const [row] = await tx.select().from(studentDecisions).where(eq(studentDecisions.id, id)).for("update");
-      if (!row) return "Quyết định không còn tồn tại, tải lại trang.";
-      if (row.status !== FROM_STATUS[step]) return "Quyết định đã được người khác xử lý, tải lại trang.";
-      const student = await getStudent(row.studentId);
-      if (!student || !inScope(viewer, student.faculty)) return "Sinh viên thuộc khoa khác.";
-      if (step === "submit") {
-        await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext('student_decisions_number'))`);
-        const [{ next }] = await tx
-          .select({ next: sql<number>`coalesce(max(split_part(${studentDecisions.number}, '/', 1)::int), 1300) + 1` })
-          .from(studentDecisions)
-          .where(sql`${studentDecisions.number} ~ '^[0-9]+/'`);
-        await tx.update(studentDecisions).set({ status: "pending-signature", number: `${next}/QĐ-ĐHSP` }).where(eq(studentDecisions.id, id));
-      } else if (step === "sign") {
-        await tx.update(studentDecisions).set({ status: "signed", signedBy: `${viewer.name}, ${viewer.roleName}`, signedAt: new Date() }).where(eq(studentDecisions.id, id));
-        const status = STATUS_AFTER_SIGN[row.kind];
-        if (status) await tx.update(students).set({ status }).where(eq(students.id, row.studentId));
-      } else {
-        await tx.update(studentDecisions).set({ status: "revoked" }).where(eq(studentDecisions.id, id));
-        if (STATUS_AFTER_SIGN[row.kind]) {
-          await tx.update(students).set({ status: "studying" }).where(and(eq(students.id, row.studentId), eq(students.status, STATUS_AFTER_SIGN[row.kind]!)));
-        }
-      }
-      return null;
-    });
-    if (outcome) return actionError(outcome);
+    await db.transaction((tx) => updateDecisionDraft(tx, actorOf(viewer), id, parsed.data));
+  } catch (error) {
+    return failure(error);
+  }
+  return decisionResult(id);
+}
+
+export async function deleteDecision(id: string): Promise<ActionResult> {
+  const viewer = await requirePermission("decisions.manage");
+  if (!isUuid(id)) return actionError("Quyết định không còn tồn tại, tải lại trang.");
+  try {
+    await db.transaction((tx) => deleteDecisionDraft(tx, actorOf(viewer), id));
   } catch (error) {
     return failure(error);
   }
   revalidatePath("/administrator", "layout");
-  const decision = await decisionOf(id);
-  return decision ? actionOk(decision) : actionError("Đã lưu nhưng chưa đọc lại được, tải lại trang.");
+  return actionOk();
 }
 
-// Quyết định bản PDF để in, lưu hồ sơ: cùng quyền và phạm vi khoa với trang Quyết định sinh viên.
-export async function downloadDecisionPdf(id: string): Promise<ActionResult<{ fileName: string; base64: string; mimeType: string }>> {
+// Người lập trình ký (decisions.manage); người ký riêng (decisions.sign) ký, trả lại, thu hồi.
+export async function submitDecision(id: string): Promise<ActionResult<StudentDecision>> {
   const viewer = await requirePermission("decisions.manage");
+  if (!isUuid(id)) return actionError("Quyết định không còn tồn tại, tải lại trang.");
+  try {
+    await db.transaction((tx) => submitDecisionStep(tx, actorOf(viewer), id));
+  } catch (error) {
+    return failure(error);
+  }
+  return decisionResult(id);
+}
+
+export async function signDecision(id: string): Promise<ActionResult<StudentDecision>> {
+  const viewer = await requirePermission("decisions.sign");
+  if (!isUuid(id)) return actionError("Quyết định không còn tồn tại, tải lại trang.");
+  try {
+    await db.transaction((tx) => signDecisionStep(tx, actorOf(viewer), id));
+  } catch (error) {
+    return failure(error);
+  }
+  revalidatePath("/administrator/graduation");
+  return decisionResult(id);
+}
+
+export async function returnDecision(id: string, reason: string): Promise<ActionResult<StudentDecision>> {
+  const viewer = await requirePermission("decisions.sign");
+  const parsed = parseInput(DECISION_REASON_SCHEMA, { id, reason });
+  if (!parsed.ok) return parsed;
+  try {
+    await db.transaction((tx) => returnDecisionStep(tx, actorOf(viewer), parsed.data.id, parsed.data.reason));
+  } catch (error) {
+    return failure(error);
+  }
+  return decisionResult(id);
+}
+
+export async function revokeDecision(id: string, reason: string): Promise<ActionResult<StudentDecision>> {
+  const viewer = await requirePermission("decisions.sign");
+  const parsed = parseInput(DECISION_REASON_SCHEMA, { id, reason });
+  if (!parsed.ok) return parsed;
+  try {
+    await db.transaction((tx) => revokeDecisionStep(tx, actorOf(viewer), parsed.data.id, parsed.data.reason));
+  } catch (error) {
+    return failure(error);
+  }
+  revalidatePath("/administrator/graduation");
+  return decisionResult(id);
+}
+
+// Quyết định bản PDF để in, lưu hồ sơ: cùng quyền và phạm vi khoa với trang Quyết định sinh viên (người lập hoặc người ký).
+export async function downloadDecisionPdf(id: string): Promise<ActionResult<{ fileName: string; base64: string; mimeType: string }>> {
+  const viewer = await getViewer();
+  if (!can(viewer, "decisions.manage") && !can(viewer, "decisions.sign")) forbidden();
   const decision = await getDecision(id);
   if (!decision || !inScope(viewer, decision.faculty)) return actionError("Quyết định không còn tồn tại hoặc thuộc khoa khác, tải lại trang.");
   const bytes = await decisionPdf(decision);

@@ -2,6 +2,7 @@ import { z } from "zod";
 import { periodLabel, weekdayLabel } from "@/shared/constants/period.constant";
 import { audienceText, overlaps } from "@/modules/course-registration/course-registration.constant";
 import type { ClassMeeting, ClassSection, RegistrationHold, StudentEnrollment } from "@/modules/course-registration/course-registration.type";
+import { latestGrades } from "@/modules/grades/grades.rule";
 
 export type RegistrationIssueKind =
   | "hold"
@@ -298,16 +299,8 @@ export function pickTimetable(enrollments: StudentEnrollment[], ..._legacy: unkn
 }
 
 // Điểm của LẦN HỌC CUỐI mỗi học phần (quy chế: học lại, học cải thiện lấy lần cuối): "đã học đạt" khi kiểm tiên quyết và học cải
-// thiện dựa trên điểm này. Các học kỳ phải xếp theo thời gian, học kỳ đang học (chưa có điểm) bỏ qua.
-// Tạm đặt ở đây; khi grades.rule có hàm chung cùng ngữ nghĩa thì dùng hàm đó.
-export function lastAttemptGrades(terms: { isInProgress: boolean; courses: { courseCode: string; letter: string | null }[] }[]) {
-  const last: Record<string, string> = {};
-  for (const term of terms) {
-    if (term.isInProgress) continue;
-    for (const course of term.courses) if (course.letter) last[course.courseCode] = course.letter;
-  }
-  return last;
-}
+// thiện dựa trên điểm này. Dùng chung hàm latestGrades của module grades.
+export const lastAttemptGrades = latestGrades;
 
 /** @deprecated Tên cũ, nay theo lần học cuối (lastAttemptGrades). */
 export const bestGrades = lastAttemptGrades;

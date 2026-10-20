@@ -52,7 +52,10 @@ export type NavItem = {
   icon?: ComponentType<IconProps>;
   shortLabel?: string;
   exact?: boolean;
-  permission?: string;
+  // Một quyền, hoặc danh sách quyền (có một trong số đó là được).
+  permission?: string | string[];
+  // Trang dùng requireSchoolWidePermission: vai trò theo khoa có quyền vẫn bị 403, nên không hiện trong menu.
+  schoolWide?: boolean;
 };
 
 export type NavGroup = {
@@ -136,6 +139,10 @@ export const LECTURER_ADVISING_GROUP: NavGroup = {
   ],
 };
 
+// Giảng viên kiêm cán bộ quản trị chuyển qua lại giữa hai cổng từ menu tài khoản.
+export const LECTURER_PORTAL_LINK: NavItem = { label: "Sang cổng giảng viên", href: "/lecturer", icon: PresentationScreen };
+export const ADMINISTRATOR_PORTAL_LINK: NavItem = { label: "Sang cổng quản trị", href: "/administrator", icon: ShieldUser };
+
 export const LECTURER_ACCOUNT_LINKS: NavItem[] = [
   { label: "Hồ sơ cá nhân", href: "/lecturer/profile", icon: User },
   { label: "Khối lượng giảng dạy", href: "/lecturer/workload", icon: Gauge },
@@ -178,8 +185,8 @@ export const ADMINISTRATOR_NAVIGATION: NavGroup[] = [
       { label: "Theo dõi đăng ký", href: "/administrator/registration-monitor", icon: ChartActivity, permission: "registration.manage" },
       { label: "Khóa đăng ký", href: "/administrator/registration-holds", icon: UserLock, permission: "registration.manage" },
       { label: "Học phí", href: "/administrator/tuition", icon: Receipt, permission: "tuition.manage" },
-      { label: "Duyệt và công bố điểm", href: "/administrator/grade-publishing", icon: ClipboardCheck, permission: "grades.approve" },
-      { label: "Quyết định sinh viên", href: "/administrator/decisions", icon: ScrollText, permission: "decisions.manage" },
+      { label: "Duyệt và công bố điểm", href: "/administrator/grade-publishing", icon: ClipboardCheck, permission: ["grades.approve", "grades.publish"] },
+      { label: "Quyết định sinh viên", href: "/administrator/decisions", icon: ScrollText, permission: ["decisions.manage", "decisions.sign"] },
       { label: "Xét tốt nghiệp", href: "/administrator/graduation", icon: AwardCertificate, permission: "graduation.manage" },
     ],
   },
@@ -198,6 +205,7 @@ export const ADMINISTRATOR_NAVIGATION: NavGroup[] = [
       { label: "Sinh viên", href: "/administrator/users/students", icon: UserCap, permission: "students.view" },
       { label: "Giảng viên", href: "/administrator/users/lecturers", icon: IdBadge, permission: "lecturers.manage" },
       { label: "Phân công cố vấn", href: "/administrator/users/advisors", icon: UsersLink, permission: "advisors.assign" },
+      { label: "Cán bộ", href: "/administrator/users/staff", icon: Users, permission: "access.manage", schoolWide: true },
     ],
   },
   {
@@ -218,7 +226,7 @@ export const ADMINISTRATOR_NAVIGATION: NavGroup[] = [
       { label: "Lịch năm học", href: "/administrator/settings/calendar", icon: CalendarGrid, permission: "settings.manage" },
       { label: "Phân quyền", href: "/administrator/settings/access", icon: ShieldUser, permission: "access.manage" },
       { label: "Nhật ký thao tác", href: "/administrator/settings/audit-log", icon: History, permission: "audit.view" },
-      { label: "Hàng đợi thư", href: "/administrator/settings/mail", icon: EnvelopeClock, permission: "settings.manage" },
+      { label: "Hàng đợi thư", href: "/administrator/settings/mail", icon: EnvelopeClock, permission: "settings.manage", schoolWide: true },
     ],
   },
 ];
@@ -232,10 +240,24 @@ export const ADMINISTRATOR_BOTTOM_TABS = [
 
 export const ADMINISTRATOR_ACCOUNT_LINKS: NavItem[] = [{ label: "Hồ sơ cá nhân", href: "/administrator/profile", icon: FileContent }];
 
-export function filterNavigation(groups: NavGroup[], permissions: string[]) {
+function hasAny(permissions: string[], required: NavItem["permission"]) {
+  if (!required) return true;
+  return (Array.isArray(required) ? required : [required]).some((permission) => permissions.includes(permission));
+}
+
+// Chỉ hiện mục người xem mở được: đủ quyền, và trang dùng chung toàn trường thì phải có phạm vi toàn trường.
+export function filterNavigation(groups: NavGroup[], permissions: string[], scope: { schoolWide: boolean } = { schoolWide: true }) {
   return groups
-    .map((group) => ({ ...group, items: group.items.filter((item) => !item.permission || permissions.includes(item.permission)) }))
+    .map((group) => ({
+      ...group,
+      items: group.items.filter((item) => hasAny(permissions, item.permission) && (!item.schoolWide || scope.schoolWide)),
+    }))
     .filter((group) => group.items.length > 0);
+}
+
+// Trang đầu tiên người xem mở được, cho nút "về trang chính" ở trang 403 (không dẫn lại trang đang 403).
+export function firstAccessibleHref(groups: NavGroup[], permissions: string[], scope: { schoolWide: boolean }) {
+  return filterNavigation(groups, permissions, scope)[0]?.items[0]?.href ?? null;
 }
 
 export function isActiveHref(pathname: string, href: string, exact = false) {

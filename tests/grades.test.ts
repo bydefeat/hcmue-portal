@@ -7,63 +7,101 @@ import { parseInput } from "@/shared/libs/action.lib";
 import { pgErrorMessage } from "@/shared/libs/pg-error.lib";
 import { classSections, enrollments, terms } from "@/modules/course-registration/course-registration.schema";
 import { courses, majors } from "@/modules/curriculum/curriculum.schema";
-import { GRADES_CONSTRAINT_MESSAGE, toLetter, toStanding, weightedScore } from "@/modules/grades/grades.constant";
+import { GRADES_CONSTRAINT_MESSAGE } from "@/modules/grades/grades.constant";
 import ExcelJS from "exceljs";
 import { gradeSheetWorkbook, readWorkbookMatrix } from "@/modules/grades/grades.excel";
-import { GradeActionError, replaceGradeComponents, syncAcademicWarnings } from "@/modules/grades/grades.lib";
+import { cumulativeResults, currentWarningLevel, currentWarnings, GradeActionError, loadTranscripts, replaceGradeComponents, syncAcademicWarnings } from "@/modules/grades/grades.lib";
 import {
   buildTranscript,
   componentKey,
   computeStanding,
+  consecutiveWarnings,
   creditAverage,
+  expulsionReasons,
   GRADE_COMPONENTS_SAVE_SCHEMA,
   GRADE_SCORES_SAVE_SCHEMA,
   GRADE_SHEET_RETURN_SCHEMA,
+  gradeEntryDeadline,
+  latestAttempts,
+  latestGrades,
   latestWarningTerm,
+  letterOf,
   parseScoreMatrix,
   planComponentChanges,
   planWarningSync,
+  roundingFormula,
   sheetState,
+  standingRulesOf,
   summarizeStandings,
+  toStanding,
   warningLevelOf,
   warningReasons,
+  weightedScore,
 } from "@/modules/grades/grades.rule";
 import { academicWarnings, courseResults, gradeComponents, gradeScores, gradeSheets } from "@/modules/grades/grades.schema";
-import type { LetterGrade, TranscriptCourse } from "@/modules/grades/grades.type";
+import type { TranscriptCourseInput } from "@/modules/grades/grades.type";
 import { notifications } from "@/modules/notifications/notifications.schema";
+import { REGULATION_RULES } from "@/modules/settings/settings.mock";
 import { mockTermId } from "@/shared/libs/mock.lib";
 import { administrativeClasses, lecturers, students } from "@/modules/users/users.schema";
 
 after(() => db.$client.end());
 
-function graded(code: string, credits: number, score10: number | null): TranscriptCourse {
+const SCALE = REGULATION_RULES.grading.scale;
+const RULES = standingRulesOf(REGULATION_RULES);
+const WARNING = REGULATION_RULES.warning;
+
+function graded(code: string, credits: number, score10: number | null): TranscriptCourseInput {
   if (score10 === null) return { courseCode: code, courseName: code, credits, score10: null, letter: null, point4: null };
-  const step = toLetter(score10);
-  return { courseCode: code, courseName: code, credits, score10, letter: step.letter as LetterGrade, point4: step.point4 };
+  return { courseCode: code, courseName: code, credits, score10, ...letterOf(score10, SCALE) };
 }
 
-describe("grades: quy đổi điểm", () => {
-  test("điểm chữ và thang 4 đúng ở các mốc", () => {
-    assert.deepEqual([8.5, 8.4, 8, 7, 6.5, 5.5, 5, 4, 3.9, 0].map((score) => toLetter(score).letter), ["A", "B+", "B+", "B", "C+", "C", "D+", "D", "F", "F"]);
-    assert.equal(toLetter(6.9).point4, 2.5);
+describe("grades: quy đổi điểm theo quy chế", () => {
+  test("điểm chữ và thang 4 đúng ở các mốc của thang điểm quy chế", () => {
+    assert.deepEqual([8.5, 8.4, 8, 7, 6.5, 5.5, 5, 4, 3.9, 0].map((score) => letterOf(score, SCALE).letter), ["A", "B+", "B+", "B", "C+", "C", "D+", "D", "F", "F"]);
+    assert.equal(letterOf(6.9, SCALE).point4, 2.5);
+    // Thang điểm khác (quy chế cũ không có điểm cộng) cho kết quả khác.
+    const old = SCALE.filter((step) => !step.letter.endsWith("+"));
+    assert.equal(letterOf(8.2, old).letter, "B");
   });
 
-  test("điểm tổng kết theo trọng số, làm tròn 1 chữ số; thiếu một cột thì chưa có điểm", () => {
+  test("điểm tổng kết theo trọng số, làm tròn theo bước của quy chế; thiếu một cột thì chưa có điểm", () => {
     const components = [
       { key: "attendance", label: "Chuyên cần", weight: 10 },
       { key: "midterm", label: "Giữa kỳ", weight: 30 },
       { key: "final", label: "Cuối kỳ", weight: 60 },
     ];
-    assert.equal(weightedScore(components, { attendance: 10, midterm: 7.25, final: 6.5 }), 7.1);
-    assert.equal(weightedScore(components, { attendance: 10, midterm: 7, final: null }), null);
+    assert.equal(weightedScore(components, { attendance: 10, midterm: 7.25, final: 6.5 }, 0.1), 7.1);
+    assert.equal(weightedScore(components, { attendance: 10, midterm: 7, final: null }, 0.1), null);
+    // 0,02×10 + 0,30×30 + 6,43×60 = 395 → đúng 3,95, làm tròn lên 4,0 (số thực cho 3,9499... và làm tròn sai thành 3,9).
+    assert.equal(weightedScore(components, { attendance: 0.02, midterm: 0.3, final: 6.43 }, 0.1), 4);
+    assert.equal(weightedScore(components, { attendance: 1.15, midterm: 1.15, final: 1.15 }, 0.1), 1.2);
+    assert.equal(weightedScore(components, { attendance: 7, midterm: 7, final: 7.24 }, 0.5), 7);
+    assert.equal(weightedScore(components, { attendance: 7, midterm: 7, final: 7.42 }, 0.5), 7.5);
+    assert.equal(weightedScore(components, { attendance: 6, midterm: 6, final: 6.5 }, 1), 6);
+    assert.equal(roundingFormula("(C2*10+D2*90)", 0.1), "ROUND(ROUND((C2*10+D2*90),6)/100,1)");
+    assert.equal(roundingFormula("(X)", 0.5), "ROUND(ROUND((X),6)/100*2,0)/2");
   });
 
-  test("xếp loại theo CPA", () => {
-    assert.deepEqual([3.6, 3.59, 3.2, 2.5, 2, 1.99, 1, 0.5].map(toStanding), ["excellent", "very-good", "very-good", "good", "average", "weak", "weak", "poor"]);
+  test("xếp loại theo ngưỡng CPA của quy chế; đổi ngưỡng thì xếp loại đổi theo", () => {
+    const thresholds = REGULATION_RULES.grading.standing;
+    assert.deepEqual(
+      [3.6, 3.59, 3.2, 2.5, 2, 1.99, 1, 0.5].map((cpa) => toStanding(cpa, thresholds)),
+      ["excellent", "very-good", "very-good", "good", "average", "weak", "weak", "poor"],
+    );
+    assert.equal(toStanding(3.59, { ...thresholds, excellent: 3.5 }), "excellent");
+  });
+
+  test("trung bình làm tròn 2 chữ số tính trên số nguyên (khớp round của Postgres)", () => {
+    // (2,5×2 + 3,5×1) / 3 = 2,8333 → 2,83; (1,5×1 + 2×1) / 2 = 1,75 đúng.
+    assert.equal(creditAverage([{ credits: 2, point4: 2.5, score10: null }, { credits: 1, point4: 3.5, score10: null }], "point4"), 2.83);
+    assert.equal(creditAverage([{ credits: 1, point4: 1.5, score10: null }, { credits: 1, point4: 2, score10: null }], "point4"), 1.75);
+    // 8,25 trung bình đúng nửa: lên 8,25 → giữ; (8,24 + 8,25)/2 = 8,245 → 8,25.
+    assert.equal(creditAverage([{ credits: 1, point4: null, score10: 8.24 }, { credits: 1, point4: null, score10: 8.25 }], "score10"), 8.25);
   });
 });
 
-describe("grades: GPA, CPA, cảnh báo học vụ", () => {
+describe("grades: GPA, CPA theo lần học cuối, cảnh báo học vụ", () => {
   const sample = [
     { termId: "t1", termName: "HK1", isInProgress: false, courses: [graded("A", 3, 9), graded("B", 2, 6), graded("C", 3, 3)] },
     { termId: "t2", termName: "HK2", isInProgress: false, courses: [graded("C", 3, 7), graded("D", 4, 8.5)] },
@@ -71,12 +109,14 @@ describe("grades: GPA, CPA, cảnh báo học vụ", () => {
   ];
   const transcript = buildTranscript(sample);
 
-  test("GPA kỳ có trọng số tín chỉ, CPA tính mọi lần học, kỳ đang học không có CPA", () => {
-    // HK1: (4*3 + 2*2 + 0*3) / 8 = 2,00; HK2: (3*3 + 4*4) / 7 = 3,57; tích lũy: (16 + 25) / 15 = 2,73.
+  test("GPA kỳ theo học phần trong kỳ; CPA tính lần học cuối của mỗi học phần; kỳ đang học không có CPA", () => {
+    // HK1: (4*3 + 2*2 + 0*3) / 8 = 2,00. HK2: (3*3 + 4*4) / 7 = 3,57. CPA hết HK2 theo lần cuối: A 4, B 2, C 3 (học lại), D 4
+    // = (12 + 4 + 9 + 16) / 12 = 3,42 (nếu tính mọi lần học thì là 2,73).
     assert.equal(transcript[0].gpa4, 2);
     assert.equal(transcript[0].gpa10, 6);
     assert.equal(transcript[1].gpa4, 3.57);
-    assert.equal(transcript[1].cpa4, 2.73);
+    assert.equal(transcript[0].cpa4, 2);
+    assert.equal(transcript[1].cpa4, 3.42);
     assert.equal(transcript[0].earnedCredits, 5);
     assert.equal(transcript[0].attemptedCredits, 8);
     assert.equal(transcript[2].cpa4, null);
@@ -84,53 +124,108 @@ describe("grades: GPA, CPA, cảnh báo học vụ", () => {
     assert.equal(transcript[2].gpa4, 4);
   });
 
-  test("xếp loại và nợ tín chỉ chỉ tính các kỳ đã kết thúc", () => {
-    const standing = computeStanding("sv", transcript);
-    assert.equal(standing.cpa4, 2.73);
+  test("lần học trước bị lần sau thay thế; lần sau ghi học lại hoặc học cải thiện", () => {
+    const first = transcript[0].courses.find((course) => course.courseCode === "C")!;
+    const retake = transcript[1].courses.find((course) => course.courseCode === "C")!;
+    assert.deepEqual([first.attempt, first.replaced, first.retakeKind], [1, true, null]);
+    assert.deepEqual([retake.attempt, retake.replaced, retake.retakeKind], [2, false, "retake"]);
+    const improved = buildTranscript([sample[0], { ...sample[1], courses: [graded("B", 2, 4.5)] }]);
+    const lower = improved[1].courses[0];
+    assert.equal(lower.retakeKind, "improve");
+    // Học cải thiện ra điểm thấp hơn vẫn tính lần cuối.
+    assert.equal(improved[1].cpa4, creditAverage([graded("A", 3, 9), graded("B", 2, 4.5), graded("C", 3, 3)], "point4"));
+  });
+
+  test("tín chỉ tích lũy mỗi học phần một lần; nợ là học phần lần cuối F; học lại đạt thì hết nợ", () => {
+    const standing = computeStanding("sv", transcript, RULES);
+    assert.equal(standing.cpa4, 3.42);
     assert.equal(standing.earnedCredits, 12);
-    assert.equal(standing.failedCredits, 3);
+    assert.equal(standing.failedCredits, 0);
+    assert.equal(standing.retakeCredits, 3);
     assert.equal(standing.lastTermGpa4, 3.57);
-    assert.equal(standing.standing, "good");
+    assert.equal(standing.standing, "very-good");
     assert.equal(standing.warningLevel, 0);
+    // Đạt rồi học cải thiện bị F: lần cuối F nên đang nợ, không tích lũy học phần đó.
+    const failedAgain = computeStanding("sv", buildTranscript([sample[0], { ...sample[1], courses: [graded("A", 3, 2)] }]), RULES);
+    assert.equal(failedAgain.earnedCredits, 2);
+    assert.equal(failedAgain.failedCredits, 6);
+    assert.deepEqual(latestGrades(buildTranscript([sample[0], { ...sample[1], courses: [graded("A", 3, 2)] }])), { A: "F", B: "C", C: "F" });
   });
 
-  test("không có điểm thì trung bình trống, xếp loại kém nhưng không cảnh báo", () => {
+  test("lần học cuối của danh sách lần học theo thời gian (cho kiểm tiên quyết khi đăng ký)", () => {
+    const attempts = [
+      { courseCode: "X", letter: "B", point4: 3 },
+      { courseCode: "Y", letter: "F", point4: 0 },
+      { courseCode: "X", letter: "F", point4: 0 },
+      { courseCode: "Y", letter: null, point4: null },
+    ];
+    const latest = latestAttempts(attempts);
+    assert.equal(latest.get("X")?.letter, "F");
+    assert.equal(latest.get("Y")?.letter, "F");
+  });
+
+  test("không có điểm thì Chưa xếp loại (không phải Kém), không cảnh báo", () => {
     assert.equal(creditAverage([], "point4"), null);
-    const standing = computeStanding("sv", []);
-    assert.equal(standing.cpa4, 0);
+    const standing = computeStanding("sv", [], RULES);
+    assert.equal(standing.cpa4, null);
+    assert.equal(standing.standing, null);
     assert.equal(standing.warningLevel, 0);
   });
 
-  test("ngưỡng cảnh báo: mức 3 CPA dưới 1, mức 2 CPA dưới 1,5 hoặc nợ 12 tín chỉ, mức 1 ĐTB kỳ dưới 1 hoặc nợ 6 tín chỉ", () => {
+  test("ngưỡng cảnh báo lấy từ quy chế; đổi ngưỡng thì mức và lý do đổi theo", () => {
     const base = { hasCourses: true, cpa4: 2.5, failedCredits: 0, lastTermGpa4: 2.5 };
-    assert.equal(warningLevelOf({ ...base, cpa4: 0.99 }), 3);
-    assert.equal(warningLevelOf({ ...base, cpa4: 1.49 }), 2);
-    assert.equal(warningLevelOf({ ...base, failedCredits: 12 }), 2);
-    assert.equal(warningLevelOf({ ...base, failedCredits: 6 }), 1);
-    assert.equal(warningLevelOf({ ...base, lastTermGpa4: 0.9 }), 1);
-    assert.equal(warningLevelOf({ ...base, failedCredits: 5 }), 0);
-    assert.equal(warningLevelOf({ ...base, cpa4: 0, hasCourses: false }), 0);
-    assert.deepEqual(warningReasons({ cpa4: 1.2, lastTermGpa4: 0.5, failedCredits: 9 }), ["CPA 1,20 dưới ngưỡng 1,5", "ĐTB học kỳ gần nhất 0,50", "Nợ 9 tín chỉ"]);
+    assert.equal(warningLevelOf({ ...base, cpa4: 0.99 }, WARNING), 3);
+    assert.equal(warningLevelOf({ ...base, cpa4: 1.49 }, WARNING), 2);
+    assert.equal(warningLevelOf({ ...base, failedCredits: 12 }, WARNING), 2);
+    assert.equal(warningLevelOf({ ...base, failedCredits: 6 }, WARNING), 1);
+    assert.equal(warningLevelOf({ ...base, lastTermGpa4: 0.9 }, WARNING), 1);
+    assert.equal(warningLevelOf({ ...base, failedCredits: 5 }, WARNING), 0);
+    assert.equal(warningLevelOf({ ...base, cpa4: 0, hasCourses: false }, WARNING), 0);
+    const stricter = { ...WARNING, level2Cpa: 2.6, level1FailedCredits: 4 };
+    assert.equal(warningLevelOf(base, stricter), 2);
+    assert.equal(warningLevelOf({ ...base, cpa4: 3, failedCredits: 4 }, stricter), 1);
+    assert.deepEqual(warningReasons({ cpa4: 1.2, lastTermGpa4: 0.5, failedCredits: 9 }, WARNING), [
+      "CPA 1,20 dưới ngưỡng 1,5",
+      "ĐTB học kỳ gần nhất 0,50 dưới ngưỡng 1,0",
+      "Nợ 9 tín chỉ (từ 6 tín chỉ)",
+    ]);
+    assert.deepEqual(warningReasons({ cpa4: 2.5, lastTermGpa4: 2.5, failedCredits: 0 }, stricter), ["CPA 2,50 dưới ngưỡng 2,6"]);
   });
 
-  test("tổng hợp xếp loại theo khoa", () => {
-    const standing = computeStanding("sv", transcript);
+  test("đề xuất buộc thôi học: đủ số học kỳ chính liên tiếp bị cảnh báo theo quy chế, hoặc mức 3", () => {
+    const mainTerms = ["k1", "k2", "k3", "k4"];
+    assert.equal(consecutiveWarnings(mainTerms, new Set(["k3", "k4"])), 2);
+    assert.equal(consecutiveWarnings(mainTerms, new Set(["k1", "k2", "k4"])), 1);
+    assert.deepEqual(expulsionReasons({ consecutive: 1, level: 1 }, WARNING), []);
+    assert.deepEqual(expulsionReasons({ consecutive: 2, level: 1 }, WARNING), ["Bị cảnh báo 2 học kỳ chính liên tiếp (quy chế: 2)"]);
+    assert.equal(expulsionReasons({ consecutive: 2, level: 1 }, { ...WARNING, expelAfterWarnings: 3 }).length, 0);
+    assert.deepEqual(expulsionReasons({ consecutive: 1, level: 3 }, WARNING), ["Cảnh báo mức 3: CPA dưới 1,0"]);
+  });
+
+  test("tổng hợp xếp loại theo khoa: chưa có điểm không vào thống kê, cảnh báo theo cảnh báo chính thức", () => {
+    const standing = computeStanding("sv", transcript, RULES);
     const [summary] = summarizeStandings([
-      { faculty: "Khoa A", standing },
-      { faculty: "Khoa A", standing: { ...standing, cpa4: 1.25, standing: "weak", warningLevel: 2 } },
+      { faculty: "Khoa A", standing, warned: false },
+      { faculty: "Khoa A", standing: { cpa4: 1.25, standing: "weak" }, warned: true },
+      { faculty: "Khoa A", standing: { cpa4: null, standing: null }, warned: false },
     ]);
     assert.equal(summary.total, 2);
-    assert.equal(summary.averageCpa, 1.99);
-    assert.equal(summary.counts.good, 1);
+    assert.equal(summary.unranked, 1);
+    assert.equal(summary.averageCpa, 2.34);
+    assert.equal(summary.counts["very-good"], 1);
+    assert.equal(summary.counts.poor, 0);
     assert.equal(summary.warnings, 1);
   });
 
-  test("trạng thái bảng điểm suy từ hạn nhập", () => {
+  test("hạn nhập điểm theo quy chế: từ ngày thi cuối kỳ, chưa có lịch thi thì từ ngày kết thúc học kỳ; sắp hết hạn theo số ngày nhắc", () => {
+    assert.equal(gradeEntryDeadline({ finalExamDate: "2027-01-08", termEnd: "2027-01-16" }, 10), "2027-01-18T16:59:00.000Z");
+    assert.equal(gradeEntryDeadline({ finalExamDate: null, termEnd: "2027-01-16" }, 10), "2027-01-26T16:59:00.000Z");
     const now = dayjs("2026-10-19T10:00:00Z");
-    assert.equal(sheetState("draft", "2026-10-18T16:59:00Z", now), "overdue");
-    assert.equal(sheetState("draft", "2026-10-22T16:59:00Z", now), "due-soon");
-    assert.equal(sheetState("draft", "2026-11-30T16:59:00Z", now), "in-progress");
-    assert.equal(sheetState("locked", "2026-10-18T16:59:00Z", now), "locked");
+    assert.equal(sheetState("draft", "2026-10-18T16:59:00Z", 5, now), "overdue");
+    assert.equal(sheetState("draft", "2026-10-22T16:59:00Z", 5, now), "due-soon");
+    assert.equal(sheetState("draft", "2026-10-22T16:59:00Z", 2, now), "in-progress");
+    assert.equal(sheetState("draft", "2026-11-30T16:59:00Z", 5, now), "in-progress");
+    assert.equal(sheetState("locked", "2026-10-18T16:59:00Z", 5, now), "locked");
   });
 });
 
@@ -431,6 +526,7 @@ describe("grades: tệp Excel bảng điểm", () => {
       students: roster,
       scores: { s1: { midterm: 7.5, final: 8 }, s2: { midterm: 6, final: null } },
       locked: false,
+      grading: { scale: SCALE, roundingStep: 0.1 },
     });
     const workbook = new ExcelJS.Workbook();
     await workbook.xlsx.load(new Uint8Array(buffer).buffer);
@@ -477,7 +573,7 @@ describe("grades: tệp Excel bảng điểm", () => {
   });
 });
 
-const grade = (score10: number) => ({ score10, letter: toLetter(score10).letter, point4: toLetter(score10).point4 });
+const grade = (score10: number) => ({ score10, ...letterOf(score10, SCALE) });
 
 describe("grades: sinh cảnh báo học vụ", () => {
   test("kế hoạch đồng bộ: thêm mới, cập nhật cảnh báo chưa xử lý, bỏ khi đã đạt, giữ cảnh báo đã xử lý", () => {
@@ -575,5 +671,70 @@ describe("grades: sinh cảnh báo học vụ", () => {
       assert.ok(result.students > 0 && result.unchanged + result.handled > 0);
       assert.deepEqual([result.created, result.updated, result.removed], [0, 0, 0]);
     });
+  });
+});
+
+describe("grades: lần học cuối và cảnh báo chính thức trên DB", () => {
+  test("xét cảnh báo theo lần học cuối: học lại đạt thì hết nợ, không bị cảnh báo", async () => {
+    await inRollback(async (tx) => {
+      const pool = await tx.select().from(courses).where(sql`${courses.code} IN ('COMP1070', 'COMP1080', 'COMP1090')`);
+      const [major] = await tx.select().from(majors).limit(1);
+      const [first, second] = await tx
+        .insert(terms)
+        .values([
+          { code: "TEST-LA-1", name: "Học kỳ kiểm thử lần 1", shortName: "KT1", academicYear: 2001, semester: 1, startDate: "2001-01-01", endDate: "2001-05-01" },
+          { code: "TEST-LA-2", name: "Học kỳ kiểm thử lần 2", shortName: "KT2", academicYear: 2001, semester: 2, startDate: "2001-06-01", endDate: "2001-10-01" },
+        ])
+        .returning();
+      const [homeClass] = await tx.insert(administrativeClasses).values({ code: "TEST-LA-class", majorId: major.id, cohort: 96 }).returning();
+      const [student] = await tx
+        .insert(students)
+        .values({ code: "TEST-LA-1", fullName: "Sinh viên kiểm thử học lại", gender: "male", dateOfBirth: "2010-01-01", email: "test-la-1@student.hcmue.edu.vn", administrativeClassId: homeClass.id })
+        .returning();
+      // Lần 1: 3 học phần F (9 tín chỉ nợ, mức 2 theo quy chế). Lần 2: học lại đạt cả 3.
+      await tx.insert(courseResults).values([
+        ...pool.map((course) => ({ studentId: student.id, courseId: course.id, termId: first.id, source: "legacy" as const, ...grade(2) })),
+        ...pool.map((course) => ({ studentId: student.id, courseId: course.id, termId: second.id, source: "legacy" as const, ...grade(8) })),
+      ]);
+      const afterFirst = await syncAcademicWarnings(tx, first.id, { notify: false });
+      assert.equal(afterFirst.created, 1);
+      const afterSecond = await syncAcademicWarnings(tx, second.id, { notify: false });
+      assert.equal(afterSecond.created, 0);
+      const [transcript] = [...(await loadTranscripts(tx, [student.id])).values()];
+      const standing = computeStanding(student.id, transcript, RULES);
+      assert.deepEqual([standing.failedCredits, standing.earnedCredits, standing.cpa4, standing.retakeCredits], [0, 9, 3.5, 9]);
+      // Tổng hợp trong SQL ra cùng kết quả với hàm thuần.
+      const aggregate = (await cumulativeResults(tx)).get(student.id);
+      assert.deepEqual(aggregate, { cpa4: 3.5, cpa10: 8, earnedCredits: 9, failedCredits: 0 });
+    });
+  });
+
+  test("cảnh báo chính thức là cảnh báo đã gửi của học kỳ có cảnh báo đã ban hành gần nhất", async () => {
+    await inRollback(async (tx) => {
+      const [warning] = await tx.select().from(academicWarnings).where(eq(academicWarnings.termId, mockTermId("hk2-2025"))).limit(1);
+      await tx.update(academicWarnings).set({ status: "new" }).where(eq(academicWarnings.id, warning.id));
+      assert.equal(await currentWarningLevel(tx, warning.studentId), 0);
+      await tx.update(academicWarnings).set({ status: "notified" }).where(eq(academicWarnings.id, warning.id));
+      assert.equal(await currentWarningLevel(tx, warning.studentId), warning.level);
+      const all = await currentWarnings(tx);
+      assert.ok([...all.values()].every((entry) => entry.termId === mockTermId("hk2-2025")));
+    });
+  });
+
+  test("tổng hợp trong SQL khớp bảng điểm tính bằng hàm thuần với dữ liệu mẫu có học lại, cải thiện", async () => {
+    const sample = await db.select({ id: students.id }).from(students).orderBy(students.code).limit(80);
+    const ids = sample.map((row) => row.id);
+    const [transcripts, aggregates] = await Promise.all([loadTranscripts(db, ids), cumulativeResults(db)]);
+    let retaken = 0;
+    for (const id of ids) {
+      const transcript = transcripts.get(id) ?? [];
+      if (transcript.some((term) => term.courses.some((course) => course.replaced))) retaken += 1;
+      const standing = computeStanding(id, transcript, RULES);
+      const aggregate = aggregates.get(id);
+      assert.equal(aggregate?.cpa4 ?? null, standing.cpa4, `CPA của ${id}`);
+      assert.equal(aggregate?.earnedCredits ?? 0, standing.earnedCredits);
+      assert.equal(aggregate?.failedCredits ?? 0, standing.failedCredits);
+    }
+    assert.ok(retaken > 0, "dữ liệu mẫu phải có sinh viên học lại hoặc học cải thiện");
   });
 });

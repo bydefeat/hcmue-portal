@@ -1,5 +1,5 @@
 import "server-only";
-import { and, asc, desc, eq, inArray, isNull, ne, sql, type SQL } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, ne, sql, type SQL } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { InputError } from "@/shared/libs/action.lib";
 import type { db, Transaction } from "@/shared/libs/db.lib";
@@ -36,12 +36,14 @@ import {
 import type { ClassSection, RegistrationActivity } from "@/modules/course-registration/course-registration.type";
 import { courseRelations, courses, faculties, majors, programCohorts, programs } from "@/modules/curriculum/curriculum.schema";
 import { rooms } from "@/modules/facilities/facilities.schema";
-import { academicWarnings, courseResults } from "@/modules/grades/grades.schema";
+import { currentWarningLevel } from "@/modules/grades/grades.lib";
+import { courseResults } from "@/modules/grades/grades.schema";
 import { notifyStudents } from "@/modules/notifications/notifications.lib";
 import { syncClassSessions } from "@/modules/schedule/schedule.lib";
 import { invoiceStandingOf, syncTermInvoice } from "@/modules/tuition/tuition.lib";
 import { tuitionBlockOf } from "@/modules/tuition/tuition.rule";
 import { administrativeClasses, lecturers, students } from "@/modules/users/users.schema";
+import type { StudentStatus } from "@/modules/users/users.type";
 
 type Executor = Transaction | typeof db;
 
@@ -193,7 +195,7 @@ export type RegistrationStudentFacts = {
   majorCode: string;
   cohort: number;
   faculty: string;
-  status: "studying" | "reserved" | "suspended" | "graduated";
+  status: StudentStatus;
 };
 
 export async function registrationStudentOf(executor: Executor, studentId: string): Promise<RegistrationStudentFacts | null> {
@@ -239,24 +241,6 @@ export async function lockRegistration(tx: Transaction, studentId: string, termI
 async function tryLockRegistration(tx: Transaction, studentId: string, termId: string) {
   const [row] = await tx.execute<{ locked: boolean }>(sql`SELECT pg_try_advisory_xact_lock(hashtextextended(${`registration:${studentId}:${termId}`}, 0)) AS locked`);
   return row?.locked === true;
-}
-
-// Mức cảnh báo học vụ áp cho hạn mức tín chỉ: cảnh báo đã ban hành (đã gửi) của học kỳ chính gần nhất có đợt cảnh báo.
-// Không tính lại từ điểm: sinh viên chỉ bị giới hạn khi nhà trường đã ra cảnh báo. Khi module grades có hàm chung thì dùng hàm đó.
-export async function issuedWarningLevel(executor: Executor, studentId: string) {
-  const [latest] = await executor
-    .select({ termId: academicWarnings.termId })
-    .from(academicWarnings)
-    .innerJoin(terms, eq(terms.id, academicWarnings.termId))
-    .where(and(ne(academicWarnings.status, "new"), inArray(terms.semester, [1, 2])))
-    .orderBy(desc(terms.startDate))
-    .limit(1);
-  if (!latest) return 0;
-  const [own] = await executor
-    .select({ level: academicWarnings.level })
-    .from(academicWarnings)
-    .where(and(eq(academicWarnings.studentId, studentId), eq(academicWarnings.termId, latest.termId), ne(academicWarnings.status, "new")));
-  return own?.level ?? 0;
 }
 
 // Điểm lần học cuối mỗi học phần (theo thời gian học kỳ) và số tín chỉ còn thiếu so với chương trình của ngành, khóa.
@@ -352,7 +336,7 @@ export async function periodOf(executor: Executor, termId: string, cohort: numbe
 
 // Hạn mức tín chỉ của sinh viên trong học kỳ cho trang đăng ký: cùng nguồn và cùng hàm với lúc server kiểm.
 export async function creditLimitsFor(executor: Executor, student: RegistrationStudentFacts, term: TermFacts, rules: RegistrationRules, now: Date) {
-  const [period, warningLevel, grades] = await Promise.all([periodOf(executor, term.id, student.cohort, now), issuedWarningLevel(executor, student.id), gradeFactsOf(executor, student)]);
+  const [period, warningLevel, grades] = await Promise.all([periodOf(executor, term.id, student.cohort, now), currentWarningLevel(executor, student.id), gradeFactsOf(executor, student)]);
   return { limits: creditLimitsOf({ rules: rules.credits, semester: term.semester, warningLevel, period, remainingCredits: grades.remainingCredits }), warningLevel };
 }
 
@@ -373,7 +357,7 @@ export async function eligibilityOf(
   const [grades, relations, warningLevel, inProgress] = await Promise.all([
     gradeFactsOf(executor, student),
     relationsOf(executor, codes),
-    issuedWarningLevel(executor, student.id),
+    currentWarningLevel(executor, student.id),
     term.id === current.id
       ? []
       : executor

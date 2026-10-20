@@ -8,7 +8,7 @@ import { MeterBar } from "@/shared/components/ui/meter-bar";
 import { StatusTag } from "@/shared/components/ui/status-tag";
 import { formatDateTime } from "@/shared/libs/date.lib";
 import { approveGradeSheets, publishGradeSheets, returnGradeSheet } from "@/modules/grades/grades.action";
-import { formatPoint, GRADE_SHEET_STATE, LETTER_SCALE, LETTER_COLOR } from "@/modules/grades/grades.constant";
+import { formatPoint, GRADE_SHEET_STATE, LETTER_COLOR, letterTextClass } from "@/modules/grades/grades.constant";
 import type { GradeSheetState } from "@/modules/grades/grades.type";
 import { paginationItemRender } from "@/shared/constants/antd.constant";
 import { normalizeSearch } from "@/shared/libs/search.lib";
@@ -32,13 +32,15 @@ export type PublishingRow = {
 
 type GradePublishingTableProps = {
   rows: PublishingRow[];
+  // Điểm chữ của thang điểm quy chế đang áp dụng, từ cao xuống thấp.
+  letters: string[];
   canApprove: boolean;
   canPublish: boolean;
 };
 
 const STATE_ORDER: GradeSheetState[] = ["locked", "approved", "returned", "overdue", "due-soon", "in-progress", "published"];
 
-export function GradePublishingTable({ rows: initialRows, canApprove, canPublish }: GradePublishingTableProps) {
+export function GradePublishingTable({ rows: initialRows, letters, canApprove, canPublish }: GradePublishingTableProps) {
   const [messageApi, contextHolder] = message.useMessage();
   const [modal, modalContextHolder] = Modal.useModal();
   const [rows, setRows] = useState(initialRows);
@@ -262,12 +264,12 @@ export function GradePublishingTable({ rows: initialRows, canApprove, canPublish
                 <section className="flex flex-col gap-2">
                   <h3 className="text-sm font-medium">Phân bố điểm chữ</h3>
                   <ul className="flex flex-col gap-1.5">
-                    {LETTER_SCALE.map((step) => {
-                      const count = preview.letterCounts[step.letter] ?? 0;
+                    {letters.map((letter) => {
+                      const count = preview.letterCounts[letter] ?? 0;
                       return (
-                        <li key={step.letter} className="grid grid-cols-[32px_minmax(0,1fr)_32px] items-center gap-2 text-sm">
-                          <span className={`font-medium ${LETTER_COLOR[step.letter].text}`}>{step.letter}</span>
-                          <MeterBar value={count} max={maxCount} color={LETTER_COLOR[step.letter].fill} label={`Số sinh viên đạt ${step.letter}`} />
+                        <li key={letter} className="grid grid-cols-[32px_minmax(0,1fr)_32px] items-center gap-2 text-sm">
+                          <span className={`font-medium ${letterTextClass(letter)}`}>{letter}</span>
+                          <MeterBar value={count} max={maxCount} color={LETTER_COLOR[letter as keyof typeof LETTER_COLOR]?.fill} label={`Số sinh viên đạt ${letter}`} />
                           <span className="text-right tabular-nums">{count}</span>
                         </li>
                       );

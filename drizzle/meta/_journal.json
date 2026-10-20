@@ -176,6 +176,34 @@
       "when": 1792479899616,
       "tag": "0024_exam_paper_lock",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1792494101349,
+      "tag": "0025_users_decisions_access",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1792496691617,
+      "tag": "0026_regulation_rules_graduation",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1792496694560,
+      "tag": "0027_graduation_rounds_certificates",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1792496697655,
+      "tag": "0028_programs_status_guards",
+      "breakpoints": true
     }
   ]
 }

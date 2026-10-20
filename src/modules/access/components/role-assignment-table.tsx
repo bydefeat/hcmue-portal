@@ -7,6 +7,7 @@ import { EmptyState } from "@/shared/components/ui/empty-state";
 import { formatDate } from "@/shared/libs/date.lib";
 import { toFormFields } from "@/shared/libs/form.lib";
 import { grantRole, revokeRole } from "@/modules/access/access.action";
+import { isPrivilegedRole } from "@/modules/access/access.rule";
 import type { GrantCandidate, Role, RoleAssignment } from "@/modules/access/access.type";
 import { paginationItemRender } from "@/shared/constants/antd.constant";
 import { normalizeSearch } from "@/shared/libs/search.lib";
@@ -17,11 +18,12 @@ type RoleAssignmentTableProps = {
   faculties: string[];
   candidates: GrantCandidate[];
   currentUserId: string;
+  viewerFaculty: string | null;
 };
 
 type GrantValues = { userId: string; roleId: string; faculty?: string };
 
-export function RoleAssignmentTable({ assignments, roles, faculties, candidates, currentUserId }: RoleAssignmentTableProps) {
+export function RoleAssignmentTable({ assignments, roles, faculties, candidates, currentUserId, viewerFaculty }: RoleAssignmentTableProps) {
   const [messageApi, contextHolder] = message.useMessage();
   const [modal, modalContextHolder] = Modal.useModal();
   const [rows, setRows] = useState(assignments);
@@ -38,6 +40,9 @@ export function RoleAssignmentTable({ assignments, roles, faculties, candidates,
   }, [open, form]);
 
   const roleName = (id: string) => roles.find((role) => role.id === id)?.name ?? id;
+  // Người theo khoa chỉ cấp vai trò theo khoa không có quyền phân quyền, trong đúng khoa của mình.
+  const grantableRoles = viewerFaculty === null ? roles : roles.filter((role) => role.scope === "faculty" && !isPrivilegedRole(role));
+  const facultyChoices = viewerFaculty === null ? faculties : [viewerFaculty];
 
   const filtered = rows.filter((row) => {
     const needle = normalizeSearch(query.trim());
@@ -191,11 +196,11 @@ export function RoleAssignmentTable({ assignments, roles, faculties, candidates,
             />
           </Form.Item>
           <Form.Item name="roleId" label="Vai trò" rules={[{ required: true, message: "Chưa chọn vai trò" }]}>
-            <Select options={roles.map((role) => ({ value: role.id, label: role.name }))} />
+            <Select options={grantableRoles.map((role) => ({ value: role.id, label: role.name }))} />
           </Form.Item>
           {needsFaculty && (
             <Form.Item name="faculty" label="Khoa được quản lý" rules={[{ required: true, message: "Vai trò theo khoa cần chọn khoa" }]}>
-              <Select options={faculties.map((value) => ({ value, label: value }))} />
+              <Select options={facultyChoices.map((value) => ({ value, label: value }))} />
             </Form.Item>
           )}
         </Form>

@@ -2,11 +2,12 @@ import "server-only";
 import { cache } from "react";
 import { cookies } from "next/headers";
 import { forbidden } from "next/navigation";
-import { asc, count, desc, eq, isNotNull, or, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, isNotNull, or, sql, type SQL } from "drizzle-orm";
 import { alias, type PgSelect } from "drizzle-orm/pg-core";
 import { db } from "@/shared/libs/db.lib";
 import { requireRole } from "@/modules/authentication/authentication.query";
 import { ACTIVE_ASSIGNMENT_COOKIE, can } from "@/modules/access/access.constant";
+import { roleVisibleTo } from "@/modules/access/access.rule";
 import { roleAssignments, rolePermissions, roles } from "@/modules/access/access.schema";
 import { user as users } from "@/modules/authentication/authentication.schema";
 import { faculties } from "@/modules/curriculum/curriculum.schema";
@@ -16,15 +17,21 @@ import type { GrantCandidate, Permission, RoleAssignment, RoleRow, Viewer } from
 const grantor = alias(users, "grantor");
 const lecturerFaculty = alias(faculties, "lecturer_faculty");
 
+// Người quản lý phân quyền theo khoa chỉ thấy vai trò theo khoa, số người tính trong khoa của mình.
 export async function getRoles(): Promise<RoleRow[]> {
-  await requirePermission("access.manage");
+  const viewer = await requirePermission("access.manage");
   const [rows, permissions, members] = await Promise.all([
     db.select().from(roles).orderBy(desc(roles.isSystem), asc(roles.name)),
     db.select().from(rolePermissions),
-    db.select({ roleId: roleAssignments.roleId, total: count() }).from(roleAssignments).groupBy(roleAssignments.roleId),
+    db
+      .select({ roleId: roleAssignments.roleId, total: count() })
+      .from(roleAssignments)
+      .leftJoin(faculties, eq(faculties.id, roleAssignments.facultyId))
+      .where(viewer.faculty === null ? undefined : eq(faculties.name, viewer.faculty))
+      .groupBy(roleAssignments.roleId),
   ]);
   const memberCountOf = new Map(members.map((entry) => [entry.roleId, entry.total]));
-  return rows.map((role) => ({
+  return rows.filter((role) => roleVisibleTo(viewer, role)).map((role) => ({
     id: role.id,
     name: role.name,
     description: role.description,
@@ -43,6 +50,9 @@ const accountColumns = {
   unit: sql<string>`coalesce(${staffMembers.unit}, ${lecturerFaculty.name}, '')`,
 };
 
+// Khoa của tài khoản: giảng viên theo khoa của hồ sơ, cán bộ khi đơn vị ghi đúng tên khoa (văn phòng khoa).
+const accountFaculty = sql<string | null>`coalesce(${lecturerFaculty.name}, (SELECT ${faculties.name} FROM ${faculties} WHERE ${faculties.name} = ${staffMembers.unit}))`;
+
 function withAccountInfo<T extends PgSelect>(query: T) {
   return query
     .leftJoin(staffMembers, eq(staffMembers.userId, users.id))
@@ -51,7 +61,10 @@ function withAccountInfo<T extends PgSelect>(query: T) {
 }
 
 export async function getRoleAssignments(id?: string): Promise<RoleAssignment[]> {
-  await requirePermission("access.manage");
+  const viewer = await requirePermission("access.manage");
+  const conditions: SQL[] = [];
+  if (id) conditions.push(eq(roleAssignments.id, id));
+  if (viewer.faculty !== null) conditions.push(eq(faculties.name, viewer.faculty));
   const rows = await withAccountInfo(
     db
       .select({
@@ -66,7 +79,7 @@ export async function getRoleAssignments(id?: string): Promise<RoleAssignment[]>
       .innerJoin(users, eq(users.id, roleAssignments.userId))
       .leftJoin(faculties, eq(faculties.id, roleAssignments.facultyId))
       .leftJoin(grantor, eq(grantor.id, roleAssignments.grantedByUserId))
-      .where(id ? eq(roleAssignments.id, id) : undefined)
+      .where(and(...conditions))
       .orderBy(desc(roleAssignments.grantedAt))
       .$dynamic(),
   );
@@ -80,12 +93,19 @@ export async function getRoleAssignments(id?: string): Promise<RoleAssignment[]>
 }
 
 // Tài khoản được cấp vai trò quản trị: cán bộ và giảng viên đã có tài khoản đăng nhập. Sinh viên không được cấp.
+// Người quản lý theo khoa chỉ thấy cán bộ, giảng viên thuộc khoa mình; không ai thấy chính mình (không tự cấp quyền).
 export async function getGrantCandidates(): Promise<GrantCandidate[]> {
-  await requirePermission("access.manage");
-  const rows = await withAccountInfo(db.select(accountColumns).from(users).$dynamic())
+  const viewer = await requirePermission("access.manage");
+  const rows = await withAccountInfo(db.select({ ...accountColumns, faculty: accountFaculty }).from(users).$dynamic())
     .where(or(isNotNull(staffMembers.id), isNotNull(lecturers.id)))
     .orderBy(asc(users.name));
-  return rows;
+  return rows.filter((row) => row.userId !== viewer.id && (viewer.faculty === null || row.faculty === viewer.faculty)).map(({ faculty: _faculty, ...row }) => row);
+}
+
+// Khoa của tài khoản được cấp quyền, để kiểm người theo khoa chỉ cấp cho người thuộc khoa mình.
+export async function accountFacultyOf(userId: string) {
+  const [row] = await withAccountInfo(db.select({ faculty: accountFaculty }).from(users).$dynamic()).where(eq(users.id, userId));
+  return row?.faculty ?? null;
 }
 
 export type ViewerAssignment = {

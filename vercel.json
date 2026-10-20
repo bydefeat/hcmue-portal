@@ -1,0 +1,16 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "crons": [
+    { "path": "/api/cron/mail-outbox", "schedule": "*/5 * * * *" },
+    { "path": "/api/cron/class-announcements", "schedule": "*/5 * * * *" },
+    { "path": "/api/cron/announcement-notifications", "schedule": "*/5 * * * *" },
+    { "path": "/api/cron/request-sla", "schedule": "7 * * * *" },
+    { "path": "/api/cron/decision-effects", "schedule": "10 17 * * *" },
+    { "path": "/api/cron/academic-warnings", "schedule": "20 18 * * *" },
+    { "path": "/api/cron/sign-in-failures", "schedule": "30 19 * * *" },
+    { "path": "/api/cron/orphan-files", "schedule": "40 19 * * *" },
+    { "path": "/api/cron/notifications-cleanup", "schedule": "50 19 * * *" },
+    { "path": "/api/cron/report-exports", "schedule": "55 19 * * *" },
+    { "path": "/api/cron/audit-cleanup", "schedule": "15 20 * * 6" }
+  ]
+}

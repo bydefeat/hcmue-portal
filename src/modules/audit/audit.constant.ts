@@ -13,6 +13,10 @@ export const AUDIT_ACTION: Record<AuditAction, StatusMeta> = {
   export: { label: "Xuất dữ liệu", tone: "neutral" },
   "sign-in": { label: "Đăng nhập", tone: "neutral" },
   permission: { label: "Đổi quyền", tone: "warning" },
+  submit: { label: "Trình ký", tone: "neutral" },
+  sign: { label: "Ký", tone: "success" },
+  revoke: { label: "Thu hồi", tone: "danger" },
+  return: { label: "Trả lại", tone: "warning" },
 };
 
 export const AUDIT_ENTITY_LABEL: Record<AuditEntityType, string> = {
@@ -30,6 +34,7 @@ export const AUDIT_ENTITY_LABEL: Record<AuditEntityType, string> = {
   "calendar-event": "Lịch năm học",
   report: "Báo cáo",
   program: "Chương trình đào tạo",
+  staff: "Cán bộ",
 };
 
 export const AUDIT_CONSTRAINT_MESSAGE: Partial<Record<string, string>> = {

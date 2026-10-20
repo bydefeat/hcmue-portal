@@ -5,7 +5,7 @@ import { Avatar, Button, Descriptions, Form, Input, message, Modal } from "antd"
 import { Pen } from "defeat-icons-react";
 import { SectionCard } from "@/shared/components/ui/section-card";
 import { StatusTag } from "@/shared/components/ui/status-tag";
-import { LECTURER_STATUS, USER_ROLES } from "@/modules/users/users.constant";
+import { LECTURER_STATUS, LECTURER_ROLES } from "@/modules/users/users.constant";
 import { saveMyLecturerContact } from "@/modules/users/users.action";
 import type { Lecturer } from "@/modules/users/users.type";
 import { toFormFields } from "@/shared/libs/form.lib";
@@ -36,7 +36,7 @@ export function LecturerProfileCard({ lecturer }: { lecturer: Lecturer }) {
     if (isOpen) form.setFieldsValue(contact);
   }, [isOpen, contact, form]);
 
-  const roleLabels = lecturer.roles.map((role) => USER_ROLES.find((entry) => entry.value === role)?.label ?? role);
+  const roleLabels = lecturer.roles.map((role) => LECTURER_ROLES.find((entry) => entry.value === role)?.label ?? role);
 
   return (
     <SectionCard>

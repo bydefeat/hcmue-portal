@@ -10,6 +10,7 @@ export type Permission =
   | "grades.approve"
   | "grades.publish"
   | "decisions.manage"
+  | "decisions.sign"
   | "graduation.manage"
   | "exams.manage"
   | "tuition.manage"

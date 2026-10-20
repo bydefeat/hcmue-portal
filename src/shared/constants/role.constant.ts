@@ -1,12 +1,5 @@
 export type AppRole = "student" | "lecturer" | "advisor" | "admin";
 
-export const ROLE_LABEL: Record<AppRole, string> = {
-  student: "Sinh viên",
-  lecturer: "Giảng viên",
-  advisor: "Cố vấn học tập",
-  admin: "Phòng Đào tạo",
-};
-
 export const ROLE_HOME: Record<AppRole, string> = {
   admin: "/administrator",
   lecturer: "/lecturer",

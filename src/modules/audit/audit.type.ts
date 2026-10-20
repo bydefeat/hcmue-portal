@@ -1,4 +1,4 @@
-export type AuditAction = "create" | "update" | "delete" | "approve" | "reject" | "publish" | "lock" | "assign" | "export" | "sign-in" | "permission";
+export type AuditAction = "create" | "update" | "delete" | "approve" | "reject" | "publish" | "lock" | "assign" | "export" | "sign-in" | "permission" | "submit" | "sign" | "revoke" | "return";
 
 export type AuditEntityType =
   | "student"
@@ -14,7 +14,8 @@ export type AuditEntityType =
   | "exam"
   | "calendar-event"
   | "report"
-  | "program";
+  | "program"
+  | "staff";
 
 export type AuditChange = {
   field: string;

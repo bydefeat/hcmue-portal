@@ -14,7 +14,6 @@ const PUBLIC_PAGES = [
   "/authentication/sign-in",
   "/authentication/forgot-password",
   "/authentication/forgot-password?activate=1",
-  "/authentication/verify",
 ];
 
 const STUDENT_PAGES = [

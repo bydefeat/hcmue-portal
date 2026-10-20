@@ -15,10 +15,10 @@ import { STUDY_PLAN_STATUS } from "@/modules/study-plan/study-plan.constant";
 import { getStudyPlanOfStudent } from "@/modules/study-plan/study-plan.query";
 import { StudentProfileCard } from "@/modules/users/components/student-profile-card";
 import { getAdvisorAssignments, getDecisions, getStudentByCode } from "@/modules/users/users.query";
-import { DECISION_KIND_LABEL, DECISION_STATUS } from "@/modules/users/users.constant";
+import { DECISION_KIND_LABEL, DECISION_STATUS, DISCIPLINE_LEVEL_LABEL } from "@/modules/users/users.constant";
 import { AuditTimeline } from "@/modules/audit/components/audit-timeline";
 import { getAuditLog } from "@/modules/audit/audit.query";
-import { inScope } from "@/modules/access/access.constant";
+import { can, inScope } from "@/modules/access/access.constant";
 import { requirePermission } from "@/modules/access/access.query";
 import { AdminStudentRegistration } from "@/modules/course-registration/components/admin-student-registration";
 import { bestGrades, creditCapOf } from "@/modules/course-registration/course-registration.rule";
@@ -66,6 +66,8 @@ export default async function Page({ params }: PageProps) {
   const cap = creditCapOf(regulation.credits, standing.warningLevel);
   const registrationEvents = await getRegistrationEvents(student.id, targetTerm.id);
   const hasResults = standing.earnedCredits > 0;
+  // Đăng ký hộ, hủy đăng ký chỉ cho người có quyền cấu hình đăng ký; vai trò chỉ xem hồ sơ không thấy khối này.
+  const canRegister = can(viewer, "registration.manage");
 
   return (
     <>
@@ -118,6 +120,8 @@ export default async function Page({ params }: PageProps) {
                         </div>
                         <span className="text-xs text-muted tabular-nums">
                           {decision.number ?? "Chưa có số"} · hiệu lực {formatDate(decision.effectiveDate)}
+                          {decision.disciplineLevel ? ` · ${DISCIPLINE_LEVEL_LABEL[decision.disciplineLevel]}` : ""}
+                          {decision.status === "signed" && !decision.appliedAt ? " · chờ tới ngày hiệu lực" : ""}
                         </span>
                       </li>
                     ))}
@@ -147,6 +151,7 @@ export default async function Page({ params }: PageProps) {
                 tone={standing.warningLevel > 0 ? "danger" : undefined}
               />
             </div>
+            {canRegister && (
             <AdminStudentRegistration
               studentId={student.id}
               studentName={student.fullName}
@@ -164,6 +169,7 @@ export default async function Page({ params }: PageProps) {
               credits={cap}
               actorName={viewer.name}
             />
+            )}
             <SectionCard title="Kết quả học tập" flush>
               <TranscriptView terms={transcript} inCard />
             </SectionCard>

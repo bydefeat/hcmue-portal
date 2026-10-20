@@ -42,8 +42,7 @@ src/
 │   │   └── authentication/
 │   │       ├── layout.tsx           # → <AuthenticationLayout>
 │   │       ├── sign-in/page.tsx     # /authentication/sign-in
-│   │       ├── forgot-password/page.tsx
-│   │       └── verify/page.tsx      # xác minh email / OTP
+│   │       └── forgot-password/page.tsx  # quên mật khẩu, kích hoạt tài khoản (OTP)
 │   │
 │   ├── (application)/               # SINH VIÊN
 │   │   └── application/
@@ -275,7 +274,7 @@ Sinh tự động từ `src/app/**/page.tsx` (đường dẫn redirect như `/ap
 | Cổng | Số trang | Đường dẫn |
 |---|---|---|
 | Công khai | 4 | `/`, `/about`, `/announcements`, `/announcements/[slug]` |
-| Xác thực | 4 | `/authentication`, `/authentication/forgot-password`, `/authentication/sign-in`, `/authentication/verify` |
+| Xác thực | 3 | `/authentication`, `/authentication/forgot-password`, `/authentication/sign-in` |
 | Sinh viên | 14 | `/application`, `/application/curriculum`, `/application/dashboard`, `/application/exams`, `/application/grades`, `/application/notifications`, `/application/profile`, `/application/registration`, `/application/registration/history`, `/application/requests`, `/application/schedule`, `/application/study-plan`, `/application/surveys`, `/application/tuition` |
 | Giảng viên | 19 | `/lecturer`, `/lecturer/advising`, `/lecturer/advising/academic-warnings`, `/lecturer/advising/appointments`, `/lecturer/advising/students`, `/lecturer/advising/students/[studentId]`, `/lecturer/advising/study-plans`, `/lecturer/classes`, `/lecturer/classes/[classId]`, `/lecturer/classes/[classId]/announcements`, `/lecturer/classes/[classId]/attendance`, `/lecturer/classes/[classId]/grading`, `/lecturer/classes/[classId]/syllabus`, `/lecturer/exams`, `/lecturer/notifications`, `/lecturer/profile`, `/lecturer/requests`, `/lecturer/schedule`, `/lecturer/workload` |
 | Phòng Đào tạo | 32 | `/administrator`, `/administrator/announcements`, `/administrator/class-sections`, `/administrator/courses`, `/administrator/decisions`, `/administrator/exams`, `/administrator/exams/eligibility`, `/administrator/grade-publishing`, `/administrator/graduation`, `/administrator/notifications`, `/administrator/profile`, `/administrator/programs`, `/administrator/programs/[programId]`, `/administrator/registration-holds`, `/administrator/registration-monitor`, `/administrator/reports`, `/administrator/reports/academic-warnings`, `/administrator/reports/exports`, `/administrator/reports/surveys`, `/administrator/requests`, `/administrator/rooms`, `/administrator/settings`, `/administrator/settings/access`, `/administrator/settings/audit-log`, `/administrator/settings/calendar`, `/administrator/teaching-assignments`, `/administrator/terms`, `/administrator/users`, `/administrator/users/advisors`, `/administrator/users/lecturers`, `/administrator/users/students`, `/administrator/users/students/[studentId]` |

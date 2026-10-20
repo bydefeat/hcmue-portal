@@ -5,7 +5,8 @@ import { StudentTable } from "@/modules/users/components/student-table";
 import { getAccountStates, getCohorts, getStudents } from "@/modules/users/users.query";
 import { NO_ACCOUNT } from "@/modules/users/users.constant";
 import { getMajors } from "@/modules/curriculum/curriculum.query";
-import { inScope } from "@/modules/access/access.constant";
+import { can, inScope } from "@/modules/access/access.constant";
+import { isSystemAdmin } from "@/modules/access/access.rule";
 import { requirePermission } from "@/modules/access/access.query";
 
 export const metadata: Metadata = { title: "Quản lý sinh viên" };
@@ -36,6 +37,8 @@ export default async function Page() {
       students={rows}
       majors={majors}
       cohorts={cohorts}
+      canManage={can(viewer, "students.manage")}
+      canOverrideStatus={can(viewer, "students.manage") && isSystemAdmin(viewer)}
     />
   );
 }

@@ -36,9 +36,10 @@ type LecturerHeaderProps = {
   isAdvisor: boolean;
   notifications: BellItem[];
   onMarkNotificationsRead?: MarkNotificationsRead;
+  accountLinks?: NavItem[];
 };
 
-export function LecturerHeader({ user, isAdvisor, notifications, onMarkNotificationsRead }: LecturerHeaderProps) {
+export function LecturerHeader({ user, isAdvisor, notifications, onMarkNotificationsRead, accountLinks = LECTURER_ACCOUNT_LINKS }: LecturerHeaderProps) {
   const pathname = usePathname();
   const AdvisingIcon = LECTURER_ADVISING_GROUP.icon;
   const isAdvisingActive = LECTURER_ADVISING_GROUP.items.some((item) => isActiveItem(pathname, item));
@@ -73,7 +74,7 @@ export function LecturerHeader({ user, isAdvisor, notifications, onMarkNotificat
         />
         <div className="ml-auto flex shrink-0 items-center gap-1 leading-normal">
           <NotificationBell items={notifications} viewAllHref={LECTURER_NOTIFICATIONS_HREF} onMarkRead={onMarkNotificationsRead} />
-          <UserMenu user={user} links={LECTURER_ACCOUNT_LINKS} compact />
+          <UserMenu user={user} links={accountLinks} compact />
         </div>
       </div>
     </Layout.Header>

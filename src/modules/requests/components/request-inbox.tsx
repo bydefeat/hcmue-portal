@@ -96,8 +96,10 @@ export function RequestInbox({
     else {
       // Đơn gửi lại: đơn mới lên đầu, đơn cũ không gửi lại được nữa.
       setRows((current) => [next, ...current.map((row) => (row.id === next.resubmittedFrom?.id ? { ...row, resubmittedAs: { id: next.id, code: next.code }, can: { ...row.can, resubmit: false } } : row))]);
-      onCreated?.(next);
       setOpenId(next.id);
+      setDialog(null);
+      // Trang cha thêm đơn vào danh sách (danh sách dựng lại) và báo thành công.
+      if (onCreated) return onCreated(next);
     }
     setDialog(null);
     messageApi.success(text);

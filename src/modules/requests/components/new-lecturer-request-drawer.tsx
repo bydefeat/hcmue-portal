@@ -11,7 +11,7 @@ import { ATTACHMENT_HINT, ATTACHMENT_LIMIT, LECTURER_REQUEST_KINDS, REQUEST_KIND
 import { createLecturerRequest } from "@/modules/requests/requests.action";
 import { requestKindDescription, type LecturerRequestInput } from "@/modules/requests/requests.rule";
 import type { RequestKind, RequestView } from "@/modules/requests/requests.type";
-import { requestFormData, useAttachmentPicker } from "@/modules/requests/components/attachment-picker";
+import { formErrorsWithoutAttachments, requestFormData, useAttachmentPicker } from "@/modules/requests/components/attachment-picker";
 
 export type RequestMeeting = {
   dayOfWeek: number;
@@ -173,7 +173,7 @@ export function NewLecturerRequestDrawer({ open, onClose, onCreated, classes, bu
         return;
       }
       if (!result.ok) {
-        form.setFields(toFormFields(result.fieldErrors));
+        form.setFields(toFormFields(formErrorsWithoutAttachments(result.fieldErrors)));
         messageApi.error(result.fieldErrors?.attachments ?? result.message);
         return;
       }

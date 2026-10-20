@@ -26,6 +26,7 @@ export function LecturerRequestBoard({ assigned, own, classes, busySlots, rooms,
   const opensOwn = initialOpenId !== undefined && own.some((request) => request.id === initialOpenId);
   const [tab, setTab] = useState(initialTab ?? (opensOwn ? "own" : assigned.some((request) => request.can.decide) || initialOpenId ? "assigned" : "own"));
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [ownOpenId, setOwnOpenId] = useState(opensOwn ? initialOpenId : undefined);
 
   return (
     <div className="flex flex-col gap-3">
@@ -56,8 +57,12 @@ export function LecturerRequestBoard({ assigned, own, classes, busySlots, rooms,
                 requests={ownRows}
                 mode="own"
                 showRequester={false}
-                initialOpenId={opensOwn ? initialOpenId : undefined}
-                onCreated={(request) => setOwnRows((current) => [request, ...current.filter((row) => row.id !== request.id)])}
+                initialOpenId={ownOpenId}
+                onCreated={(request) => {
+                  setOwnRows((current) => [request, ...current.filter((row) => row.id !== request.id).map((row) => (row.id === request.resubmittedFrom?.id ? { ...row, resubmittedAs: { id: request.id, code: request.code }, can: { ...row.can, resubmit: false } } : row))]);
+                  setOwnOpenId(request.id);
+                  messageApi.success(`Đã gửi lại thành đơn ${request.code}`);
+                }}
               />
             ),
           },

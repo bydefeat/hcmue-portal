@@ -7,7 +7,7 @@ import { acceptOf } from "@/shared/libs/upload.lib";
 import { toFormFields } from "@/shared/libs/form.lib";
 import { ATTACHMENT_HINT, ATTACHMENT_LIMIT, isOfficeStep } from "@/modules/requests/requests.constant";
 import { reassignRequestStep, resubmitRequest, submitRequestSupplement, superviseRequestStep } from "@/modules/requests/requests.action";
-import { requestFormData, useAttachmentPicker } from "@/modules/requests/components/attachment-picker";
+import { formErrorsWithoutAttachments, requestFormData, useAttachmentPicker } from "@/modules/requests/components/attachment-picker";
 import type { RequestView } from "@/modules/requests/requests.type";
 
 type Done = (request: RequestView, text: string) => void;
@@ -40,7 +40,7 @@ export function SuperviseModal({ request, open, onClose, onDone, onFail }: { req
             const result = await superviseRequestStep(request.id, { step, ...values }).catch(() => null);
             if (!result) return onFail("Chưa lưu được, kiểm tra kết nối rồi thử lại.");
             if (!result.ok) {
-              form.setFields(toFormFields(result.fieldErrors));
+              form.setFields(toFormFields(formErrorsWithoutAttachments(result.fieldErrors)));
               return onFail(result.message);
             }
             onDone(result.data, `Đã xử lý thay bước của đơn ${request.code}`);
@@ -109,7 +109,7 @@ export function ReassignModal({
             const result = await reassignRequestStep(request.id, values).catch(() => null);
             if (!result) return onFail("Chưa lưu được, kiểm tra kết nối rồi thử lại.");
             if (!result.ok) {
-              form.setFields(toFormFields(result.fieldErrors));
+              form.setFields(toFormFields(formErrorsWithoutAttachments(result.fieldErrors)));
               return onFail(result.message);
             }
             onDone(result.data, `Đã chuyển người xử lý đơn ${request.code}`);
@@ -196,7 +196,7 @@ export function ResubmitModal({ request, open, onClose, onDone, onFail }: { requ
             const result = await resubmitRequest(requestFormData({ requestId: request.id, ...values }, picker.files)).catch(() => null);
             if (!result) return onFail("Chưa gửi được, kiểm tra kết nối rồi thử lại.");
             if (!result.ok) {
-              form.setFields(toFormFields(result.fieldErrors));
+              form.setFields(toFormFields(formErrorsWithoutAttachments(result.fieldErrors)));
               return onFail(result.fieldErrors?.attachments ?? result.message);
             }
             picker.clear();

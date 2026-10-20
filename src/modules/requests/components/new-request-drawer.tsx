@@ -11,7 +11,7 @@ import { createStudentRequest } from "@/modules/requests/requests.action";
 import { overloadBounds, requestKindDescription, type StudentRequestInput } from "@/modules/requests/requests.rule";
 import type { RequestKind, RequestRules, RequestView } from "@/modules/requests/requests.type";
 import { RequestInbox } from "@/modules/requests/components/request-inbox";
-import { requestFormData, useAttachmentPicker } from "@/modules/requests/components/attachment-picker";
+import { formErrorsWithoutAttachments, requestFormData, useAttachmentPicker } from "@/modules/requests/components/attachment-picker";
 import { PageHeader } from "@/shared/components/ui/page-header";
 
 type SectionOption = { value: string; label: string };
@@ -99,7 +99,7 @@ export function NewRequestDrawer({ open, requester, sections, rules, onClose, on
               return;
             }
             if (!result.ok) {
-              form.setFields(toFormFields(result.fieldErrors));
+              form.setFields(toFormFields(formErrorsWithoutAttachments(result.fieldErrors)));
               messageApi.error(result.fieldErrors?.attachments ?? result.message);
               return;
             }
@@ -180,6 +180,8 @@ export function StudentRequestCenter({ requests, requester, sections, rules, ini
   const [messageApi, contextHolder] = message.useMessage();
   const [rows, setRows] = useState(requests);
   const [open, setOpen] = useState(false);
+  // Danh sách dựng lại khi thêm đơn (key theo số đơn): giữ đơn đang mở ở đây để mở lại đơn vừa gửi lại.
+  const [openId, setOpenId] = useState(initialOpenId);
 
   return (
     <div className="flex flex-col gap-3">
@@ -198,8 +200,12 @@ export function StudentRequestCenter({ requests, requester, sections, rules, ini
         requests={rows}
         mode="own"
         showRequester={false}
-        initialOpenId={initialOpenId}
-        onCreated={(request) => setRows((current) => [request, ...current.filter((row) => row.id !== request.id)])}
+        initialOpenId={openId}
+        onCreated={(request) => {
+          setRows((current) => [request, ...current.filter((row) => row.id !== request.id).map((row) => (row.id === request.resubmittedFrom?.id ? { ...row, resubmittedAs: { id: request.id, code: request.code }, can: { ...row.can, resubmit: false } } : row))]);
+          setOpenId(request.id);
+          messageApi.success(`Đã gửi lại thành đơn ${request.code}`);
+        }}
       />
       <NewRequestDrawer
         open={open}

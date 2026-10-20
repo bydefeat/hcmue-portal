@@ -360,6 +360,16 @@ async function inRollbackTx(run: (tx: Transaction) => Promise<void>) {
     });
 }
 
+// Chạy trong savepoint rồi kiểm ngay các ràng buộc hoãn tới lúc commit; trả lỗi (nếu có) thay vì ném.
+const immediate = (tx: Transaction, work: (sp: Transaction) => Promise<unknown>) =>
+  tx
+    .transaction(async (sp) => {
+      await work(sp);
+      await sp.execute(sql`SET CONSTRAINTS ALL IMMEDIATE`);
+    })
+    .then(() => null)
+    .catch((caught: unknown) => caught);
+
 describe("teaching: phiên bản đề cương", () => {
   test("đề cương đã công bố: đổi trọng số phải có lý do; có lý do thì lên phiên bản mới, lưu bản cũ, báo sinh viên, ghi nhật ký", async () => {
     const actor = { userId: null, name: "ThS. Giảng viên", role: "Giảng viên" };
@@ -400,14 +410,6 @@ describe("teaching: phiên bản đề cương", () => {
 
   test("DB: đề cương đã công bố không đổi trọng số, tên đánh giá nếu không lên phiên bản; không về nháp, không lùi phiên bản", async () => {
     const [row] = await db.select({ id: syllabi.id, version: syllabi.version }).from(syllabi).where(eq(syllabi.classSectionId, SECTION_ID));
-    const immediate = (tx: Transaction, work: (sp: Transaction) => Promise<unknown>) =>
-      tx
-        .transaction(async (sp) => {
-          await work(sp);
-          await sp.execute(sql`SET CONSTRAINTS ALL IMMEDIATE`);
-        })
-        .then(() => null)
-        .catch((caught: unknown) => caught);
     await inRollbackTx(async (tx) => {
       // Đổi trọng số giữa hai dòng (tổng vẫn 100) mà không lên phiên bản: chặn.
       const swapped = await immediate(tx, async (sp) => {

@@ -84,6 +84,8 @@ const session = (overrides: Partial<Parameters<typeof examConflicts>[0]> = {}) =
   ...overrides,
 });
 
+const permissionsOf = (id: string) => ROLES.find((role) => role.id === id)!.permissions;
+
 describe("exams: kiểm dữ liệu và quy tắc", () => {
   test("sửa ca thi hợp lệ; không thi chủ nhật, giờ phải là ca thi của trường, hạn nộp đề trước giờ thi", () => {
     assert.ok(parseInput(EXAM_SESSION_UPDATE_SCHEMA, update).ok);
@@ -191,7 +193,6 @@ describe("exams: kiểm dữ liệu và quy tắc", () => {
   });
 
   test("vai trò mẫu: chỉ Phòng Khảo thí (và quản trị) duyệt đề; Giáo vụ khoa xem khảo sát", () => {
-    const permissionsOf = (id: string) => ROLES.find((role) => role.id === id)!.permissions;
     assert.ok(permissionsOf("exam-office").includes("exams.review"));
     assert.ok(permissionsOf("system-admin").includes("exams.review"));
     assert.ok(!permissionsOf("academic-head").includes("exams.review") && permissionsOf("academic-head").includes("exams.manage"));
@@ -278,6 +279,18 @@ const createInput = (values: Record<string, unknown>) => {
   const parsed = parseInput(EXAM_SESSION_CREATE_SCHEMA, values);
   if (!parsed.ok) throw new Error(parsed.message);
   return parsed.data;
+};
+
+const sentTo = async (tx: Transaction, title: RegExp) => {
+  const rows = await tx.select({ title: notifications.title, audience: notifications.audience }).from(notifications).orderBy(desc(notifications.createdAt));
+  return rows.filter((row) => title.test(row.title));
+};
+
+const lecturerNotice = async (tx: Transaction, lecturerId: string) => {
+  const [person] = await tx.select({ userId: lecturers.userId }).from(lecturers).where(eq(lecturers.id, lecturerId));
+  if (!person.userId) return null;
+  const [row] = await tx.select({ title: notifications.title }).from(notifications).where(eq(notifications.recipientUserId, person.userId)).orderBy(desc(notifications.createdAt)).limit(1);
+  return row?.title ?? null;
 };
 
 describe("exams: ràng buộc ở DB", () => {
@@ -436,7 +449,7 @@ describe("exams: tạo, sửa, công bố ca thi", () => {
       .where(and(gt(classSessions.date, "2026-11-10"), lte(classSessions.date, "2026-12-20"), lte(classSessions.startPeriod, 2), sql`${classSessions.endPeriod} >= 2`, sql`${classSections.lecturerId} IS NOT NULL`, sql`${classSections.lecturerId} <> ${section.lecturerId}`, sql`extract(dow from ${classSessions.date}) <> 0`))
       .limit(1);
     const helpers = (await freeLecturers(2, { dates: [lesson.date] })).filter((id) => id !== lesson.lecturerId);
-    const [a201] = await Promise.all([roomId("A.201")]);
+    const a201 = await roomId("A.201");
     await inRollback(async (tx) => {
       const input = { classSectionId: section.id, kind: "midterm", date: lesson.date, startTime: "07:30", durationMinutes: 60, format: "written", paperDeadline: "2026-11-01T10:00:00.000Z", rooms: [{ roomId: a201, proctorIds: [lesson.lecturerId!, helpers[0]] }] };
       // Lớp 40 sinh viên vừa A.201 (40 chỗ).
@@ -453,10 +466,6 @@ describe("exams: tạo, sửa, công bố ca thi", () => {
     const [a201, a203] = await Promise.all([roomId("A.201"), roomId("A.203")]);
     const people = await freeLecturers(4);
     const termId = (await db.select({ termId: classSections.termId }).from(classSections).where(eq(classSections.id, section.id)))[0].termId;
-    const sentTo = async (tx: Transaction, title: RegExp) => {
-      const rows = await tx.select({ title: notifications.title, audience: notifications.audience }).from(notifications).orderBy(desc(notifications.createdAt));
-      return rows.filter((row) => title.test(row.title));
-    };
     await inRollback(async (tx) => {
       // Ca giữa kỳ hiện có ở trạng thái dự kiến đều đã công bố trong seed; chỉ ca mới tạo là dự kiến.
       const id = await createSession(
@@ -654,12 +663,6 @@ describe("exams: đổi ca coi thi", () => {
       .from(lecturers)
       .where(and(sql`${lecturers.facultyId} <> ${proctor.facultyId}`, eq(lecturers.status, "active")))
       .limit(1);
-    const lecturerNotice = async (tx: Transaction, lecturerId: string) => {
-      const [person] = await tx.select({ userId: lecturers.userId }).from(lecturers).where(eq(lecturers.id, lecturerId));
-      if (!person.userId) return null;
-      const [row] = await tx.select({ title: notifications.title }).from(notifications).where(eq(notifications.recipientUserId, person.userId)).orderBy(desc(notifications.createdAt)).limit(1);
-      return row?.title ?? null;
-    };
     await inRollback(async (tx) => {
       const [wrong] = await tx.insert(examProctorSwapRequests).values({ examSessionId: proctor.examSessionId, requesterId: proctor.lecturerId, substituteId: otherFaculty.id, reason: "Bận họp" }).returning();
       assert.match(await rejectedIn(tx, (sp) => decideProctorSwap(sp, viewer, wrong.id, "accepted", null)), /không cùng khoa/);

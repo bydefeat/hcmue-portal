@@ -17,7 +17,15 @@ type RegistrationPeriodListProps = {
   terms: Term[];
   periods: RegistrationPeriodView[];
   cohorts: number[];
+  regulationCredits: { minPerTerm: number; maxPerTerm: number };
+  // Đợt đăng ký là dữ liệu toàn trường: vai trò theo khoa chỉ xem.
+  canManage: boolean;
 };
+
+function creditText(period: RegistrationPeriodView) {
+  if (period.minCredits === null && period.maxCredits === null) return "Theo quy chế";
+  return `${period.minCredits ?? "QC"} đến ${period.maxCredits ?? "QC"} TC`;
+}
 
 function timeHint(period: RegistrationPeriodView) {
   if (period.state === "closing") {
@@ -40,7 +48,7 @@ function termOrder(term: Term) {
 
 const NETWORK_ERROR = "Chưa thực hiện được, kiểm tra kết nối rồi thử lại.";
 
-export function RegistrationPeriodList({ terms, periods, cohorts }: RegistrationPeriodListProps) {
+export function RegistrationPeriodList({ terms, periods, cohorts, regulationCredits, canManage }: RegistrationPeriodListProps) {
   const [messageApi, messageHolder] = message.useMessage();
   const [modal, modalHolder] = Modal.useModal();
   const [rows, setRows] = useState(periods);
@@ -121,11 +129,7 @@ export function RegistrationPeriodList({ terms, periods, cohorts }: Registration
       key: "credits",
       width: 120,
       responsive: ["lg"],
-      render: (_, row) => (
-        <span className="tabular-nums">
-          {row.minCredits} đến {row.maxCredits} TC
-        </span>
-      ),
+      render: (_, row) => <span className="tabular-nums">{creditText(row)}</span>,
     },
     {
       title: "Đã đăng ký",
@@ -166,7 +170,7 @@ export function RegistrationPeriodList({ terms, periods, cohorts }: Registration
       align: "right",
       fixed: "right",
       render: (_, row) =>
-        row.state === "closed" ? null : (
+        row.state === "closed" || !canManage ? null : (
           <span className="flex flex-col items-end gap-1">
             <Button size="small" type="text" onClick={() => setEditing({ termId: row.termId, period: row })}>
               Sửa
@@ -187,7 +191,7 @@ export function RegistrationPeriodList({ terms, periods, cohorts }: Registration
       {modalHolder}
       {orderedTerms.map((term) => {
         const termPeriods = rows.filter((row) => row.termId === term.id).toSorted((a, b) => a.opensAt.localeCompare(b.opensAt));
-        const canAdd = term.isRegistrationTarget || term.isCurrent;
+        const canAdd = canManage && (term.isRegistrationTarget || term.isCurrent);
         return (
           <SectionCard
             key={term.id}
@@ -237,6 +241,7 @@ export function RegistrationPeriodList({ terms, periods, cohorts }: Registration
         period={editing?.period ?? null}
         termName={editingTerm?.name ?? ""}
         cohorts={cohorts}
+        regulationCredits={regulationCredits}
         onClose={() => setEditing(null)}
         onSubmit={submit}
       />

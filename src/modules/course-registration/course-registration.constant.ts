@@ -15,7 +15,8 @@ import type {
   SectionAudience,
 } from "@/modules/course-registration/course-registration.type";
 
-export const CLOSING_SOON_HOURS = 48;
+// Mặc định khi chưa đọc được quy chế; số giờ "sắp đóng" thật lấy từ quy chế (workflow.registrationClosingSoonHours).
+export const DEFAULT_CLOSING_SOON_HOURS = 48;
 
 export const REGISTRATION_PERIOD_STATE: Record<RegistrationPeriodState, StatusMeta> = {
   upcoming: { label: "Sắp mở", tone: "neutral" },
@@ -46,19 +47,25 @@ export function allMeetings(section: Pick<ClassSection, "meetings" | "labGroups"
   return [...section.meetings, ...section.labGroups.map((group) => group.meeting)];
 }
 
-export function conflictsOf(section: ClassSection, siblings: ClassSection[]): ClassConflict[] {
+// Trùng phòng và trùng giờ giảng viên (giảng viên dạy cả buổi lý thuyết lẫn nhóm thực hành của lớp), cùng tiêu chí với server khi lưu
+// lớp, phân công giảng viên. Phải truyền đủ lớp của cả học kỳ (mọi khoa) để không sót trùng phòng với lớp khoa khác.
+export function conflictsOf(section: Pick<ClassSection, "id" | "status" | "lecturerId" | "meetings" | "labGroups">, siblings: Pick<ClassSection, "id" | "code" | "status" | "lecturerId" | "meetings" | "labGroups">[]): ClassConflict[] {
   if (section.status === "cancelled") return [];
   const conflicts: ClassConflict[] = [];
   for (const other of siblings) {
     if (other.id === section.id || other.status === "cancelled") continue;
+    let room = false;
+    let lecturer = false;
     for (const mine of allMeetings(section)) {
       for (const theirs of allMeetings(other)) {
         if (!overlaps(mine, theirs)) continue;
         const when = `${weekdayLabel(mine.dayOfWeek)}, ${periodLabel(theirs.startPeriod, theirs.endPeriod)}`;
-        if (mine.room === theirs.room) {
+        if (!room && mine.room === theirs.room) {
+          room = true;
           conflicts.push({ kind: "room", withCode: other.code, message: `Trùng phòng ${mine.room} với ${other.code} (${when})` });
         }
-        if (section.lecturerId && section.lecturerId === other.lecturerId && section.meetings.includes(mine) && other.meetings.includes(theirs)) {
+        if (!lecturer && section.lecturerId && section.lecturerId === other.lecturerId) {
+          lecturer = true;
           conflicts.push({ kind: "lecturer", withCode: other.code, message: `Giảng viên đã dạy ${other.code} cùng giờ (${when})` });
         }
       }
@@ -67,12 +74,12 @@ export function conflictsOf(section: ClassSection, siblings: ClassSection[]): Cl
   return conflicts;
 }
 
-export function periodState(period: RegistrationPeriod): RegistrationPeriodView {
+export function periodState(period: RegistrationPeriod, closingSoonHours = DEFAULT_CLOSING_SOON_HOURS): RegistrationPeriodView {
   const now = dayjs();
   const hoursLeft = hoursUntil(period.closesAt);
   if (now.isBefore(period.opensAt)) return { ...period, state: "upcoming", hoursLeft };
   if (now.isAfter(period.closesAt)) return { ...period, state: "closed", hoursLeft };
-  return { ...period, state: hoursLeft <= CLOSING_SOON_HOURS ? "closing" : "open", hoursLeft };
+  return { ...period, state: hoursLeft <= closingSoonHours ? "closing" : "open", hoursLeft };
 }
 
 export function meetingText(meeting: ClassMeeting) {
@@ -140,5 +147,9 @@ export const REGISTRATION_CONSTRAINT_MESSAGE: Partial<Record<string, string>> = 
   enrollments_reserved_seat_fk: "Chỗ dành riêng không thuộc lớp đã chọn.",
   reserved_seats_within_capacity: "Tổng chỗ dành riêng vượt sĩ số tối đa của lớp.",
   terms_no_overlap: "Thời gian học kỳ bị chồng lên một học kỳ khác.",
+  terms_code_unique: "Mã học kỳ đã có.",
+  terms_academic_year_semester_unique: "Năm học này đã có học kỳ cùng số thứ tự.",
+  terms_date_order: "Ngày kết thúc học kỳ phải sau ngày bắt đầu.",
+  class_sections_enrolled_only_when_open: "Lớp đang có sinh viên chỉ ở trạng thái mở; hủy lớp để rút sinh viên trước khi đổi trạng thái.",
   registration_holds_release_after_create: "Thời điểm gỡ khóa phải sau thời điểm khóa.",
 };

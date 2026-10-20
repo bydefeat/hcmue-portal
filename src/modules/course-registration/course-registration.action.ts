@@ -1,12 +1,12 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { forbidden } from "next/navigation";
 import { z } from "zod";
-import { and, asc, desc, eq, gt, inArray, isNull, lte, notInArray, sql } from "drizzle-orm";
-import { alias } from "drizzle-orm/pg-core";
+import { and, eq, gt, inArray, isNull, lte, ne, notInArray, sql } from "drizzle-orm";
 import { db, type Transaction } from "@/shared/libs/db.lib";
-import { actionError, actionFailure, actionOk, parseInput, type ActionResult } from "@/shared/libs/action.lib";
-import { daysUntil } from "@/shared/libs/date.lib";
+import { actionError, actionFailure, actionOk, InputError, parseInput, type ActionResult } from "@/shared/libs/action.lib";
+import { formatDate, formatDateTime } from "@/shared/libs/date.lib";
 import { isUuid } from "@/shared/libs/id.lib";
 import { env } from "@/shared/libs/env.lib";
 import { PDF_MIME } from "@/shared/libs/pdf.lib";
@@ -14,36 +14,48 @@ import { bytesToBase64 } from "@/shared/libs/spreadsheet.lib";
 import { studentEmailOf } from "@/shared/libs/student-code.lib";
 import {
   ADMIN_REGISTER_SCHEMA,
-  basketProblems,
   CLASS_SECTION_SCHEMA,
   HOLD_SCHEMA,
   PERIOD_SCHEMA,
-  creditCapOf,
-  evaluateSection,
   pickTimetable,
   receiptConfirmedAt,
   receiptVerificationCode,
   REGISTER_SCHEMA,
-  sectionCredits,
+  SWAP_SCHEMA,
+  TERM_SCHEMA,
+  termNaming,
   type AdminRegisterInput,
   type ClassSectionInput,
-  type EligibilityContext,
   type HoldInput,
   type PeriodInput,
   type RegisterInput,
+  type SwapInput,
+  type TermInput,
 } from "@/modules/course-registration/course-registration.rule";
-import { allMeetings, overlaps, REGISTRATION_CONSTRAINT_MESSAGE } from "@/modules/course-registration/course-registration.constant";
+import { conflictsOf, REGISTRATION_CONSTRAINT_MESSAGE } from "@/modules/course-registration/course-registration.constant";
+import {
+  adminDropStudent,
+  adminRegisterStudent,
+  cancelSection,
+  dropForStudent,
+  joinWaitlistForStudent,
+  loadSections,
+  moveStudents,
+  promoteWaitlist,
+  registerForStudent,
+  swapForStudent,
+  type RegistrationActor,
+} from "@/modules/course-registration/course-registration.lib";
 import { classRosterPdf, registrationReceiptPdf } from "@/modules/course-registration/course-registration.pdf";
 import {
   getClassRoster,
   getClassSection,
-  getClassSections,
-  getCurrentTerm,
   getRegistrationEvents,
   getRegistrationHolds,
   getRegistrationPeriods,
   getRegistrationTargetTerm,
   getStudentEnrollments,
+  getTerms,
   getUnregisteredStudents,
   readClassSectionAfterWrite,
   REGISTRATION_REMINDER_HREF,
@@ -51,9 +63,7 @@ import {
 import {
   classSectionAudienceMajors,
   classSections,
-  enrollments,
   labGroups,
-  registrationEvents,
   registrationHolds,
   registrationPeriods,
   reservedSeatMajors,
@@ -62,353 +72,211 @@ import {
   terms,
   waitlistEntries,
 } from "@/modules/course-registration/course-registration.schema";
-import { rooms } from "@/modules/facilities/facilities.schema";
-import { inScope } from "@/modules/access/access.constant";
-import { requirePermission, requireSchoolWidePermission } from "@/modules/access/access.query";
-import { courseRelations, courses, faculties, majors } from "@/modules/curriculum/curriculum.schema";
-import { academicWarnings, courseResults } from "@/modules/grades/grades.schema";
-import { regulations } from "@/modules/settings/settings.schema";
+import { campuses, rooms } from "@/modules/facilities/facilities.schema";
+import { can, inScope } from "@/modules/access/access.constant";
+import { getViewer, requirePermission, requireSchoolWidePermission } from "@/modules/access/access.query";
+import type { Viewer } from "@/modules/access/access.type";
+import { auditActorOf, recordAudit } from "@/modules/audit/audit.lib";
+import { courses, faculties, majors } from "@/modules/curriculum/curriculum.schema";
 import { deliverMailSoon, enqueueMail } from "@/modules/mail/mail.lib";
 import { notifyStudents } from "@/modules/notifications/notifications.lib";
 import { syncClassSessions, weeklyScheduleOf, type WeeklySchedule } from "@/modules/schedule/schedule.lib";
-import { INVOICE_PAID_SQL, INVOICE_TOTAL_SQL } from "@/modules/tuition/tuition.lib";
-import { tuitionInvoices } from "@/modules/tuition/tuition.schema";
-import { getCurrentLecturer, getCurrentStudent, getStudent, requireActiveStudent } from "@/modules/users/users.query";
-import type { ClassSectionView, RegistrationHold, RegistrationPeriodView } from "@/modules/course-registration/course-registration.type";
-import type { Student } from "@/modules/users/users.type";
+import { getRegulation } from "@/modules/settings/settings.query";
+import { getCurrentLecturer, getCurrentStudent, getStudent } from "@/modules/users/users.query";
+import type { ClassSectionView, RegistrationHold, RegistrationPeriodView, Term } from "@/modules/course-registration/course-registration.type";
 
-const LETTER_RANK = ["A", "B+", "B", "C+", "C", "D+", "D", "F"];
+const STAFF_CHANNEL = "Phòng Đào tạo";
 
-const relatedCourses = alias(courses, "related_courses");
-
-type Registration = { student: Student; termId: string; sections: ClassSectionView[]; registered: ClassSectionView[] };
-
-// Mọi điều kiện đăng ký được kiểm lại ở server với dữ liệu mới nhất, dùng đúng hàm evaluateSection của giao diện.
-async function eligibilityOf({ student, termId, registered }: Registration, planned: ClassSectionView[], labChoices: Record<string, string>) {
-  const [results, relations, [regulation], [warning], currentTerm] = await Promise.all([
-    db
-      .select({ code: courses.code, letter: courseResults.letter })
-      .from(courseResults)
-      .innerJoin(courses, eq(courses.id, courseResults.courseId))
-      .where(and(eq(courseResults.studentId, student.id), sql`${courseResults.letter} IS NOT NULL`)),
-    db
-      .select({ courseCode: courses.code, kind: courseRelations.kind, relatedCode: relatedCourses.code })
-      .from(courseRelations)
-      .innerJoin(courses, eq(courses.id, courseRelations.courseId))
-      .innerJoin(relatedCourses, eq(relatedCourses.id, courseRelations.relatedCourseId)),
-    db.select({ rules: regulations.rules }).from(regulations).orderBy(desc(regulations.effectiveFrom)).limit(1),
-    db.select({ level: academicWarnings.level }).from(academicWarnings).where(eq(academicWarnings.studentId, student.id)).orderBy(desc(academicWarnings.createdAt)).limit(1),
-    getCurrentTerm(),
-  ]);
-  const passedGrades: Record<string, string> = {};
-  for (const result of results) {
-    const current = passedGrades[result.code];
-    if (!current || LETTER_RANK.indexOf(result.letter!) < LETTER_RANK.indexOf(current)) passedGrades[result.code] = result.letter!;
-  }
-  const relationMap = (kind: string) => {
-    const map: Record<string, string[]> = {};
-    for (const relation of relations.filter((entry) => entry.kind === kind)) (map[relation.courseCode] ??= []).push(relation.relatedCode);
-    return map;
-  };
-  const inProgress = await db
-    .select({ code: courses.code })
-    .from(enrollments)
-    .innerJoin(courses, eq(courses.id, enrollments.courseId))
-    .where(and(eq(enrollments.studentId, student.id), eq(enrollments.termId, currentTerm.id), eq(enrollments.status, "enrolled")));
-  const credits = regulation?.rules.credits ?? { minPerTerm: 14, maxPerTerm: 25, maxWhenWarned: 14 };
-  const cap = creditCapOf(credits, warning?.level ?? 0);
-  const context: EligibilityContext = {
-    planned: [...registered, ...planned],
-    passedGrades,
-    prerequisites: relationMap("prerequisite"),
-    corequisites: relationMap("corequisite"),
-    equivalents: relationMap("equivalent"),
-    courseNames: {},
-    maxCredits: cap.max,
-    creditCapNote: cap.note,
-    inProgressCodes: termId === currentTerm.id ? [] : inProgress.map((row) => row.code),
-    student: { majorCode: student.majorCode, cohort: student.cohort },
-    labChoices,
-  };
-  return { context, minCredits: credits.minPerTerm };
+function staffActor(viewer: Viewer): RegistrationActor {
+  return { userId: viewer.id, label: viewer.name, channel: STAFF_CHANNEL };
 }
 
-async function loadRegistration(): Promise<Registration | string> {
-  const [active, term, currentTerm] = await Promise.all([requireActiveStudent(), getRegistrationTargetTerm(), getCurrentTerm()]);
-  // Bảo lưu, tạm ngừng học, đã tốt nghiệp: không đăng ký, hủy, đổi nhóm được.
-  if (!active.student) return active.message;
-  const { student } = active;
-  const now = new Date();
-  const [[period], [hold], [invoice], sections, rows] = await Promise.all([
-    db
-      .select({ id: registrationPeriods.id })
-      .from(registrationPeriods)
-      .where(
-        and(
-          eq(registrationPeriods.termId, term.id),
-          sql`${student.cohort} = ANY(${registrationPeriods.cohorts})`,
-          lte(registrationPeriods.opensAt, now),
-          gt(registrationPeriods.closesAt, now),
-        ),
-      )
-      .limit(1),
-    db
-      .select({ reason: registrationHolds.reason })
-      .from(registrationHolds)
-      .where(and(eq(registrationHolds.studentId, student.id), eq(registrationHolds.blocking, true), isNull(registrationHolds.releasedAt)))
-      .limit(1),
-    // Học phí học kỳ đang học còn nợ: tổng các khoản trừ miễn giảm (không âm), trừ số đã nộp còn hiệu lực. Tên bảng viết đầy đủ:
-    // truy vấn một bảng thì drizzle bỏ tên bảng, "id" trong truy vấn con sẽ trỏ nhầm sang id của invoice_lines/payments.
-    db
-      .select({
-        dueDate: tuitionInvoices.dueDate,
-        balance: sql<number>`${INVOICE_TOTAL_SQL} - ${INVOICE_PAID_SQL}`.mapWith(Number),
-      })
-      .from(tuitionInvoices)
-      .where(and(eq(tuitionInvoices.studentId, student.id), eq(tuitionInvoices.termId, currentTerm.id))),
-    getClassSections(term.id),
-    db
-      .select({ sectionId: enrollments.classSectionId })
-      .from(enrollments)
-      .where(and(eq(enrollments.studentId, student.id), eq(enrollments.termId, term.id), eq(enrollments.status, "enrolled"))),
-  ]);
-  if (!period) return `Ngoài thời gian đăng ký của khóa ${student.cohort}.`;
-  if (hold) return `Tài khoản đang bị khóa đăng ký: ${hold.reason}`;
-  // Cùng điều kiện với khóa "học phí quá hạn" trang đăng ký hiển thị: còn nợ và đã qua ngày hạn nộp.
-  if (invoice && invoice.balance > 0 && daysUntil(invoice.dueDate) < 0) {
-    return `Học phí ${currentTerm.shortName} quá hạn, còn nợ ${invoice.balance.toLocaleString("vi-VN")} đ. Nộp đủ học phí để mở khóa đăng ký.`;
-  }
-  const registeredIds = new Set(rows.map((row) => row.sectionId));
-  return { student, termId: term.id, sections, registered: sections.filter((section) => registeredIds.has(section.id)) };
+function failure(error: unknown) {
+  return actionFailure(error, REGISTRATION_CONSTRAINT_MESSAGE);
 }
 
-// Chỗ còn cho sinh viên này sau khi trừ chỗ dành riêng cho đối tượng khác; nếu sinh viên thuộc một nhóm dành riêng còn chỗ thì dùng chỗ đó.
-async function claimSeat(tx: Parameters<Parameters<typeof db.transaction>[0]>[0], sectionId: string, student: Student) {
-  const [section] = await tx
-    .select({ capacity: classSections.capacity, enrolled: classSections.enrolledCount, code: classSections.code })
-    .from(classSections)
-    .where(eq(classSections.id, sectionId))
-    .for("update");
-  const seats = await tx
-    .select({
-      id: reservedSeats.id,
-      seats: reservedSeats.seats,
-      taken: reservedSeats.takenCount,
-      cohorts: reservedSeats.cohorts,
-      majorCodes: sql<string[]>`coalesce(array_agg(${majors.code}) FILTER (WHERE ${majors.code} IS NOT NULL), '{}')`,
-    })
-    .from(reservedSeats)
-    .leftJoin(reservedSeatMajors, eq(reservedSeatMajors.reservedSeatId, reservedSeats.id))
-    .leftJoin(majors, eq(majors.id, reservedSeatMajors.majorId))
-    .where(eq(reservedSeats.classSectionId, sectionId))
-    .groupBy(reservedSeats.id)
-    .orderBy(asc(reservedSeats.id));
-  const fits = (seat: (typeof seats)[number]) =>
-    (seat.majorCodes.length === 0 || seat.majorCodes.includes(student.majorCode)) && (seat.cohorts.length === 0 || seat.cohorts.includes(student.cohort));
-  const own = seats.find((seat) => fits(seat) && seat.taken < seat.seats);
-  if (own) return { reservedSeatId: own.id };
-  const heldForOthers = seats.filter((seat) => !fits(seat)).reduce((sum, seat) => sum + Math.max(0, seat.seats - seat.taken), 0);
-  if (section.capacity - section.enrolled - heldForOthers <= 0) return `Lớp ${section.code} đã hết chỗ cho đối tượng của bạn.`;
-  return { reservedSeatId: null };
+function revalidateRegistration() {
+  revalidatePath("/application", "layout");
+  revalidatePath("/administrator", "layout");
 }
+
+// ---- Sinh viên tự đăng ký ----
 
 export async function registerSections(input: RegisterInput): Promise<ActionResult<{ registeredIds: string[] }>> {
+  const student = await getCurrentStudent();
   const parsed = parseInput(REGISTER_SCHEMA, input);
   if (!parsed.ok) return parsed;
-  const registration = await loadRegistration();
-  if (typeof registration === "string") return actionError(registration);
-  const { student, termId, sections, registered } = registration;
-  const byId = new Map(sections.map((section) => [section.id, section]));
-  const planned = parsed.data.sectionIds.map((id) => byId.get(id));
-  if (planned.some((section) => !section || section.status !== "open")) return actionError("Có lớp không còn mở đăng ký, tải lại trang.");
-  const chosen = planned as ClassSectionView[];
-  if (chosen.some((section) => registered.some((entry) => entry.id === section.id))) return actionError("Có lớp bạn đã đăng ký rồi, tải lại trang.");
-
-  const labChoices = parsed.data.labChoices;
-  const { context, minCredits } = await eligibilityOf(registration, chosen, labChoices);
-  for (const section of chosen) {
-    const blocking = evaluateSection(section, { ...context, planned: context.planned.filter((entry) => entry.id !== section.id) }).find(
-      (issue) => issue.blocking && issue.kind !== "full" && issue.kind !== "reserved",
-    );
-    if (blocking) return actionError(`${section.code}: ${blocking.message}`);
-    if (section.labGroups.length > 0 && !section.labGroups.some((group) => group.id === labChoices[section.id])) {
-      return actionError(`Chưa chọn nhóm thực hành cho ${section.code}.`);
-    }
-  }
-  const [problem] = basketProblems([...registered, ...chosen], context);
-  if (problem) return actionError(`${problem.section.code}: ${problem.issue.message}`);
-  if (sectionCredits([...registered, ...chosen]) < minCredits) return actionError(`Cần đăng ký tối thiểu ${minCredits} tín chỉ trong học kỳ.`);
-
+  const [term, regulation] = await Promise.all([getRegistrationTargetTerm(), getRegulation()]);
+  let registeredIds: string[];
   try {
-    // Khóa lớp theo thứ tự id để hai sinh viên đăng ký cùng nhóm lớp không chờ vòng nhau.
-    const result = await db.transaction(async (tx) => {
-      for (const section of chosen.toSorted((a, b) => a.id.localeCompare(b.id))) {
-        const seat = await claimSeat(tx, section.id, student);
-        if (typeof seat === "string") return seat;
-        const [course] = await tx.select({ id: courses.id }).from(courses).where(eq(courses.code, section.courseCode));
-        await tx.insert(enrollments).values({
-          studentId: student.id,
-          classSectionId: section.id,
-          termId,
-          courseId: course.id,
-          labGroupId: labChoices[section.id] ?? null,
-          reservedSeatId: seat.reservedSeatId,
-        });
-        await tx.insert(registrationEvents).values({ studentId: student.id, classSectionId: section.id, kind: "add", actorLabel: student.fullName, channel: "Cổng sinh viên" });
-        await tx
-          .update(waitlistEntries)
-          .set({ status: "cancelled", resolvedAt: new Date() })
-          .where(and(eq(waitlistEntries.studentId, student.id), eq(waitlistEntries.classSectionId, section.id), eq(waitlistEntries.status, "waiting")));
-      }
-      return null;
-    });
-    if (result) return actionError(result);
+    registeredIds = await db.transaction((tx) =>
+      registerForStudent(tx, { studentId: student.id, termId: term.id, sectionIds: parsed.data.sectionIds, labChoices: parsed.data.labChoices, rules: regulation, now: new Date() }),
+    );
   } catch (error) {
-    return actionFailure(error, REGISTRATION_CONSTRAINT_MESSAGE);
+    return failure(error);
   }
   revalidatePath("/application", "layout");
-  return actionOk({ registeredIds: [...registered, ...chosen].map((section) => section.id) });
+  return actionOk({ registeredIds });
 }
 
 export async function dropSection(sectionId: string): Promise<ActionResult<{ registeredIds: string[] }>> {
+  const student = await getCurrentStudent();
   if (!isUuid(sectionId)) return actionError("Lớp không còn tồn tại, tải lại trang.");
-  const registration = await loadRegistration();
-  if (typeof registration === "string") return actionError(registration);
-  const { student, termId, registered } = registration;
-  const section = registered.find((entry) => entry.id === sectionId);
-  if (!section) return actionError("Bạn không còn trong lớp này, tải lại trang.");
+  const [term, regulation] = await Promise.all([getRegistrationTargetTerm(), getRegulation()]);
+  let registeredIds: string[];
   try {
-    await db.transaction(async (tx) => {
-      await tx
-        .update(enrollments)
-        .set({ status: "dropped", droppedAt: new Date() })
-        .where(and(eq(enrollments.studentId, student.id), eq(enrollments.classSectionId, sectionId), eq(enrollments.termId, termId), eq(enrollments.status, "enrolled")));
-      await tx.insert(registrationEvents).values({ studentId: student.id, classSectionId: sectionId, kind: "drop", actorLabel: student.fullName, channel: "Cổng sinh viên" });
-    });
+    ({ registeredIds } = await db.transaction((tx) => dropForStudent(tx, { studentId: student.id, termId: term.id, sectionId, rules: regulation, now: new Date() })));
   } catch (error) {
-    return actionFailure(error, REGISTRATION_CONSTRAINT_MESSAGE);
+    return failure(error);
   }
   revalidatePath("/application", "layout");
-  return actionOk({ registeredIds: registered.filter((entry) => entry.id !== sectionId).map((entry) => entry.id) });
+  return actionOk({ registeredIds });
+}
+
+// Đổi lớp cùng học phần hoặc đổi nhóm thực hành trong một bước: không được chỗ mới thì vẫn giữ chỗ cũ.
+export async function swapSection(input: SwapInput): Promise<ActionResult<{ registeredIds: string[] }>> {
+  const student = await getCurrentStudent();
+  const parsed = parseInput(SWAP_SCHEMA, input);
+  if (!parsed.ok) return parsed;
+  const [term, regulation] = await Promise.all([getRegistrationTargetTerm(), getRegulation()]);
+  let registeredIds: string[];
+  try {
+    ({ registeredIds } = await db.transaction((tx) =>
+      swapForStudent(tx, {
+        studentId: student.id,
+        termId: term.id,
+        fromSectionId: parsed.data.fromSectionId,
+        toSectionId: parsed.data.toSectionId,
+        labGroupId: parsed.data.labGroupId ?? null,
+        rules: regulation,
+        now: new Date(),
+      }),
+    ));
+  } catch (error) {
+    return failure(error);
+  }
+  revalidatePath("/application", "layout");
+  return actionOk({ registeredIds });
 }
 
 export async function joinWaitlist(sectionId: string): Promise<ActionResult<{ position: number }>> {
+  const student = await getCurrentStudent();
   if (!isUuid(sectionId)) return actionError("Lớp không còn tồn tại, tải lại trang.");
-  const registration = await loadRegistration();
-  if (typeof registration === "string") return actionError(registration);
-  const section = registration.sections.find((entry) => entry.id === sectionId);
-  if (!section || section.status !== "open") return actionError("Lớp không còn mở đăng ký.");
+  const [term, regulation] = await Promise.all([getRegistrationTargetTerm(), getRegulation()]);
+  let position: number;
   try {
-    await db.insert(waitlistEntries).values({ studentId: registration.student.id, classSectionId: sectionId });
-    const [{ position }] = await db
-      .select({ position: sql<number>`count(*)::int` })
-      .from(waitlistEntries)
-      .where(and(eq(waitlistEntries.classSectionId, sectionId), eq(waitlistEntries.status, "waiting")));
-    revalidatePath("/application/registration");
-    return actionOk({ position });
+    position = await db.transaction((tx) => joinWaitlistForStudent(tx, { studentId: student.id, termId: term.id, sectionId, rules: regulation, now: new Date() }));
   } catch (error) {
-    return actionFailure(error, REGISTRATION_CONSTRAINT_MESSAGE);
+    return failure(error);
   }
+  revalidatePath("/application/registration");
+  return actionOk({ position });
 }
 
 export async function leaveWaitlist(sectionId: string): Promise<ActionResult> {
-  if (!isUuid(sectionId)) return actionError("Lớp không còn tồn tại, tải lại trang.");
   const student = await getCurrentStudent();
+  if (!isUuid(sectionId)) return actionError("Lớp không còn tồn tại, tải lại trang.");
   try {
     await db
       .update(waitlistEntries)
       .set({ status: "cancelled", resolvedAt: new Date() })
       .where(and(eq(waitlistEntries.studentId, student.id), eq(waitlistEntries.classSectionId, sectionId), eq(waitlistEntries.status, "waiting")));
   } catch (error) {
-    return actionFailure(error, REGISTRATION_CONSTRAINT_MESSAGE);
+    return failure(error);
   }
   revalidatePath("/application/registration");
   return actionOk();
 }
 
-class InputError extends Error {
-  constructor(
-    readonly field: string,
-    message: string,
-  ) {
-    super(message);
-  }
-}
+// ---- Lớp học phần ----
 
-function adminFailure(error: unknown) {
-  if (error instanceof InputError) return actionError(error.message, { [error.field]: error.message });
-  return actionFailure(error, REGISTRATION_CONSTRAINT_MESSAGE);
-}
-
-// Tra id theo mã (phòng, ngành); mã không có trong danh mục thì báo lỗi vào ô tương ứng.
+// Tra id theo mã (phòng, ngành); mã không có trong danh mục, hoặc mã phòng trùng ở nhiều cơ sở, thì báo lỗi vào ô tương ứng.
 function idsByCode(rows: { id: string; code: string }[], wanted: string[], field: string, label: string) {
-  const map = new Map(rows.map((row) => [row.code, row.id]));
-  const missing = wanted.filter((code) => !map.has(code));
-  if (missing.length > 0) throw new InputError(field, `${label} ${missing.join(", ")} không có trong danh mục`);
-  return map;
+  const missing = wanted.filter((code) => !rows.some((row) => row.code === code));
+  if (missing.length > 0) throw new InputError(`${label} ${missing.join(", ")} không có trong danh mục`, field);
+  const ambiguous = wanted.filter((code) => rows.filter((row) => row.code === code).length > 1);
+  if (ambiguous.length > 0) throw new InputError(`${label} ${ambiguous.join(", ")} có ở nhiều cơ sở, đổi mã phòng để phân biệt`, field);
+  return new Map(rows.map((row) => [row.code, row.id]));
 }
 
-// Trang lịch sử đăng ký của sinh viên: nơi xem lớp bị hủy, bị hủy hộ, được chuyển lớp.
-const REGISTRATION_HISTORY_HREF = "/application/registration/history";
+type RoomFacts = { id: string; code: string; capacity: number; status: "active" | "maintenance"; note: string; campus: string };
 
-// Mã lớp và tên học phần để ghi vào thông báo cho sinh viên.
-async function sectionLabelOf(tx: Transaction, sectionId: string) {
-  const [row] = await tx
-    .select({ code: classSections.code, courseName: courses.name })
-    .from(classSections)
-    .innerJoin(courses, eq(courses.id, classSections.courseId))
-    .where(eq(classSections.id, sectionId));
-  return row;
-}
-
-// Lớp bị hủy: trả chỗ cho mọi sinh viên đang học và ghi lại để sinh viên biết vì sao mất lớp.
-async function dropAllForCancelledSection(tx: Transaction, sectionId: string, actorLabel: string) {
-  const dropped = await tx
-    .update(enrollments)
-    .set({ status: "dropped", droppedAt: new Date() })
-    .where(and(eq(enrollments.classSectionId, sectionId), eq(enrollments.status, "enrolled")))
-    .returning({ studentId: enrollments.studentId });
-  if (dropped.length > 0) {
-    await tx
-      .insert(registrationEvents)
-      .values(dropped.map((row) => ({ studentId: row.studentId, classSectionId: sectionId, kind: "section-cancelled" as const, actorLabel, channel: "Phòng Đào tạo" })));
-    const section = await sectionLabelOf(tx, sectionId);
-    await notifyStudents(
-      tx,
-      dropped.map((row) => row.studentId),
-      {
-        kind: "system",
-        title: `Lớp ${section.code} bị hủy`,
-        body: `Phòng Đào tạo đã hủy lớp ${section.code} (${section.courseName}), bạn không còn trong lớp này. Đăng ký lớp khác cùng học phần trong đợt điều chỉnh hoặc chờ Phòng Đào tạo chuyển lớp.`,
-        href: REGISTRATION_HISTORY_HREF,
-      },
-    );
+// Phòng phải đang dùng được và đủ chỗ (phòng lý thuyết cho cả lớp, phòng thực hành cho từng nhóm); lịch không trùng phòng, không
+// trùng giờ giảng viên với lớp khác trong cả học kỳ (mọi khoa, kể cả lớp nháp), cùng tiêu chí với conflictsOf của giao diện.
+async function scheduleProblem(
+  tx: Transaction,
+  candidate: {
+    id: string | null;
+    termId: string;
+    lecturerId: string | null;
+    capacity: number;
+    meetings: { dayOfWeek: number; startPeriod: number; endPeriod: number; room: string }[];
+    labGroups: { code: string; dayOfWeek: number; startPeriod: number; endPeriod: number; room: string; capacity: number }[];
+  },
+  roomRows: RoomFacts[],
+) {
+  const roomOf = new Map(roomRows.map((room) => [room.code, room]));
+  for (const meeting of candidate.meetings) {
+    const room = roomOf.get(meeting.room)!;
+    if (room.status === "maintenance") return { field: "meetings", message: `Phòng ${room.code} đang bảo trì${room.note ? ` (${room.note})` : ""}, chọn phòng khác.` };
+    if (room.capacity < candidate.capacity) return { field: "capacity", message: `Phòng ${room.code} chỉ có ${room.capacity} chỗ, ít hơn sĩ số tối đa ${candidate.capacity}. Giảm sĩ số hoặc chọn phòng lớn hơn.` };
   }
-  return dropped.length;
+  for (const group of candidate.labGroups) {
+    const room = roomOf.get(group.room)!;
+    if (room.status === "maintenance") return { field: "labGroups", message: `Phòng ${room.code} đang bảo trì${room.note ? ` (${room.note})` : ""}, chọn phòng khác cho nhóm ${group.code}.` };
+    if (room.capacity < group.capacity) return { field: "labGroups", message: `Phòng ${room.code} chỉ có ${room.capacity} chỗ, ít hơn sĩ số nhóm ${group.code} (${group.capacity}).` };
+  }
+  const others = await loadSections(tx, and(eq(classSections.termId, candidate.termId), ne(classSections.status, "cancelled"), candidate.id ? ne(classSections.id, candidate.id) : undefined)!);
+  const [conflict] = conflictsOf(
+    {
+      id: candidate.id ?? "",
+      status: "open",
+      lecturerId: candidate.lecturerId,
+      meetings: candidate.meetings,
+      labGroups: candidate.labGroups.map((group) => ({ id: group.code, code: group.code, capacity: group.capacity, enrolled: 0, meeting: group })),
+    },
+    others,
+  );
+  if (conflict) return { field: conflict.kind === "lecturer" ? "lecturerId" : "meetings", message: `${conflict.message}. Đổi giờ, phòng hoặc giảng viên trước khi lưu.` };
+  return null;
 }
 
-export async function saveClassSection(termId: string, id: string | null, input: ClassSectionInput): Promise<ActionResult<ClassSectionView>> {
+async function inScopeSections(viewer: Viewer, termId: string) {
+  const rows = await loadSections(db, eq(classSections.termId, termId));
+  return rows
+    .map((section) => ({ ...section, isFull: section.enrolled >= section.capacity, conflicts: conflictsOf(section, rows) }))
+    .filter((section) => inScope(viewer, section.faculty));
+}
+
+// Lưu lớp trả lại cả danh sách lớp trong phạm vi của học kỳ với xung đột tính ở server trên toàn học kỳ: sửa một lớp có thể làm
+// lớp khác (khoa khác) hết hoặc thêm xung đột, giao diện không tự tính lại trên danh sách đã lọc theo khoa.
+export async function saveClassSection(termId: string, id: string | null, input: ClassSectionInput): Promise<ActionResult<{ saved: ClassSectionView; sections: ClassSectionView[] }>> {
   const viewer = await requirePermission("class-sections.manage");
   if (!isUuid(termId) || (id !== null && !isUuid(id))) return actionError("Lớp học phần không còn tồn tại, tải lại trang.");
   const parsed = parseInput(CLASS_SECTION_SCHEMA, input);
   if (!parsed.ok) return parsed;
   const values = parsed.data;
+  const regulation = await getRegulation();
   let sectionId: string;
   try {
     sectionId = await db.transaction(async (tx) => {
       const [term] = await tx.select({ startDate: terms.startDate, endDate: terms.endDate }).from(terms).where(eq(terms.id, termId));
-      if (!term) throw new InputError("courseCode", "Học kỳ không còn tồn tại, tải lại trang.");
+      if (!term) throw new InputError("Học kỳ không còn tồn tại, tải lại trang.", "courseCode");
       const [course] = await tx
         .select({ id: courses.id, faculty: faculties.name })
         .from(courses)
         .innerJoin(faculties, eq(faculties.id, courses.facultyId))
         .where(eq(courses.code, values.courseCode));
-      if (!course) throw new InputError("courseCode", "Học phần không có trong danh mục");
-      if (!inScope(viewer, course.faculty)) throw new InputError("courseCode", "Học phần thuộc khoa khác, bạn không mở lớp được");
+      if (!course) throw new InputError("Học phần không có trong danh mục", "courseCode");
+      if (!inScope(viewer, course.faculty)) throw new InputError("Học phần thuộc khoa khác, bạn không mở lớp được", "courseCode");
       const roomCodes = [...new Set([...values.meetings.map((meeting) => meeting.room), ...values.labGroups.map((group) => group.room)])];
       const majorCodes = [...new Set([...values.audienceMajors, ...values.reservedSeats.flatMap((seat) => seat.majorCodes)])];
       const [roomRows, majorRows] = await Promise.all([
-        tx.select({ id: rooms.id, code: rooms.code }).from(rooms).where(inArray(rooms.code, roomCodes)),
+        tx
+          .select({ id: rooms.id, code: rooms.code, capacity: rooms.capacity, status: rooms.status, note: rooms.note, campus: campuses.name })
+          .from(rooms)
+          .innerJoin(campuses, eq(campuses.id, rooms.campusId))
+          .where(inArray(rooms.code, roomCodes)),
         majorCodes.length > 0 ? tx.select({ id: majors.id, code: majors.code }).from(majors).where(inArray(majors.code, majorCodes)) : [],
       ]);
       const roomIds = idsByCode(roomRows, roomCodes, "meetings", "Phòng");
@@ -418,35 +286,47 @@ export async function saveClassSection(termId: string, id: string | null, input:
         lecturerId: values.lecturerId ?? null,
         capacity: values.capacity,
         minEnrollment: values.minEnrollment,
-        status: values.status,
         audienceCohorts: values.audienceCohorts.length > 0 ? values.audienceCohorts : null,
         audienceNote: values.audienceNote || null,
       };
 
       let rowId: string;
       let previousSchedule: WeeklySchedule | null = null;
+      let previousCapacity = 0;
       if (id) {
         const [existing] = await tx
-          .select({ status: classSections.status, enrolled: classSections.enrolledCount, courseId: classSections.courseId })
+          .select({ status: classSections.status, enrolled: classSections.enrolledCount, courseId: classSections.courseId, capacity: classSections.capacity })
           .from(classSections)
           .where(and(eq(classSections.id, id), eq(classSections.termId, termId)))
           .for("update");
-        if (!existing) throw new InputError("courseCode", "Lớp học phần không còn tồn tại, tải lại trang.");
-        if (existing.courseId !== course.id) throw new InputError("courseCode", "Không đổi được học phần của lớp đã mở");
-        previousSchedule = await weeklyScheduleOf(tx, id);
-        if (values.status !== "cancelled" && values.capacity < existing.enrolled) {
-          throw new InputError("capacity", `Lớp đang có ${existing.enrolled} sinh viên, sĩ số tối đa không nhỏ hơn số này`);
+        if (!existing) throw new InputError("Lớp học phần không còn tồn tại, tải lại trang.", "courseCode");
+        if (existing.courseId !== course.id) throw new InputError("Không đổi được học phần của lớp đã mở", "courseCode");
+        if (existing.status === "cancelled" && values.status !== "cancelled") throw new InputError("Lớp đã hủy không mở lại được; mở lớp mới nếu cần", "status");
+        if (values.status === "draft" && existing.enrolled > 0) {
+          throw new InputError(`Lớp đang có ${existing.enrolled} sinh viên, không chuyển về nháp được. Hủy lớp (sinh viên được báo) nếu không mở nữa`, "status");
         }
-        if (values.status === "cancelled" && existing.status !== "cancelled") await dropAllForCancelledSection(tx, id, viewer.name);
-        await tx.update(classSections).set(columns).where(eq(classSections.id, id));
+        if (values.status !== "cancelled" && values.capacity < existing.enrolled) {
+          throw new InputError(`Lớp đang có ${existing.enrolled} sinh viên, sĩ số tối đa không nhỏ hơn số này`, "capacity");
+        }
+        if (values.status === "cancelled") {
+          if (existing.status !== "cancelled") await cancelSection(tx, id, staffActor(viewer));
+          return id;
+        }
+        previousSchedule = await weeklyScheduleOf(tx, id);
+        previousCapacity = existing.capacity;
+        await tx.update(classSections).set({ ...columns, status: values.status }).where(eq(classSections.id, id));
         rowId = id;
       } else {
+        if (values.status === "cancelled") throw new InputError("Lớp mới chỉ ở trạng thái nháp hoặc mở đăng ký", "status");
         const [row] = await tx
           .insert(classSections)
-          .values({ ...columns, termId, courseId: course.id, sectionNumber: values.sectionNumber, code, startDate: term.startDate, endDate: term.endDate })
+          .values({ ...columns, status: values.status, termId, courseId: course.id, sectionNumber: values.sectionNumber, code, startDate: term.startDate, endDate: term.endDate })
           .returning({ id: classSections.id });
         rowId = row.id;
       }
+
+      const problem = await scheduleProblem(tx, { id: rowId, termId, lecturerId: columns.lecturerId, capacity: values.capacity, meetings: values.meetings, labGroups: values.labGroups }, roomRows);
+      if (problem) throw new InputError(problem.message, problem.field);
 
       await tx.delete(sectionMeetings).where(eq(sectionMeetings.classSectionId, rowId));
       await tx.insert(sectionMeetings).values(values.meetings.map((meeting) => ({ classSectionId: rowId, dayOfWeek: meeting.dayOfWeek, startPeriod: meeting.startPeriod, endPeriod: meeting.endPeriod, roomId: roomIds.get(meeting.room)! })));
@@ -458,9 +338,7 @@ export async function saveClassSection(termId: string, id: string | null, input:
 
       // Nhóm thực hành và chỗ dành riêng giữ theo mã/tên để không mất sinh viên đã xếp; bỏ nhóm đang có người thì DB chặn.
       const labCodes = values.labGroups.map((group) => `${code}.${group.code}`);
-      await tx
-        .delete(labGroups)
-        .where(and(eq(labGroups.classSectionId, rowId), labCodes.length > 0 ? notInArray(labGroups.code, labCodes) : undefined));
+      await tx.delete(labGroups).where(and(eq(labGroups.classSectionId, rowId), labCodes.length > 0 ? notInArray(labGroups.code, labCodes) : undefined));
       for (const group of values.labGroups) {
         const labValues = { dayOfWeek: group.dayOfWeek, startPeriod: group.startPeriod, endPeriod: group.endPeriod, roomId: roomIds.get(group.room)!, capacity: group.capacity };
         await tx
@@ -469,9 +347,7 @@ export async function saveClassSection(termId: string, id: string | null, input:
           .onConflictDoUpdate({ target: [labGroups.classSectionId, labGroups.code], set: labValues });
       }
       const seatLabels = values.reservedSeats.map((seat) => seat.label);
-      await tx
-        .delete(reservedSeats)
-        .where(and(eq(reservedSeats.classSectionId, rowId), seatLabels.length > 0 ? notInArray(reservedSeats.label, seatLabels) : undefined));
+      await tx.delete(reservedSeats).where(and(eq(reservedSeats.classSectionId, rowId), seatLabels.length > 0 ? notInArray(reservedSeats.label, seatLabels) : undefined));
       for (const seat of values.reservedSeats) {
         const [existingSeat] = await tx
           .select({ id: reservedSeats.id })
@@ -485,14 +361,27 @@ export async function saveClassSection(termId: string, id: string | null, input:
       }
       // Buổi học (điểm danh) sinh lại theo lịch tuần mới; đổi lịch thì báo sinh viên của lớp và giảng viên.
       await syncClassSessions(tx, rowId, { previous: previousSchedule });
+      // Tăng sĩ số lớp đang mở: xếp người trong danh sách chờ vào chỗ mới.
+      if (id && values.status === "open" && values.capacity > previousCapacity) await promoteWaitlist(tx, rowId, regulation, new Date());
+      await recordAudit(tx, {
+        actor: auditActorOf(viewer),
+        action: id ? "update" : "create",
+        entityType: "class-section",
+        entityId: rowId,
+        entityLabel: code,
+        summary: id ? `Sửa lớp ${code}` : `Mở lớp ${code}`,
+        changes: id && values.capacity !== previousCapacity ? [{ field: "Sĩ số tối đa", before: String(previousCapacity), after: String(values.capacity) }] : [],
+      });
       return rowId;
     });
   } catch (error) {
-    return adminFailure(error);
+    return failure(error);
   }
-  revalidatePath("/administrator/class-sections");
-  const section = await readClassSectionAfterWrite(sectionId);
-  return section ? actionOk(section) : actionError("Đã lưu nhưng chưa đọc lại được, tải lại trang.");
+  revalidatePath("/administrator", "layout");
+  revalidatePath("/application", "layout");
+  const sections = await inScopeSections(viewer, termId);
+  const saved = sections.find((section) => section.id === sectionId) ?? (await readClassSectionAfterWrite(sectionId));
+  return saved ? actionOk({ saved, sections }) : actionError("Đã lưu nhưng chưa đọc lại được, tải lại trang.");
 }
 
 const sectionIdsSchema = z.array(z.uuid()).min(1, "Chọn ít nhất một lớp").max(100);
@@ -502,28 +391,26 @@ export async function assignLecturer(sectionId: string, lecturerId: string | nul
   if (!isUuid(sectionId) || (lecturerId !== null && !isUuid(lecturerId))) return actionError("Lớp hoặc giảng viên không còn tồn tại, tải lại trang.");
   const section = await getClassSection(sectionId);
   if (!section || !inScope(viewer, section.faculty)) return actionError("Lớp học phần không còn tồn tại hoặc thuộc khoa khác.");
-  if (lecturerId) {
-    // Trùng giờ dạy kiểm với lịch mới nhất của cả học kỳ, không tin danh sách ở trình duyệt.
-    const clash = (await getClassSections(section.termId)).find(
-      (other) =>
-        other.id !== section.id &&
-        other.lecturerId === lecturerId &&
-        other.status !== "cancelled" &&
-        allMeetings(other).some((theirs) => allMeetings(section).some((mine) => overlaps(mine, theirs))),
-    );
-    if (clash) return actionError(`Giảng viên đã dạy ${clash.code} cùng giờ với ${section.code}. Chọn giảng viên khác hoặc đổi lịch lớp trước.`);
-  }
   try {
-    await db.update(classSections).set({ lecturerId }).where(eq(classSections.id, sectionId));
+    await db.transaction(async (tx) => {
+      if (lecturerId) {
+        // Trùng giờ dạy kiểm với lịch mới nhất của cả học kỳ, cùng hàm conflictsOf với trang lớp học phần.
+        const others = await loadSections(tx, and(eq(classSections.termId, section.termId), ne(classSections.status, "cancelled"), ne(classSections.id, section.id))!);
+        const clash = conflictsOf({ ...section, lecturerId }, others).find((conflict) => conflict.kind === "lecturer");
+        if (clash) throw new InputError(`Giảng viên đã dạy ${clash.withCode} cùng giờ với ${section.code}. Chọn giảng viên khác hoặc đổi lịch lớp trước.`);
+      }
+      await tx.update(classSections).set({ lecturerId }).where(eq(classSections.id, sectionId));
+    });
   } catch (error) {
-    return adminFailure(error);
+    return failure(error);
   }
   revalidatePath("/administrator", "layout");
   const updated = await readClassSectionAfterWrite(sectionId);
   return updated ? actionOk(updated) : actionError("Đã lưu nhưng chưa đọc lại được, tải lại trang.");
 }
 
-// Mở thêm lớp nháp cho học phần đang đầy: cùng lịch và sĩ số với lớp gốc, chưa có giảng viên, số thứ tự kế tiếp.
+// Mở thêm lớp nháp cho học phần đang đầy: cùng sĩ số, đối tượng (ngành, khóa, ghi chú) và chỗ dành riêng với lớp gốc, số thứ tự kế tiếp,
+// chưa có lịch, phòng, giảng viên (chép lịch cũ chắc chắn trùng phòng với lớp gốc). Xếp lịch ở mục Lớp học phần rồi mới mở đăng ký.
 export async function openExtraSections(sectionIds: string[]): Promise<ActionResult<ClassSectionView[]>> {
   const viewer = await requirePermission("class-sections.manage");
   const parsed = sectionIdsSchema.safeParse(sectionIds);
@@ -534,19 +421,20 @@ export async function openExtraSections(sectionIds: string[]): Promise<ActionRes
       const ids: string[] = [];
       for (const sourceId of parsed.data) {
         const source = await getClassSection(sourceId);
-        if (!source || !inScope(viewer, source.faculty)) throw new InputError("sectionIds", "Có lớp không còn tồn tại hoặc thuộc khoa khác.");
+        if (!source || !inScope(viewer, source.faculty)) throw new InputError("Có lớp không còn tồn tại hoặc thuộc khoa khác.", "sectionIds");
         const [origin] = await tx.select().from(classSections).where(eq(classSections.id, sourceId));
         const [{ next }] = await tx
           .select({ next: sql<number>`coalesce(max(${classSections.sectionNumber}), 0) + 1` })
           .from(classSections)
           .where(and(eq(classSections.termId, origin.termId), eq(classSections.courseId, origin.courseId)));
+        const code = `${source.courseCode}.${String(next).padStart(2, "0")}`;
         const [created] = await tx
           .insert(classSections)
           .values({
             termId: origin.termId,
             courseId: origin.courseId,
             sectionNumber: next,
-            code: `${source.courseCode}.${String(next).padStart(2, "0")}`,
+            code,
             capacity: origin.capacity,
             minEnrollment: origin.minEnrollment,
             status: "draft",
@@ -556,14 +444,21 @@ export async function openExtraSections(sectionIds: string[]): Promise<ActionRes
             audienceNote: origin.audienceNote,
           })
           .returning({ id: classSections.id });
-        const meetings = await tx.select().from(sectionMeetings).where(eq(sectionMeetings.classSectionId, sourceId));
-        await tx.insert(sectionMeetings).values(meetings.map(({ id: _id, classSectionId: _sectionId, ...meeting }) => ({ ...meeting, classSectionId: created.id })));
+        const audience = await tx.select({ majorId: classSectionAudienceMajors.majorId }).from(classSectionAudienceMajors).where(eq(classSectionAudienceMajors.classSectionId, sourceId));
+        if (audience.length > 0) await tx.insert(classSectionAudienceMajors).values(audience.map((row) => ({ classSectionId: created.id, majorId: row.majorId })));
+        const seats = await tx.select().from(reservedSeats).where(eq(reservedSeats.classSectionId, sourceId));
+        for (const seat of seats) {
+          const [copy] = await tx.insert(reservedSeats).values({ classSectionId: created.id, label: seat.label, seats: seat.seats, cohorts: seat.cohorts }).returning({ id: reservedSeats.id });
+          const seatMajors = await tx.select({ majorId: reservedSeatMajors.majorId }).from(reservedSeatMajors).where(eq(reservedSeatMajors.reservedSeatId, seat.id));
+          if (seatMajors.length > 0) await tx.insert(reservedSeatMajors).values(seatMajors.map((row) => ({ reservedSeatId: copy.id, majorId: row.majorId })));
+        }
+        await recordAudit(tx, { actor: auditActorOf(viewer), action: "create", entityType: "class-section", entityId: created.id, entityLabel: code, summary: `Mở thêm lớp nháp ${code} từ lớp đầy ${source.code}` });
         ids.push(created.id);
       }
       return ids;
     });
   } catch (error) {
-    return adminFailure(error);
+    return failure(error);
   }
   revalidatePath("/administrator", "layout");
   const sections = await Promise.all(createdIds.map((id) => readClassSectionAfterWrite(id)));
@@ -574,197 +469,291 @@ export async function cancelSections(sectionIds: string[]): Promise<ActionResult
   const viewer = await requirePermission("class-sections.manage");
   const parsed = sectionIdsSchema.safeParse(sectionIds);
   if (!parsed.success) return actionError("Chọn ít nhất một lớp.");
+  let dropped = 0;
   try {
-    const dropped = await db.transaction(async (tx) => {
+    dropped = await db.transaction(async (tx) => {
       let total = 0;
       for (const id of parsed.data.toSorted()) {
         const section = await getClassSection(id);
-        if (!section || !inScope(viewer, section.faculty)) throw new InputError("sectionIds", "Có lớp không còn tồn tại hoặc thuộc khoa khác.");
-        if (section.status === "cancelled") continue;
-        total += await dropAllForCancelledSection(tx, id, viewer.name);
-        await tx.update(classSections).set({ status: "cancelled" }).where(eq(classSections.id, id));
+        if (!section || !inScope(viewer, section.faculty)) throw new InputError("Có lớp không còn tồn tại hoặc thuộc khoa khác.", "sectionIds");
+        const result = await cancelSection(tx, id, staffActor(viewer));
+        total += result.dropped;
+        await recordAudit(tx, { actor: auditActorOf(viewer), action: "update", entityType: "class-section", entityId: id, entityLabel: section.code, summary: `Hủy lớp ${section.code}, rút ${result.dropped} sinh viên` });
       }
       return total;
     });
-    revalidatePath("/administrator", "layout");
-    return actionOk({ dropped });
   } catch (error) {
-    return adminFailure(error);
+    return failure(error);
   }
+  revalidateRegistration();
+  return actionOk({ dropped });
 }
 
-// Chuyển sinh viên của lớp vừa hủy sang lớp khác cùng học phần, đến khi lớp đích hết chỗ. Sinh viên đã tự đăng ký lớp khác thì bỏ qua.
-export async function moveCancelledStudents(fromId: string, toId: string): Promise<ActionResult<{ moved: number; remaining: number }>> {
+// Chuyển sinh viên của lớp vừa hủy sang lớp khác cùng học phần; mỗi sinh viên kiểm như đăng ký, ai không đủ điều kiện thì trả lý do.
+export async function moveCancelledStudents(fromId: string, toId: string): Promise<ActionResult<{ moved: number; remaining: number; skipped: { studentName: string; reason: string }[] }>> {
   const viewer = await requirePermission("class-sections.manage");
   if (!isUuid(fromId) || !isUuid(toId)) return actionError("Lớp không còn tồn tại, tải lại trang.");
-  const [from, to] = await Promise.all([getClassSection(fromId), getClassSection(toId)]);
+  const [from, to, regulation] = await Promise.all([getClassSection(fromId), getClassSection(toId), getRegulation()]);
   if (!from || !to || !inScope(viewer, to.faculty)) return actionError("Lớp không còn tồn tại hoặc thuộc khoa khác.");
-  if (from.status !== "cancelled" || to.status !== "open" || from.courseCode !== to.courseCode || from.termId !== to.termId) {
-    return actionError("Chỉ chuyển từ lớp đã hủy sang lớp đang mở của cùng học phần trong học kỳ.");
-  }
+  let result: Awaited<ReturnType<typeof moveStudents>>;
   try {
-    const result = await db.transaction(async (tx) => {
-      const [target] = await tx.select().from(classSections).where(eq(classSections.id, toId)).for("update");
-      const candidates = await tx
-        .selectDistinct({ studentId: registrationEvents.studentId })
-        .from(registrationEvents)
-        .where(
-          and(
-            eq(registrationEvents.classSectionId, fromId),
-            eq(registrationEvents.kind, "section-cancelled"),
-            sql`NOT EXISTS (SELECT 1 FROM ${enrollments} e WHERE e.student_id = ${registrationEvents.studentId} AND e.term_id = ${target.termId} AND e.course_id = ${target.courseId} AND e.status = 'enrolled')`,
-          ),
-        );
-      const labs = await tx.select().from(labGroups).where(eq(labGroups.classSectionId, toId)).orderBy(asc(labGroups.code));
-      let free = target.capacity - target.enrolledCount;
-      let moved = 0;
-      const movedIds: string[] = [];
-      for (const { studentId } of candidates) {
-        if (free <= 0) break;
-        const lab = labs.toSorted((a, b) => a.enrolledCount - b.enrolledCount).find((group) => group.enrolledCount < group.capacity);
-        if (labs.length > 0 && !lab) break;
-        await tx.insert(enrollments).values({ studentId, classSectionId: toId, termId: target.termId, courseId: target.courseId, labGroupId: lab?.id ?? null });
-        if (lab) lab.enrolledCount += 1;
-        await tx.insert(registrationEvents).values({ studentId, classSectionId: toId, kind: "admin-add", actorLabel: viewer.name, channel: "Phòng Đào tạo", note: `Chuyển từ lớp đã hủy ${from.code}` });
-        free -= 1;
-        moved += 1;
-        movedIds.push(studentId);
-      }
-      await notifyStudents(tx, movedIds, {
-        kind: "system",
-        title: `Bạn được chuyển sang lớp ${to.code}`,
-        body: `Lớp ${from.code} đã hủy nên Phòng Đào tạo chuyển bạn sang lớp ${to.code} cùng học phần ${to.courseName}. Xem lịch học mới ở mục Thời khóa biểu.`,
-        href: "/application/schedule",
-      });
-      return { moved, remaining: candidates.length - moved };
-    });
-    revalidatePath("/administrator", "layout");
-    return actionOk(result);
+    result = await db.transaction((tx) => moveStudents(tx, { fromId, toId, actor: staffActor(viewer), rules: regulation, now: new Date() }));
   } catch (error) {
-    return adminFailure(error);
+    return failure(error);
   }
+  const names = await Promise.all(result.skipped.map((entry) => getStudent(entry.studentId)));
+  revalidateRegistration();
+  return actionOk({
+    moved: result.moved,
+    remaining: result.skipped.length,
+    skipped: result.skipped.map((entry, index) => ({ studentName: names[index] ? `${names[index]!.code} ${names[index]!.fullName}` : "Sinh viên", reason: entry.reason })),
+  });
+}
+
+// ---- Danh sách chờ (Phòng Đào tạo) ----
+
+// Chạy lại việc xếp từ danh sách chờ cho một lớp (ví dụ sau khi gỡ khóa cho người đứng đầu danh sách).
+export async function processWaitlist(sectionId: string): Promise<ActionResult<{ promoted: number }>> {
+  const viewer = await requirePermission("registration.manage");
+  if (!isUuid(sectionId)) return actionError("Lớp không còn tồn tại, tải lại trang.");
+  const [section, regulation] = await Promise.all([getClassSection(sectionId), getRegulation()]);
+  if (!section || !inScope(viewer, section.faculty)) return actionError("Lớp không còn tồn tại hoặc thuộc khoa khác.");
+  let promoted: string[];
+  try {
+    promoted = await db.transaction((tx) => promoteWaitlist(tx, sectionId, regulation, new Date()));
+  } catch (error) {
+    return failure(error);
+  }
+  revalidateRegistration();
+  return actionOk({ promoted: promoted.length });
+}
+
+export async function removeWaitlistEntry(entryId: string, reason: string): Promise<ActionResult> {
+  const viewer = await requirePermission("registration.manage");
+  if (!isUuid(entryId)) return actionError("Lượt chờ không còn tồn tại, tải lại trang.");
+  const note = reason.trim();
+  if (note.length < 5) return actionError("Ghi lý do để sinh viên biết", { reason: "Tối thiểu 5 ký tự" });
+  try {
+    const removed = await db.transaction(async (tx) => {
+      const [entry] = await tx
+        .update(waitlistEntries)
+        .set({ status: "cancelled", resolvedAt: new Date() })
+        .where(and(eq(waitlistEntries.id, entryId), eq(waitlistEntries.status, "waiting")))
+        .returning({ studentId: waitlistEntries.studentId, sectionId: waitlistEntries.classSectionId });
+      if (!entry) return false;
+      const [section] = await tx.select({ code: classSections.code, termId: classSections.termId, faculty: faculties.name }).from(classSections).innerJoin(courses, eq(courses.id, classSections.courseId)).innerJoin(faculties, eq(faculties.id, courses.facultyId)).where(eq(classSections.id, entry.sectionId));
+      if (!inScope(viewer, section.faculty)) throw new InputError("Lớp thuộc khoa khác.");
+      await notifyStudents(tx, [entry.studentId], { kind: "system", title: `Bạn được đưa khỏi danh sách chờ lớp ${section.code}`, body: `Lý do: ${note}`, href: "/application/registration" });
+      return true;
+    });
+    if (!removed) return actionError("Sinh viên không còn trong danh sách chờ.");
+  } catch (error) {
+    return failure(error);
+  }
+  revalidateRegistration();
+  return actionOk();
+}
+
+// ---- Học kỳ, đợt đăng ký ----
+
+function termLabel(term: { name: string }) {
+  return term.name;
+}
+
+export async function createTerm(input: TermInput): Promise<ActionResult<Term>> {
+  const viewer = await requireSchoolWidePermission("registration.manage");
+  const parsed = parseInput(TERM_SCHEMA, input);
+  if (!parsed.ok) return parsed;
+  const naming = termNaming(parsed.data.academicYear, parsed.data.semester);
+  let termId: string;
+  try {
+    termId = await db.transaction(async (tx) => {
+      const [row] = await tx.insert(terms).values({ ...naming, ...parsed.data }).returning({ id: terms.id });
+      await recordAudit(tx, { actor: auditActorOf(viewer), action: "create", entityType: "term", entityId: row.id, entityLabel: naming.name, summary: `Tạo ${naming.name}, ${formatDate(parsed.data.startDate)} đến ${formatDate(parsed.data.endDate)}` });
+      return row.id;
+    });
+  } catch (error) {
+    return failure(error);
+  }
+  revalidatePath("/administrator", "layout");
+  const term = (await getTerms()).find((entry) => entry.id === termId);
+  return term ? actionOk(term) : actionError("Đã lưu nhưng chưa đọc lại được, tải lại trang.");
+}
+
+// Đặt học kỳ hiện tại (học kỳ đang học: thời khóa biểu, điểm danh, học phí) hoặc học kỳ nhận đăng ký. Mỗi loại chỉ một học kỳ
+// (unique index), đổi trong một transaction: bỏ cờ ở học kỳ cũ rồi đặt cho học kỳ mới.
+export async function setTermFlag(termId: string, flag: "current" | "registration-target"): Promise<ActionResult<Term[]>> {
+  const viewer = await requireSchoolWidePermission("registration.manage");
+  if (!isUuid(termId)) return actionError("Học kỳ không còn tồn tại, tải lại trang.");
+  const column = flag === "current" ? terms.isCurrent : terms.isRegistrationTarget;
+  const label = flag === "current" ? "học kỳ hiện tại" : "học kỳ nhận đăng ký";
+  try {
+    await db.transaction(async (tx) => {
+      const [target] = await tx.select({ id: terms.id, name: terms.name }).from(terms).where(eq(terms.id, termId)).for("update");
+      if (!target) throw new InputError("Học kỳ không còn tồn tại, tải lại trang.");
+      const [previous] = await tx.select({ id: terms.id, name: terms.name }).from(terms).where(eq(column, true)).for("update");
+      if (previous?.id === termId) throw new InputError(`${termLabel(target)} đã là ${label}.`);
+      const set = flag === "current" ? { isCurrent: false } : { isRegistrationTarget: false };
+      if (previous) await tx.update(terms).set(set).where(eq(terms.id, previous.id));
+      await tx.update(terms).set(flag === "current" ? { isCurrent: true } : { isRegistrationTarget: true }).where(eq(terms.id, termId));
+      await recordAudit(tx, {
+        actor: auditActorOf(viewer),
+        action: "update",
+        entityType: "term",
+        entityId: termId,
+        entityLabel: target.name,
+        summary: `Đặt ${target.name} là ${label}`,
+        changes: [{ field: label[0].toUpperCase() + label.slice(1), before: previous?.name ?? "Chưa đặt", after: target.name }],
+      });
+    });
+  } catch (error) {
+    return failure(error);
+  }
+  revalidatePath("/", "layout");
+  return actionOk(await getTerms());
+}
+
+function periodAudit(values: { name: string; cohorts: number[]; opensAt: Date; closesAt: Date; minCredits: number | null; maxCredits: number | null }) {
+  const credits = values.minCredits === null && values.maxCredits === null ? "theo quy chế" : `${values.minCredits ?? "quy chế"} đến ${values.maxCredits ?? "quy chế"} tín chỉ`;
+  return `${values.name}: khóa ${values.cohorts.join(", ")}, ${formatDateTime(values.opensAt)} đến ${formatDateTime(values.closesAt)}, hạn mức ${credits}`;
 }
 
 export async function savePeriod(termId: string, id: string | null, input: PeriodInput): Promise<ActionResult<RegistrationPeriodView>> {
-  await requireSchoolWidePermission("registration.manage");
+  const viewer = await requireSchoolWidePermission("registration.manage");
   if (!isUuid(termId) || (id !== null && !isUuid(id))) return actionError("Đợt đăng ký không còn tồn tại, tải lại trang.");
   const parsed = parseInput(PERIOD_SCHEMA, input);
   if (!parsed.ok) return parsed;
   const values = { ...parsed.data, opensAt: new Date(parsed.data.opensAt), closesAt: new Date(parsed.data.closesAt) };
   let periodId: string;
   try {
-    const [row] = id
-      ? await db
-          .update(registrationPeriods)
-          .set(values)
-          .where(and(eq(registrationPeriods.id, id), eq(registrationPeriods.termId, termId)))
-          .returning({ id: registrationPeriods.id })
-      : await db
-          .insert(registrationPeriods)
-          .values({ ...values, termId })
-          .returning({ id: registrationPeriods.id });
-    if (!row) return actionError("Đợt đăng ký không còn tồn tại, tải lại trang.");
-    periodId = row.id;
+    periodId = await db.transaction(async (tx) => {
+      const [row] = id
+        ? await tx.update(registrationPeriods).set(values).where(and(eq(registrationPeriods.id, id), eq(registrationPeriods.termId, termId))).returning({ id: registrationPeriods.id })
+        : await tx.insert(registrationPeriods).values({ ...values, termId }).returning({ id: registrationPeriods.id });
+      if (!row) throw new InputError("Đợt đăng ký không còn tồn tại, tải lại trang.");
+      await recordAudit(tx, { actor: auditActorOf(viewer), action: id ? "update" : "create", entityType: "registration-period", entityId: row.id, entityLabel: values.name, summary: periodAudit(values) });
+      return row.id;
+    });
   } catch (error) {
-    return adminFailure(error);
+    return failure(error);
   }
-  revalidatePath("/administrator", "layout");
-  revalidatePath("/application/registration");
+  revalidateRegistration();
   const period = (await getRegistrationPeriods(termId)).find((entry) => entry.id === periodId);
   return period ? actionOk(period) : actionError("Đã lưu nhưng chưa đọc lại được, tải lại trang.");
 }
 
 // Đóng sớm đợt đang mở: dời giờ đóng về hiện tại. Đợt đã đóng thì không mở lại được ở đây.
 export async function closePeriod(id: string): Promise<ActionResult<RegistrationPeriodView>> {
-  await requireSchoolWidePermission("registration.manage");
+  const viewer = await requireSchoolWidePermission("registration.manage");
   if (!isUuid(id)) return actionError("Đợt đăng ký không còn tồn tại, tải lại trang.");
   const now = new Date();
-  const [row] = await db
-    .update(registrationPeriods)
-    .set({ closesAt: now })
-    .where(and(eq(registrationPeriods.id, id), lte(registrationPeriods.opensAt, now), gt(registrationPeriods.closesAt, now)))
-    .returning({ termId: registrationPeriods.termId });
-  if (!row) return actionError("Đợt không đang mở, không đóng được.");
-  revalidatePath("/administrator", "layout");
-  revalidatePath("/application/registration");
-  const period = (await getRegistrationPeriods(row.termId)).find((entry) => entry.id === id);
+  let termId: string;
+  try {
+    termId = await db.transaction(async (tx) => {
+      const [row] = await tx
+        .update(registrationPeriods)
+        .set({ closesAt: now })
+        .where(and(eq(registrationPeriods.id, id), lte(registrationPeriods.opensAt, now), gt(registrationPeriods.closesAt, now)))
+        .returning({ termId: registrationPeriods.termId, name: registrationPeriods.name });
+      if (!row) throw new InputError("Đợt không đang mở, không đóng được.");
+      await recordAudit(tx, { actor: auditActorOf(viewer), action: "lock", entityType: "registration-period", entityId: id, entityLabel: row.name, summary: `Đóng sớm ${row.name} lúc ${formatDateTime(now)}` });
+      return row.termId;
+    });
+  } catch (error) {
+    return failure(error);
+  }
+  revalidateRegistration();
+  const period = (await getRegistrationPeriods(termId)).find((entry) => entry.id === id);
   return period ? actionOk(period) : actionError("Đã đóng nhưng chưa đọc lại được, tải lại trang.");
 }
 
+// ---- Khóa đăng ký ----
+
+// Phòng Đào tạo đặt mọi loại khóa; Phòng Kế hoạch - Tài chính (tuition.manage) đặt và gỡ khóa học phí.
+function canManageHold(viewer: Viewer, kind: RegistrationHold["kind"]) {
+  return can(viewer, "registration.manage") || (kind === "tuition" && can(viewer, "tuition.manage"));
+}
+
 export async function createHold(input: HoldInput): Promise<ActionResult<RegistrationHold>> {
-  const viewer = await requirePermission("registration.manage");
+  const viewer = await getViewer();
+  if (!can(viewer, "registration.manage") && !can(viewer, "tuition.manage")) forbidden();
   const parsed = parseInput(HOLD_SCHEMA, input);
   if (!parsed.ok) return parsed;
+  if (!canManageHold(viewer, parsed.data.kind)) return actionError("Vai trò của bạn chỉ đặt được khóa học phí.", { kind: "Chọn loại Học phí" });
   const student = await getStudent(parsed.data.studentId);
   if (!student || !inScope(viewer, student.faculty)) return actionError("Sinh viên không còn tồn tại hoặc thuộc khoa khác.", { studentId: "Chọn sinh viên thuộc khoa của bạn" });
   let holdId: string;
   try {
-    const [row] = await db
-      .insert(registrationHolds)
-      .values({ ...parsed.data, createdByUserId: viewer.id, createdByLabel: viewer.name })
-      .returning({ id: registrationHolds.id });
-    holdId = row.id;
+    holdId = await db.transaction(async (tx) => {
+      const [row] = await tx.insert(registrationHolds).values({ ...parsed.data, createdByUserId: viewer.id, createdByLabel: viewer.name }).returning({ id: registrationHolds.id });
+      await recordAudit(tx, {
+        actor: auditActorOf(viewer),
+        action: "lock",
+        entityType: "student",
+        entityId: student.id,
+        entityLabel: `${student.code} ${student.fullName}`,
+        summary: `Đặt khóa đăng ký${parsed.data.blocking ? "" : " (chỉ nhắc)"}: ${parsed.data.reason}`,
+      });
+      if (parsed.data.blocking) {
+        await notifyStudents(tx, [student.id], { kind: "system", title: "Tài khoản bị khóa đăng ký học phần", body: `${parsed.data.reason}. Cách gỡ: ${parsed.data.resolveHint}`, href: "/application/registration" });
+      }
+      return row.id;
+    });
   } catch (error) {
-    return adminFailure(error);
+    return failure(error);
   }
-  revalidatePath("/administrator/registration-holds");
+  revalidateRegistration();
   const hold = (await getRegistrationHolds(parsed.data.studentId)).find((entry) => entry.id === holdId);
   return hold ? actionOk(hold) : actionError("Đã lưu nhưng chưa đọc lại được, tải lại trang.");
 }
 
 export async function releaseHold(id: string, note: string): Promise<ActionResult<RegistrationHold>> {
-  const viewer = await requirePermission("registration.manage");
+  const viewer = await getViewer();
+  if (!can(viewer, "registration.manage") && !can(viewer, "tuition.manage")) forbidden();
   if (!isUuid(id)) return actionError("Khóa đăng ký không còn tồn tại, tải lại trang.");
   const basis = note.trim();
   if (!basis) return actionError("Ghi căn cứ gỡ khóa, ví dụ số biên lai học phí hoặc tên giấy tờ đã nhận", { note: "Chưa ghi căn cứ" });
-  const [current] = await db.select({ studentId: registrationHolds.studentId }).from(registrationHolds).where(eq(registrationHolds.id, id));
+  const [current] = await db.select({ studentId: registrationHolds.studentId, kind: registrationHolds.kind, reason: registrationHolds.reason }).from(registrationHolds).where(eq(registrationHolds.id, id));
   const student = current ? await getStudent(current.studentId) : null;
-  if (!student || !inScope(viewer, student.faculty)) return actionError("Khóa đăng ký không còn tồn tại hoặc thuộc khoa khác.");
-  const [row] = await db
-    .update(registrationHolds)
-    .set({ releasedAt: new Date(), releasedByUserId: viewer.id, releasedByLabel: `${viewer.name}: ${basis.slice(0, 300)}` })
-    .where(and(eq(registrationHolds.id, id), isNull(registrationHolds.releasedAt)))
-    .returning({ studentId: registrationHolds.studentId });
-  if (!row) return actionError("Khóa này đã được gỡ trước đó.");
-  revalidatePath("/administrator/registration-holds");
-  const hold = (await getRegistrationHolds(row.studentId)).find((entry) => entry.id === id);
+  if (!current || !student || !inScope(viewer, student.faculty)) return actionError("Khóa đăng ký không còn tồn tại hoặc thuộc khoa khác.");
+  if (!canManageHold(viewer, current.kind)) return actionError("Vai trò của bạn chỉ gỡ được khóa học phí.");
+  try {
+    await db.transaction(async (tx) => {
+      const [row] = await tx
+        .update(registrationHolds)
+        .set({ releasedAt: new Date(), releasedByUserId: viewer.id, releasedByLabel: `${viewer.name}: ${basis.slice(0, 300)}` })
+        .where(and(eq(registrationHolds.id, id), isNull(registrationHolds.releasedAt)))
+        .returning({ studentId: registrationHolds.studentId });
+      if (!row) throw new InputError("Khóa này đã được gỡ trước đó.");
+      await recordAudit(tx, { actor: auditActorOf(viewer), action: "update", entityType: "student", entityId: student.id, entityLabel: `${student.code} ${student.fullName}`, summary: `Gỡ khóa đăng ký "${current.reason}". Căn cứ: ${basis}` });
+      await notifyStudents(tx, [student.id], { kind: "system", title: "Đã gỡ khóa đăng ký học phần", body: `Khóa "${current.reason}" đã được gỡ.`, href: "/application/registration" });
+    });
+  } catch (error) {
+    return failure(error);
+  }
+  revalidateRegistration();
+  const hold = (await getRegistrationHolds(current.studentId)).find((entry) => entry.id === id);
   return hold ? actionOk(hold) : actionError("Đã gỡ nhưng chưa đọc lại được, tải lại trang.");
 }
 
-// Phòng Đào tạo đăng ký hộ: vẫn kiểm điều kiện như sinh viên, được bỏ qua điều kiện học vụ khi ghi lý do,
-// nhưng sĩ số và nhóm thực hành thì DB luôn chặn.
+// ---- Phòng Đào tạo đăng ký, hủy hộ ----
+
 export async function adminRegister(input: AdminRegisterInput): Promise<ActionResult<ClassSectionView>> {
   const viewer = await requirePermission("registration.manage");
   const parsed = parseInput(ADMIN_REGISTER_SCHEMA, input);
   if (!parsed.ok) return parsed;
   const { studentId, sectionId, labGroupId, reason, override } = parsed.data;
-  const [student, section] = await Promise.all([getStudent(studentId), getClassSection(sectionId)]);
-  if (!student || !section || section.status !== "open") return actionError("Sinh viên hoặc lớp không còn hợp lệ, tải lại trang.");
+  const [student, section, regulation] = await Promise.all([getStudent(studentId), getClassSection(sectionId), getRegulation()]);
+  if (!student || !section) return actionError("Sinh viên hoặc lớp không còn hợp lệ, tải lại trang.");
   if (!inScope(viewer, student.faculty)) return actionError("Sinh viên thuộc khoa khác, bạn không đăng ký hộ được.");
-  const sections = await getClassSections(section.termId);
-  const enrolled = await db
-    .select({ sectionId: enrollments.classSectionId })
-    .from(enrollments)
-    .where(and(eq(enrollments.studentId, studentId), eq(enrollments.termId, section.termId), eq(enrollments.status, "enrolled")));
-  const registered = sections.filter((entry) => enrolled.some((row) => row.sectionId === entry.id));
-  const labChoices = labGroupId ? { [sectionId]: labGroupId } : {};
-  const { context } = await eligibilityOf({ student, termId: section.termId, sections, registered }, [], labChoices);
-  const issues = evaluateSection(section, context).filter((issue) => issue.blocking && issue.kind !== "lab" && issue.kind !== "full" && issue.kind !== "reserved");
-  if (issues.length > 0 && !override) return actionError(issues[0].message);
-  if (section.labGroups.length > 0 && !section.labGroups.some((group) => group.id === labGroupId)) return actionError(`Chọn nhóm thực hành cho ${section.code}.`, { labGroupId: "Chưa chọn nhóm" });
   try {
-    await db.transaction(async (tx) => {
-      const seat = await claimSeat(tx, sectionId, student);
-      if (typeof seat === "string") throw new InputError("sectionId", seat);
-      const [course] = await tx.select({ id: courses.id }).from(courses).where(eq(courses.code, section.courseCode));
-      await tx.insert(enrollments).values({ studentId, classSectionId: sectionId, termId: section.termId, courseId: course.id, labGroupId: labGroupId ?? null, reservedSeatId: seat.reservedSeatId });
-      const skipped = override && issues.length > 0 ? `. Bỏ qua kiểm tra: ${issues.map((issue) => issue.message).join(" ")}` : "";
-      await tx.insert(registrationEvents).values({ studentId, classSectionId: sectionId, kind: "admin-add", actorUserId: viewer.id, actorLabel: viewer.name, channel: "Phòng Đào tạo", note: `${reason}${skipped}`.slice(0, 1000) });
-    });
+    await db.transaction((tx) =>
+      adminRegisterStudent(tx, { studentId, sectionId, labGroupId: labGroupId ?? null, reason, override, actor: staffActor(viewer), rules: regulation, now: new Date() }),
+    );
   } catch (error) {
-    return adminFailure(error);
+    return failure(error);
   }
-  revalidatePath("/administrator/users/students", "layout");
+  revalidateRegistration();
   const updated = await readClassSectionAfterWrite(sectionId);
   return updated ? actionOk(updated) : actionError("Đã đăng ký nhưng chưa đọc lại được, tải lại trang.");
 }
@@ -774,31 +763,14 @@ export async function adminDrop(studentId: string, sectionId: string, reason: st
   if (!isUuid(studentId) || !isUuid(sectionId)) return actionError("Sinh viên hoặc lớp không còn hợp lệ, tải lại trang.");
   const note = reason.trim();
   if (!note) return actionError("Ghi lý do hủy hộ để sinh viên và cố vấn biết", { reason: "Chưa ghi lý do" });
-  const student = await getStudent(studentId);
+  const [student, regulation] = await Promise.all([getStudent(studentId), getRegulation()]);
   if (!student || !inScope(viewer, student.faculty)) return actionError("Sinh viên không còn hợp lệ hoặc thuộc khoa khác.");
   try {
-    const dropped = await db.transaction(async (tx) => {
-      const rows = await tx
-        .update(enrollments)
-        .set({ status: "dropped", droppedAt: new Date() })
-        .where(and(eq(enrollments.studentId, studentId), eq(enrollments.classSectionId, sectionId), eq(enrollments.status, "enrolled")))
-        .returning({ id: enrollments.id });
-      if (rows.length === 0) return false;
-      await tx.insert(registrationEvents).values({ studentId, classSectionId: sectionId, kind: "admin-drop", actorUserId: viewer.id, actorLabel: viewer.name, channel: "Phòng Đào tạo", note: note.slice(0, 1000) });
-      const section = await sectionLabelOf(tx, sectionId);
-      await notifyStudents(tx, [studentId], {
-        kind: "system",
-        title: `Phòng Đào tạo đã hủy đăng ký lớp ${section.code} của bạn`,
-        body: `Học phần ${section.courseName}. Lý do: ${note}`,
-        href: REGISTRATION_HISTORY_HREF,
-      });
-      return true;
-    });
-    if (!dropped) return actionError("Sinh viên không còn trong lớp này.");
+    await db.transaction((tx) => adminDropStudent(tx, { studentId, sectionId, reason: note.slice(0, 1000), actor: staffActor(viewer), rules: regulation, now: new Date() }));
   } catch (error) {
-    return adminFailure(error);
+    return failure(error);
   }
-  revalidatePath("/administrator/users/students", "layout");
+  revalidateRegistration();
   return actionOk();
 }
 
@@ -846,7 +818,7 @@ export async function remindUnregisteredStudents(
       ]),
     })));
   } catch (error) {
-    return actionFailure(error, REGISTRATION_CONSTRAINT_MESSAGE);
+    return failure(error);
   }
   deliverMailSoon(mailIds);
   revalidatePath("/administrator/registration-monitor");
@@ -860,15 +832,13 @@ export async function remindUnregisteredStudents(
 
 type PdfFile = { fileName: string; base64: string; mimeType: string };
 
-// Phiếu đăng ký học kỳ hiện tại của chính sinh viên đang đăng nhập, cùng nội dung và mã xác thực với trang Lịch sử và phiếu đăng ký.
-export async function downloadRegistrationReceiptPdf(): Promise<ActionResult<PdfFile>> {
+// Phiếu đăng ký một học kỳ (mặc định học kỳ đang nhận đăng ký) của chính sinh viên đang đăng nhập, cùng nội dung và mã xác thực
+// với trang Lịch sử và phiếu đăng ký.
+export async function downloadRegistrationReceiptPdf(termId?: string): Promise<ActionResult<PdfFile>> {
   const student = await getCurrentStudent();
-  const term = await getCurrentTerm();
-  const [enrolled, periods, events] = await Promise.all([
-    getStudentEnrollments(student.id, term.id),
-    getRegistrationPeriods(term.id),
-    getRegistrationEvents(student.id, term.id),
-  ]);
+  const all = await getTerms();
+  const term = (termId ? all.find((entry) => entry.id === termId) : null) ?? (await getRegistrationTargetTerm());
+  const [enrolled, periods, events] = await Promise.all([getStudentEnrollments(student.id, term.id), getRegistrationPeriods(term.id), getRegistrationEvents(student.id, term.id)]);
   const timetable = pickTimetable(enrolled);
   const bytes = await registrationReceiptPdf({
     student,

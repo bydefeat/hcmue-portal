@@ -1,15 +1,26 @@
 import "server-only";
-import { and, asc, eq, inArray, sql } from "drizzle-orm";
-import type { Transaction } from "@/shared/libs/db.lib";
+import { and, asc, eq, gte, inArray, lte, sql } from "drizzle-orm";
+import type { db, Transaction } from "@/shared/libs/db.lib";
 import { periodLabel, weekdayLabel } from "@/shared/constants/period.constant";
 import { classSections, enrollments, labGroups, sectionMeetings } from "@/modules/course-registration/course-registration.schema";
 import { courses } from "@/modules/curriculum/curriculum.schema";
 import { rooms } from "@/modules/facilities/facilities.schema";
 import { notifyLecturers, notifyStudents } from "@/modules/notifications/notifications.lib";
-import { diffClassSessions, planClassSessions } from "@/modules/schedule/schedule.rule";
+import { diffClassSessions, planClassSessions, type Holiday } from "@/modules/schedule/schedule.rule";
+import { calendarEvents } from "@/modules/settings/settings.schema";
 import { attendanceRecords, classSessions } from "@/modules/schedule/schedule.schema";
 
 export type WeeklySchedule = { signature: string; description: string };
+
+type Executor = Transaction | typeof db;
+
+// Ngày nghỉ lễ trong lịch năm học chồng lên khoảng ngày học của lớp.
+export async function holidaysBetween(executor: Executor, from: string, to: string): Promise<Holiday[]> {
+  return executor
+    .select({ title: calendarEvents.title, startDate: calendarEvents.startDate, endDate: calendarEvents.endDate })
+    .from(calendarEvents)
+    .where(and(eq(calendarEvents.kind, "holiday"), lte(calendarEvents.startDate, to), gte(calendarEvents.endDate, from)));
+}
 
 function slotText(entry: { dayOfWeek: number; startPeriod: number; endPeriod: number; room: string }) {
   return `${weekdayLabel(entry.dayOfWeek)} ${periodLabel(entry.startPeriod, entry.endPeriod).toLowerCase()}, phòng ${entry.room}`;
@@ -75,7 +86,8 @@ export async function syncClassSessions(tx: Transaction, sectionId: string, opti
       .where(eq(classSessions.classSectionId, sectionId))
       .for("update", { of: classSessions }),
   ]);
-  const plans = section.status === "open" ? planClassSessions({ id: section.id, startDate: section.startDate, endDate: section.endDate, meetings, labGroups: labs }) : [];
+  const holidays = section.status === "open" ? await holidaysBetween(tx, section.startDate, section.endDate) : [];
+  const plans = section.status === "open" ? planClassSessions({ id: section.id, startDate: section.startDate, endDate: section.endDate, meetings, labGroups: labs }, holidays) : [];
   const diff = diffClassSessions(existing, plans, today);
   if (diff.removeIds.length > 0) await tx.delete(classSessions).where(inArray(classSessions.id, diff.removeIds));
   if (diff.add.length > 0) await tx.insert(classSessions).values(diff.add);
@@ -101,4 +113,18 @@ export async function syncClassSessions(tx: Transaction, sectionId: string, opti
     }
   }
   return { added: diff.add.length, removed: diff.removeIds.length, kept: diff.kept, notified };
+}
+
+// Lịch năm học đổi ngày nghỉ lễ (module settings) không đi qua lớp học phần: tác vụ định kỳ sinh lại buổi học của mọi lớp đang mở
+// để bỏ buổi rơi vào ngày nghỉ mới, thêm lại buổi của ngày thôi nghỉ. Buổi đã qua, đã điểm danh giữ nguyên; chạy lặp không sinh trùng.
+export async function resyncOpenClassSessions(executor: typeof db) {
+  const sections = await executor.select({ id: classSections.id }).from(classSections).where(eq(classSections.status, "open"));
+  let added = 0;
+  let removed = 0;
+  for (const section of sections) {
+    const result = await executor.transaction((tx) => syncClassSessions(tx, section.id));
+    added += result.added;
+    removed += result.removed;
+  }
+  return { sections: sections.length, added, removed };
 }

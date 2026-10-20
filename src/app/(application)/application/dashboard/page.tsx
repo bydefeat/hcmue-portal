@@ -4,17 +4,18 @@ import { Alert } from "antd";
 import { PeriodCountdown } from "@/modules/course-registration/components/student-period-countdown";
 import { REGISTRATION_PERIOD_STATE } from "@/modules/course-registration/course-registration.constant";
 import {
+  getCreditLimits,
   getCurrentTerm,
   getRegistrationPeriods,
   getRegistrationTargetTerm,
   getStudentEnrollments,
 } from "@/modules/course-registration/course-registration.query";
-import { bestGrades, pickTimetable } from "@/modules/course-registration/course-registration.rule";
-import { getCourses } from "@/modules/curriculum/curriculum.query";
+import { applicablePeriod, pickTimetable } from "@/modules/course-registration/course-registration.rule";
+import { getPrograms } from "@/modules/curriculum/curriculum.query";
 import { EXAM_KIND_LABEL } from "@/modules/exams/exams.constant";
 import { getExamsForClassSections } from "@/modules/exams/exams.query";
 import { formatPoint, STANDING_LABEL, WARNING_LEVEL } from "@/modules/grades/grades.constant";
-import { getStudentStandings, getTranscript } from "@/modules/grades/grades.query";
+import { getStudentStandings } from "@/modules/grades/grades.query";
 import { NOTIFICATION_KIND_LABEL } from "@/modules/notifications/notifications.constant";
 import { getNotifications } from "@/modules/notifications/notifications.query";
 import { REQUEST_KINDS, REQUEST_STATUS } from "@/modules/requests/requests.constant";
@@ -33,19 +34,16 @@ import { dayjs, daysUntil, formatDate, formatDateTime, formatRelative, schoolTim
 export const metadata: Metadata = { title: "Tổng quan" };
 
 export default async function Page() {
-  const [student, term, targetTerm, courses] = await Promise.all([getCurrentStudent(), getCurrentTerm(), getRegistrationTargetTerm(), getCourses()]);
-  const [enrollments, transcript, [standing], periods, requests, notifications] = await Promise.all([
+  const [student, term, targetTerm, programs] = await Promise.all([getCurrentStudent(), getCurrentTerm(), getRegistrationTargetTerm(), getPrograms()]);
+  const [enrollments, [standing], periods, requests, notifications, credit] = await Promise.all([
     getStudentEnrollments(student.id, term.id),
-    getTranscript(student.id),
     getStudentStandings([student.id]),
     getRegistrationPeriods(targetTerm.id),
     getRequestsOf(student.id),
     getNotifications("student"),
+    getCreditLimits(student.id, targetTerm.id),
   ]);
-  const timetable = pickTimetable(enrollments, bestGrades(transcript), {
-    faculty: student.faculty,
-    prerequisites: Object.fromEntries(courses.map((course) => [course.code, course.prerequisiteCodes])),
-  });
+  const timetable = pickTimetable(enrollments);
   const [exams, invoices] = await Promise.all([getExamsForClassSections(timetable.map(({ section }) => section.id)), getInvoices(student.id)]);
   const invoice = invoices.find((entry) => entry.termId === term.id);
 
@@ -55,11 +53,13 @@ export default async function Page() {
     .toSorted((a, b) => a.meeting.dayOfWeek - b.meeting.dayOfWeek || a.meeting.startPeriod - b.meeting.startPeriod);
   const todaySlots = slots.filter((slot) => slot.meeting.dayOfWeek === today);
   const nextSlot = slots.find((slot) => slot.meeting.dayOfWeek > today) ?? slots[0];
-  const period = periods.find((entry) => entry.cohorts.includes(student.cohort)) ?? null;
+  const period = applicablePeriod(periods, student.cohort);
   const upcomingExams = exams.filter((exam) => daysUntil(exam.date) >= 0 && exam.status !== "draft").slice(0, 3);
   const openRequests = requests.filter((request) => request.status === "pending" || request.status === "in-review");
   const unread = notifications.filter((notification) => !notification.isRead);
-  const totalCredits = 130;
+  // Tổng tín chỉ của chương trình đào tạo theo ngành và khóa của sinh viên.
+  const totalCredits = programs.find((entry) => entry.majorCode === student.majorCode && entry.cohorts.includes(student.cohort))?.totalCredits ?? null;
+  const warningLevel = credit?.warningLevel ?? 0;
   const showTuition = invoice && invoice.balance > 0 && invoice.daysToDue <= 14;
 
   return (
@@ -67,12 +67,12 @@ export default async function Page() {
       <PageHeader title="Tổng quan" description={`${weekdayLabel(today)}, ${schoolTime().format("DD/MM/YYYY")}. ${term.name}.`} />
       <div className="flex flex-col gap-4 sm:gap-6">
 
-        {standing.warningLevel > 0 && (
+        {warningLevel > 0 && (
           <Alert
             type="error"
             showIcon
-            title={`Bạn đang bị cảnh báo học vụ ${WARNING_LEVEL[standing.warningLevel as 1 | 2 | 3].label.toLowerCase()}`}
-            description="Học kỳ tới chỉ được đăng ký tối đa 14 tín chỉ. Hẹn gặp cố vấn học tập để lập kế hoạch cải thiện."
+            title={`Bạn đang bị cảnh báo học vụ ${WARNING_LEVEL[warningLevel as 1 | 2 | 3].label.toLowerCase()}`}
+            description={`${targetTerm.name} chỉ được đăng ký tối đa ${credit?.limits.max} tín chỉ. Hẹn gặp cố vấn học tập để lập kế hoạch cải thiện.`}
             action={<Link href="/application/grades">Xem kết quả</Link>}
           />
         )}
@@ -85,14 +85,14 @@ export default async function Page() {
                 ? `Học phí ${term.shortName} quá hạn ${-invoice.daysToDue} ngày`
                 : `Học phí ${term.shortName} còn ${invoice.daysToDue} ngày đến hạn`
             }
-            description={`Còn phải nộp ${formatMoney(invoice.balance)}, hạn ${formatDate(invoice.dueDate)}. Quá hạn sẽ bị khóa đăng ký học phần học kỳ sau.`}
+            description={`Còn phải nộp ${formatMoney(invoice.balance)}, hạn ${formatDate(invoice.dueDate)}. Quá hạn mà còn nợ thì bị khóa đăng ký học phần cho tới khi nộp đủ.`}
             action={<Link href="/application/tuition">Cách nộp</Link>}
           />
         )}
 
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           <StatTile label="Điểm trung bình tích lũy" value={formatPoint(standing.cpa4)} hint={`Xếp loại ${STANDING_LABEL[standing.standing]}`} href="/application/grades" />
-          <StatTile label="Tín chỉ tích lũy" value={`${standing.earnedCredits}/${totalCredits}`} hint={`Học kỳ này ${timetable.reduce((sum, { section }) => sum + section.credits, 0)} tín chỉ`} href="/application/curriculum" />
+          <StatTile label="Tín chỉ tích lũy" value={totalCredits ? `${standing.earnedCredits}/${totalCredits}` : standing.earnedCredits} hint={`Học kỳ này ${timetable.reduce((sum, { section }) => sum + section.credits, 0)} tín chỉ`} href="/application/curriculum" />
           <StatTile
             label="Đơn đang xử lý"
             value={openRequests.length}

@@ -8,7 +8,7 @@ import { CircleXmark, Plus } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { dayjs } from "@/shared/libs/date.lib";
 import { HOLD_KIND_LABEL, keepCurrencyTogether, meetingText } from "@/modules/course-registration/course-registration.constant";
-import { blockingHolds, evaluateSection, sectionCredits, type RegistrationStudent } from "@/modules/course-registration/course-registration.rule";
+import { blockingHolds, evaluateSection, sectionCredits, type CreditLimits, type RegistrationIssueKind, type RegistrationStudent } from "@/modules/course-registration/course-registration.rule";
 import type { ClassSectionView, RegistrationEvent, RegistrationHold } from "@/modules/course-registration/course-registration.type";
 import { RegistrationHistoryList } from "@/modules/course-registration/components/registration-history-list";
 import { adminDrop, adminRegister } from "@/modules/course-registration/course-registration.action";
@@ -28,9 +28,13 @@ type AdminStudentRegistrationProps = {
   corequisites: Record<string, string[]>;
   equivalents: Record<string, string[]>;
   courseNames: Record<string, string>;
-  credits: { max: number; note?: string };
+  credits: CreditLimits;
+  inProgressCodes: string[];
   actorName: string;
 };
+
+// Điều kiện học vụ Phòng Đào tạo được bỏ qua khi có căn cứ (cùng danh sách với server, adminRegisterStudent).
+const OVERRIDABLE: RegistrationIssueKind[] = ["audience", "prerequisite", "corequisite", "credits", "passed", "in-progress"];
 
 const NETWORK_ERROR = "Chưa thực hiện được, kiểm tra kết nối rồi thử lại.";
 
@@ -49,6 +53,7 @@ export function AdminStudentRegistration({
   equivalents,
   courseNames,
   credits,
+  inProgressCodes,
   actorName,
 }: AdminStudentRegistrationProps) {
   const router = useRouter();
@@ -77,12 +82,16 @@ export function AdminStudentRegistration({
         courseNames,
         maxCredits: credits.max,
         creditCapNote: credits.note,
+        inProgressCodes,
         student,
       })
     : [];
   const blockingIssues = issues.filter((issue) => issue.blocking && issue.kind !== "lab");
+  // Sĩ số, chỗ dành riêng, trùng lịch, lớp hủy: không bỏ qua được. Điều kiện học vụ và khóa đăng ký: bỏ qua khi ghi căn cứ.
+  const hardIssues = blockingIssues.filter((issue) => !OVERRIDABLE.includes(issue.kind));
+  const needsOverride = blockingIssues.some((issue) => OVERRIDABLE.includes(issue.kind)) || blocking.length > 0;
   const needsLab = Boolean(selected && selected.labGroups.length > 0);
-  const canSubmit = Boolean(selected) && reason.trim().length > 0 && (!needsLab || labId) && (blockingIssues.length === 0 || override);
+  const canSubmit = Boolean(selected) && reason.trim().length > 0 && (!needsLab || labId) && hardIssues.length === 0 && (!needsOverride || override);
 
   const logEvent = (event: Omit<RegistrationEvent, "id" | "at" | "actor" | "channel">) =>
     setEvents((current) => [
@@ -112,7 +121,7 @@ export function AdminStudentRegistration({
         kind: "admin-add",
         sectionCode: selected.code,
         courseName: selected.courseName,
-        note: `${reason.trim()}${lab ? `. Nhóm thực hành ${lab.code}` : ""}${override && blockingIssues.length > 0 ? ". Bỏ qua kiểm tra điều kiện" : ""}`,
+        note: `${reason.trim()}${lab ? `. Nhóm thực hành ${lab.code}` : ""}${override && needsOverride ? ". Bỏ qua điều kiện học vụ" : ""}`,
       });
       messageApi.success(`Đã đăng ký hộ ${selected.code} cho ${studentName}.`);
       closeAdd();
@@ -218,7 +227,7 @@ export function AdminStudentRegistration({
                 showIcon
                 className="mb-4"
                 title="Sinh viên đang bị khóa đăng ký"
-                description="Đăng ký hộ vẫn được, nhưng cần ghi rõ căn cứ. Khóa không tự gỡ."
+                description="Chỉ đăng ký hộ được khi chọn Bỏ qua điều kiện học vụ và ghi rõ căn cứ. Khóa không tự gỡ."
               />
             )}
             <Form.Item label="Lớp học phần" required>
@@ -269,10 +278,14 @@ export function AdminStudentRegistration({
                       ))}
                   </ul>
                 )}
-                {blockingIssues.length > 0 && (
-                  <Checkbox checked={override} onChange={(event) => setOverride(event.target.checked)} className="mt-1">
-                    Bỏ qua kiểm tra, chịu trách nhiệm theo căn cứ ghi bên dưới
-                  </Checkbox>
+                {hardIssues.length > 0 ? (
+                  <span className="text-xs text-pretty text-muted">Sĩ số, chỗ dành riêng, trùng lịch không bỏ qua được. Chọn lớp khác hoặc tăng sĩ số lớp trước.</span>
+                ) : (
+                  needsOverride && (
+                    <Checkbox checked={override} onChange={(event) => setOverride(event.target.checked)} className="mt-1">
+                      Bỏ qua điều kiện học vụ (tiên quyết, song hành, đối tượng, hạn mức, khóa đăng ký) theo căn cứ ghi bên dưới
+                    </Checkbox>
+                  )
                 )}
               </div>
             )}
@@ -303,7 +316,7 @@ export function AdminStudentRegistration({
           mask={{ closable: false }}
           destroyOnHidden
         >
-          <p className="mb-3 text-sm text-pretty text-muted">Chỗ trống trả lại cho lớp. Sinh viên nhận thông báo kèm lý do trên cổng sinh viên (nếu đã kích hoạt tài khoản).</p>
+          <p className="mb-3 text-sm text-pretty text-muted">Chỗ trống trả lại cho lớp, người đầu danh sách chờ đủ điều kiện được xếp vào. Sinh viên nhận thông báo kèm lý do trên cổng sinh viên (nếu đã kích hoạt tài khoản).</p>
           <Input.TextArea
             value={dropReason}
             onChange={(event) => setDropReason(event.target.value)}

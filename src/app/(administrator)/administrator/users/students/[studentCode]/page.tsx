@@ -21,10 +21,9 @@ import { getAuditLog } from "@/modules/audit/audit.query";
 import { inScope } from "@/modules/access/access.constant";
 import { requirePermission } from "@/modules/access/access.query";
 import { AdminStudentRegistration } from "@/modules/course-registration/components/admin-student-registration";
-import { bestGrades, creditCapOf } from "@/modules/course-registration/course-registration.rule";
-import { getClassSections, getRegistrationEvents, getRegistrationHolds, getRegistrationPeriods, getRegistrationTargetTerm, getStudentEnrollments } from "@/modules/course-registration/course-registration.query";
+import { inProgressCodesFor, lastAttemptGrades } from "@/modules/course-registration/course-registration.rule";
+import { getClassSections, getCreditLimits, getCurrentTerm, getRegistrationEvents, getRegistrationHolds, getRegistrationTargetTerm, getStudentEnrollments } from "@/modules/course-registration/course-registration.query";
 import { getCourses } from "@/modules/curriculum/curriculum.query";
-import { getRegulation } from "@/modules/settings/settings.query";
 import { SectionCard } from "@/shared/components/ui/section-card";
 
 type PageProps = { params: Promise<{ studentCode: string }> };
@@ -53,17 +52,16 @@ export default async function Page({ params }: PageProps) {
     getAuditLog({ entityType: "student", entityId: student.id }),
   ]);
   const advisorName = assignments.find((assignment) => assignment.className === student.className)?.advisorName ?? null;
-  const targetTerm = await getRegistrationTargetTerm();
-  const [targetSections, targetEnrollments, holds, periods, courses, regulation] = await Promise.all([
+  const [targetTerm, currentTerm] = await Promise.all([getRegistrationTargetTerm(), getCurrentTerm()]);
+  const [targetSections, targetEnrollments, currentEnrollments, holds, courses, credit] = await Promise.all([
     getClassSections(targetTerm.id),
     getStudentEnrollments(student.id, targetTerm.id),
+    getStudentEnrollments(student.id, currentTerm.id),
     getRegistrationHolds(student.id),
-    getRegistrationPeriods(targetTerm.id),
     getCourses(),
-    getRegulation(),
+    // Cùng hàm hạn mức với server (cảnh báo học vụ đã ban hành, đợt áp dụng, học kỳ hè, tín chỉ còn lại của chương trình).
+    getCreditLimits(student.id, targetTerm.id),
   ]);
-  const period = periods.find((entry) => entry.cohorts.includes(student.cohort)) ?? periods[0];
-  const cap = creditCapOf(regulation.credits, standing.warningLevel);
   const registrationEvents = await getRegistrationEvents(student.id, targetTerm.id);
   const hasResults = standing.earnedCredits > 0;
 
@@ -153,15 +151,16 @@ export default async function Page({ params }: PageProps) {
               student={{ majorCode: student.majorCode, cohort: student.cohort }}
               termName={targetTerm.name}
               sections={targetSections.filter((section) => section.status === "open")}
-              registered={period && period.state !== "upcoming" ? targetEnrollments.map((entry) => entry.section) : []}
+              registered={targetEnrollments.map((entry) => entry.section)}
               holds={holds}
               events={registrationEvents.filter((event) => event.kind !== "section-cancelled")}
-              passedGrades={bestGrades(transcript)}
+              passedGrades={lastAttemptGrades(transcript)}
               prerequisites={Object.fromEntries(courses.map((course) => [course.code, course.prerequisiteCodes]))}
               corequisites={Object.fromEntries(courses.map((course) => [course.code, course.corequisiteCodes]))}
               equivalents={Object.fromEntries(courses.map((course) => [course.code, course.equivalentCodes]))}
               courseNames={Object.fromEntries(courses.map((course) => [course.code, course.name]))}
-              credits={cap}
+              credits={credit?.limits ?? { min: 0, max: 0 }}
+              inProgressCodes={inProgressCodesFor(targetTerm.id, currentTerm.id, currentEnrollments.map(({ section }) => section.courseCode))}
               actorName={viewer.name}
             />
             <SectionCard title="Kết quả học tập" flush>

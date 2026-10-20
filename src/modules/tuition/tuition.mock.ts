@@ -29,8 +29,9 @@ export function mockInvoice(params: {
   if (isCurrent) paid = params.isCurrentStudent || roll >= 0.65 ? 0 : roll < 0.55 ? total : Math.round(total / 2 / 1000) * 1000;
   const paidAt = isCurrent ? dayjs(issuedAt).add(3 + Math.floor(random() * 18), "day").hour(10) : dayjs(issuedAt).add(9 + (studentIndex % 7), "day").hour(14);
   return {
-    invoice: { id, studentId, termId: term.id, issuedAt: new Date(issuedAt), dueDate, discount: 0 },
-    lines: lines.map((line, position) => ({ invoiceId: id, position: position + 1, label: line.label, quantity: line.quantity, unitPrice: line.unitPrice })),
+    // Học kỳ đã qua và học kỳ hiện tại đã chốt học phí (chính thức) từ lúc phát hành.
+    invoice: { id, studentId, termId: term.id, issuedAt: new Date(issuedAt), dueDate, discount: 0, finalizedAt: new Date(issuedAt), finalizedByLabel: "Phòng Kế hoạch - Tài chính" },
+    lines: lines.map((line, position) => ({ invoiceId: id, position: position + 1, kind: line.kind, label: line.label, quantity: line.quantity, unitPrice: line.unitPrice })),
     payments:
       paid > 0
         ? [
@@ -39,7 +40,10 @@ export function mockInvoice(params: {
               invoiceId: id,
               paidAt: paidAt.toDate(),
               amount: paid,
-              method: (studentIndex + term.semester) % 2 === 0 ? "Chuyển khoản BIDV" : "Thanh toán qua ứng dụng ngân hàng",
+              // Chưa tích hợp ngân hàng: khoản mẫu coi như đã nhập từ sao kê.
+              method: "Chuyển khoản (nhập sao kê)",
+              source: "statement" as const,
+              recordedByLabel: "Phòng Kế hoạch - Tài chính",
               reference: `FT${term.academicYear % 100}${term.semester}${String(studentIndex).padStart(4, "0")}${String(Math.floor(random() * 1000)).padStart(3, "0")}`,
             },
           ]

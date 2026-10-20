@@ -7,6 +7,7 @@ import {
   getRegistrationTargetTerm,
 } from "@/modules/course-registration/course-registration.query";
 import type { ClassSectionView, LecturerWorkload } from "@/modules/course-registration/course-registration.type";
+import { DEFAULT_NORM_HOURS, periodsPerWeekOf, sectionStandardHours } from "@/modules/course-registration/teaching-assignment.rule";
 import { LecturerSurveyResults } from "@/modules/surveys/components/lecturer-survey-results";
 import { getFacultySurveyAverage, getSurvey, getSurveyResultsForLecturer } from "@/modules/surveys/surveys.query";
 import { getCurrentLecturer } from "@/modules/users/users.query";
@@ -18,18 +19,6 @@ import { StatTile } from "@/shared/components/ui/stat-tile";
 import { periodLabel, weekdayLabel } from "@/shared/constants/period.constant";
 
 export const metadata: Metadata = { title: "Khối lượng giảng dạy" };
-
-const TEACHING_WEEKS = 15;
-
-function sizeFactor(enrolled: number) {
-  if (enrolled > 80) return 1.3;
-  if (enrolled > 50) return 1.15;
-  return 1;
-}
-
-function periodsOf(section: ClassSectionView) {
-  return section.meetings.reduce((sum, meeting) => sum + meeting.endPeriod - meeting.startPeriod + 1, 0);
-}
 
 function TermLoad({ title, workload, sections }: { title: string; workload: LecturerWorkload | undefined; sections: ClassSectionView[] }) {
   const standard = workload?.standardHours ?? 0;
@@ -49,8 +38,8 @@ function TermLoad({ title, workload, sections }: { title: string; workload: Lect
         ) : (
           <ul className="flex flex-col divide-y divide-border-strong">
             {sections.map((section) => {
-              const periods = periodsOf(section);
-              const hours = Math.round(periods * TEACHING_WEEKS * sizeFactor(section.enrolled));
+              const periods = periodsPerWeekOf(section);
+              const hours = Math.round(sectionStandardHours(section));
               return (
                 <li key={section.id} className="flex flex-col gap-1 py-3 sm:flex-row sm:items-center sm:gap-4">
                   <span className="flex min-w-0 flex-1 flex-col">
@@ -96,7 +85,7 @@ export default async function Page() {
     <>
       <PageHeader
         title="Khối lượng giảng dạy"
-        description={`Giờ chuẩn quy đổi theo sĩ số lớp: trên 50 sinh viên hệ số 1,15, trên 80 sinh viên hệ số 1,3. Định mức ${lecturer.title} là ${current?.normHours ?? 135} giờ mỗi học kỳ.`}
+        description={`Giờ chuẩn quy đổi theo sĩ số lớp: trên 50 sinh viên hệ số 1,15, trên 80 sinh viên hệ số 1,3. Định mức ${lecturer.title} là ${current?.normHours ?? DEFAULT_NORM_HOURS} giờ mỗi học kỳ.`}
       />
       <div className="flex flex-col gap-4 sm:gap-6">
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">

@@ -3,13 +3,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { Alert, Button, Card, InputNumber, message, Modal, Table, Upload as FilePicker, type TableColumnsType } from "antd";
 import { Download, FilePen, LockKey, Pen, Upload } from "defeat-icons-react";
+import { DownloadPdfButton } from "@/shared/components/ui/download-pdf-button";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { MeterBar } from "@/shared/components/ui/meter-bar";
 import { StatusTag } from "@/shared/components/ui/status-tag";
 import { dayjs, daysUntil, formatDateTime } from "@/shared/libs/date.lib";
 import { downloadBase64, parseCsv } from "@/shared/libs/download.lib";
 import { GradeComponentsEditor } from "@/modules/grades/components/grade-components-editor";
-import { exportGradeSheetExcel, lockGradeSheet, readGradeSheetExcel, saveGradeComponents, saveGradeScores } from "@/modules/grades/grades.action";
+import { exportGradeSheetExcel, exportGradeSheetPdf, lockGradeSheet, readGradeSheetExcel, saveGradeComponents, saveGradeScores } from "@/modules/grades/grades.action";
 import { formatPoint, GRADE_SHEET_STATE, toLetter, weightedScore, letterTextClass } from "@/modules/grades/grades.constant";
 import { GRADE_IMPORT_MAX_BYTES, parseScoreMatrix, type ScoreChange } from "@/modules/grades/grades.rule";
 import {
@@ -341,6 +342,7 @@ export function GradingTable({ sheet, students, classCode, classId, returnReason
             <Button icon={<Download size={16} aria-hidden className="text-zinc-500" />} loading={isExporting} onClick={() => void exportFile()}>
               Xuất Excel
             </Button>
+            {isLocked && <DownloadPdfButton action={() => exportGradeSheetPdf(classSectionId)} />}
             {canRequestChange && requestOptions && (
               <Button icon={<FilePen size={16} aria-hidden className="text-zinc-500" />} onClick={() => setIsRequestOpen(true)}>
                 Đề nghị sửa điểm

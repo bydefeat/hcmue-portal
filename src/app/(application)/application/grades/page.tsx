@@ -4,10 +4,12 @@ import { bestGrades, pickTimetable } from "@/modules/course-registration/course-
 import { getCourses, getPrograms } from "@/modules/curriculum/curriculum.query";
 import { PrintableTranscript } from "@/modules/grades/components/printable-transcript";
 import { TranscriptView } from "@/modules/grades/components/transcript-view";
+import { downloadOwnTranscriptPdf } from "@/modules/grades/grades.action";
 import { formatPoint, STANDING_LABEL, WARNING_LEVEL } from "@/modules/grades/grades.constant";
 import { getStudentStandings, getTranscript } from "@/modules/grades/grades.query";
 import type { TranscriptTerm } from "@/modules/grades/grades.type";
 import { getCurrentStudent } from "@/modules/users/users.query";
+import { DownloadPdfButton } from "@/shared/components/ui/download-pdf-button";
 import { MeterBar } from "@/shared/components/ui/meter-bar";
 import { PageHeader } from "@/shared/components/ui/page-header";
 import { PrintButton } from "@/shared/components/ui/print-button";
@@ -62,7 +64,12 @@ export default async function Page() {
         <PageHeader
           title="Kết quả học tập"
           description="Điểm quy đổi theo thang 4 của quy chế đào tạo tín chỉ. Điểm học kỳ hiện tại hiện sau khi Phòng Đào tạo công bố."
-          actions={<PrintButton label="In bảng điểm" />}
+          actions={
+            <>
+              <DownloadPdfButton action={downloadOwnTranscriptPdf} />
+              <PrintButton label="In bảng điểm" />
+            </>
+          }
         />
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           <StatTile label="Điểm trung bình tích lũy" value={formatPoint(standing.cpa4)} hint={`Xếp loại ${STANDING_LABEL[standing.standing]}`} />

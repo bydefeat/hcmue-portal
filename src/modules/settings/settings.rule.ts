@@ -129,5 +129,5 @@ export function reportCellText(cell: ReportCell): string | number {
 
 // Tên tệp theo định dạng đã chọn lúc xuất; job cũ không lưu định dạng thì là CSV.
 export function reportFileName(reportKey: string, termCode: string, format: string | undefined) {
-  return `${reportKey}-${termCode}.${format === "xlsx" ? "xlsx" : "csv"}`;
+  return `${reportKey}-${termCode}.${format === "xlsx" || format === "pdf" ? format : "csv"}`;
 }

@@ -9,6 +9,8 @@ import { actionError, actionFailure, actionOk, parseInput, type ActionResult } f
 import { daysUntil } from "@/shared/libs/date.lib";
 import { isUuid } from "@/shared/libs/id.lib";
 import { env } from "@/shared/libs/env.lib";
+import { PDF_MIME } from "@/shared/libs/pdf.lib";
+import { bytesToBase64 } from "@/shared/libs/spreadsheet.lib";
 import { sendMailEach } from "@/shared/libs/mail.lib";
 import { studentEmailOf } from "@/shared/libs/student-code.lib";
 import {
@@ -19,6 +21,9 @@ import {
   PERIOD_SCHEMA,
   creditCapOf,
   evaluateSection,
+  pickTimetable,
+  receiptConfirmedAt,
+  receiptVerificationCode,
   REGISTER_SCHEMA,
   sectionCredits,
   type AdminRegisterInput,
@@ -29,13 +34,17 @@ import {
   type RegisterInput,
 } from "@/modules/course-registration/course-registration.rule";
 import { allMeetings, overlaps, REGISTRATION_CONSTRAINT_MESSAGE } from "@/modules/course-registration/course-registration.constant";
+import { classRosterPdf, registrationReceiptPdf } from "@/modules/course-registration/course-registration.pdf";
 import {
+  getClassRoster,
   getClassSection,
   getClassSections,
   getCurrentTerm,
+  getRegistrationEvents,
   getRegistrationHolds,
   getRegistrationPeriods,
   getRegistrationTargetTerm,
+  getStudentEnrollments,
   getUnregisteredStudents,
   readClassSectionAfterWrite,
   REGISTRATION_REMINDER_HREF,
@@ -64,7 +73,7 @@ import { notifyStudents } from "@/modules/notifications/notifications.lib";
 import { syncClassSessions, weeklyScheduleOf, type WeeklySchedule } from "@/modules/schedule/schedule.lib";
 import { INVOICE_PAID_SQL, INVOICE_TOTAL_SQL } from "@/modules/tuition/tuition.lib";
 import { tuitionInvoices } from "@/modules/tuition/tuition.schema";
-import { getCurrentStudent, getStudent, requireActiveStudent } from "@/modules/users/users.query";
+import { getCurrentLecturer, getCurrentStudent, getStudent, requireActiveStudent } from "@/modules/users/users.query";
 import type { ClassSectionView, RegistrationHold, RegistrationPeriodView } from "@/modules/course-registration/course-registration.type";
 import type { Student } from "@/modules/users/users.type";
 
@@ -844,4 +853,42 @@ export async function remindUnregisteredStudents(
     mailed: mail.sent,
     mailFailed: mail.failed,
   });
+}
+
+type PdfFile = { fileName: string; base64: string; mimeType: string };
+
+// Phiếu đăng ký học kỳ hiện tại của chính sinh viên đang đăng nhập, cùng nội dung và mã xác thực với trang Lịch sử và phiếu đăng ký.
+export async function downloadRegistrationReceiptPdf(): Promise<ActionResult<PdfFile>> {
+  const student = await getCurrentStudent();
+  const term = await getCurrentTerm();
+  const [enrolled, periods, events] = await Promise.all([
+    getStudentEnrollments(student.id, term.id),
+    getRegistrationPeriods(term.id),
+    getRegistrationEvents(student.id, term.id),
+  ]);
+  const timetable = pickTimetable(enrolled);
+  const bytes = await registrationReceiptPdf({
+    student,
+    termName: term.name,
+    enrollments: timetable,
+    confirmedAt: receiptConfirmedAt(periods, student.cohort, events, term.startDate),
+    verificationCode: receiptVerificationCode(student.id, term.id, timetable.map(({ section }) => section.id)),
+  });
+  return actionOk({ fileName: `phieu-dang-ky-${term.code}-${student.code.replace(/\./g, "")}.pdf`, base64: bytesToBase64(bytes), mimeType: PDF_MIME });
+}
+
+// Danh sách lớp bản PDF: chỉ giảng viên được phân công dạy lớp.
+export async function exportClassRosterPdf(classSectionId: string): Promise<ActionResult<PdfFile>> {
+  const lecturer = await getCurrentLecturer();
+  if (!isUuid(classSectionId)) return actionError("Không tìm thấy lớp học phần.");
+  const [row] = await db
+    .select({ lecturerId: classSections.lecturerId, termName: terms.name })
+    .from(classSections)
+    .innerJoin(terms, eq(terms.id, classSections.termId))
+    .where(eq(classSections.id, classSectionId));
+  if (!row || row.lecturerId !== lecturer.id) return actionError("Không tìm thấy lớp học phần bạn được phân công dạy.");
+  const [section, roster] = await Promise.all([getClassSection(classSectionId), getClassRoster(classSectionId)]);
+  if (!section) return actionError("Không tìm thấy lớp học phần.");
+  const bytes = await classRosterPdf(section, row.termName, roster);
+  return actionOk({ fileName: `danh-sach-${section.code}.pdf`, base64: bytesToBase64(bytes), mimeType: PDF_MIME });
 }

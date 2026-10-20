@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { forbidden, notFound } from "next/navigation";
+import { DownloadPdfButton } from "@/shared/components/ui/download-pdf-button";
 import { PageHeader } from "@/shared/components/ui/page-header";
 import { PrintButton } from "@/shared/components/ui/print-button";
 import { StatTile } from "@/shared/components/ui/stat-tile";
@@ -7,6 +8,7 @@ import { StatusTag } from "@/shared/components/ui/status-tag";
 import { formatDate, formatDateTime } from "@/shared/libs/date.lib";
 import { PrintableTranscript } from "@/modules/grades/components/printable-transcript";
 import { TranscriptView } from "@/modules/grades/components/transcript-view";
+import { downloadStudentTranscriptPdf } from "@/modules/grades/grades.action";
 import { formatPoint, STANDING_LABEL, WARNING_LEVEL } from "@/modules/grades/grades.constant";
 import { getStudentStandings, getTranscript } from "@/modules/grades/grades.query";
 import { STUDY_PLAN_STATUS } from "@/modules/study-plan/study-plan.constant";
@@ -73,7 +75,12 @@ export default async function Page({ params }: PageProps) {
           back={{ href: "/administrator/users/students", label: "Sinh viên" }}
           title={student.fullName}
           description={`${student.majorName}, lớp ${student.className}`}
-          actions={<PrintButton label="In bảng điểm" />}
+          actions={
+            <>
+              <DownloadPdfButton action={downloadStudentTranscriptPdf.bind(null, student.id)} label="Tải bảng điểm PDF" />
+              <PrintButton label="In bảng điểm" />
+            </>
+          }
         />
         <div className="grid gap-4 lg:grid-cols-[320px_minmax(0,1fr)] lg:items-start">
           <div className="flex flex-col gap-4">

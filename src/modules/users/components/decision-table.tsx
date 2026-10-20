@@ -4,6 +4,7 @@ import { useEffect, useState, useTransition } from "react";
 import { Button, DatePicker, Drawer, Form, Input, message, Modal, Select, Table, type TableColumnsType } from "antd";
 import type { Dayjs } from "dayjs";
 import { Magnifier, Plus } from "defeat-icons-react";
+import { DownloadPdfButton } from "@/shared/components/ui/download-pdf-button";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { PageHeader } from "@/shared/components/ui/page-header";
 import { StatusTag } from "@/shared/components/ui/status-tag";
@@ -12,7 +13,7 @@ import { toFormFields } from "@/shared/libs/form.lib";
 import { DECISION_KIND_LABEL, DECISION_KIND_OPTIONS, DECISION_STATUS } from "@/modules/users/users.constant";
 import type { DecisionKind, DecisionStatus, StudentDecision } from "@/modules/users/users.type";
 import { DecisionPreview } from "@/modules/users/components/decision-preview";
-import { advanceDecision, createDecision } from "@/modules/users/users.action";
+import { advanceDecision, createDecision, downloadDecisionPdf } from "@/modules/users/users.action";
 import { paginationItemRender } from "@/shared/constants/antd.constant";
 import { normalizeSearch } from "@/shared/libs/search.lib";
 
@@ -257,6 +258,7 @@ export function DecisionTable({ decisions, students, header }: DecisionTableProp
           footer={
             <div className="flex justify-end gap-2">
               <Button onClick={() => setPreviewId(null)}>Đóng</Button>
+              {preview && <DownloadPdfButton action={() => downloadDecisionPdf(preview.id)} />}
               <Button onClick={() => window.print()}>In quyết định</Button>
             </div>
           }

@@ -6,13 +6,16 @@ import { z } from "zod";
 import { db, type Transaction } from "@/shared/libs/db.lib";
 import { actionError, actionFailure, actionOk, parseInput, type ActionResult } from "@/shared/libs/action.lib";
 import { isUuid } from "@/shared/libs/id.lib";
+import { PDF_MIME } from "@/shared/libs/pdf.lib";
+import { bytesToBase64 } from "@/shared/libs/spreadsheet.lib";
 import { studentEmailOf } from "@/shared/libs/student-code.lib";
 import { inScope } from "@/modules/access/access.constant";
 import { requirePermission } from "@/modules/access/access.query";
 import { auditActorOf, recordAudit, type AuditActor } from "@/modules/audit/audit.lib";
 import { faculties, majors } from "@/modules/curriculum/curriculum.schema";
 import { ACCOUNT_STATUS, NO_ACCOUNT, USERS_CONSTRAINT_MESSAGE } from "@/modules/users/users.constant";
-import { getCurrentLecturer, getCurrentStudent, getDecisions, getLecturer, getStudent } from "@/modules/users/users.query";
+import { decisionPdf } from "@/modules/users/users.pdf";
+import { getCurrentLecturer, getCurrentStudent, getDecision, getDecisions, getLecturer, getStudent } from "@/modules/users/users.query";
 import {
   createAccounts,
   lockAccountProfiles,
@@ -587,4 +590,14 @@ export async function advanceDecision(id: string, step: DecisionStep): Promise<A
   revalidatePath("/administrator", "layout");
   const decision = await decisionOf(id);
   return decision ? actionOk(decision) : actionError("Đã lưu nhưng chưa đọc lại được, tải lại trang.");
+}
+
+// Quyết định bản PDF để in, lưu hồ sơ: cùng quyền và phạm vi khoa với trang Quyết định sinh viên.
+export async function downloadDecisionPdf(id: string): Promise<ActionResult<{ fileName: string; base64: string; mimeType: string }>> {
+  const viewer = await requirePermission("decisions.manage");
+  const decision = await getDecision(id);
+  if (!decision || !inScope(viewer, decision.faculty)) return actionError("Quyết định không còn tồn tại hoặc thuộc khoa khác, tải lại trang.");
+  const bytes = await decisionPdf(decision);
+  const name = decision.number ? decision.number.split("/")[0] : "du-thao";
+  return actionOk({ fileName: `quyet-dinh-${name}-${decision.studentCode.replace(/\./g, "")}.pdf`, base64: bytesToBase64(bytes), mimeType: PDF_MIME });
 }

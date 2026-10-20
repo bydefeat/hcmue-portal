@@ -91,11 +91,13 @@ describe("settings: ràng buộc ở DB", () => {
 });
 
 describe("settings: xuất báo cáo Excel", () => {
-  test("nhận định dạng xlsx và csv, tên tệp theo định dạng đã chọn", () => {
+  test("nhận định dạng xlsx, pdf và csv, tên tệp theo định dạng đã chọn", () => {
     const base = { reportKey: "registration", termId: "0192f3a4-0000-7000-8000-000000000001", faculty: "all" };
     assert.ok(parseInput(REPORT_EXPORT_SCHEMA, { ...base, format: "xlsx" }).ok);
-    assert.ok(!parseInput(REPORT_EXPORT_SCHEMA, { ...base, format: "pdf" }).ok);
+    assert.ok(parseInput(REPORT_EXPORT_SCHEMA, { ...base, format: "pdf" }).ok);
+    assert.ok(!parseInput(REPORT_EXPORT_SCHEMA, { ...base, format: "docx" }).ok);
     assert.equal(reportFileName("registration", "hk1-2026", "xlsx"), "registration-hk1-2026.xlsx");
+    assert.equal(reportFileName("registration", "hk1-2026", "pdf"), "registration-hk1-2026.pdf");
     assert.equal(reportFileName("registration", "hk1-2026", undefined), "registration-hk1-2026.csv");
     assert.equal(reportCellText({ value: 0.853, text: "85,3%", numFmt: "0.0%" }), "85,3%");
     assert.equal(reportCellText(42), 42);

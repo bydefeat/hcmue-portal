@@ -5,10 +5,10 @@ import { hashPassword } from "better-auth/crypto";
 import { db, type Transaction } from "@/shared/libs/db.lib";
 import { env } from "@/shared/libs/env.lib";
 import { createAuth } from "@/modules/authentication/authentication.lib";
-import { account, session, user } from "@/modules/authentication/authentication.schema";
-import { createAccounts, lockAccountProfiles, randomPasswordHashes, readAccountStates, setAccountsLocked } from "@/modules/users/users.account";
-import { accountBatchSummary, accountStatusOf, activationLink, activationMail, STAFF_SCHEMA, studentAccountIdentity } from "@/modules/users/users.rule";
-import { lecturers, students } from "@/modules/users/users.schema";
+import { account, session, signInFailures, user } from "@/modules/authentication/authentication.schema";
+import { createAccounts, lockAccountProfiles, randomPasswordHashes, readAccountStates, setAccountsLocked, staffProfile } from "@/modules/users/users.account";
+import { accountBatchSummary, accountStatusOf, activationLink, activationMail, LECTURER_SCHEMA, STAFF_SCHEMA, studentAccountIdentity } from "@/modules/users/users.rule";
+import { lecturers, staffMembers, students } from "@/modules/users/users.schema";
 
 after(() => db.$client.end());
 
@@ -41,7 +41,7 @@ function authClientOn(tx: Transaction) {
         body: JSON.stringify(body),
       }),
     );
-    const json = (await response.json().catch(() => null)) as { code?: string; message?: string; user?: { role?: string } } | null;
+    const json = (await response.json().catch(() => null)) as { code?: string; message?: string; user?: { role?: string; username?: string } } | null;
     return { status: response.status, json };
   };
 }
@@ -71,6 +71,9 @@ describe("users: hàm thuần của tài khoản", () => {
     assert.ok(mail.text.includes(link));
     assert.ok(mail.text.includes("50.01.104.013"));
     assert.ok(!/mật khẩu (là|ban đầu)/i.test(mail.text));
+    const lecturerMail = activationMail({ name: "ThS. Phạm Thùy Hạnh", loginName: "GV104011", isStudent: false, link });
+    assert.ok(lecturerMail.text.includes("Tên đăng nhập là mã số cán bộ, giảng viên: GV104011"));
+    assert.ok(!lecturerMail.text.includes("Tên đăng nhập là email"));
   });
 
   test("câu báo thao tác hàng loạt gom dòng bỏ qua theo lý do", () => {
@@ -87,6 +90,16 @@ describe("users: hàm thuần của tài khoản", () => {
     assert.ok(STAFF_SCHEMA.safeParse({ code: "cb0105", fullName: "Lê Văn Bình", unit: "Phòng Đào tạo", email: "BinhLV@hcmue.edu.vn" }).success);
     assert.ok(!STAFF_SCHEMA.safeParse({ code: "CB0105", fullName: "A", unit: "B", email: "5001104013@student.hcmue.edu.vn" }).success);
     assert.ok(!STAFF_SCHEMA.safeParse({ code: "CB0105", fullName: "A", unit: "B", email: "a@gmail.com" }).success);
+  });
+
+  test("mã cán bộ, giảng viên là tên đăng nhập nên phải đúng dạng chữ cái rồi chữ số", () => {
+    assert.equal(STAFF_SCHEMA.parse({ code: " cb0105 ", fullName: "Lê Văn Bình", unit: "Phòng Đào tạo", email: "binhlv@hcmue.edu.vn" }).code, "CB0105");
+    for (const code of ["CB-0105", "Bình01", "0105", "CB 0105"]) {
+      assert.ok(!STAFF_SCHEMA.safeParse({ code, fullName: "A", unit: "B", email: "binhlv@hcmue.edu.vn" }).success, code);
+    }
+    const lecturer = { fullName: "Lê Văn Bình", gender: "male", title: "ThS.", faculty: "Khoa Công nghệ Thông tin", email: "binhlv@hcmue.edu.vn", phone: "", status: "active" } as const;
+    assert.equal(LECTURER_SCHEMA.parse({ ...lecturer, code: "gv104099" }).code, "GV104099");
+    assert.ok(!LECTURER_SCHEMA.safeParse({ ...lecturer, code: "GV.104099" }).success);
   });
 });
 
@@ -157,34 +170,84 @@ describe("users: cấp, kích hoạt, khóa tài khoản trên DB", () => {
     assert.equal(afterRollback.userId, null, "rollback không để lại tài khoản");
   });
 
-  test("giảng viên được cấp tài khoản đăng nhập bằng email công vụ", async () => {
-    const [lecturer] = await db.select({ id: lecturers.id, email: lecturers.email }).from(lecturers).where(isNull(lecturers.userId)).limit(1);
+  test("giảng viên được cấp tài khoản đăng nhập bằng mã giảng viên, không bằng email công vụ", async () => {
+    const [lecturer] = await db.select({ id: lecturers.id, code: lecturers.code, email: lecturers.email }).from(lecturers).where(isNull(lecturers.userId)).limit(1);
     assert.ok(lecturer, "seed cần giảng viên chưa có tài khoản");
     const hashes = await randomPasswordHashes(1);
     await inRollback(async (tx) => {
-      const { created } = await createAccounts(tx, await lockAccountProfiles(tx, "lecturer", [lecturer.id]), hashes);
+      const [profile] = await lockAccountProfiles(tx, "lecturer", [lecturer.id]);
+      assert.equal(profile.loginName, lecturer.code);
+      const { created } = await createAccounts(tx, [profile], hashes);
       assert.equal(created.length, 1);
       const [row] = await tx.select().from(user).where(eq(user.id, created[0].userId));
       assert.equal(row.email, lecturer.email);
-      assert.equal(row.username, null);
+      assert.equal(row.username, lecturer.code.toLowerCase());
+      assert.equal(row.displayUsername, lecturer.code);
       assert.equal(row.role, "lecturer");
       // Đặt mật khẩu như sau khi kích hoạt.
       await tx.update(account).set({ password: await hashPassword(NEW_PASSWORD) }).where(eq(account.userId, row.id));
       const call = authClientOn(tx);
-      const signIn = await call("/sign-in/email", { email: lecturer.email, password: NEW_PASSWORD });
-      assert.equal(signIn.status, 200);
-      assert.equal(signIn.json?.user?.role, "lecturer");
+      for (const username of [lecturer.code, lecturer.code.toLowerCase()]) {
+        const signIn = await call("/sign-in/username", { username, password: NEW_PASSWORD });
+        assert.equal(signIn.status, 200, username);
+        assert.equal(signIn.json?.user?.role, "lecturer");
+      }
+      const viaEmail = await call("/sign-in/email", { email: lecturer.email, password: NEW_PASSWORD });
+      assert.equal(viaEmail.status, 401);
+      assert.equal(viaEmail.json?.code, "USE_LOGIN_CODE");
+
+      // Mở khóa tài khoản thì gỡ luôn khóa tạm do đăng nhập sai nhiều lần.
+      await tx.insert(signInFailures).values({ username: row.username!, failures: 10, windowStartedAt: new Date(), lockedUntil: new Date(Date.now() + 60_000) });
+      assert.equal((await call("/sign-in/username", { username: lecturer.code, password: NEW_PASSWORD })).json?.code, "SIGN_IN_LOCKED");
+      await setAccountsLocked(tx, [row.id], false, null);
+      assert.equal((await tx.select().from(signInFailures).where(eq(signInFailures.username, row.username!))).length, 0);
+      assert.equal((await call("/sign-in/username", { username: lecturer.code, password: NEW_PASSWORD })).status, 200);
     });
   });
 
-  test("email đã là tên đăng nhập của tài khoản khác thì bỏ qua hồ sơ, không ghi nửa chừng", async () => {
+  test("cán bộ mới được cấp tài khoản đăng nhập bằng mã cán bộ", async () => {
+    const hashes = await randomPasswordHashes(1);
+    await inRollback(async (tx) => {
+      const [staff] = await tx
+        .insert(staffMembers)
+        .values({ code: "CB9901", fullName: "Lê Văn Kiểm Thử", unit: "Phòng Đào tạo", email: "kiemthu.cb9901@hcmue.edu.vn" })
+        .returning({ id: staffMembers.id });
+      const profile = staffProfile({ id: staff.id, userId: null, code: "CB9901", name: "Lê Văn Kiểm Thử", faculty: "", email: "kiemthu.cb9901@hcmue.edu.vn" }, "admin");
+      const { created } = await createAccounts(tx, [profile], hashes);
+      assert.equal(created.length, 1);
+      const [row] = await tx.select().from(user).where(eq(user.id, created[0].userId));
+      assert.equal(row.username, "cb9901");
+      assert.equal(row.displayUsername, "CB9901");
+      const [linked] = await tx.select({ userId: staffMembers.userId }).from(staffMembers).where(eq(staffMembers.id, staff.id));
+      assert.equal(linked.userId, row.id);
+      await tx.update(account).set({ password: await hashPassword(NEW_PASSWORD) }).where(eq(account.userId, row.id));
+      const signIn = await authClientOn(tx)("/sign-in/username", { username: "cb9901", password: NEW_PASSWORD });
+      assert.equal(signIn.status, 200);
+      assert.equal(signIn.json?.user?.role, "admin");
+    });
+  });
+
+  test("mã đã là tên đăng nhập của tài khoản khác thì bỏ qua hồ sơ, báo ở ô mã", async () => {
+    const [lecturer] = await db.select({ id: lecturers.id }).from(lecturers).where(isNull(lecturers.userId)).limit(1);
+    const hashes = await randomPasswordHashes(1);
+    await inRollback(async (tx) => {
+      const [profile] = await lockAccountProfiles(tx, "lecturer", [lecturer.id]);
+      const { created, skipped } = await createAccounts(tx, [{ ...profile, username: "cb0021", loginName: "CB0021" }], hashes);
+      assert.equal(created.length, 0);
+      assert.equal(skipped[0].field, "code");
+      assert.match(skipped[0].reason, /CB0021 đã là tên đăng nhập/);
+    });
+  });
+
+  test("email đã thuộc tài khoản khác thì bỏ qua hồ sơ, không ghi nửa chừng", async () => {
     const [lecturer] = await db.select({ id: lecturers.id }).from(lecturers).where(isNull(lecturers.userId)).limit(1);
     const hashes = await randomPasswordHashes(1);
     await inRollback(async (tx) => {
       const [profile] = await lockAccountProfiles(tx, "lecturer", [lecturer.id]);
       const { created, skipped } = await createAccounts(tx, [{ ...profile, email: "khoatm@hcmue.edu.vn" }], hashes);
       assert.equal(created.length, 0);
-      assert.match(skipped[0].reason, /đã là tên đăng nhập/);
+      assert.match(skipped[0].reason, /đã thuộc một tài khoản khác/);
+      assert.equal(skipped[0].field, "email");
       const [linked] = await tx.select({ userId: lecturers.userId }).from(lecturers).where(eq(lecturers.id, lecturer.id));
       assert.equal(linked.userId, null);
     });

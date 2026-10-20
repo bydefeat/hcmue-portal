@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { AccountStatus, StudentFormValues } from "@/modules/users/users.type";
+import { formatLoginName, isStaffCode, STAFF_CODE_HINT } from "@/shared/libs/login-name.lib";
 import { formatStudentCode, isStudentCode, isStudentEmail, normalizeStudentCode, studentEmailOf } from "@/shared/libs/student-code.lib";
 
 export const IMPORT_COLUMNS = ["Mã sinh viên", "Họ và tên", "Giới tính", "Ngày sinh", "Email", "Điện thoại", "Mã ngành", "Khóa", "Lớp"] as const;
@@ -101,7 +102,8 @@ export const STUDENT_SCHEMA = z.object({
 export type StudentInput = z.input<typeof STUDENT_SCHEMA>;
 
 export const LECTURER_SCHEMA = z.object({
-  code: z.string().trim().toUpperCase().min(1, "Chưa nhập mã giảng viên").max(20),
+  // Mã giảng viên cũng là tên đăng nhập nên phải đúng dạng plugin username nhận (login-name.lib).
+  code: z.string().trim().toUpperCase().min(1, "Chưa nhập mã giảng viên").refine(isStoredStaffCode, STAFF_CODE_HINT),
   fullName: z.string().trim().min(1, "Chưa nhập họ và tên").max(120),
   gender: z.enum(["female", "male"], "Chưa chọn giới tính"),
   title: z.string().trim().min(1, "Chưa chọn học hàm, học vị").max(20),
@@ -142,6 +144,11 @@ export const DECISION_SCHEMA = z.object({
 
 export type DecisionInput = z.input<typeof DECISION_SCHEMA>;
 
+// Mã lưu đúng như tên đăng nhập hiển thị (chữ hoa, không khoảng trắng), để đổi qua lại username không lệch.
+function isStoredStaffCode(value: string) {
+  return isStaffCode(value) && formatLoginName(value) === value;
+}
+
 // Tài khoản sinh viên: đăng nhập bằng MSSV 10 chữ số, hiển thị dạng có dấu chấm, email trường nhận mã kích hoạt.
 export function studentAccountIdentity(code: string) {
   const username = normalizeStudentCode(code);
@@ -160,13 +167,14 @@ export function activationLink(baseUrl: string, email: string) {
 }
 
 export function activationMail(account: { name: string; loginName: string; isStudent: boolean; link: string }) {
-  const loginHint = account.isStudent ? `Tên đăng nhập là mã số sinh viên: ${account.loginName}` : `Tên đăng nhập là email công vụ: ${account.loginName}`;
+  const loginHint = account.isStudent ? `Tên đăng nhập là mã số sinh viên: ${account.loginName}` : `Tên đăng nhập là mã số cán bộ, giảng viên: ${account.loginName}`;
   return {
     subject: "Kích hoạt tài khoản HCMUE Portal",
     text: [
       `Chào ${account.name},`,
       `Phòng Đào tạo đã cấp cho bạn tài khoản HCMUE Portal. ${loginHint}.`,
       `Để kích hoạt, mở đường dẫn dưới đây, bấm Gửi mã, nhập mã gồm 6 số được gửi tới email này rồi đặt mật khẩu của bạn:\n${account.link}`,
+      `Sau đó đăng nhập bằng tên đăng nhập ${account.loginName} (không dùng email) và mật khẩu vừa đặt.`,
       "Nếu bạn không phải người nhận thư này, bỏ qua thư; tài khoản chưa dùng được khi chưa đặt mật khẩu.",
     ].join("\n\n"),
   };
@@ -183,9 +191,9 @@ export const ACCOUNT_BATCH_SCHEMA = z.object({
 
 export type AccountBatchInput = z.input<typeof ACCOUNT_BATCH_SCHEMA>;
 
-// Cán bộ do quản trị hệ thống tạo ở trang Phân quyền; tạm đăng nhập bằng email công vụ.
+// Cán bộ do quản trị hệ thống tạo ở trang Phân quyền; đăng nhập bằng mã cán bộ, email công vụ nhận mã kích hoạt.
 export const STAFF_SCHEMA = z.object({
-  code: z.string().trim().toUpperCase().min(1, "Chưa nhập mã cán bộ").max(20),
+  code: z.string().trim().toUpperCase().min(1, "Chưa nhập mã cán bộ").refine(isStoredStaffCode, STAFF_CODE_HINT),
   fullName: z.string().trim().min(1, "Chưa nhập họ và tên").max(120),
   unit: z.string().trim().min(1, "Chưa nhập đơn vị").max(120),
   email: z

@@ -46,7 +46,7 @@ Mỗi dòng ghi nguồn: *đọc code*, *người dùng nói*, *đoán* (cần x
 | Màn | Đến để làm gì | So sánh, quyết định bằng gì | Hành động cuối | Loại sản phẩm này thường làm *(theo trí nhớ, cần kiểm)* |
 |---|---|---|---|---|
 | **Public · Trang chủ** | Xem thông báo đào tạo mới, lịch đăng ký sắp tới | Ngày đăng, loại thông báo, hạn chót | Mở thông báo, đăng nhập | Danh sách thông báo theo ngày là nội dung chính, không hero quảng cáo |
-| **Auth · Đăng nhập** | Vào portal | — | Đăng nhập | Một cột giữa, logo trường, mã SV/email + mật khẩu, "Quên mật khẩu" |
+| **Auth · Đăng nhập** | Vào portal | — | Đăng nhập | Một cột giữa, logo trường, mã số (MSSV hoặc mã cán bộ, giảng viên) + mật khẩu, "Quên mật khẩu" |
 | **SV · Tổng quan** | Biết hôm nay học gì, đợt đăng ký còn bao lâu, có cảnh báo gì không | Giờ học, hạn chót đợt đăng ký, cảnh báo học vụ | Mở TKB, vào đăng ký | Lịch hôm nay đứng đầu; cảnh báo/hạn chót là banner |
 | **SV · Đăng ký học phần** | Chọn lớp cho kỳ tới | **Còn chỗ không, có trùng lịch không, đủ tiên quyết chưa**, số tín chỉ, giảng viên, giờ học | Đăng ký / huỷ lớp | Lớp **không đăng ký được hiện lý do ngay trên dòng** (trùng lịch, thiếu tiên quyết, hết chỗ); tổng tín chỉ đã chọn dính đầu/đáy màn |
 | **SV · TKB** | Xem lịch tuần | Thứ, tiết, phòng | Xuất `.ics` | Lưới tuần ở desktop, danh sách theo ngày ở điện thoại |
@@ -126,7 +126,7 @@ PostgreSQL 18.4, khoá chính `uuid` mặc định `uuidv7()`. Ràng buộc đ�
 
 | Module | Bảng |
 |---|---|
-| `authentication` | `user`, `session`, `account`, `verification`, `rate_limit` (better-auth + cột plugin `admin`) |
+| `authentication` | `user`, `session`, `account`, `verification`, `rate_limit` (better-auth + cột plugin `admin`), `sign_in_failures` (khóa tạm theo tên đăng nhập) |
 | `curriculum` | `faculties`, `majors`, `courses`, `course_relations` (tiên quyết, song hành, tương đương), `programs`, `program_cohorts`, `program_courses` |
 | `users` | `lecturers`, `staff_members`, `administrative_classes` (kèm cố vấn), `students`, `student_decisions`, `lecturer_load_norms` |
 | `facilities` | `campuses`, `rooms` |
@@ -163,7 +163,7 @@ PostgreSQL 18.4, khoá chính `uuid` mặc định `uuidv7()`. Ràng buộc đ�
 | Đối tượng | Đăng nhập | Khôi phục mật khẩu |
 |---|---|---|
 | Sinh viên | **Chỉ mã số sinh viên**, ví dụ `50.01.104.013`. Nhận cả dạng có dấu chấm và dạng 10 chữ số liền (`5001104013`), chuẩn hoá về 10 chữ số trước khi tra. Nhập email sinh viên ở ô đăng nhập thì báo dùng MSSV | Email trường cấp `5001104013@student.hcmue.edu.vn` (10 chữ số của MSSV + `@student.hcmue.edu.vn`) |
-| Giảng viên, cán bộ | *Chưa chốt, chủ dự án đang khảo sát.* Chưa có kết luận thì không viết luồng riêng cho nhóm này | *Chưa chốt* |
+| Giảng viên, cán bộ | **Mã số cán bộ, giảng viên** (`lecturers.code` dạng `GV104011`, `staff_members.code` dạng `CB0021`), không phân biệt hoa thường. Không đăng nhập bằng email (mọi tài khoản) | Email công vụ `@hcmue.edu.vn` (luồng OTP như sinh viên) |
 
 - `students.code` lưu 10 chữ số liền; dạng có dấu chấm `NN.NN.NNN.NNN` chỉ là cách hiển thị và cách nhập.
 - better-auth: plugin `username` (username = MSSV đã chuẩn hoá), `emailAndPassword` để khôi phục qua email; `disableSignUp`; `advanced.database.generateId: false` để DB sinh `uuidv7()`.
@@ -221,7 +221,7 @@ PostgreSQL 18.4, khoá chính `uuid` mặc định `uuidv7()`. Ràng buộc đ�
 - Xoá toàn bộ mock (`mock*.lib.ts`, `*.mock.ts`), test end-to-end các luồng chính, cấu hình triển khai.
 - Đã làm: không còn code chạy lúc runtime đọc `*.mock.ts` hay `MOCK_MAJORS`/`MOCK_COHORTS`; ngành, khoa, khóa đọc từ DB. Mock chỉ còn là dữ liệu nguồn cho seed (`scripts/seed`) và test seed. Danh mục học phần thống nhất (201 học phần), khung chương trình mỗi ngành theo đúng thứ tự học phần trong bảng điểm mẫu. Xuất/nhập bảng điểm và xuất danh sách xét tốt nghiệp bằng CSV.
 - Đã làm kho lưu tệp (`storage.lib.ts`, đĩa cục bộ dưới `DEFEAT_STORAGE_DIRECTORY`): minh chứng đơn từ, đề thi và đáp án tải lên thật (kiểm đuôi và chữ ký đầu tệp, 10 MB/tệp minh chứng, 20 MB/tệp đề), tải xuống qua `/api/files/...` theo đúng quyền xem đơn, quyền đề thi; tác vụ `orphan-files` dọn tệp mồ côi. Chưa có: S3/R2, quét virus, Phòng Khảo thí duyệt đề.
-- Đã làm (tài khoản): cấp tài khoản cho sinh viên (MSSV), giảng viên và cán bộ mới (email công vụ) với mật khẩu ngẫu nhiên không lưu dạng rõ, thư kích hoạt qua luồng quên mật khẩu (OTP), trạng thái chưa cấp / chưa kích hoạt / đang dùng / đã khóa, khóa và mở khóa (chặn đăng nhập, thu hồi phiên ngay), thư nhắc đăng ký học phần tới email trường; chỉ mở các endpoint better-auth app dùng, chặn open redirect `?next=`.
+- Đã làm (tài khoản): cấp tài khoản cho sinh viên (MSSV), giảng viên và cán bộ mới (mã số cán bộ, giảng viên; thư kích hoạt tới email công vụ) với mật khẩu ngẫu nhiên không lưu dạng rõ, thư kích hoạt qua luồng quên mật khẩu (OTP), trạng thái chưa cấp / chưa kích hoạt / đang dùng / đã khóa, khóa và mở khóa (chặn đăng nhập, thu hồi phiên ngay), thư nhắc đăng ký học phần tới email trường; chỉ mở các endpoint better-auth app dùng, chặn open redirect `?next=`.
 - Còn lại: kho lưu tệp (minh chứng đơn từ, đề thi mới lưu tên tệp), dịch vụ gửi email (OTP đang in ra log server), cổng sinh viên xem thông báo lớp và đề cương, giao diện sửa khung chương trình và sửa cột điểm, khung chương trình 5 ngành ngoài CNTT trong seed chỉ khoảng 105 tín chỉ (dưới mức xét tốt nghiệp), trang 404 trong cổng trả mã 200.
 - Đã làm (đợt 2: khung, cột điểm, Excel, cảnh báo): sửa khung chương trình (thêm, bỏ, chuyển học kỳ bằng menu hoặc kéo thả; trigger chặn khung của chương trình ngừng áp dụng và học kỳ vượt số năm × 2), giảng viên sửa cột điểm khi bảng còn nháp/bị trả lại (gợi ý theo đề cương đã công bố), xuất/nhập bảng điểm `.xlsx` (vẫn nhận `.csv`) và xuất danh sách xét tốt nghiệp `.xlsx` bằng exceljs, sinh cảnh báo học vụ cho học kỳ đã kết thúc (nút ở trang cảnh báo học vụ, tác vụ cron `academic-warnings`, báo cố vấn), khung mẫu mỗi ngành đủ tổng tín chỉ của chương trình nên khóa 48 ngành nào cũng có sinh viên đủ điều kiện tốt nghiệp.
 
@@ -235,5 +235,5 @@ PostgreSQL 18.4, khoá chính `uuid` mặc định `uuidv7()`. Ràng buộc đ�
 4. ~~Sign-up~~: đã chốt, không có đăng ký.
 5. Logo bản SVG / bản chỉ có dấu; bảng quy đổi điểm và ngưỡng cảnh báo học vụ của trường.
 6. ~~Tên đăng nhập sinh viên~~: đã chốt, chỉ dùng MSSV; khôi phục qua `MSSV@student.hcmue.edu.vn`.
-7. Tên đăng nhập và cách khôi phục của giảng viên, cán bộ (đang khảo sát).
+7. ~~Tên đăng nhập và cách khôi phục của giảng viên, cán bộ~~: đã chốt, đăng nhập bằng mã số cán bộ, giảng viên; khôi phục qua email công vụ.
 8. Dịch vụ gửi email OTP; nơi triển khai (VPS / Vercel / server trường); thư viện Excel (đề xuất `exceljs`).

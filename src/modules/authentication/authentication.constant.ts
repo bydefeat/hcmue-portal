@@ -23,20 +23,29 @@ export const AUTH_PATHNAME_HEADER = "x-hcmue-pathname";
 
 export const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 7;
 
+// Sai quá MAX_FAILURES lần trong WINDOW_MINUTES phút thì tạm khóa đăng nhập tên đó LOCK_MINUTES phút.
+export const SIGN_IN_LOCKOUT = { maxFailures: 10, windowMinutes: 15, lockMinutes: 15 } as const;
+
+export const LOGIN_NAME_HINT = "Sinh viên nhập mã số sinh viên, ví dụ 50.01.104.013. Cán bộ, giảng viên nhập mã số của mình, ví dụ GV104011";
+
 export const AUTH_ERROR = {
-  STUDENT_USE_CODE: "Sinh viên đăng nhập bằng mã số sinh viên, không dùng email",
+  USE_LOGIN_CODE: "Đăng nhập bằng mã số sinh viên hoặc mã số cán bộ, giảng viên",
   ACCOUNT_LOCKED: "Tài khoản đang bị khóa. Liên hệ Phòng Đào tạo để được mở khóa.",
+  SIGN_IN_LOCKED: `Đăng nhập sai quá nhiều lần nên tạm khóa ${SIGN_IN_LOCKOUT.lockMinutes} phút. Thử lại sau, hoặc đặt lại mật khẩu qua Quên mật khẩu.`,
 } as const;
+
+const INVALID_LOGIN_NAME = "Tên đăng nhập là mã số sinh viên (ví dụ 50.01.104.013) hoặc mã số cán bộ, giảng viên (ví dụ GV104011)";
 
 // Mã lỗi better-auth trả về → câu hiển thị. Sai tên đăng nhập hay sai mật khẩu dùng chung một câu để không lộ tài khoản nào tồn tại.
 export const AUTH_ERROR_MESSAGE: Record<string, string> = {
   INVALID_USERNAME_OR_PASSWORD: "Sai tên đăng nhập hoặc mật khẩu",
   INVALID_EMAIL_OR_PASSWORD: "Sai tên đăng nhập hoặc mật khẩu",
-  INVALID_USERNAME: "Mã số sinh viên gồm 10 chữ số, ví dụ 50.01.104.013",
-  USERNAME_TOO_SHORT: "Mã số sinh viên gồm 10 chữ số, ví dụ 50.01.104.013",
-  USERNAME_TOO_LONG: "Mã số sinh viên gồm 10 chữ số, ví dụ 50.01.104.013",
+  INVALID_USERNAME: INVALID_LOGIN_NAME,
+  USERNAME_TOO_SHORT: INVALID_LOGIN_NAME,
+  USERNAME_TOO_LONG: INVALID_LOGIN_NAME,
   INVALID_EMAIL: "Email chưa đúng định dạng",
-  STUDENT_USE_CODE: AUTH_ERROR.STUDENT_USE_CODE,
+  USE_LOGIN_CODE: AUTH_ERROR.USE_LOGIN_CODE,
+  SIGN_IN_LOCKED: AUTH_ERROR.SIGN_IN_LOCKED,
   BANNED_USER: AUTH_ERROR.ACCOUNT_LOCKED,
   INVALID_OTP: "Mã không đúng",
   OTP_EXPIRED: "Mã đã hết hạn, bấm gửi lại mã",
@@ -53,6 +62,8 @@ export const AUTH_RATE_LIMITED = "Thử quá nhiều lần, đợi một phút r
 
 export function authErrorMessage(error: { code?: string; status?: number } | null | undefined) {
   if (!error) return AUTH_FALLBACK_ERROR;
+  // Khóa tạm theo tên đăng nhập cũng trả 429 nhưng có câu riêng (chờ 15 phút, không phải một phút).
+  if (error.code === "SIGN_IN_LOCKED") return AUTH_ERROR.SIGN_IN_LOCKED;
   if (error.status === 429) return AUTH_RATE_LIMITED;
   return (error.code && AUTH_ERROR_MESSAGE[error.code]) || AUTH_FALLBACK_ERROR;
 }

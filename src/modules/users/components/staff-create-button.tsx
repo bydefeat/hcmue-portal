@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { Button, Checkbox, Drawer, Form, Input, message } from "antd";
 import { Plus } from "defeat-icons-react";
 import { toFormFields } from "@/shared/libs/form.lib";
+import { isStaffCode, STAFF_CODE_HINT } from "@/shared/libs/login-name.lib";
 import { createStaffMember } from "@/modules/users/users.action";
 import type { StaffFormValues } from "@/modules/users/users.type";
 
@@ -56,7 +57,14 @@ export function StaffCreateButton() {
       >
         <Form form={form} layout="vertical" initialValues={{ provisionAccount: true }} onFinish={submit}>
           <div className="grid gap-x-3 sm:grid-cols-[10rem_1fr]">
-            <Form.Item name="code" label="Mã cán bộ" rules={[{ required: true, whitespace: true, message: "Chưa nhập mã cán bộ" }]}>
+            <Form.Item
+              name="code"
+              label="Mã cán bộ"
+              rules={[
+                { required: true, whitespace: true, message: "Chưa nhập mã cán bộ" },
+                { validator: (_, value?: string) => (!value?.trim() || (isStaffCode(value) && !/\s/.test(value.trim())) ? Promise.resolve() : Promise.reject(new Error(STAFF_CODE_HINT))) },
+              ]}
+            >
               <Input autoComplete="off" placeholder="CB0105" />
             </Form.Item>
             <Form.Item name="fullName" label="Họ và tên" rules={[{ required: true, whitespace: true, message: "Chưa nhập họ và tên" }]}>
@@ -69,7 +77,7 @@ export function StaffCreateButton() {
           <Form.Item
             name="email"
             label="Email công vụ"
-            extra="Cán bộ đăng nhập bằng email này."
+            extra="Nhận mã kích hoạt và đặt lại mật khẩu. Cán bộ đăng nhập bằng mã cán bộ, không dùng email."
             rules={[
               { required: true, message: "Chưa nhập email" },
               { pattern: /^[^@\s]+@hcmue\.edu\.vn$/i, message: "Dùng email công vụ có đuôi @hcmue.edu.vn" },

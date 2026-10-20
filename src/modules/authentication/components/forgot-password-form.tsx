@@ -16,6 +16,11 @@ function EmailText({ email }: { email: string }) {
   return <span className="font-medium whitespace-nowrap text-foreground">{email}</span>;
 }
 
+// Email sinh viên chứa MSSV nên suy ra được tên đăng nhập; email cán bộ thì không.
+function studentCodeOf(email: string) {
+  return isStudentEmail(email) ? formatStudentCode(email.split("@")[0]) : undefined;
+}
+
 function ErrorAlert({ message }: { message: string | null }) {
   return message ? <Alert type="error" showIcon title={message} className="mb-6" /> : null;
 }
@@ -43,8 +48,8 @@ export function ForgotPasswordForm({ defaultEmail, isActivation = false }: { def
           title={isActivation ? "Kích hoạt tài khoản" : "Quên mật khẩu"}
           description={
             isActivation
-              ? "Lần đầu dùng HCMUE Portal: nhập email trường cấp, mã gồm 6 số sẽ được gửi tới đó để bạn đặt mật khẩu. Email sinh viên có dạng 5001104013@student.hcmue.edu.vn."
-              : "Nhập email trường cấp, mã đặt lại mật khẩu sẽ được gửi tới đó. Email sinh viên có dạng 5001104013@student.hcmue.edu.vn."
+              ? "Lần đầu dùng HCMUE Portal: nhập email trường cấp, mã gồm 6 số sẽ được gửi tới đó để bạn đặt mật khẩu. Email sinh viên có dạng 5001104013@student.hcmue.edu.vn, cán bộ và giảng viên dùng email công vụ @hcmue.edu.vn. Tên đăng nhập vẫn là mã số sinh viên hoặc mã số cán bộ, giảng viên."
+              : "Nhập email trường cấp, mã đặt lại mật khẩu sẽ được gửi tới đó. Email sinh viên có dạng 5001104013@student.hcmue.edu.vn, cán bộ và giảng viên dùng email công vụ @hcmue.edu.vn."
           }
         />
         <ErrorAlert message={error} />
@@ -186,7 +191,8 @@ export function ForgotPasswordForm({ defaultEmail, isActivation = false }: { def
             })
           }
         >
-          <input type="text" name="username" autoComplete="username" value={email} readOnly hidden />
+          {/* Trình quản lý mật khẩu lưu theo tên đăng nhập (mã số), không theo email; mã cán bộ không suy ra được từ email thì bỏ trống. */}
+          {studentCodeOf(email) && <input type="text" name="username" autoComplete="username" value={studentCodeOf(email)} readOnly hidden />}
           <Form.Item name="password" label="Mật khẩu mới" extra="Ít nhất 8 ký tự" rules={NEW_PASSWORD_RULES}>
             <Input.Password autoFocus autoComplete="new-password" placeholder="Tạo mật khẩu" />
           </Form.Item>
@@ -198,19 +204,23 @@ export function ForgotPasswordForm({ defaultEmail, isActivation = false }: { def
     );
   }
 
-  const studentCode = isStudentEmail(email) ? formatStudentCode(email.split("@")[0]) : undefined;
+  const studentCode = studentCodeOf(email);
   return (
     <>
       <AuthHeading
         title={isActivation ? "Đã kích hoạt tài khoản" : "Đã đổi mật khẩu"}
-        description={studentCode ? `Đăng nhập bằng mã số sinh viên ${studentCode} và mật khẩu vừa đặt.` : "Dùng mật khẩu vừa đặt để đăng nhập."}
+        description={
+          studentCode
+            ? `Đăng nhập bằng mã số sinh viên ${studentCode} và mật khẩu vừa đặt.`
+            : "Đăng nhập bằng mã số cán bộ, giảng viên (ghi trong thư kích hoạt, ví dụ GV104011) và mật khẩu vừa đặt."
+        }
       />
       <Button
         type="primary"
         size="large"
         block
         autoFocus
-        onClick={() => router.push(`/authentication/sign-in?username=${encodeURIComponent(studentCode ?? email)}`)}
+        onClick={() => router.push(studentCode ? `/authentication/sign-in?username=${encodeURIComponent(studentCode)}` : "/authentication/sign-in")}
       >
         Đăng nhập
       </Button>

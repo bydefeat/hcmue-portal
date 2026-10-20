@@ -5,7 +5,8 @@ import { hashPassword } from "better-auth/crypto";
 import type { db, Transaction } from "@/shared/libs/db.lib";
 import { env } from "@/shared/libs/env.lib";
 import { sendMail } from "@/shared/libs/mail.lib";
-import { account, session, user } from "@/modules/authentication/authentication.schema";
+import { account, session, signInFailures, user } from "@/modules/authentication/authentication.schema";
+import { staffAccountIdentity } from "@/shared/libs/login-name.lib";
 import { faculties, majors } from "@/modules/curriculum/curriculum.schema";
 import { accountStatusOf, activationLink, activationMail, studentAccountIdentity } from "@/modules/users/users.rule";
 import { administrativeClasses, lecturers, staffMembers, students } from "@/modules/users/users.schema";
@@ -13,7 +14,7 @@ import type { AccountKind, AccountState } from "@/modules/users/users.type";
 
 type Database = typeof db | Transaction;
 
-// Hồ sơ cần tài khoản: loginName là chữ người dùng gõ ở ô đăng nhập (MSSV có dấu chấm hoặc email).
+// Hồ sơ cần tài khoản: loginName là chữ người dùng gõ ở ô đăng nhập (MSSV có dấu chấm, mã cán bộ, giảng viên chữ hoa).
 export type AccountProfile = {
   id: string;
   userId: string | null;
@@ -62,26 +63,29 @@ export async function lockAccountProfiles(tx: Transaction, kind: AccountKind, id
     return rows.map(studentProfile);
   }
   const rows = await tx
-    .select({ id: lecturers.id, userId: lecturers.userId, title: lecturers.title, fullName: lecturers.fullName, email: lecturers.email, faculty: faculties.name })
+    .select({ id: lecturers.id, userId: lecturers.userId, code: lecturers.code, title: lecturers.title, fullName: lecturers.fullName, email: lecturers.email, faculty: faculties.name })
     .from(lecturers)
     .innerJoin(faculties, eq(faculties.id, lecturers.facultyId))
     .where(inArray(lecturers.id, ids))
     .for("update", { of: lecturers });
-  return rows.map(({ title, fullName, ...row }) => ({
-    ...row,
-    name: `${title} ${fullName}`,
-    username: null,
-    displayUsername: null,
-    loginName: row.email,
-    role: "lecturer",
-  }));
+  return rows.map(({ title, fullName, code, ...row }) => staffProfile({ ...row, code, name: `${title} ${fullName}` }, "lecturer"));
+}
+
+// Giảng viên, cán bộ đăng nhập bằng mã hồ sơ; email công vụ chỉ để nhận mã kích hoạt, đặt lại mật khẩu.
+export function staffProfile(
+  row: { id: string; userId: string | null; code: string; name: string; faculty: string; email: string },
+  role: "lecturer" | "admin",
+): AccountProfile {
+  const { code, ...rest } = row;
+  const identity = staffAccountIdentity(code);
+  return { ...rest, ...identity, loginName: identity.displayUsername, role };
 }
 
 // Tạo user + account (credential) cho các hồ sơ chưa có tài khoản và gắn userId vào hồ sơ.
-// Email hoặc MSSV đã là tên đăng nhập của tài khoản khác thì bỏ qua dòng đó; unique ở DB chặn lần cuối khi tranh nhau.
+// Email hoặc mã số đã thuộc tài khoản khác thì bỏ qua dòng đó; unique ở DB chặn lần cuối khi tranh nhau.
 export async function createAccounts(tx: Transaction, profiles: AccountProfile[], hashes: string[]) {
   const pending = profiles.filter((profile) => profile.userId === null);
-  const skipped: { profile: AccountProfile; reason: string }[] = [];
+  const skipped: { profile: AccountProfile; reason: string; field: "email" | "code" }[] = [];
   if (pending.length === 0) return { created: [] as NewAccount[], skipped };
   if (hashes.length < pending.length) throw new Error("Thiếu mật khẩu ban đầu cho tài khoản mới");
   const emails = pending.map((profile) => profile.email.toLowerCase());
@@ -94,8 +98,8 @@ export async function createAccounts(tx: Transaction, profiles: AccountProfile[]
   const takenUsernames = new Set(taken.flatMap((row) => (row.username ? [row.username] : [])));
   const fresh: AccountProfile[] = [];
   for (const profile of pending) {
-    if (takenEmails.has(profile.email.toLowerCase())) skipped.push({ profile, reason: `Email ${profile.email} đã là tên đăng nhập của một tài khoản khác` });
-    else if (profile.username && takenUsernames.has(profile.username)) skipped.push({ profile, reason: `Mã ${profile.loginName} đã là tên đăng nhập của một tài khoản khác` });
+    if (takenEmails.has(profile.email.toLowerCase())) skipped.push({ profile, reason: `Email ${profile.email} đã thuộc một tài khoản khác`, field: "email" });
+    else if (profile.username && takenUsernames.has(profile.username)) skipped.push({ profile, reason: `Mã ${profile.loginName} đã là tên đăng nhập của một tài khoản khác`, field: "code" });
     else fresh.push(profile);
   }
   if (fresh.length === 0) return { created: [] as NewAccount[], skipped };
@@ -132,6 +136,11 @@ export async function setAccountsLocked(tx: Transaction, userIds: string[], lock
     .set({ banned: locked, banReason: locked ? reason : null, banExpires: null })
     .where(inArray(user.id, userIds));
   if (locked) await tx.delete(session).where(inArray(session.userId, userIds));
+  // Mở khóa thì gỡ luôn khóa tạm do đăng nhập sai nhiều lần.
+  else {
+    const usernames = tx.select({ username: user.username }).from(user).where(inArray(user.id, userIds));
+    await tx.delete(signInFailures).where(inArray(signInFailures.username, usernames));
+  }
 }
 
 // Gửi thư kích hoạt sau khi transaction đã commit. Mỗi người một đường dẫn riêng (điền sẵn email) nên gửi từng thư.

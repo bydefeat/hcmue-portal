@@ -1,5 +1,7 @@
 import { timingSafeEqual } from "node:crypto";
+import { db } from "@/shared/libs/db.lib";
 import { env } from "@/shared/libs/env.lib";
+import { sweepSignInFailures } from "@/modules/authentication/authentication.lockout";
 import { runAcademicWarningsJob } from "@/modules/grades/grades.lib";
 import { publishDueClassAnnouncements } from "@/modules/teaching/teaching.lib";
 import { sweepOrphanExamFiles } from "@/modules/exams/exams.lib";
@@ -15,6 +17,8 @@ const JOBS: Record<string, () => Promise<Record<string, number>>> = {
   "orphan-files": async () => ({ ...(await sweepOrphanRequestFiles()), ...(await sweepOrphanExamFiles()) }),
   // Cảnh báo học vụ của học kỳ chính vừa kết thúc; chạy lặp lại không sinh trùng. Nên chạy mỗi ngày.
   "academic-warnings": runAcademicWarningsJob,
+  // Dọn bộ đếm đăng nhập sai đã hết hạn (tên dò bừa không tồn tại để lại dòng). Nên chạy mỗi ngày.
+  "sign-in-failures": () => sweepSignInFailures(db),
 };
 
 function authorized(request: Request) {

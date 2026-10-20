@@ -20,6 +20,7 @@ import {
   readAccountStates,
   sendActivationMails,
   setAccountsLocked,
+  staffProfile,
   syncAccountProfile,
   type AccountProfile,
   type NewAccount,
@@ -266,11 +267,12 @@ export async function saveLecturer(
             .values({ ...values, code, facultyId: facultyRow.id })
             .returning({ id: lecturers.id, userId: lecturers.userId });
       if (!row) return null;
-      // Giảng viên đăng nhập bằng email công vụ: đổi email ở hồ sơ thì đổi luôn email đăng nhập.
+      // Mã giảng viên (cũng là tên đăng nhập) không đổi sau khi tạo: ô mã khóa khi sửa và câu update không ghi cột code.
+      // Email công vụ nhận mã kích hoạt, đặt lại mật khẩu: đổi ở hồ sơ thì đổi luôn email của tài khoản.
       await syncAccountProfile(tx, row.userId, { name: `${values.title} ${values.fullName}`, email: values.email });
       if (!provision) return { lecturerId: row.id, created: [] };
       const result = await createAccounts(tx, await lockAccountProfiles(tx, "lecturer", [row.id]), hashes);
-      if (result.skipped.length > 0) throw new InputError("email", result.skipped[0].reason);
+      if (result.skipped.length > 0) throw new InputError(result.skipped[0].field, result.skipped[0].reason);
       await auditCreatedAccounts(tx, auditActorOf(viewer), result.created);
       return { lecturerId: row.id, created: result.created };
     });
@@ -441,19 +443,9 @@ export async function createStaffMember(input: StaffInput): Promise<ActionResult
     ({ staffId, created } = await db.transaction(async (tx) => {
       const [row] = await tx.insert(staffMembers).values(values).returning({ id: staffMembers.id });
       if (!provisionAccount) return { staffId: row.id, created: [] };
-      const profile: AccountProfile = {
-        id: row.id,
-        userId: null,
-        name: values.fullName,
-        faculty: "",
-        email: values.email,
-        username: null,
-        displayUsername: null,
-        loginName: values.email,
-        role: "admin",
-      };
+      const profile = staffProfile({ id: row.id, userId: null, code: values.code, name: values.fullName, faculty: "", email: values.email }, "admin");
       const result = await createAccounts(tx, [profile], hashes);
-      if (result.skipped.length > 0) throw new InputError("email", result.skipped[0].reason);
+      if (result.skipped.length > 0) throw new InputError(result.skipped[0].field, result.skipped[0].reason);
       await auditCreatedAccounts(tx, auditActorOf(viewer), result.created);
       return { staffId: row.id, created: result.created };
     }));

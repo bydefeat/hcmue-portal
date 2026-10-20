@@ -5,6 +5,7 @@ import { Button, Checkbox, Drawer, Form, Input, Radio, Select } from "antd";
 import { facultyOptions, LECTURER_STATUS, LECTURER_TITLES } from "@/modules/users/users.constant";
 import type { Lecturer, LecturerFormValues, LecturerStatus } from "@/modules/users/users.type";
 import { toFormFields } from "@/shared/libs/form.lib";
+import { isStaffCode, STAFF_CODE_HINT } from "@/shared/libs/login-name.lib";
 
 type LecturerFormDrawerProps = {
   open: boolean;
@@ -57,8 +58,16 @@ export function LecturerFormDrawer({ open, lecturer, faculties, onClose, onSubmi
         }
       >
         <div className="grid gap-x-3 sm:grid-cols-2">
-          <Form.Item name="code" label="Mã giảng viên" rules={[{ required: true, message: "Chưa nhập mã giảng viên" }]}>
-            <Input disabled={isEdit} />
+          <Form.Item
+            name="code"
+            label="Mã giảng viên"
+            extra={isEdit ? "Mã là tên đăng nhập nên không đổi được" : undefined}
+            rules={[
+              { required: true, whitespace: true, message: "Chưa nhập mã giảng viên" },
+              { validator: (_, value?: string) => (isEdit || !value?.trim() || (isStaffCode(value) && !/\s/.test(value.trim())) ? Promise.resolve() : Promise.reject(new Error(STAFF_CODE_HINT))) },
+            ]}
+          >
+            <Input disabled={isEdit} autoComplete="off" placeholder="GV104011" />
           </Form.Item>
           <Form.Item name="title" label="Học hàm, học vị" rules={[{ required: true, message: "Chưa chọn học hàm, học vị" }]}>
             <Select placeholder="Chọn học hàm, học vị" options={LECTURER_TITLES.map((value) => ({ value, label: value }))} />
@@ -99,7 +108,7 @@ export function LecturerFormDrawer({ open, lecturer, faculties, onClose, onSubmi
           <Select options={STATUS_OPTIONS} />
         </Form.Item>
         {!isEdit && (
-          <Form.Item name="provisionAccount" valuePropName="checked" extra="Giảng viên đăng nhập bằng email công vụ, tự đặt mật khẩu qua đường dẫn trong thư.">
+          <Form.Item name="provisionAccount" valuePropName="checked" extra="Giảng viên đăng nhập bằng mã giảng viên, tự đặt mật khẩu qua đường dẫn gửi tới email công vụ.">
             <Checkbox>Cấp tài khoản và gửi thư kích hoạt</Checkbox>
           </Form.Item>
         )}

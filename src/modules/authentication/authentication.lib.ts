@@ -1,17 +1,19 @@
 import "server-only";
 import { APIError, betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
-import { createAuthMiddleware } from "better-auth/api";
+import { createAuthMiddleware, isAPIError } from "better-auth/api";
 import { nextCookies } from "better-auth/next-js";
 import { emailOTP } from "better-auth/plugins/email-otp";
 import { username } from "better-auth/plugins/username";
 import { eq } from "drizzle-orm";
 import { account, rateLimit, session, user, verification } from "@/modules/authentication/authentication.schema";
-import { AUTH_COOKIE_PREFIX, AUTH_ERROR, SESSION_MAX_AGE_SECONDS } from "@/modules/authentication/authentication.constant";
+import { AUTH_COOKIE_PREFIX, AUTH_ERROR, SESSION_MAX_AGE_SECONDS, SIGN_IN_LOCKOUT } from "@/modules/authentication/authentication.constant";
+import { clearSignInFailures, lockIfTooManyFailures, reserveSignInAttempt } from "@/modules/authentication/authentication.lockout";
 import { db, type Transaction } from "@/shared/libs/db.lib";
 import { env } from "@/shared/libs/env.lib";
 import { sendMail } from "@/shared/libs/mail.lib";
-import { formatStudentCode, isStudentCode, isStudentEmail, normalizeStudentCode } from "@/shared/libs/student-code.lib";
+import { clientIpFrom } from "@/shared/libs/client-ip.lib";
+import { formatLoginName, isLoginName, normalizeLoginName } from "@/shared/libs/login-name.lib";
 
 const OTP_PURPOSE: Record<string, string> = {
   "forget-password": "đặt lại mật khẩu",
@@ -20,7 +22,7 @@ const OTP_PURPOSE: Record<string, string> = {
 };
 
 // Chỉ mở các endpoint app thật sự dùng. Còn lại trả 404: /update-user (tự đổi tên làm sai nhãn người thao tác trong nhật ký,
-// tự đặt username là MSSV của người khác), /is-username-available (dò MSSV nào có tài khoản), /sign-in/email-otp, /sign-up/email,
+// tự đặt username là mã số của người khác), /is-username-available (dò mã số nào có tài khoản), /sign-in/email-otp, /sign-up/email,
 // /forget-password/email-otp (bản trùng của request-password-reset, né được rate limit riêng), đổi email, xóa tài khoản...
 export const ALLOWED_AUTH_PATHS = new Set([
   "/get-session",
@@ -36,6 +38,12 @@ export const ALLOWED_AUTH_PATHS = new Set([
   "/ok",
   "/error",
 ]);
+
+// Tên đăng nhập chuẩn hoá của body /sign-in/username; sai dạng thì null (plugin tự trả INVALID_USERNAME, không cần đếm).
+function signInLoginName(body: unknown) {
+  const raw = (body as { username?: unknown } | undefined)?.username;
+  return typeof raw === "string" && isLoginName(raw) ? normalizeLoginName(raw) : null;
+}
 
 // Nhận database để test dựng được bản chạy trong một transaction rồi rollback; app chỉ dùng `auth` bên dưới.
 export function createAuth(database: typeof db | Transaction) {
@@ -101,21 +109,50 @@ export function createAuth(database: typeof db | Transaction) {
     hooks: {
       before: createAuthMiddleware(async (ctx) => {
         if (!ALLOWED_AUTH_PATHS.has(ctx.path)) throw new APIError("NOT_FOUND");
-        if (ctx.path === "/sign-in/email" && typeof ctx.body?.email === "string" && isStudentEmail(ctx.body.email)) {
-          throw new APIError("UNAUTHORIZED", { message: AUTH_ERROR.STUDENT_USE_CODE, code: "STUDENT_USE_CODE" });
+        // Mọi tài khoản đăng nhập bằng mã số. Chặn trước khi tra tài khoản, cùng một câu cho mọi email: không lộ email nào có tài khoản.
+        const typedEmail = ctx.path === "/sign-in/username" && typeof ctx.body?.username === "string" && ctx.body.username.includes("@");
+        if (ctx.path === "/sign-in/email" || typedEmail) {
+          throw new APIError("UNAUTHORIZED", { message: AUTH_ERROR.USE_LOGIN_CODE, code: "USE_LOGIN_CODE" });
+        }
+        if (ctx.path === "/sign-in/username") {
+          const loginName = signInLoginName(ctx.body);
+          // Kiểm trước khi so mật khẩu: đang khóa tạm thì kể cả đúng mật khẩu cũng không biết được là đúng.
+          if (loginName && (await reserveSignInAttempt(database, loginName))) {
+            throw new APIError("TOO_MANY_REQUESTS", { message: AUTH_ERROR.SIGN_IN_LOCKED, code: "SIGN_IN_LOCKED" });
+          }
         }
         if (ctx.path === "/email-otp/send-verification-otp" && ctx.body?.type !== "email-verification") {
           throw new APIError("BAD_REQUEST");
         }
       }),
+      after: createAuthMiddleware(async (ctx) => {
+        const failed = isAPIError(ctx.context.returned);
+        if (ctx.path === "/sign-in/username") {
+          const loginName = signInLoginName(ctx.body);
+          if (!loginName) return;
+          if (!failed) return clearSignInFailures(database, [loginName]);
+          const error = ctx.context.returned as APIError;
+          if (error.body?.code !== "INVALID_USERNAME_OR_PASSWORD" || !(await lockIfTooManyFailures(database, loginName))) return;
+          // Không ghi mật khẩu; tên đăng nhập có thể không tồn tại (dò bừa) nên không ghi vào nhật ký thao tác của tài khoản nào.
+          console.warn(
+            `[auth] Tạm khóa đăng nhập "${formatLoginName(loginName)}" ${SIGN_IN_LOCKOUT.lockMinutes} phút sau ${SIGN_IN_LOCKOUT.maxFailures} lần sai, IP ${(ctx.headers && clientIpFrom(ctx.headers)) ?? "không rõ"}`,
+          );
+          return;
+        }
+        // Đặt lại mật khẩu thành công (qua mã gửi email) thì gỡ khóa tạm để chủ tài khoản vào được ngay.
+        if (ctx.path === "/email-otp/reset-password" && !failed && typeof ctx.body?.email === "string") {
+          const [row] = await database.select({ username: user.username }).from(user).where(eq(user.email, ctx.body.email.toLowerCase()));
+          if (row?.username) await clearSignInFailures(database, [row.username]);
+        }
+      }),
     },
     plugins: [
       username({
-        // Nhận cả "50.01.104.013" lẫn "5001104013", tra theo 10 chữ số.
-        usernameNormalization: normalizeStudentCode,
-        displayUsernameNormalization: formatStudentCode,
+        // MSSV nhận cả "50.01.104.013" lẫn "5001104013", tra theo 10 chữ số; mã cán bộ, giảng viên tra theo chữ thường ("gv104011").
+        usernameNormalization: normalizeLoginName,
+        displayUsernameNormalization: formatLoginName,
         // Plugin kiểm độ dài và validator trên chuỗi chưa chuẩn hoá ở endpoint đăng nhập, nên validator tự chuẩn hoá.
-        usernameValidator: isStudentCode,
+        usernameValidator: isLoginName,
         immutableUsername: true,
       }),
       emailOTP({

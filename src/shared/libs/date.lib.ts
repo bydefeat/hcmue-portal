@@ -37,6 +37,8 @@ export function formatShortDate(value: ConfigType) {
   return schoolTime(value).format("DD/MM");
 }
 
+// Chữ thay đổi theo giây: ở client component phải đặt suppressHydrationWarning trên phần tử chứa, vì lúc trình duyệt hydrate
+// đã lệch giờ so với lúc server render.
 export function formatRelative(value: ConfigType) {
   return dayjs(value).fromNow();
 }

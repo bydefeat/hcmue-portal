@@ -149,7 +149,7 @@ export function ClassAnnouncementBoard({ announcements, classSectionId, classCod
                       </h2>
                       <span className="flex flex-wrap items-center gap-2 text-xs text-muted">
                         {announcement.status === "scheduled" && <StatusTag status={CLASS_ANNOUNCEMENT_STATUS.scheduled} />}
-                        <span className="tabular-nums" title={formatDateTime(announcement.publishAt)}>
+                        <span className="tabular-nums" title={formatDateTime(announcement.publishAt)} suppressHydrationWarning>
                           {announcement.status === "scheduled" ? `Đăng lúc ${formatDateTime(announcement.publishAt)}` : formatRelative(announcement.publishAt)}
                         </span>
                         {announcement.sendEmail && (

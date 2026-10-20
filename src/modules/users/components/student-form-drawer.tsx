@@ -110,8 +110,8 @@ export function StudentFormDrawer({ open, student, majors, cohorts, classes, onC
           >
             <AutoComplete options={classSuggestions(classes, cohort, majorCode)} />
           </Form.Item>
-          <Form.Item label="Email trường" extra="Tự sinh theo mã sinh viên, tài khoản nhận thư ở đây">
-            <Input value={code && isStudentCode(code) ? studentEmailOf(code) : ""} disabled />
+          <Form.Item label="Email trường" htmlFor="student-official-email" extra="Tự sinh theo mã sinh viên, tài khoản nhận thư ở đây">
+            <Input id="student-official-email" value={code && isStudentCode(code) ? studentEmailOf(code) : ""} disabled />
           </Form.Item>
           <Form.Item
             name="personalEmail"

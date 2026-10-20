@@ -12,7 +12,8 @@ import { toFormFields } from "@/shared/libs/form.lib";
 import { acceptOf, formatFileSize, inspectFile } from "@/shared/libs/upload.lib";
 import { requestProctorSwap, submitExamPaper } from "@/modules/exams/exams.action";
 import { EXAM_FORMAT_LABEL, EXAM_KIND_LABEL, EXAM_PAPER_FILE_LABEL, EXAM_PAPER_LIMIT, EXAM_PAPER_STATUS, EXAM_STATUS } from "@/modules/exams/exams.constant";
-import type { ExamPaperFile, ExamPaperFileKind, ExamPaperStatus, ExamSession } from "@/modules/exams/exams.type";
+import { canSubmitPaper } from "@/modules/exams/exams.rule";
+import type { ExamPaperFile, ExamPaperFileKind, ExamPaperReview, ExamPaperStatus, ExamSession } from "@/modules/exams/exams.type";
 import { ExamPaperLinks } from "@/modules/exams/components/exam-paper-links";
 
 export type TeachingSlot = {
@@ -86,7 +87,7 @@ function ClassCell({ exam }: { exam: ExamSession }) {
 
 export function LecturerExamBoard({ lecturerId, teaching, proctoring, teachingSlots, colleagues }: LecturerExamBoardProps) {
   const [messageApi, contextHolder] = message.useMessage();
-  const [papers, setPapers] = useState<Record<string, { status: ExamPaperStatus; files: ExamPaperFile[] }>>({});
+  const [papers, setPapers] = useState<Record<string, { status: ExamPaperStatus; files: ExamPaperFile[]; review: ExamPaperReview | null }>>({});
   const [uploading, setUploading] = useState<ExamSession | null>(null);
   const [files, setFiles] = useState<Record<ExamPaperFileKind, File | null>>({ paper: null, "answer-key": null });
   const [swapping, setSwapping] = useState<ExamSession | null>(null);
@@ -99,7 +100,8 @@ export function LecturerExamBoard({ lecturerId, teaching, proctoring, teachingSl
 
   const paperOf = (exam: ExamSession) => papers[exam.id]?.status ?? exam.paperStatus;
   const filesOf = (exam: ExamSession) => papers[exam.id]?.files ?? exam.papers;
-  const pendingPapers = teaching.filter((exam) => exam.status !== "done" && paperOf(exam) === "not-submitted");
+  const reviewOf = (exam: ExamSession) => (papers[exam.id] ? papers[exam.id].review : exam.paperReview);
+  const pendingPapers = teaching.filter((exam) => exam.status !== "done" && (paperOf(exam) === "not-submitted" || paperOf(exam) === "returned"));
   const conflicts = proctoring.map((exam) => ({ exam, slot: teachingConflict(exam, teachingSlots) })).filter((entry) => entry.slot);
 
   const closeUpload = () => {
@@ -130,7 +132,7 @@ export function LecturerExamBoard({ lecturerId, teaching, proctoring, teachingSl
         messageApi.error(Object.values(result.fieldErrors ?? {})[0] ?? result.message);
         return;
       }
-      setPapers((current) => ({ ...current, [result.data.id]: { status: result.data.paperStatus, files: result.data.papers } }));
+      setPapers((current) => ({ ...current, [result.data.id]: { status: result.data.paperStatus, files: result.data.papers, review: null } }));
       messageApi.success(`Đã nộp đề ${EXAM_KIND_LABEL[exam.kind].toLowerCase()} lớp ${exam.classCode}. Phòng Khảo thí sẽ duyệt đề.`);
       closeUpload();
     });
@@ -173,10 +175,13 @@ export function LecturerExamBoard({ lecturerId, teaching, proctoring, teachingSl
         </span>
       );
     const status = paperOf(exam);
-    const hint = status === "not-submitted" ? deadlineHint(exam.paperDeadline) : null;
+    const review = reviewOf(exam);
+    const hint = status === "not-submitted" || status === "returned" ? deadlineHint(exam.paperDeadline) : null;
     return (
       <span className="flex flex-col items-start gap-1">
         <StatusTag status={EXAM_PAPER_STATUS[status]} />
+        {status === "returned" && review?.returnReason && <span className="max-w-60 text-xs text-pretty text-rose-700">Lý do trả lại: {review.returnReason}</span>}
+        {status === "approved" && <span className="text-xs text-muted">Đề đã khóa, không nộp lại được</span>}
         {hint && <span className={`text-xs tabular-nums ${hint.className}`}>{hint.text}</span>}
         <ExamPaperLinks examSessionId={exam.id} papers={filesOf(exam)} />
       </span>
@@ -184,9 +189,9 @@ export function LecturerExamBoard({ lecturerId, teaching, proctoring, teachingSl
   };
 
   const paperAction = (exam: ExamSession) =>
-    exam.status !== "done" && paperOf(exam) !== "approved" ? (
+    canSubmitPaper({ status: exam.status, paperStatus: paperOf(exam) }) ? (
       <Button size="small" icon={<FileArrowIn size={14} aria-hidden className="text-zinc-500" />} onClick={() => setUploading(exam)}>
-        {paperOf(exam) === "submitted" ? "Nộp lại" : "Nộp đề"}
+        {paperOf(exam) === "not-submitted" ? "Nộp đề" : "Nộp lại"}
       </Button>
     ) : null;
 
@@ -289,7 +294,7 @@ export function LecturerExamBoard({ lecturerId, teaching, proctoring, teachingSl
         title="Lớp tôi dạy"
         extra={
           <span className={`text-sm ${pendingPapers.length > 0 ? "text-amber-700" : "text-muted"}`}>
-            {pendingPapers.length > 0 ? `${pendingPapers.length} đề chưa nộp` : "Đã nộp đủ đề thi"}
+            {pendingPapers.length > 0 ? `${pendingPapers.length} đề cần nộp` : "Đã nộp đủ đề thi"}
           </span>
         }
         flush
@@ -376,6 +381,9 @@ export function LecturerExamBoard({ lecturerId, teaching, proctoring, teachingSl
             <p className="text-sm text-pretty text-muted">
               Hạn nộp {formatDateTime(uploading.paperDeadline)}. Chỉ bạn và Phòng Khảo thí tải được đề đã nộp. Nộp lại thì bản mới thay bản cũ.
             </p>
+            {paperOf(uploading) === "returned" && reviewOf(uploading)?.returnReason && (
+              <Alert type="error" showIcon title="Phòng Khảo thí trả lại đề" description={reviewOf(uploading)?.returnReason} />
+            )}
             {(["paper", "answer-key"] as const).map((kind) => {
               const picked = files[kind];
               return (

@@ -1,18 +1,22 @@
 "use server";
 
-import { and, eq, inArray, notInArray, sql } from "drizzle-orm";
+import { and, eq, inArray, notInArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/shared/libs/db.lib";
 import { actionError, actionFailure, actionOk, parseInput, type ActionResult } from "@/shared/libs/action.lib";
 import { deleteFiles, newStorageKey, withStoredFiles } from "@/shared/libs/storage.lib";
 import { inScope } from "@/modules/access/access.constant";
 import { requirePermission } from "@/modules/access/access.query";
+import type { Viewer } from "@/modules/access/access.type";
 import { classSections, enrollments, terms } from "@/modules/course-registration/course-registration.schema";
 import { courses, faculties } from "@/modules/curriculum/curriculum.schema";
 import { EXAMS_CONSTRAINT_MESSAGE } from "@/modules/exams/exams.constant";
+import { decidePaperReview, ExamInputError, recordPaperSubmission, type PaperDecision } from "@/modules/exams/exams.lib";
 import { getExamSession } from "@/modules/exams/exams.query";
 import {
   ELIGIBILITY_OVERRIDE_SCHEMA,
+  EXAM_PAPER_APPROVE_SCHEMA,
+  EXAM_PAPER_RETURN_SCHEMA,
   EXAM_PAPER_SUBMIT_SCHEMA,
   EXAM_PUBLISH_SCHEMA,
   checkExamPaperFiles,
@@ -20,6 +24,8 @@ import {
   PROCTOR_SWAP_SCHEMA,
   readExamPaperForm,
   type EligibilityOverrideInput,
+  type ExamPaperApproveInput,
+  type ExamPaperReturnInput,
   type ExamPublishInput,
   type ExamSessionUpdateInput,
   type ProctorSwapInput,
@@ -30,17 +36,8 @@ import { rooms } from "@/modules/facilities/facilities.schema";
 import { lecturers } from "@/modules/users/users.schema";
 import { getCurrentLecturer } from "@/modules/users/users.query";
 
-class InputError extends Error {
-  constructor(
-    message: string,
-    readonly field?: string,
-  ) {
-    super(message);
-  }
-}
-
 function failure(error: unknown) {
-  if (error instanceof InputError) return actionError(error.message, error.field ? { [error.field]: error.message } : undefined);
+  if (error instanceof ExamInputError) return actionError(error.message, error.field ? { [error.field]: error.message } : undefined);
   return actionFailure(error, EXAMS_CONSTRAINT_MESSAGE);
 }
 
@@ -67,14 +64,14 @@ export async function updateExamSession(input: ExamSessionUpdateInput): Promise<
         .innerJoin(faculties, eq(faculties.id, courses.facultyId))
         .where(eq(examSessions.id, id))
         .for("update", { of: examSessions });
-      if (!exam || !inScope(viewer, exam.faculty)) throw new InputError("Ca thi không còn trong lịch hoặc ngoài phạm vi khoa của bạn, tải lại trang.");
-      if (exam.status === "done") throw new InputError("Ca thi đã diễn ra, không sửa được nữa.");
-      if (values.date < exam.termStart || values.date > exam.termEnd) throw new InputError("Ngày thi phải nằm trong học kỳ", "date");
+      if (!exam || !inScope(viewer, exam.faculty)) throw new ExamInputError("Ca thi không còn trong lịch hoặc ngoài phạm vi khoa của bạn, tải lại trang.");
+      if (exam.status === "done") throw new ExamInputError("Ca thi đã diễn ra, không sửa được nữa.");
+      if (values.date < exam.termStart || values.date > exam.termEnd) throw new ExamInputError("Ngày thi phải nằm trong học kỳ", "date");
       const [room] = await tx.select({ status: rooms.status }).from(rooms).where(eq(rooms.id, roomId));
-      if (!room) throw new InputError("Phòng không còn trong danh mục", "roomId");
-      if (room.status !== "active") throw new InputError("Phòng đang bảo trì, chọn phòng khác", "roomId");
+      if (!room) throw new ExamInputError("Phòng không còn trong danh mục", "roomId");
+      if (room.status !== "active") throw new ExamInputError("Phòng đang bảo trì, chọn phòng khác", "roomId");
       const people = await tx.select({ id: lecturers.id }).from(lecturers).where(and(inArray(lecturers.id, proctorIds), eq(lecturers.status, "active")));
-      if (people.length !== proctorIds.length) throw new InputError("Có cán bộ coi thi không còn công tác", "proctorIds");
+      if (people.length !== proctorIds.length) throw new ExamInputError("Có cán bộ coi thi không còn công tác", "proctorIds");
 
       await tx.update(examSessions).set({ ...values, roomId }).where(eq(examSessions.id, id));
       // Chỉ bỏ người bị thay; người giữ nguyên vẫn còn đề nghị đổi ca (nếu có) đang chờ.
@@ -150,7 +147,8 @@ export async function allowExamDespiteAbsence(input: EligibilityOverrideInput): 
 }
 
 // Giảng viên nộp đề và đáp án (FormData, xem readExamPaperForm) cho ca thi của lớp mình dạy. Đề đã duyệt hoặc ca đã thi thì không
-// nộp lại được. Nộp lại thì tệp cũ bị xóa sau khi giao dịch ghi tệp mới thành công.
+// nộp lại được (DB cũng chặn bằng trigger exam_sessions_paper_locked); đề bị trả lại thì nộp lại được và chờ duyệt lại. Nộp lại
+// thì tệp cũ bị xóa sau khi giao dịch ghi tệp mới thành công.
 export async function submitExamPaper(formData: FormData): Promise<ActionResult<{ id: string; paperStatus: ExamPaperStatus; paperSubmittedAt: string; papers: ExamPaperFile[] }>> {
   const lecturer = await getCurrentLecturer();
   const form = readExamPaperForm(formData);
@@ -175,41 +173,7 @@ export async function submitExamPaper(formData: FormData): Promise<ActionResult<
   let result: { row: { id: string; paperStatus: ExamPaperStatus; paperSubmittedAt: Date | null }; replaced: string[] };
   try {
     result = await withStoredFiles([paper, answerKey], () =>
-      db.transaction(async (tx) => {
-        const [current] = await tx
-          .select({ paperStorageKey: examSessions.paperStorageKey, answerKeyStorageKey: examSessions.answerKeyStorageKey })
-          .from(examSessions)
-          .where(
-            and(
-              eq(examSessions.id, examSessionId),
-              inArray(examSessions.status, ["draft", "published"]),
-              inArray(examSessions.paperStatus, ["not-submitted", "submitted"]),
-              inArray(
-                examSessions.classSectionId,
-                tx.select({ id: classSections.id }).from(classSections).where(eq(classSections.lecturerId, lecturer.id)),
-              ),
-            ),
-          )
-          .for("update");
-        if (!current) throw new InputError("Không nộp được: ca thi không thuộc lớp bạn dạy, đã thi hoặc đề đã được duyệt. Tải lại trang để xem trạng thái mới.");
-        const [row] = await tx
-          .update(examSessions)
-          .set({
-            paperStatus: "submitted",
-            paperStorageKey: paper.key,
-            paperFileName: paper.name,
-            paperContentType: paper.contentType,
-            paperSizeBytes: paper.data.byteLength,
-            answerKeyStorageKey: answerKey.key,
-            answerKeyFileName: answerKey.name,
-            answerKeyContentType: answerKey.contentType,
-            answerKeySizeBytes: answerKey.data.byteLength,
-            paperSubmittedAt: sql`now()`,
-          })
-          .where(eq(examSessions.id, examSessionId))
-          .returning({ id: examSessions.id, paperStatus: examSessions.paperStatus, paperSubmittedAt: examSessions.paperSubmittedAt });
-        return { row, replaced: [current.paperStorageKey, current.answerKeyStorageKey].filter((key) => key !== null) };
-      }),
+      db.transaction((tx) => recordPaperSubmission(tx, lecturer.id, examSessionId, { paper, answerKey })),
     );
   } catch (error) {
     return failure(error);
@@ -227,6 +191,34 @@ export async function submitExamPaper(formData: FormData): Promise<ActionResult<
       { kind: "answer-key", fileName: answerKey.name, sizeBytes: answerKey.data.byteLength },
     ],
   });
+}
+
+async function reviewExamPaper(viewer: Viewer, examSessionId: string, decision: PaperDecision): Promise<ActionResult<ExamSession>> {
+  try {
+    await db.transaction((tx) => decidePaperReview(tx, viewer, examSessionId, decision));
+  } catch (error) {
+    return failure(error);
+  }
+  revalidateExams();
+  const exam = await getExamSession(examSessionId);
+  if (!exam) return actionError("Ca thi không còn trong lịch, tải lại trang.");
+  return actionOk(exam);
+}
+
+// Phòng Khảo thí duyệt đề đang chờ duyệt: đề bị khóa, giảng viên không nộp lại được.
+export async function approveExamPaper(input: ExamPaperApproveInput): Promise<ActionResult<ExamSession>> {
+  const viewer = await requirePermission("exams.manage");
+  const parsed = parseInput(EXAM_PAPER_APPROVE_SCHEMA, input);
+  if (!parsed.ok) return parsed;
+  return reviewExamPaper(viewer, parsed.data.examSessionId, { decision: "approve" });
+}
+
+// Phòng Khảo thí trả lại đề kèm lý do: giảng viên thấy lý do và nộp lại.
+export async function returnExamPaper(input: ExamPaperReturnInput): Promise<ActionResult<ExamSession>> {
+  const viewer = await requirePermission("exams.manage");
+  const parsed = parseInput(EXAM_PAPER_RETURN_SCHEMA, input);
+  if (!parsed.ok) return parsed;
+  return reviewExamPaper(viewer, parsed.data.examSessionId, { decision: "return", reason: parsed.data.reason });
 }
 
 // Giảng viên đang được phân công coi một ca chưa thi đề nghị đổi cho đồng nghiệp; Phòng Khảo thí xử lý bằng cách đổi phân công.

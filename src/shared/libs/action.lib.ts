@@ -1,6 +1,7 @@
 import "server-only";
 import type { z } from "zod";
 import { getPgError, pgErrorMessage } from "@/shared/libs/pg-error.lib";
+import { UploadRejectedError } from "@/shared/libs/virus-scan.lib";
 
 // Kết quả chung của mọi server action. Lỗi nghiệp vụ trả về để form hiện, không throw ra client.
 export type ActionResult<T = void> = { ok: true; data: T } | ActionFailure;
@@ -30,8 +31,10 @@ export function parseInput<S extends z.ZodType>(schema: S, input: unknown): { ok
 }
 
 // Bắt lỗi DB trong action: lỗi Postgres đổi thành câu tiếng Việt, lỗi lạ ghi log. Chỉ bọc lệnh DB trong try,
-// kiểm quyền (forbidden, redirect) đặt trước try để Next xử lý.
+// kiểm quyền (forbidden, redirect) đặt trước try để Next xử lý. Tệp tải lên bị từ chối khi quét virus (withStoredFiles) thì
+// trả nguyên câu báo cho người dùng.
 export function actionFailure(error: unknown, constraintMessages: Partial<Record<string, string>> = {}): ActionFailure {
+  if (error instanceof UploadRejectedError) return actionError(error.message);
   if (!getPgError(error)) console.error(error);
   return actionError(pgErrorMessage(error, constraintMessages));
 }

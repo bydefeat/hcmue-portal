@@ -38,6 +38,13 @@ const ROOMS_FOR: Record<ExamFormat, string[]> = {
 const START_TIMES = ["06:30", "09:10", "12:30", "15:10"];
 const PAPER_STATUSES: ExamPaperStatus[] = ["approved", "submitted", "not-submitted"];
 
+// Đề cuối kỳ bị Phòng Khảo thí trả lại, giảng viên cần nộp lại.
+const RETURNED: Record<string, string> = {
+  "COMP1020.02": "Đáp án câu 3 chưa có thang điểm chi tiết; trang bìa đề thiếu thời gian làm bài và quy định được dùng tài liệu.",
+};
+
+const REVIEWER_NAME = "Trần Minh Khoa";
+
 function proctorsFor(index: number, lecturerIndex: number | null) {
   const first = mockLecturerIdentity((index * 5 + 3) % 24);
   const second = mockLecturerIdentity((index * 7 + 1) % 24);
@@ -52,7 +59,8 @@ function build(seed: Seed, index: number, kind: "midterm" | "final"): ExamSessio
   const rooms = ROOMS_FOR[format];
   const date = kind === "midterm" ? mockDate(-4 + index, "00:00") : dayjs("2027-01-04").add(index % 10, "day").toISOString();
   const isPast = dayjs(date).isBefore(dayjs().startOf("day"));
-  const paperStatus: ExamPaperStatus = kind === "midterm" ? (isPast ? "approved" : PAPER_STATUSES[index % 2]) : PAPER_STATUSES[index % 3];
+  const returnReason = kind === "final" ? (RETURNED[code] ?? null) : null;
+  const paperStatus: ExamPaperStatus = returnReason ? "returned" : kind === "midterm" ? (isPast ? "approved" : PAPER_STATUSES[index % 2]) : PAPER_STATUSES[index % 3];
   // Đề đã nộp có tệp đề và đáp án; seed ghi tệp PDF mẫu và lưu kích thước, thời điểm nộp thật.
   const fileStem = `${kind === "midterm" ? "giua-ky" : "cuoi-ky"}-${code}`;
   const papers =
@@ -84,6 +92,8 @@ function build(seed: Seed, index: number, kind: "midterm" | "final"): ExamSessio
     paperDeadline: kind === "midterm" ? dayjs(date).subtract(5, "day").toISOString() : mockDate(5 + (index % 4), "17:00"),
     paperSubmittedAt: null,
     papers,
+    // Thời điểm xét thật do seed tính theo lúc nộp; ở đây chỉ giữ người xét và lý do.
+    paperReview: paperStatus === "approved" || paperStatus === "returned" ? { reviewerName: REVIEWER_NAME, reviewedAt: "", returnReason } : null,
     swapRequests: [],
   };
 }

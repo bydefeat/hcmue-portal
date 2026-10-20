@@ -1,13 +1,29 @@
 import assert from "node:assert/strict";
 import { after, describe, test } from "node:test";
-import { and, eq, notInArray } from "drizzle-orm";
-import { db } from "@/shared/libs/db.lib";
+import { and, desc, eq, notInArray, TransactionRollbackError } from "drizzle-orm";
+import { db, type Transaction } from "@/shared/libs/db.lib";
 import { parseInput } from "@/shared/libs/action.lib";
 import { pgErrorMessage } from "@/shared/libs/pg-error.lib";
+import { newStorageKey } from "@/shared/libs/storage.lib";
 import { enrollments } from "@/modules/course-registration/course-registration.schema";
 import { EXAMS_CONSTRAINT_MESSAGE, examConflicts } from "@/modules/exams/exams.constant";
 import { EXAM_SESSIONS } from "@/modules/exams/exams.mock";
-import { checkExamPaperFiles, ELIGIBILITY_OVERRIDE_SCHEMA, EXAM_PAPER_SUBMIT_SCHEMA, EXAM_SESSION_UPDATE_SCHEMA, PROCTOR_SWAP_SCHEMA } from "@/modules/exams/exams.rule";
+import {
+  canSubmitPaper,
+  checkExamPaperFiles,
+  ELIGIBILITY_OVERRIDE_SCHEMA,
+  EXAM_PAPER_RETURN_SCHEMA,
+  EXAM_PAPER_SUBMIT_SCHEMA,
+  EXAM_SESSION_UPDATE_SCHEMA,
+  paperReviewBlockedReason,
+  PROCTOR_SWAP_SCHEMA,
+} from "@/modules/exams/exams.rule";
+import { decidePaperReview, ExamInputError, recordPaperSubmission, type PaperUpload } from "@/modules/exams/exams.lib";
+import { ALL_PERMISSIONS } from "@/modules/access/access.constant";
+import type { Viewer } from "@/modules/access/access.type";
+import { user } from "@/modules/authentication/authentication.schema";
+import { auditLogs } from "@/modules/audit/audit.schema";
+import { notifications } from "@/modules/notifications/notifications.schema";
 import { examEligibilityOverrides, examProctors, examProctorSwapRequests, examSessions } from "@/modules/exams/exams.schema";
 import { lecturers } from "@/modules/users/users.schema";
 
@@ -124,5 +140,165 @@ describe("exams: ràng buộc ở DB", () => {
       }),
     );
     assert.equal(pgErrorMessage(error, EXAMS_CONSTRAINT_MESSAGE), EXAMS_CONSTRAINT_MESSAGE.exam_eligibility_overrides_enrollment_id_unique);
+  });
+});
+
+class Rollback extends Error {}
+
+// Chạy trong transaction rồi bỏ hết, không để lại dữ liệu cho test khác.
+async function inRollback(run: (tx: Transaction) => Promise<void>) {
+  await db
+    .transaction(async (tx) => {
+      await run(tx);
+      tx.rollback();
+    })
+    .catch((error: unknown) => {
+      if (!(error instanceof TransactionRollbackError) && !(error instanceof Rollback)) throw error;
+    });
+}
+
+// Lỗi DB trong savepoint để transaction ngoài vẫn dùng tiếp được.
+const savepointFailure = (tx: Transaction, run: (sp: Transaction) => Promise<unknown>) => failure(tx.transaction(async (sp) => void (await run(sp))));
+
+const upload = (name: string): PaperUpload => ({ key: newStorageKey("exams"), name, contentType: "application/pdf", data: new TextEncoder().encode("%PDF-1.7 đề") });
+
+const viewerOf = (id: string, overrides: Partial<Viewer> = {}): Viewer => ({
+  id,
+  name: "Trần Minh Khoa",
+  code: "PDT0001",
+  roleId: "academic-head",
+  roleKey: "academic-head",
+  roleName: "Trưởng phòng Đào tạo",
+  unit: "Phòng Đào tạo",
+  faculty: null,
+  permissions: [...ALL_PERMISSIONS],
+  assignmentId: null,
+  ...overrides,
+});
+
+const message = (error: unknown) => pgErrorMessage(error, EXAMS_CONSTRAINT_MESSAGE);
+
+const rejected = (promise: Promise<unknown>) => failure(promise).then((error) => (error instanceof ExamInputError ? error.message : `không phải ExamInputError: ${String(error)}`));
+
+describe("exams: duyệt, trả lại đề thi", () => {
+  test("quy tắc: chỉ xét đề đang chờ duyệt của ca chưa thi; nộp lại được khi chưa duyệt; trả lại phải có lý do", () => {
+    assert.equal(paperReviewBlockedReason({ status: "published", paperStatus: "submitted" }), null);
+    assert.match(paperReviewBlockedReason({ status: "published", paperStatus: "not-submitted" }) ?? "", /chưa nộp/);
+    assert.match(paperReviewBlockedReason({ status: "published", paperStatus: "approved" }) ?? "", /đã được duyệt/);
+    assert.match(paperReviewBlockedReason({ status: "published", paperStatus: "returned" }) ?? "", /chờ giảng viên nộp lại/);
+    assert.match(paperReviewBlockedReason({ status: "done", paperStatus: "submitted" }) ?? "", /đã diễn ra/);
+    assert.ok(canSubmitPaper({ status: "published", paperStatus: "returned" }));
+    assert.ok(canSubmitPaper({ status: "draft", paperStatus: "submitted" }));
+    assert.ok(!canSubmitPaper({ status: "published", paperStatus: "approved" }));
+    assert.ok(!canSubmitPaper({ status: "done", paperStatus: "not-submitted" }));
+    const blank = parseInput(EXAM_PAPER_RETURN_SCHEMA, { examSessionId: ID, reason: "   " });
+    assert.ok(!blank.ok && blank.fieldErrors?.reason === "Chưa nhập lý do trả lại");
+    assert.ok(!parseInput(EXAM_PAPER_RETURN_SCHEMA, { examSessionId: ID, reason: "x".repeat(501) }).ok);
+  });
+
+  test("seed: có đề đã duyệt kèm người duyệt, một đề bị trả lại có lý do", async () => {
+    const rows = await db
+      .select({ status: examSessions.paperStatus, reviewedAt: examSessions.paperReviewedAt, reviewer: examSessions.paperReviewedByUserId, reason: examSessions.paperReturnReason })
+      .from(examSessions);
+    const approved = rows.filter((row) => row.status === "approved");
+    assert.ok(approved.length >= 3 && approved.every((row) => row.reviewedAt && row.reviewer));
+    const returned = rows.filter((row) => row.status === "returned");
+    assert.equal(returned.length, 1);
+    assert.ok(returned[0].reason && returned[0].reviewedAt);
+  });
+
+  test("nộp, trả lại có lý do, nộp lại, duyệt; đề đã duyệt bị khóa ở server và DB; giảng viên nhận thông báo; ghi nhật ký", async () => {
+    const target = EXAM_SESSIONS.find((exam) => exam.kind === "final" && exam.classCode === "COMP1070.01")!;
+    assert.equal(target.paperStatus, "not-submitted");
+    const [admin] = await db.select({ id: user.id }).from(user).where(eq(user.email, "khoatm@hcmue.edu.vn"));
+    const [teacher] = await db.select({ id: lecturers.id, userId: lecturers.userId }).from(lecturers).where(eq(lecturers.id, target.lecturerId!));
+    const [colleague] = await db
+      .select({ id: lecturers.id })
+      .from(lecturers)
+      .where(notInArray(lecturers.id, [teacher.id]))
+      .limit(1);
+    const manager = viewerOf(admin.id);
+    const lecturerNotices = (tx: Transaction) =>
+      tx
+        .select({ title: notifications.title, body: notifications.body, href: notifications.href, kind: notifications.kind })
+        .from(notifications)
+        .where(eq(notifications.recipientUserId, teacher.userId!))
+        .orderBy(desc(notifications.createdAt), desc(notifications.id));
+
+    await inRollback(async (tx) => {
+      assert.match(await rejected(decidePaperReview(tx, manager, target.id, { decision: "approve" })), /chưa nộp đề/);
+      assert.match(await rejected(recordPaperSubmission(tx, colleague.id, target.id, { paper: upload("a.pdf"), answerKey: upload("b.pdf") })), /không thuộc lớp bạn dạy/);
+
+      const first = { paper: upload("Đề thi.pdf"), answerKey: upload("Đáp án.pdf") };
+      const submitted = await recordPaperSubmission(tx, teacher.id, target.id, first);
+      assert.equal(submitted.row.paperStatus, "submitted");
+      assert.deepEqual(submitted.replaced, []);
+
+      // Cán bộ khoa khác hoặc vai trò không có quyền quản lý thi không xét được.
+      const otherFaculty = viewerOf(admin.id, { faculty: "Khoa Ngữ văn", permissions: ["exams.manage"] });
+      assert.match(await rejected(decidePaperReview(tx, otherFaculty, target.id, { decision: "approve" })), /ngoài phạm vi khoa/);
+      assert.match(await rejected(decidePaperReview(tx, viewerOf(admin.id, { permissions: ["grades.approve"] }), target.id, { decision: "approve" })), /không có quyền/);
+      const scoped = viewerOf(admin.id, { faculty: target.faculty, permissions: ["exams.manage"], roleName: "Phòng Khảo thí" });
+
+      const reason = "Đáp án câu 2 thiếu thang điểm.";
+      assert.equal(await decidePaperReview(tx, scoped, target.id, { decision: "return", reason }), "returned");
+      const [afterReturn] = await tx.select().from(examSessions).where(eq(examSessions.id, target.id));
+      assert.equal(afterReturn.paperStatus, "returned");
+      assert.equal(afterReturn.paperReturnReason, reason);
+      assert.equal(afterReturn.paperReviewedByUserId, admin.id);
+      assert.ok(afterReturn.paperReviewedAt);
+      assert.equal(afterReturn.paperStorageKey, first.paper.key, "đề bị trả lại vẫn giữ tệp để giảng viên xem lại");
+      const [returnNotice] = await lecturerNotices(tx);
+      assert.equal(returnNotice.kind, "exam");
+      assert.equal(returnNotice.href, "/lecturer/exams");
+      assert.match(returnNotice.title, /bị trả lại/);
+      assert.match(returnNotice.body, /Đáp án câu 2 thiếu thang điểm\. Sửa đề/);
+      assert.match(await rejected(decidePaperReview(tx, scoped, target.id, { decision: "approve" })), /chờ giảng viên nộp lại/);
+
+      const second = { paper: upload("Đề thi (sửa).pdf"), answerKey: upload("Đáp án (sửa).pdf") };
+      const resubmitted = await recordPaperSubmission(tx, teacher.id, target.id, second);
+      assert.equal(resubmitted.row.paperStatus, "submitted");
+      assert.deepEqual(resubmitted.replaced.toSorted(), [first.paper.key, first.answerKey.key].toSorted());
+      const [afterResubmit] = await tx.select().from(examSessions).where(eq(examSessions.id, target.id));
+      assert.equal(afterResubmit.paperReturnReason, null);
+      assert.equal(afterResubmit.paperReviewedAt, null);
+      assert.equal(afterResubmit.paperReviewedByUserId, null);
+
+      assert.equal(await decidePaperReview(tx, manager, target.id, { decision: "approve" }), "approved");
+      const [approveNotice] = await lecturerNotices(tx);
+      assert.match(approveNotice.title, /đã được duyệt/);
+      const audit = await tx
+        .select({ action: auditLogs.action, summary: auditLogs.summary })
+        .from(auditLogs)
+        .where(and(eq(auditLogs.entityType, "exam"), eq(auditLogs.entityId, target.id)));
+      assert.deepEqual(audit.map((entry) => entry.action).toSorted(), ["approve", "reject"]);
+      assert.ok(audit.some((entry) => entry.summary.includes(reason)));
+
+      // Đã duyệt: server không cho nộp lại, DB chặn mọi thay đổi tệp hay trạng thái đề; sửa giờ thi vẫn được.
+      assert.match(await rejected(recordPaperSubmission(tx, teacher.id, target.id, { paper: upload("c.pdf"), answerKey: upload("d.pdf") })), /đề đã được duyệt/);
+      const fileSwap = await savepointFailure(tx, (sp) => sp.update(examSessions).set({ paperFileName: "khac.pdf" }).where(eq(examSessions.id, target.id)));
+      assert.equal(pgErrorMessage(fileSwap, EXAMS_CONSTRAINT_MESSAGE), EXAMS_CONSTRAINT_MESSAGE.exam_sessions_paper_locked);
+      const reopen = await savepointFailure(tx, (sp) =>
+        sp.update(examSessions).set({ paperStatus: "returned", paperReturnReason: "x", paperReviewedAt: new Date() }).where(eq(examSessions.id, target.id)),
+      );
+      assert.equal(pgErrorMessage(reopen, EXAMS_CONSTRAINT_MESSAGE), EXAMS_CONSTRAINT_MESSAGE.exam_sessions_paper_locked);
+      await tx.update(examSessions).set({ startTime: "09:30" }).where(eq(examSessions.id, target.id));
+    });
+  });
+
+  test("DB: đề bị trả lại phải có lý do và thời điểm xét; đề chưa xét không có lý do, người duyệt", async () => {
+    const [exam] = await db
+      .select()
+      .from(examSessions)
+      .where(and(eq(examSessions.paperStatus, "submitted"), eq(examSessions.status, "published")))
+      .limit(1);
+    const set = (tx: Transaction, values: Partial<typeof examSessions.$inferInsert>) => savepointFailure(tx, (sp) => sp.update(examSessions).set(values).where(eq(examSessions.id, exam.id)));
+    await inRollback(async (tx) => {
+      assert.equal(message(await set(tx, { paperStatus: "returned", paperReviewedAt: new Date() })), EXAMS_CONSTRAINT_MESSAGE.exam_sessions_paper_return_reason);
+      assert.equal(message(await set(tx, { paperStatus: "returned", paperReviewedAt: new Date(), paperReturnReason: "  " })), EXAMS_CONSTRAINT_MESSAGE.exam_sessions_paper_return_reason);
+      assert.equal(message(await set(tx, { paperStatus: "returned", paperReturnReason: "Thiếu đáp án" })), EXAMS_CONSTRAINT_MESSAGE.exam_sessions_paper_review_fields);
+      assert.equal(message(await set(tx, { paperReturnReason: "Thiếu đáp án" })), EXAMS_CONSTRAINT_MESSAGE.exam_sessions_paper_return_reason);
+      assert.equal(message(await set(tx, { paperReviewedAt: new Date() })), EXAMS_CONSTRAINT_MESSAGE.exam_sessions_paper_review_fields);
+    });
   });
 });

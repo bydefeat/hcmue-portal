@@ -20,7 +20,7 @@ import { SectionCard } from "@/shared/components/ui/section-card";
 import { StatTile } from "@/shared/components/ui/stat-tile";
 import { StatusTag } from "@/shared/components/ui/status-tag";
 import { periodLabel, periodTimeRange, weekdayLabel } from "@/shared/constants/period.constant";
-import { dayjs, daysUntil, formatDate, formatDateTime, weekdayOf } from "@/shared/libs/date.lib";
+import { dayjs, daysUntil, formatDate, formatDateTime, schoolTime, weekdayOf } from "@/shared/libs/date.lib";
 
 export const metadata: Metadata = { title: "Tổng quan giảng viên" };
 
@@ -84,7 +84,7 @@ export default async function Page() {
     <>
       <PageHeader
         title="Tổng quan"
-        description={`${weekdayLabel(today)}, ${dayjs().format("DD/MM/YYYY")}. ${term.name}.`}
+        description={`${weekdayLabel(today)}, ${schoolTime().format("DD/MM/YYYY")}. ${term.name}.`}
       />
 
       <div className="flex flex-col gap-4 sm:gap-6">

@@ -5,7 +5,7 @@ import { MeterBar } from "@/shared/components/ui/meter-bar";
 import { PageHeader } from "@/shared/components/ui/page-header";
 import { StatTile } from "@/shared/components/ui/stat-tile";
 import { StatusTag } from "@/shared/components/ui/status-tag";
-import { dayjs, formatDateTime } from "@/shared/libs/date.lib";
+import { formatDateTime, schoolTime } from "@/shared/libs/date.lib";
 import { inScope } from "@/modules/access/access.constant";
 import { requirePermission } from "@/modules/access/access.query";
 import { RegistrationMonitorSections } from "@/modules/course-registration/components/registration-monitor-sections";
@@ -25,7 +25,7 @@ import { SectionCard } from "@/shared/components/ui/section-card";
 export const metadata: Metadata = { title: "Theo dõi đăng ký" };
 
 function formatTime(value: string) {
-  return dayjs(value).format("HH:mm");
+  return schoolTime(value).format("HH:mm");
 }
 
 function hoursText(hours: number) {

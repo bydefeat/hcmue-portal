@@ -7,7 +7,7 @@ import { EmptyState } from "@/shared/components/ui/empty-state";
 import { SectionCard } from "@/shared/components/ui/section-card";
 import { StatusTag } from "@/shared/components/ui/status-tag";
 import { PERIODS, periodLabel, weekdayLabel } from "@/shared/constants/period.constant";
-import { dayjs, daysUntil, formatDate, formatDateTime, weekdayOf } from "@/shared/libs/date.lib";
+import { dayjs, daysUntil, formatDate, formatDateTime, schoolTime, weekdayOf } from "@/shared/libs/date.lib";
 import { toFormFields } from "@/shared/libs/form.lib";
 import { acceptOf, formatFileSize, inspectFile } from "@/shared/libs/upload.lib";
 import { requestProctorSwap, submitExamPaper } from "@/modules/exams/exams.action";
@@ -50,7 +50,7 @@ function teachingConflict(exam: ExamSession, slots: TeachingSlot[]) {
 }
 
 function endTime(exam: ExamSession) {
-  return dayjs(`2000-01-01T${exam.startTime}`).add(exam.durationMinutes, "minute").format("HH:mm");
+  return schoolTime(`2000-01-01T${exam.startTime}`).add(exam.durationMinutes, "minute").format("HH:mm");
 }
 
 function deadlineHint(deadline: string) {

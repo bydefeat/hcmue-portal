@@ -28,7 +28,7 @@ import { PageHeader } from "@/shared/components/ui/page-header";
 import { SectionCard } from "@/shared/components/ui/section-card";
 import { StatusTag } from "@/shared/components/ui/status-tag";
 import { periodLabel, periodTimeRange, weekdayLabel } from "@/shared/constants/period.constant";
-import { dayjs, daysUntil, formatDate, formatDateTime, formatRelative, weekdayOf } from "@/shared/libs/date.lib";
+import { dayjs, daysUntil, formatDate, formatDateTime, formatRelative, schoolTime, weekdayOf } from "@/shared/libs/date.lib";
 
 export const metadata: Metadata = { title: "Tổng quan" };
 
@@ -64,7 +64,7 @@ export default async function Page() {
 
   return (
     <>
-      <PageHeader title="Tổng quan" description={`${weekdayLabel(today)}, ${dayjs().format("DD/MM/YYYY")}. ${term.name}.`} />
+      <PageHeader title="Tổng quan" description={`${weekdayLabel(today)}, ${schoolTime().format("DD/MM/YYYY")}. ${term.name}.`} />
       <div className="flex flex-col gap-4 sm:gap-6">
 
         {standing.warningLevel > 0 && (
@@ -148,7 +148,7 @@ export default async function Page() {
                     return (
                       <li key={exam.id} className="flex items-center gap-4 px-4 py-3 sm:px-5">
                         <span className="flex w-16 shrink-0 flex-col">
-                          <span className="font-semibold tabular-nums">{dayjs(exam.date).format("DD/MM")}</span>
+                          <span className="font-semibold tabular-nums">{schoolTime(exam.date).format("DD/MM")}</span>
                           <span className="text-xs text-muted tabular-nums">{exam.startTime}</span>
                         </span>
                         <span className="flex min-w-0 flex-1 flex-col">

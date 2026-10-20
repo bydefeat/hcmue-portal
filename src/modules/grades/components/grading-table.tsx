@@ -6,7 +6,7 @@ import { Download, FilePen, LockKey, Pen, Upload } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { MeterBar } from "@/shared/components/ui/meter-bar";
 import { StatusTag } from "@/shared/components/ui/status-tag";
-import { dayjs, daysUntil, formatDateTime } from "@/shared/libs/date.lib";
+import { dayjs, daysUntil, formatDateTime, schoolTime } from "@/shared/libs/date.lib";
 import { downloadBase64, parseCsv } from "@/shared/libs/download.lib";
 import { GradeComponentsEditor } from "@/modules/grades/components/grade-components-editor";
 import { exportGradeSheetExcel, lockGradeSheet, readGradeSheetExcel, saveGradeComponents, saveGradeScores } from "@/modules/grades/grades.action";
@@ -334,7 +334,7 @@ export function GradingTable({ sheet, students, classCode, classId, returnReason
                 Đã nhập {filled}/{total} điểm
               </span>
               {!isLocked && isSaving && <span className="text-xs text-muted">Đang lưu nháp…</span>}
-              {!isLocked && !isSaving && savedAt && <span className="text-xs text-muted tabular-nums">Đã lưu nháp lúc {dayjs(savedAt).format("HH:mm")}</span>}
+              {!isLocked && !isSaving && savedAt && <span className="text-xs text-muted tabular-nums">Đã lưu nháp lúc {schoolTime(savedAt).format("HH:mm")}</span>}
             </div>
           </div>
           <div className="flex flex-wrap gap-2">

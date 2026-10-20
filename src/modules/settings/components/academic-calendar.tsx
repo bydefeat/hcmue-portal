@@ -8,7 +8,7 @@ import { EmptyState } from "@/shared/components/ui/empty-state";
 import { PageHeader } from "@/shared/components/ui/page-header";
 import { StatusTag } from "@/shared/components/ui/status-tag";
 import type { StatusMeta } from "@/shared/constants/status.constant";
-import { dayjs, formatDate } from "@/shared/libs/date.lib";
+import { dayjs, formatDate, schoolTime } from "@/shared/libs/date.lib";
 import { saveCalendarEvent } from "@/modules/settings/settings.action";
 import { CALENDAR_EVENT_LABEL, CALENDAR_EVENT_OPTIONS } from "@/modules/settings/settings.constant";
 import type { CalendarEvent, CalendarEventKind } from "@/modules/settings/settings.type";
@@ -57,7 +57,7 @@ export function AcademicCalendar({
   const visible = rows
     .filter((event) => event.termId === termId && (!kind || event.kind === kind))
     .toSorted((a, b) => a.startDate.localeCompare(b.startDate));
-  const months = [...new Set(visible.map((event) => dayjs(event.startDate).format("YYYY-MM")))];
+  const months = [...new Set(visible.map((event) => schoolTime(event.startDate).format("YYYY-MM")))];
 
   const submit = (values: EventValues) =>
     startTransition(async () => {
@@ -120,10 +120,10 @@ export function AcademicCalendar({
           </SectionCard>
         ) : (
           months.map((month) => (
-            <SectionCard key={month} flush title={<span className="capitalize">{dayjs(`${month}-01`).format("MMMM YYYY")}</span>}>
+            <SectionCard key={month} flush title={<span className="capitalize">{schoolTime(`${month}-01`).format("MMMM YYYY")}</span>}>
               <ul className="flex flex-col divide-y divide-border-strong">
                 {visible
-                  .filter((event) => dayjs(event.startDate).format("YYYY-MM") === month)
+                  .filter((event) => schoolTime(event.startDate).format("YYYY-MM") === month)
                   .map((event) => {
                     const state = stateOf(event);
                     return (

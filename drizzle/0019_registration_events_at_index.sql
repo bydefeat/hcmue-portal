@@ -1,0 +1,1 @@
+CREATE INDEX "registration_events_at_index" ON "registration_events" USING btree ("at");

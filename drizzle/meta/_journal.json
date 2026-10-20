@@ -134,6 +134,13 @@
       "when": 1792436656277,
       "tag": "0018_curriculum_grades_guards",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1792475259861,
+      "tag": "0019_registration_events_at_index",
+      "breakpoints": true
     }
   ]
 }

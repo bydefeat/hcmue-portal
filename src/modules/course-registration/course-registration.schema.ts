@@ -313,5 +313,5 @@ export const registrationEvents = pgTable(
     note: text().notNull().default(""),
     at: createdAt(),
   },
-  (table) => [index().on(table.studentId, table.at), index().on(table.classSectionId), index().on(table.actorUserId)],
+  (table) => [index().on(table.studentId, table.at), index().on(table.at), index().on(table.classSectionId), index().on(table.actorUserId)],
 );

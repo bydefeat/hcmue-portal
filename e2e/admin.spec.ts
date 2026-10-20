@@ -129,11 +129,13 @@ test("mở lớp học phần", async ({ page }) => {
 });
 
 test("duyệt rồi công bố điểm một lớp", async ({ page }) => {
-  test.skip(true, "Chưa xong: bấm Duyệt không hiện thông báo như mong đợi, cần kiểm lại quyền grades.approve của vai trò mặc định.");
   await page.goto("/administrator/grade-publishing");
   const row = page.getByRole("row").filter({ has: page.getByRole("button", { name: "COMP1070.01 Phát triển ứng dụng web" }) });
-  await row.getByRole("button", { name: "Duyệt", exact: true }).click();
-  await expect(toast(page, "Khoa đã duyệt 1 bảng điểm")).toBeVisible();
+  // Bấm trước khi trang gắn sự kiện thì không có gì xảy ra: bấm lại tới khi có thông báo (đã duyệt thì nút biến mất, không duyệt hai lần).
+  await expect(async () => {
+    await row.getByRole("button", { name: "Duyệt", exact: true }).click({ timeout: 2000 });
+    await expect(toast(page, "Khoa đã duyệt 1 bảng điểm")).toBeVisible({ timeout: 3000 });
+  }).toPass({ timeout: 30_000 });
 
   await row.getByRole("button", { name: "Công bố" }).click();
   await dialog(page, "Công bố điểm 1 lớp học phần?").getByRole("button", { name: "Công bố" }).click();

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
-import { Button, DatePicker, Drawer, Form, Input, message, Modal, Segmented, Select } from "antd";
+import { Button, DatePicker, Drawer, Form, Input, message, Modal, Select } from "antd";
 import type { Dayjs } from "dayjs";
 import { Plus } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
@@ -128,11 +128,13 @@ export function AcademicCalendar({
       />
       <div className="flex flex-col gap-4">
         <div className="flex flex-wrap items-center gap-2">
-          <Segmented
+          {/* Mọi học kỳ đều có mốc (thời gian học kỳ lấy từ bảng học kỳ) nên chọn bằng ô chọn, không trải ngang. */}
+          <Select
             value={termId}
-            onChange={(value) => setTermId(value as string)}
+            onChange={setTermId}
+            aria-label="Học kỳ"
             options={terms.map((term) => ({ value: term.id, label: term.name }))}
-            className="w-fit max-w-full"
+            className="w-full sm:w-56"
           />
           <Select allowClear value={kind} onChange={setKind} placeholder="Mọi loại mốc" aria-label="Loại mốc" options={CALENDAR_EVENT_OPTIONS} className="w-full sm:w-48" />
         </div>

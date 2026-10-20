@@ -86,9 +86,9 @@ export function AnnouncementTable({
     const saved = result.data;
     setRows((current) => (editing ? current.map((row) => (row.id === saved.id ? saved : row)) : [saved, ...current]));
     const feedback = {
-      draft: "Đã lưu nháp, thông báo chưa hiện với sinh viên",
+      draft: "Đã lưu nháp, thông báo chưa hiện với ai",
       scheduled: `Thông báo sẽ tự đăng lúc ${saved.publishedAt ? formatDateTime(saved.publishedAt) : ""}`,
-      published: "Đã đăng thông báo lên trang chủ",
+      published: saved.audience.students ? "Đã đăng thông báo lên trang chủ và cổng của đối tượng" : "Đã đăng thông báo trên cổng giảng viên",
       archived: "Đã lưu thông báo",
     }[saved.status];
     messageApi.success(feedback);

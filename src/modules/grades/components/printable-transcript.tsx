@@ -1,6 +1,6 @@
 import { dayjs, formatDate } from "@/shared/libs/date.lib";
 import { formatPoint, RESULT_MARK_LEGEND, standingLabel } from "@/modules/grades/grades.constant";
-import { attemptNote } from "@/modules/grades/grades.rule";
+import { attemptNote, CONDITIONAL_COURSE_NOTE, resultMark, resultPoint4 } from "@/modules/grades/grades.rule";
 import type { StudentStanding, TranscriptTerm } from "@/modules/grades/grades.type";
 
 type PrintableStudent = {
@@ -67,8 +67,8 @@ export function PrintableTranscript({ student, terms, standing }: PrintableTrans
                   </td>
                   <td className="border border-black px-1 py-0.5 text-right">{course.credits}</td>
                   <td className="border border-black px-1 py-0.5 text-right">{formatPoint(course.score10, 1)}</td>
-                  <td className="border border-black px-1 py-0.5 text-center">{course.letter}</td>
-                  <td className="border border-black px-1 py-0.5 text-right">{formatPoint(course.point4, 1)}</td>
+                  <td className="border border-black px-1 py-0.5 text-center">{resultMark(course)}</td>
+                  <td className="border border-black px-1 py-0.5 text-right">{formatPoint(resultPoint4(course), 1)}</td>
                 </tr>
               ))}
             </tbody>
@@ -84,6 +84,7 @@ export function PrintableTranscript({ student, terms, standing }: PrintableTrans
       </p>
       <p className="mt-1">Học phần học lại hoặc học cải thiện: điểm tính vào điểm trung bình tích lũy là điểm của lần học cuối.</p>
       <p className="mt-1">{RESULT_MARK_LEGEND}</p>
+      <p className="mt-1">{CONDITIONAL_COURSE_NOTE}.</p>
       <div className="mt-8 flex justify-end">
         <p className="w-64 text-center">
           TP. Hồ Chí Minh, ngày in {formatDate(dayjs())}

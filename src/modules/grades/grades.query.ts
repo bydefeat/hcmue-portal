@@ -8,7 +8,7 @@ import { isUuid } from "@/shared/libs/id.lib";
 import { formatStudentCode } from "@/shared/libs/student-code.lib";
 import { requireRole, requireSession } from "@/modules/authentication/authentication.query";
 import { classSections, enrollments, terms } from "@/modules/course-registration/course-registration.schema";
-import { faculties, majors } from "@/modules/curriculum/curriculum.schema";
+import { courses, faculties, majors } from "@/modules/curriculum/curriculum.schema";
 import { examSessions } from "@/modules/exams/exams.schema";
 import { DEFAULT_COMPONENTS } from "@/modules/grades/grades.constant";
 import { cumulativeResults, currentWarnings, loadTranscripts } from "@/modules/grades/grades.lib";
@@ -267,9 +267,10 @@ async function sheetViews(sectionIds: string[]): Promise<GradeSheetView[]> {
   const [regulation, sections, sheets, roster, finals] = await Promise.all([
     getRegulation(),
     db
-      .select({ id: classSections.id, termEnd: terms.endDate })
+      .select({ id: classSections.id, termEnd: terms.endDate, isConditional: courses.isConditional })
       .from(classSections)
       .innerJoin(terms, eq(terms.id, classSections.termId))
+      .innerJoin(courses, eq(courses.id, classSections.courseId))
       .where(inArray(classSections.id, ids)),
     db.select().from(gradeSheets).where(inArray(gradeSheets.classSectionId, ids)),
     db
@@ -328,7 +329,7 @@ async function sheetViews(sectionIds: string[]): Promise<GradeSheetView[]> {
         returnReason: sheet?.returnReason ?? null,
         scores: rows,
         state: sheetState(status, deadline, regulation.workflow.gradeDueSoonDays),
-        grading,
+        grading: sectionById.get(id)!.isConditional ? { ...grading, isConditional: true } : grading,
       };
     });
 }

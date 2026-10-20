@@ -56,6 +56,7 @@ export const REGULATION_RULES_SCHEMA = z.object({
       maxSummer: whole(0, 20),
       maxWhenWarned: whole(0, 30),
       overloadMinCpa: decimal(0, 4),
+      overloadExtraCredits: whole(1, 15),
     })
     .refine((credits) => credits.minPerTerm <= credits.maxPerTerm, { path: ["maxPerTerm"], message: "Không nhỏ hơn số tín chỉ tối thiểu" })
     .refine((credits) => credits.maxWhenWarned <= credits.maxPerTerm, { path: ["maxWhenWarned"], message: "Không vượt số tín chỉ tối đa mỗi học kỳ" }),
@@ -78,6 +79,7 @@ export const REGULATION_RULES_SCHEMA = z.object({
     regradeWindowDays: whole(1, 30),
     registrationClosingSoonHours: whole(1, 168),
     withdrawDeadlineWeeks: whole(1, 20),
+    maxReserveTerms: whole(1, 8),
   }),
   graduation: z.object({
     retakeLimitPercent: decimal(0, 100),

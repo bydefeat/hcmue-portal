@@ -199,6 +199,7 @@ export function RegulationForm({ regulation, versions }: RegulationFormProps) {
             <NumberField name={["credits", "maxSummer"]} label="Tối đa học kỳ hè" min={0} max={20} suffix="TC" />
             <NumberField name={["credits", "maxWhenWarned"]} label="Tối đa khi bị cảnh báo" min={0} max={30} suffix="TC" />
             <NumberField name={["credits", "overloadMinCpa"]} label="CPA tối thiểu để học vượt" min={0} max={4} step={0.1} />
+            <NumberField name={["credits", "overloadExtraCredits"]} label="Học vượt tối đa thêm" min={1} max={15} suffix="TC" />
           </div>
         </SectionCard>
 
@@ -227,6 +228,7 @@ export function RegulationForm({ regulation, versions }: RegulationFormProps) {
             <NumberField name={["workflow", "regradeWindowDays"]} label="Nhận đơn phúc khảo trong" min={1} max={30} suffix="ngày" />
             <NumberField name={["workflow", "registrationClosingSoonHours"]} label="Báo đợt sắp đóng trước" min={1} max={168} suffix="giờ" />
             <NumberField name={["workflow", "withdrawDeadlineWeeks"]} label="Hạn rút học phần (nhận W)" min={1} max={20} suffix="tuần từ đầu học kỳ" />
+            <NumberField name={["workflow", "maxReserveTerms"]} label="Bảo lưu tối đa" min={1} max={8} suffix="học kỳ" />
           </div>
         </SectionCard>
 

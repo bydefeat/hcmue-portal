@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { boolean, check, index, pgEnum, pgTable, primaryKey, smallint, text, uuid } from "drizzle-orm/pg-core";
+import { boolean, check, foreignKey, index, pgEnum, pgTable, primaryKey, smallint, text, unique, uuid } from "drizzle-orm/pg-core";
 import { primaryId, timestamps } from "@/shared/libs/db-column.lib";
 
 export const courseTypeEnum = pgEnum("course_type", ["required", "elective"]);
@@ -43,6 +43,9 @@ export const courses = pgTable(
     type: courseTypeEnum().notNull(),
     block: knowledgeBlockEnum().notNull(),
     isActive: boolean().notNull().default(true),
+    // Học phần điều kiện (Giáo dục thể chất, Giáo dục quốc phòng - an ninh): chấm Đạt/Không đạt, không tính điểm trung bình
+    // và tín chỉ tích lũy của chương trình; xét tốt nghiệp yêu cầu đạt đủ các học phần điều kiện trong khung.
+    isConditional: boolean().notNull().default(false),
     description: text().notNull().default(""),
     ...timestamps(),
   },
@@ -104,6 +107,27 @@ export const programCohorts = pgTable(
   (table) => [primaryKey({ columns: [table.programId, table.cohort] }), index().on(table.cohort)],
 );
 
+// Nhóm học phần tự chọn của chương trình: sinh viên phải tích lũy ít nhất min_credits tín chỉ trong các học phần của nhóm
+// (program_courses.elective_group_id). Học phần thuộc tối đa một nhóm.
+export const programElectiveGroups = pgTable(
+  "program_elective_groups",
+  {
+    id: primaryId(),
+    programId: uuid()
+      .notNull()
+      .references(() => programs.id, { onDelete: "cascade" }),
+    name: text().notNull(),
+    minCredits: smallint().notNull(),
+    ...timestamps(),
+  },
+  (table) => [
+    unique("program_elective_groups_program_id_name_unique").on(table.programId, table.name),
+    unique("program_elective_groups_identity").on(table.id, table.programId),
+    check("program_elective_groups_min_credits_range", sql`${table.minCredits} BETWEEN 1 AND 60`),
+    check("program_elective_groups_name_present", sql`length(btrim(${table.name})) BETWEEN 1 AND 120`),
+  ],
+);
+
 export const programCourses = pgTable(
   "program_courses",
   {
@@ -114,10 +138,18 @@ export const programCourses = pgTable(
       .notNull()
       .references(() => courses.id, { onDelete: "restrict" }),
     semester: smallint().notNull(),
+    // Nhóm tự chọn của cùng chương trình (khóa ngoại kép để không gắn nhầm nhóm của chương trình khác); xóa nhóm thì bỏ gắn trước.
+    electiveGroupId: uuid(),
   },
   (table) => [
     primaryKey({ columns: [table.programId, table.courseId] }),
     index().on(table.courseId),
+    index().on(table.electiveGroupId),
+    foreignKey({
+      name: "program_courses_elective_group_fk",
+      columns: [table.electiveGroupId, table.programId],
+      foreignColumns: [programElectiveGroups.id, programElectiveGroups.programId],
+    }),
     check("program_courses_semester_range", sql`${table.semester} BETWEEN 1 AND 12`),
   ],
 );

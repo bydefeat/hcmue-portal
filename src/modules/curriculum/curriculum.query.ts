@@ -6,7 +6,7 @@ import { db } from "@/shared/libs/db.lib";
 import { isUuid } from "@/shared/libs/id.lib";
 import { requireSession } from "@/modules/authentication/authentication.query";
 import { KNOWLEDGE_BLOCK_LABEL } from "@/modules/curriculum/curriculum.constant";
-import { courseRelations, courses, faculties, majors, programCohorts, programCourses, programs } from "@/modules/curriculum/curriculum.schema";
+import { courseRelations, courses, faculties, majors, programCohorts, programCourses, programElectiveGroups, programs } from "@/modules/curriculum/curriculum.schema";
 import type { Course, KnowledgeBlock, Major, Program, ProgramDetail, ProgramSummary } from "@/modules/curriculum/curriculum.type";
 
 const relatedCourses = alias(courses, "related_courses");
@@ -25,6 +25,7 @@ async function courseRows(id?: string): Promise<Course[]> {
         type: courses.type,
         block: courses.block,
         isActive: courses.isActive,
+        isConditional: courses.isConditional,
         description: courses.description,
       })
       .from(courses)
@@ -142,10 +143,18 @@ export const getProgramOf = cache(async (majorCode: string, cohort: number): Pro
 export async function getProgram(id: string): Promise<ProgramDetail | null> {
   await requireSession();
   if (!isUuid(id)) return null;
-  const [[program], allCourses, plan] = await Promise.all([
+  const [[program], allCourses, plan, groups] = await Promise.all([
     programRows(id),
     getCourses(),
-    db.select({ courseId: programCourses.courseId, semester: programCourses.semester }).from(programCourses).where(eq(programCourses.programId, id)),
+    db
+      .select({ courseId: programCourses.courseId, semester: programCourses.semester, groupId: programCourses.electiveGroupId })
+      .from(programCourses)
+      .where(eq(programCourses.programId, id)),
+    db
+      .select({ id: programElectiveGroups.id, name: programElectiveGroups.name, minCredits: programElectiveGroups.minCredits })
+      .from(programElectiveGroups)
+      .where(eq(programElectiveGroups.programId, id))
+      .orderBy(asc(programElectiveGroups.createdAt), asc(programElectiveGroups.name)),
   ]);
   if (!program) return null;
   const courseById = new Map(allCourses.map((course) => [course.id, course]));
@@ -158,15 +167,27 @@ export async function getProgram(id: string): Promise<ProgramDetail | null> {
       .toSorted((a, b) => a.code.localeCompare(b.code));
     return { semester, courses: semesterCourses, credits: semesterCourses.reduce((sum, course) => sum + course.credits, 0) };
   });
-  const plannedCourses = semesters.flatMap((semester) => semester.courses);
+  // Học phần điều kiện không tính vào tổng tín chỉ của chương trình nên đếm riêng.
+  const plannedCourses = semesters.flatMap((semester) => semester.courses).filter((course) => !course.isConditional);
+  const conditionalCourses = semesters.flatMap((semester) => semester.courses).filter((course) => course.isConditional);
   const creditsByBlock = (Object.keys(KNOWLEDGE_BLOCK_LABEL) as KnowledgeBlock[]).map((block) => ({
     block,
     credits: plannedCourses.filter((course) => course.block === block).reduce((sum, course) => sum + course.credits, 0),
   }));
+  const electiveGroups = groups.map((group) => {
+    const members = plan
+      .filter((entry) => entry.groupId === group.id)
+      .map((entry) => courseById.get(entry.courseId))
+      .filter((course) => course !== undefined)
+      .toSorted((a, b) => a.code.localeCompare(b.code));
+    return { ...group, courseCodes: members.map((course) => course.code), availableCredits: members.reduce((sum, course) => sum + course.credits, 0) };
+  });
   return {
     ...program,
     semesters,
     plannedCredits: plannedCourses.reduce((sum, course) => sum + course.credits, 0),
+    conditionalCredits: conditionalCourses.reduce((sum, course) => sum + course.credits, 0),
     creditsByBlock,
+    electiveGroups,
   };
 }

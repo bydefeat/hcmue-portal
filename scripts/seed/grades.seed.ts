@@ -3,6 +3,7 @@ import type { Transaction } from "@/shared/libs/db.lib";
 import { dayjs } from "@/shared/libs/date.lib";
 import { mockDate, mockId } from "@/shared/libs/mock.lib";
 import { CLASS_SECTIONS } from "@/modules/course-registration/course-registration.mock";
+import { conditionalResultSeeds } from "@/modules/curriculum/curriculum.mock";
 import { enrollments } from "@/modules/course-registration/course-registration.schema";
 import {
   CURRENT_TERM,
@@ -79,6 +80,21 @@ export async function seedGrades(tx: Transaction, context: SeedContext) {
     if (warning && student.status !== "graduated" && terms.some((term) => term.termId === warningTermId)) {
       const meta = mockWarningMeta(index);
       warnings.push({ ...warning, id: meta.id, studentId: student.id, termId: warningTermId, status: meta.status, createdAt: new Date(meta.createdAt) });
+    }
+  }
+  // Học phần điều kiện (GDTC, GDQP-AN) không tính điểm trung bình nên thêm riêng, không làm đổi CPA, cảnh báo ở trên.
+  for (const { student, index, terms } of transcripts) {
+    for (const entry of conditionalResultSeeds(index, terms.map((term) => term.termId), student.cohort)) {
+      const recordedAt = dayjs(termById.get(entry.termId)!.endDate).add(7, "day").hour(8);
+      results.push({
+        id: mockId(`result:${student.id}:${entry.termId}:${entry.courseCode}`),
+        studentId: student.id,
+        courseId: context.courseByCode.get(entry.courseCode)!.id,
+        termId: entry.termId,
+        source: "legacy",
+        ...courseGrade(entry.score10, REGULATION_RULES.grading.scale),
+        recordedAt: recordedAt.toDate(),
+      });
     }
   }
   await insertChunks(results, (chunk) => tx.insert(courseResults).values(chunk));

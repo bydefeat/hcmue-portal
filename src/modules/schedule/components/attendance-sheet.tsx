@@ -190,7 +190,7 @@ export function AttendanceSheet({ book, students, absenceLimitPercent = ABSENCE_
         <Alert
           type="warning"
           showIcon
-          title={`${book.holidaySessions.length} buổi theo lịch rơi vào ngày nghỉ lễ, cần xếp dạy bù`}
+          title={`${book.holidaySessions.length} buổi theo lịch rơi vào ngày nghỉ lễ hoặc nghỉ dạy, cần xếp dạy bù`}
           description={
             <ul className="flex flex-col gap-0.5">
               {book.holidaySessions.map((entry) => (

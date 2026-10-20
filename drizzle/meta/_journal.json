@@ -250,15 +250,29 @@
     {
       "idx": 35,
       "version": "7",
-      "when": 1792502425984,
-      "tag": "0035_grade_amendments_marks",
+      "when": 1792511847534,
+      "tag": "0035_phase2_marks_electives_effects",
       "breakpoints": true
     },
     {
       "idx": 36,
       "version": "7",
-      "when": 1792502451504,
-      "tag": "0036_grade_amendments_guards",
+      "when": 1792511857082,
+      "tag": "0036_syllabus_weights_versioned",
+      "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1792511859159,
+      "tag": "0037_grade_amendments_guards",
+      "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1792511861441,
+      "tag": "0038_regulation_fields_elective_guard",
       "breakpoints": true
     }
   ]

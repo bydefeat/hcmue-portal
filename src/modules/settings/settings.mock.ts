@@ -23,10 +23,10 @@ export const REGULATION: RegulationSettings = {
     standing: { excellent: 3.6, veryGood: 3.2, good: 2.5, average: 2, weak: 1 },
     incompleteTerms: 1,
   },
-  credits: { minPerTerm: 14, maxPerTerm: 25, maxSummer: 12, maxWhenWarned: 14, overloadMinCpa: 2.5 },
+  credits: { minPerTerm: 14, maxPerTerm: 25, maxSummer: 12, maxWhenWarned: 14, overloadMinCpa: 2.5, overloadExtraCredits: 5 },
   warning: { level1TermGpa: 1, level1FailedCredits: 6, level2Cpa: 1.5, level2FailedCredits: 12, level3Cpa: 1, expelAfterWarnings: 2 },
   attendance: { absenceLimitPercent: 20 },
-  workflow: { gradeEntryDays: 10, gradeDueSoonDays: 5, studyPlanReviewDays: 5, regradeWindowDays: 7, registrationClosingSoonHours: 48, withdrawDeadlineWeeks: 8 },
+  workflow: { gradeEntryDays: 10, gradeDueSoonDays: 5, studyPlanReviewDays: 5, regradeWindowDays: 7, registrationClosingSoonHours: 48, withdrawDeadlineWeeks: 8, maxReserveTerms: 2 },
   graduation: { retakeLimitPercent: 5, downgradeDisciplineLevel: "warning", downgradeStandings: ["excellent", "very-good"], languageMinLevel: "B1", requireItCertificate: true },
 };
 

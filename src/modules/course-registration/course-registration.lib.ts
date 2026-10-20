@@ -18,6 +18,7 @@ import {
   waitlistEntries,
 } from "@/modules/course-registration/course-registration.schema";
 import { conflictsOf, HOLD_KIND_LABEL, overlaps } from "@/modules/course-registration/course-registration.constant";
+import { creditOverrides } from "@/modules/course-registration/credit-override.schema";
 import {
   applicablePeriod,
   basketProblems,
@@ -248,7 +249,7 @@ async function tryLockRegistration(tx: Transaction, studentId: string, termId: s
 async function gradeFactsOf(executor: Executor, student: RegistrationStudentFacts) {
   const [results, [program]] = await Promise.all([
     executor
-      .select({ code: courses.code, credits: courses.credits, letter: courseResults.letter })
+      .select({ code: courses.code, credits: courses.credits, letter: courseResults.letter, isConditional: courses.isConditional })
       .from(courseResults)
       .innerJoin(courses, eq(courses.id, courseResults.courseId))
       .innerJoin(terms, eq(terms.id, courseResults.termId))
@@ -267,7 +268,8 @@ async function gradeFactsOf(executor: Executor, student: RegistrationStudentFact
   const credits = new Map<string, number>();
   for (const result of results) {
     last[result.code] = result.letter!;
-    credits.set(result.code, result.credits);
+    // Học phần điều kiện không tính tín chỉ tích lũy của chương trình (vẫn tính "đã học đạt" cho tiên quyết).
+    credits.set(result.code, result.isConditional ? 0 : result.credits);
   }
   const earned = Object.entries(last)
     .filter(([, letter]) => letter !== "F")
@@ -336,10 +338,24 @@ export async function periodOf(executor: Executor, termId: string, cohort: numbe
   return { ...period, isOpen };
 }
 
+// Hạn mức tín chỉ được duyệt riêng (đơn học vượt) của sinh viên trong học kỳ, null nếu không có.
+export async function creditOverrideOf(executor: Executor, studentId: string, termId: string) {
+  const [row] = await executor
+    .select({ maxCredits: creditOverrides.maxCredits })
+    .from(creditOverrides)
+    .where(and(eq(creditOverrides.studentId, studentId), eq(creditOverrides.termId, termId)));
+  return row?.maxCredits ?? null;
+}
+
 // Hạn mức tín chỉ của sinh viên trong học kỳ cho trang đăng ký: cùng nguồn và cùng hàm với lúc server kiểm.
 export async function creditLimitsFor(executor: Executor, student: RegistrationStudentFacts, term: TermFacts, rules: RegistrationRules, now: Date) {
-  const [period, warningLevel, grades] = await Promise.all([periodOf(executor, term.id, student.cohort, now), currentWarningLevel(executor, student.id), gradeFactsOf(executor, student)]);
-  return { limits: creditLimitsOf({ rules: rules.credits, semester: term.semester, warningLevel, period, remainingCredits: grades.remainingCredits }), warningLevel };
+  const [period, warningLevel, grades, overrideMax] = await Promise.all([
+    periodOf(executor, term.id, student.cohort, now),
+    currentWarningLevel(executor, student.id),
+    gradeFactsOf(executor, student),
+    creditOverrideOf(executor, student.id, term.id),
+  ]);
+  return { limits: creditLimitsOf({ rules: rules.credits, semester: term.semester, warningLevel, period, remainingCredits: grades.remainingCredits, overrideMax }), warningLevel };
 }
 
 export type EligibilityBundle = { context: Omit<EligibilityContext, "planned" | "labChoices">; limits: CreditLimits };
@@ -356,10 +372,11 @@ export async function eligibilityOf(
   const { student, term } = state;
   const codes = [...new Set([...state.registered, ...sections].map((section) => section.courseCode))];
   const current = term.isCurrent ? term : await currentTermOf(executor);
-  const [grades, relations, warningLevel, inProgress] = await Promise.all([
+  const [grades, relations, warningLevel, overrideMax, inProgress] = await Promise.all([
     gradeFactsOf(executor, student),
     relationsOf(executor, codes),
     currentWarningLevel(executor, student.id),
+    creditOverrideOf(executor, student.id, term.id),
     term.id === current.id
       ? []
       : executor
@@ -368,7 +385,7 @@ export async function eligibilityOf(
           .innerJoin(courses, eq(courses.id, enrollments.courseId))
           .where(and(eq(enrollments.studentId, student.id), eq(enrollments.termId, current.id), eq(enrollments.status, "enrolled"))),
   ]);
-  const limits = creditLimitsOf({ rules: rules.credits, semester: term.semester, warningLevel, period, remainingCredits: grades.remainingCredits });
+  const limits = creditLimitsOf({ rules: rules.credits, semester: term.semester, warningLevel, period, remainingCredits: grades.remainingCredits, overrideMax });
   const courseNames = { ...relations.courseNames, ...Object.fromEntries([...state.registered, ...sections].map((section) => [section.courseCode, section.courseName])) };
   return {
     context: {

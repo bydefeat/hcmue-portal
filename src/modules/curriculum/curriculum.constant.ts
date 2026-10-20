@@ -40,4 +40,10 @@ export const CURRICULUM_CONSTRAINT_MESSAGE: Partial<Record<string, string>> = {
   program_courses_program_archived: "Chương trình đã ngừng áp dụng, khung chỉ xem được.",
   programs_archived_final: "Chương trình đã ngừng áp dụng, không mở lại được. Tạo chương trình mới nếu cần áp dụng lại.",
   programs_single_active_cohort: "Mỗi ngành, khóa chỉ có một chương trình đang áp dụng. Chuyển chương trình cũ sang ngừng áp dụng trước.",
+  program_elective_groups_program_id_name_unique: "Chương trình đã có nhóm tự chọn cùng tên.",
+  program_elective_groups_min_credits_range: "Số tín chỉ tối thiểu của nhóm từ 1 đến 60.",
+  program_elective_groups_name_present: "Tên nhóm từ 1 đến 120 ký tự.",
+  program_elective_groups_program_archived: "Chương trình đã ngừng áp dụng, nhóm tự chọn chỉ xem được.",
+  program_courses_elective_group_fk: "Nhóm tự chọn không thuộc chương trình này, tải lại trang.",
+  program_courses_elective_group_course: "Chỉ học phần tự chọn (không phải học phần điều kiện) mới xếp vào nhóm tự chọn.",
 };

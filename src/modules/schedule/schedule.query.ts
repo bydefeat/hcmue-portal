@@ -7,7 +7,7 @@ import { courses } from "@/modules/curriculum/curriculum.schema";
 import { rooms } from "@/modules/facilities/facilities.schema";
 import { holidaysBetween } from "@/modules/schedule/schedule.lib";
 import { holidaySessions } from "@/modules/schedule/schedule.rule";
-import { attendanceRecords, classSessions } from "@/modules/schedule/schedule.schema";
+import { attendanceRecords, classSessionLeaves, classSessions } from "@/modules/schedule/schedule.schema";
 import { getCurrentLecturer, getCurrentStudent } from "@/modules/users/users.query";
 import type { AttendanceBook, ScheduleEvent, ScheduleSession, Timetable } from "@/modules/schedule/schedule.type";
 
@@ -131,7 +131,7 @@ export async function getAttendanceBook(classSectionId: string): Promise<Attenda
     .from(classSections)
     .where(and(eq(classSections.id, classSectionId), eq(classSections.lecturerId, lecturer.id)));
   if (!section) return null;
-  const [sessions, records, roster, meetings, labs, holidays, [{ today }]] = await Promise.all([
+  const [sessions, records, roster, meetings, labs, holidays, [{ today }], leaves] = await Promise.all([
     db
       .select({
         id: classSessions.id,
@@ -162,6 +162,11 @@ export async function getAttendanceBook(classSectionId: string): Promise<Attenda
     db.select({ id: labGroups.id, code: labGroups.code, dayOfWeek: labGroups.dayOfWeek, startPeriod: labGroups.startPeriod, endPeriod: labGroups.endPeriod, roomId: labGroups.roomId }).from(labGroups).where(eq(labGroups.classSectionId, classSectionId)),
     holidaysBetween(db, section.startDate, section.endDate),
     db.execute<{ today: string }>(sql`SELECT to_char((now() AT TIME ZONE 'Asia/Ho_Chi_Minh')::date, 'YYYY-MM-DD') AS today`),
+    db
+      .select({ date: classSessionLeaves.date, startPeriod: classSessionLeaves.startPeriod, endPeriod: classSessionLeaves.endPeriod, labGroupId: classSessionLeaves.labGroupId, makeupNote: classSessionLeaves.makeupNote })
+      .from(classSessionLeaves)
+      .where(eq(classSessionLeaves.classSectionId, classSectionId))
+      .orderBy(asc(classSessionLeaves.date), asc(classSessionLeaves.startPeriod)),
   ]);
   const book: AttendanceBook["records"] = {};
   for (const record of records) (book[record.sessionId] ??= {})[record.studentId] = record.status;
@@ -170,7 +175,17 @@ export async function getAttendanceBook(classSectionId: string): Promise<Attenda
   return {
     classSectionId,
     today,
-    holidaySessions: missed.map((plan) => ({ date: plan.date, startPeriod: plan.startPeriod, endPeriod: plan.endPeriod, labGroupCode: plan.labGroupId ? (labCode.get(plan.labGroupId) ?? null) : null, holiday: plan.holiday })),
+    // Buổi nghỉ lễ và buổi nghỉ dạy đã duyệt đều là buổi cần dạy bù.
+    holidaySessions: [
+      ...missed.map((plan) => ({ date: plan.date, startPeriod: plan.startPeriod, endPeriod: plan.endPeriod, labGroupCode: plan.labGroupId ? (labCode.get(plan.labGroupId) ?? null) : null, holiday: plan.holiday })),
+      ...leaves.map((leave) => ({
+        date: leave.date,
+        startPeriod: leave.startPeriod,
+        endPeriod: leave.endPeriod,
+        labGroupCode: leave.labGroupId ? (labCode.get(leave.labGroupId) ?? null) : null,
+        holiday: leave.makeupNote ? `Nghỉ dạy, dạy bù ${leave.makeupNote}` : "Nghỉ dạy theo đơn",
+      })),
+    ].toSorted((a, b) => a.date.localeCompare(b.date) || a.startPeriod - b.startPeriod),
     sessions: sessions.map(({ takenAt, ...session }) => ({ ...session, isTaken: takenAt !== null })),
     records: book,
     labGroupOf: Object.fromEntries(roster.map((entry) => [entry.studentId, entry.labGroupId])),

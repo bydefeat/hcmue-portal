@@ -2,7 +2,7 @@ import "server-only";
 import { formatDate, formatDateTime } from "@/shared/libs/date.lib";
 import { buildPdf } from "@/shared/libs/pdf.lib";
 import { formatPoint, RESULT_MARK_LEGEND, standingLabel } from "@/modules/grades/grades.constant";
-import { attemptNote, letterOf, weightedScore } from "@/modules/grades/grades.rule";
+import { attemptNote, CONDITIONAL_COURSE_NOTE, letterOf, resultMark, resultPoint4, weightedScore } from "@/modules/grades/grades.rule";
 import type { GradeComponent, GradingRules, ScoreRow, StudentStanding, TranscriptTerm } from "@/modules/grades/grades.type";
 
 type TranscriptStudent = { code: string; fullName: string; dateOfBirth: string; className: string; majorName: string; faculty: string; cohort: number };
@@ -39,8 +39,8 @@ export function transcriptPdf(student: TranscriptStudent, terms: TranscriptTerm[
             `${course.courseName}${attemptNote(course)}`,
             course.credits,
             formatPoint(course.score10, 1),
-            course.letter ?? "",
-            formatPoint(course.point4, 1),
+            resultMark(course),
+            formatPoint(resultPoint4(course), 1),
           ]),
         },
         {
@@ -56,6 +56,7 @@ export function transcriptPdf(student: TranscriptStudent, terms: TranscriptTerm[
       },
       { type: "paragraph", size: 8.5, text: "Học phần học lại hoặc học cải thiện: điểm tính vào điểm trung bình tích lũy là điểm của lần học cuối." },
       { type: "paragraph", size: 8.5, text: RESULT_MARK_LEGEND },
+      { type: "paragraph", size: 8.5, text: `${CONDITIONAL_COURSE_NOTE}.` },
       { type: "paragraph", size: 8.5, text: "Bảng điểm tra cứu từ cổng thông tin đào tạo, dùng để tham khảo. Bản có giá trị xác nhận do Phòng Đào tạo cấp." },
     ],
   });
@@ -116,7 +117,7 @@ export function gradeSheetPdf(input: GradeSheetPdfInput) {
             student.fullName,
             ...input.components.map((component) => formatPoint(row[component.key] ?? null, 1)),
             formatPoint(total, 1),
-            total === null ? "" : letterOf(total, input.grading.scale).letter,
+            total === null ? "" : resultMark({ letter: letterOf(total, input.grading.scale).letter, isConditional: input.grading.isConditional }),
           ];
         }),
         emptyText: "Lớp chưa có sinh viên.",

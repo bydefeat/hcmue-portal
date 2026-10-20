@@ -12,7 +12,7 @@ import { downloadBase64, parseCsv } from "@/shared/libs/download.lib";
 import { GradeComponentsEditor } from "@/modules/grades/components/grade-components-editor";
 import { exportGradeSheetExcel, exportGradeSheetPdf, lockGradeSheet, readGradeSheetExcel, saveGradeComponents, saveGradeScores } from "@/modules/grades/grades.action";
 import { formatPoint, GRADE_SHEET_STATE, letterTextClass } from "@/modules/grades/grades.constant";
-import { GRADE_IMPORT_MAX_BYTES, letterOf as gradeLetterOf, parseScoreMatrix, weightedScore, type ScoreChange } from "@/modules/grades/grades.rule";
+import { GRADE_IMPORT_MAX_BYTES, letterOf as gradeLetterOf, parseScoreMatrix, resultMark, weightedScore, type ScoreChange } from "@/modules/grades/grades.rule";
 import {
   NewLecturerRequestDrawer,
   type BusySlot,
@@ -268,7 +268,7 @@ export function GradingTable({ sheet, students, classCode, classId, returnReason
     const totalScore = totalOf(row);
     if (totalScore === null) return <span className="text-muted">–</span>;
     const letter = gradeLetterOf(totalScore, sheet.grading.scale).letter;
-    return <span className={`font-medium ${letterTextClass(letter)}`}>{letter}</span>;
+    return <span className={`font-medium ${letterTextClass(letter)}`}>{resultMark({ letter, isConditional: sheet.grading.isConditional })}</span>;
   };
 
   const columns: TableColumnsType<GradingStudent> = [

@@ -1,6 +1,6 @@
 "use server";
 
-import { and, eq, gte, inArray, lte, ne } from "drizzle-orm";
+import { and, eq, gte, inArray, lte, ne, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db, type Transaction } from "@/shared/libs/db.lib";
 import { actionError, actionFailure, actionOk, parseInput, type ActionFailure, type ActionResult } from "@/shared/libs/action.lib";
@@ -38,6 +38,7 @@ import {
   type AttachmentFile,
 } from "@/modules/requests/requests.lib";
 import { getRequest, getRequestAccess, type RequestPortal } from "@/modules/requests/requests.query";
+import { reserveTermsUsed } from "@/modules/requests/requests.reserve";
 import {
   checkAttachments,
   DECIDE_STEP_SCHEMA,
@@ -50,6 +51,8 @@ import {
   readRequestForm,
   REASSIGN_STEP_SCHEMA,
   regradeBlockedReason,
+  reserveBlockedReason,
+  reserveTermsOf,
   RESUBMIT_SCHEMA,
   scoreText,
   sessionLabel,
@@ -104,7 +107,9 @@ async function regulationRules() {
   return {
     maxPerTerm: regulation.credits.maxPerTerm,
     overloadMinCpa: regulation.credits.overloadMinCpa,
+    overloadExtraCredits: regulation.credits.overloadExtraCredits,
     regradeWindowDays: regulation.workflow.regradeWindowDays,
+    maxReserveTerms: regulation.workflow.maxReserveTerms,
     withdrawDeadlineWeeks: regulation.workflow.withdrawDeadlineWeeks,
   };
 }
@@ -130,6 +135,15 @@ async function checkSectionEligibility(tx: Transaction, kind: RequestKind, class
     const blocked = term ? withdrawBlockedReason({ termStart: term.startDate, termEnd: term.endDate, sheetStatus: sheet?.status ?? null }, schoolToday(), rules.withdrawDeadlineWeeks) : null;
     if (blocked) throw new RequestError(blocked, "section");
   }
+}
+
+// Bảo lưu: tổng số học kỳ đã bảo lưu, đang xin và xin thêm không vượt workflow.maxReserveTerms. Khóa theo sinh viên để hai đơn
+// gửi cùng lúc không cùng lọt; lúc duyệt đơn còn kiểm lại (users.request-effects).
+async function checkReserveLimit(tx: Transaction, studentId: string, details: RequestDetail[], maxReserveTerms: number) {
+  await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${`reserve:${studentId}`}))`);
+  const used = await reserveTermsUsed(tx, studentId, { includeInFlight: true });
+  const blocked = reserveBlockedReason({ used, requested: reserveTermsOf(details) ?? 1 }, maxReserveTerms);
+  if (blocked) throw new RequestError(blocked, "duration");
 }
 
 // Nhận FormData: ô "input" là JSON của form (StudentRequestInput), các ô "files" là tệp minh chứng.
@@ -186,6 +200,7 @@ export async function createStudentRequest(formData: FormData): Promise<ActionRe
           facts = await studentRequestFacts(tx, kind, { classSectionId: fields.section, enrollmentId: section.enrollmentId });
         }
         const content = studentRequestContent({ kind, fields }, sectionLabel, facts);
+        if (kind === "reserve") await checkReserveLimit(tx, student.id, content.details, rules.maxReserveTerms);
         const request = await insertRequest(tx, {
           kind,
           requester: { type: "student", studentId: student.id },
@@ -503,6 +518,7 @@ export async function resubmitRequest(formData: FormData): Promise<ActionResult<
       db.transaction(async (tx) => {
         const old = await lockRejectedForResubmit(tx, previous.id, actor.userId!);
         if (old.classSectionId) await checkSectionEligibility(tx, old.kind, old.classSectionId, rules);
+        if (old.kind === "reserve" && old.requesterStudentId) await checkReserveLimit(tx, old.requesterStudentId, old.details, rules.maxReserveTerms);
         const created = await insertRequest(tx, {
           kind: old.kind,
           requester: old.requesterStudentId ? { type: "student", studentId: old.requesterStudentId } : { type: "lecturer", lecturerId: old.requesterLecturerId! },

@@ -1,7 +1,7 @@
 import type { Transaction } from "@/shared/libs/db.lib";
-import { MOCK_MAJORS } from "@/shared/libs/mock.lib";
-import { COURSES, PROGRAM_COURSES, PROGRAMS } from "@/modules/curriculum/curriculum.mock";
-import { courseRelations, courses, faculties, majors, programCohorts, programCourses, programs } from "@/modules/curriculum/curriculum.schema";
+import { MOCK_MAJORS, mockId } from "@/shared/libs/mock.lib";
+import { COURSES, ELECTIVE_GROUPS, PROGRAM_COURSES, PROGRAMS } from "@/modules/curriculum/curriculum.mock";
+import { courseRelations, courses, faculties, majors, programCohorts, programCourses, programElectiveGroups, programs } from "@/modules/curriculum/curriculum.schema";
 import { CAMPUSES, ROOMS } from "@/modules/facilities/facilities.mock";
 import { campuses, rooms } from "@/modules/facilities/facilities.schema";
 import { by, type SeedContext } from "./context";
@@ -44,6 +44,7 @@ export async function seedCatalog(tx: Transaction, context: SeedContext) {
         type: course.type,
         block: course.block,
         isActive: course.isActive,
+        isConditional: course.isConditional,
         description: course.description,
       })),
     )
@@ -82,9 +83,19 @@ export async function seedCatalog(tx: Transaction, context: SeedContext) {
     .returning();
   const programIdOf = new Map(PROGRAMS.map((entry, index) => [entry.id, programRows[index].id]));
   await tx.insert(programCohorts).values(PROGRAMS.flatMap((entry) => entry.cohorts.map((cohort) => ({ programId: programIdOf.get(entry.id)!, cohort }))));
+  const groupRows = await tx
+    .insert(programElectiveGroups)
+    .values(ELECTIVE_GROUPS.map((group) => ({ id: mockId(`elective-group:${group.id}`), programId: programIdOf.get(group.programId)!, name: group.name, minCredits: group.minCredits })))
+    .returning({ id: programElectiveGroups.id });
+  const groupOf = new Map(ELECTIVE_GROUPS.flatMap((group, index) => group.courseCodes.map((code) => [`${group.programId}:${code}`, groupRows[index].id] as const)));
   await tx.insert(programCourses).values(
     Object.entries(PROGRAM_COURSES).flatMap(([programKey, plan]) =>
-      plan.map((entry) => ({ programId: programIdOf.get(programKey)!, courseId: context.courseByCode.get(entry.courseCode)!.id, semester: entry.semester })),
+      plan.map((entry) => ({
+        programId: programIdOf.get(programKey)!,
+        courseId: context.courseByCode.get(entry.courseCode)!.id,
+        semester: entry.semester,
+        electiveGroupId: groupOf.get(`${programKey}:${entry.courseCode}`) ?? null,
+      })),
     ),
   );
 
@@ -99,5 +110,5 @@ export async function seedCatalog(tx: Transaction, context: SeedContext) {
     .returning();
   context.roomByCode = by(roomRows, (row) => row.code);
 
-  return { courses: courseRows.length, relations: relations.length, programs: programRows.length };
+  return { courses: courseRows.length, relations: relations.length, programs: programRows.length, electiveGroups: groupRows.length };
 }

@@ -1,6 +1,6 @@
 import type { CefrLevel, DisciplineLevel, RankedStanding } from "@/modules/settings/settings.type";
 
-export type GraduationCheckKey = "program" | "credits" | "required" | "cpa" | "failed" | "language" | "it" | "tuition" | "discipline";
+export type GraduationCheckKey = "program" | "credits" | "required" | "conditional" | "electives" | "cpa" | "failed" | "language" | "it" | "tuition" | "discipline";
 
 export type GraduationCheck = {
   key: GraduationCheckKey;
@@ -35,6 +35,10 @@ export type GraduationInput = GraduationExtras & {
   retakeCredits: number;
   // Học phần bắt buộc trong khung chưa học đạt (kể cả qua học phần tương đương).
   missingRequired: { code: string; name: string }[];
+  // Học phần điều kiện (GDTC, GDQP-AN) trong khung chưa Đạt.
+  missingConditional: { code: string; name: string }[];
+  // Tín chỉ đã tích lũy của từng nhóm tự chọn trong khung so với số tối thiểu.
+  electives: { name: string; minCredits: number; earnedCredits: number }[];
   certificatesVerifiedAt: string | null;
   // Số tiền học phí còn nợ trên mọi hóa đơn.
   outstandingTuition: number;

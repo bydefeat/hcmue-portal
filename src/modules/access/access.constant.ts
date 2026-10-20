@@ -29,6 +29,7 @@ export const PERMISSION_GROUPS: { label: string; permissions: { key: Permission;
       { key: "decisions.manage", label: "Lập quyết định sinh viên" },
       { key: "graduation.manage", label: "Xét tốt nghiệp" },
       { key: "exams.manage", label: "Xếp lịch thi, điều kiện dự thi" },
+      { key: "exams.review", label: "Duyệt, tải đề thi" },
       { key: "tuition.manage", label: "Ghi nhận học phí, nhập sao kê ngân hàng" },
     ],
   },
@@ -46,6 +47,7 @@ export const PERMISSION_GROUPS: { label: string; permissions: { key: Permission;
     permissions: [
       { key: "reports.view", label: "Xem thống kê, cảnh báo học vụ" },
       { key: "surveys.view", label: "Xem kết quả khảo sát giảng dạy" },
+      { key: "surveys.manage", label: "Tạo, mở, đóng đợt khảo sát giảng dạy" },
     ],
   },
   {

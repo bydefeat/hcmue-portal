@@ -18,7 +18,8 @@ export const ROLES: Role[] = [
     name: "Trưởng phòng Đào tạo",
     description: "Duyệt và công bố điểm, ký quyết định, xem mọi báo cáo.",
     scope: "university",
-    permissions: without("access.manage"),
+    // Duyệt, tải đề thi chỉ Phòng Khảo thí (quản trị hệ thống có mọi quyền).
+    permissions: without("access.manage", "exams.review"),
     isSystem: true,
   },
   {
@@ -26,7 +27,7 @@ export const ROLES: Role[] = [
     name: "Chuyên viên Phòng Đào tạo",
     description: "Vận hành đăng ký học phần, lớp học phần, hồ sơ sinh viên và đơn từ.",
     scope: "university",
-    permissions: without("access.manage", "settings.manage", "grades.publish", "graduation.manage", "audit.view", "tuition.manage"),
+    permissions: without("access.manage", "settings.manage", "grades.publish", "graduation.manage", "audit.view", "tuition.manage", "exams.review", "surveys.manage"),
     isSystem: true,
   },
   {
@@ -43,6 +44,7 @@ export const ROLES: Role[] = [
       "students.view",
       "advisors.assign",
       "reports.view",
+      "surveys.view",
     ],
     isSystem: false,
   },
@@ -51,7 +53,7 @@ export const ROLES: Role[] = [
     name: "Phòng Khảo thí",
     description: "Xếp lịch thi, phòng thi, cán bộ coi thi, xử lý phúc khảo.",
     scope: "university",
-    permissions: ["dashboard.view", "exams.manage", "requests.process", "students.view", "facilities.manage"],
+    permissions: ["dashboard.view", "exams.manage", "exams.review", "requests.process", "students.view", "facilities.manage"],
     isSystem: false,
   },
   {

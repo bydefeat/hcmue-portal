@@ -8,13 +8,13 @@ import { EmptyState } from "@/shared/components/ui/empty-state";
 import { StatusTag } from "@/shared/components/ui/status-tag";
 import { daysUntil, schoolTime } from "@/shared/libs/date.lib";
 import { EXAM_FORMAT_LABEL, EXAM_KIND_LABEL } from "@/modules/exams/exams.constant";
-import type { ExamKind, ExamSession } from "@/modules/exams/exams.type";
+import type { ExamKind, StudentExam } from "@/modules/exams/exams.type";
 import { SectionCard } from "@/shared/components/ui/section-card";
 
 export type StudentExamItem = {
-  exam: ExamSession;
-  absences: number;
-  sessionsHeld: number;
+  exam: StudentExam;
+  absentPeriods: number;
+  plannedPeriods: number;
   isBanned: boolean;
 };
 
@@ -37,24 +37,36 @@ function endTime(start: string, minutes: number) {
   return schoolTime(`2000-01-01T${start}`).add(minutes, "minute").format("HH:mm");
 }
 
-export function StudentExamList({ items, absenceLimitPercent }: { items: StudentExamItem[]; absenceLimitPercent: number }) {
+type Deferral = { classSectionId: string; kind: string; label: string };
+
+export function StudentExamList({ items, absenceLimitPercent, deferrals }: { items: StudentExamItem[]; absenceLimitPercent: number; deferrals: Deferral[] }) {
   const [filter, setFilter] = useState<Filter>("upcoming");
-  const banned = items.filter((item) => item.isBanned && daysUntil(item.exam.date) >= 0);
+  // Đếm theo học phần, không theo ca: một học phần có ca giữa kỳ và cuối kỳ vẫn là một học phần bị cấm thi.
+  const banned = new Set(items.filter((item) => item.isBanned && daysUntil(item.exam.date) >= 0).map((item) => item.exam.classSectionId));
   const visible = items.filter(({ exam }) => {
-    if (filter === "upcoming") return daysUntil(exam.date) >= 0 && exam.status !== "draft";
-    if (filter === "all") return true;
-    return exam.kind === filter;
+    if (filter === "upcoming") return daysUntil(exam.date) >= 0;
+    if (filter === "midterm") return exam.kind === "midterm" || exam.makeupOfKind === "midterm";
+    if (filter === "final") return exam.kind === "final" || exam.makeupOfKind === "final";
+    return true;
   });
 
   return (
     <div className="flex flex-col gap-3">
-      {banned.length > 0 && (
+      {banned.size > 0 && (
         <Alert
           type="error"
           showIcon
-          title={`Bạn có nguy cơ bị cấm thi ${banned.length} học phần`}
-          description={`Số buổi vắng đã từ ${absenceLimitPercent}% số buổi học. Liên hệ giảng viên phụ trách hoặc gửi đơn kèm minh chứng trước ngày thi.`}
+          title={`Bạn bị cấm thi ${banned.size} học phần`}
+          description={`Số tiết vắng đã vượt ${absenceLimitPercent}% tổng số tiết của học phần. Liên hệ giảng viên phụ trách hoặc gửi đơn kèm minh chứng trước ngày thi.`}
           action={<Link href="/application/requests">Gửi đơn</Link>}
+        />
+      )}
+      {deferrals.length > 0 && (
+        <Alert
+          type="info"
+          showIcon
+          title={`Bạn được hoãn thi ${deferrals.length} kỳ thi`}
+          description={deferrals.map((entry) => `${EXAM_KIND_LABEL[entry.kind as ExamKind] ?? ""} ${entry.label}`).join("; ") + ". Lịch thi bù hiện ở đây khi Phòng Khảo thí công bố."}
         />
       )}
       <Segmented<Filter>
@@ -74,9 +86,8 @@ export function StudentExamList({ items, absenceLimitPercent }: { items: Student
         </SectionCard>
       ) : (
         <ul className="flex flex-col gap-2">
-          {visible.map(({ exam, absences, sessionsHeld, isBanned }) => {
+          {visible.map(({ exam, absentPeriods, plannedPeriods, isBanned }) => {
             const when = whenText(exam.date);
-            const isDraft = exam.status === "draft";
             return (
               <li key={exam.id}>
                 <Card size="small" classNames={{ body: "flex flex-col gap-3 sm:flex-row sm:items-start" }}>
@@ -88,17 +99,18 @@ export function StudentExamList({ items, absenceLimitPercent }: { items: Student
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="text-xs text-muted">{exam.classCode}</span>
                       <span className="text-xs text-muted">
-                        {EXAM_KIND_LABEL[exam.kind]} · {EXAM_FORMAT_LABEL[exam.format]}
+                        {exam.makeupOfKind ? `Thi bù ${EXAM_KIND_LABEL[exam.makeupOfKind].toLowerCase()}` : EXAM_KIND_LABEL[exam.kind]} · {EXAM_FORMAT_LABEL[exam.format]}
                       </span>
-                      {isDraft && <StatusTag status={{ label: "Dự kiến", tone: "neutral" }} />}
+                      {exam.status === "done" && <StatusTag status={{ label: "Đã thi", tone: "neutral" }} />}
                     </div>
                     <span className="font-medium text-pretty">{exam.courseName}</span>
                     <span className="text-sm text-muted tabular-nums">
-                      {exam.startTime} - {endTime(exam.startTime, exam.durationMinutes)} · Phòng {exam.room} · {exam.durationMinutes} phút
+                      {exam.startTime} - {endTime(exam.startTime, exam.durationMinutes)} · Phòng {exam.room ?? "chưa xếp"} · {exam.durationMinutes} phút
                     </span>
+                    {exam.candidateNumber !== null && <span className="text-sm tabular-nums">Số báo danh {exam.candidateNumber}</span>}
                     <span className={`text-xs tabular-nums ${isBanned ? "text-rose-700" : "text-muted"}`}>
                       {isBanned && <CircleWarning size={14} aria-hidden className="mr-1 inline align-[-2px]" />}
-                      Đã vắng {absences}/{sessionsHeld} buổi
+                      Đã vắng {absentPeriods}/{plannedPeriods} tiết của học phần
                       {isBanned ? ", thuộc diện cấm thi nếu không có minh chứng" : ""}
                     </span>
                   </div>

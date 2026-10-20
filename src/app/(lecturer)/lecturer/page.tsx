@@ -218,7 +218,7 @@ export default async function Page() {
                   <li key={exam.id} className="flex flex-col px-4 py-3 sm:px-5">
                     <span className="truncate font-medium">{exam.courseName}</span>
                     <span className="text-xs text-muted tabular-nums">
-                      {EXAM_KIND_LABEL[exam.kind]} · {weekdayLabel(weekdayOf(exam.date))}, {formatDate(exam.date)}, {exam.startTime} · phòng {exam.room}
+                      {EXAM_KIND_LABEL[exam.kind]} · {weekdayLabel(weekdayOf(exam.date))}, {formatDate(exam.date)}, {exam.startTime} · phòng {exam.proctors.find((proctor) => proctor.id === lecturer.id)?.room ?? ""}
                     </span>
                   </li>
                 ))}

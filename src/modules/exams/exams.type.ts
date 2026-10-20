@@ -153,6 +153,7 @@ export type ExamRosterRow = {
 export type ExamDeferralRow = {
   id: string;
   enrollmentId: string;
+  classSectionId: string;
   kind: ExamKind;
   studentCode: string;
   fullName: string;

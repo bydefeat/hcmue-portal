@@ -12,6 +12,7 @@ export type Permission =
   | "decisions.manage"
   | "graduation.manage"
   | "exams.manage"
+  | "exams.review"
   | "tuition.manage"
   | "students.view"
   | "students.manage"
@@ -19,6 +20,7 @@ export type Permission =
   | "advisors.assign"
   | "reports.view"
   | "surveys.view"
+  | "surveys.manage"
   | "settings.manage"
   | "access.manage"
   | "audit.view";

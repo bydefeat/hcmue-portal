@@ -5,7 +5,7 @@ import { sweepSignInFailures } from "@/modules/authentication/authentication.loc
 import { runAcademicWarningsJob } from "@/modules/grades/grades.lib";
 import { runMailOutboxJob } from "@/modules/mail/mail.lib";
 import { publishDueClassAnnouncements } from "@/modules/teaching/teaching.lib";
-import { sweepOrphanExamFiles } from "@/modules/exams/exams.lib";
+import { refreshExamStatuses, sweepOrphanExamFiles } from "@/modules/exams/exams.lib";
 import { sweepOrphanRequestFiles } from "@/modules/requests/requests.lib";
 
 // Tác vụ định kỳ, gọi từ bộ hẹn giờ ngoài (cron của máy chủ, Vercel Cron, ...): POST /api/cron/<tác vụ>
@@ -23,6 +23,8 @@ const JOBS: Record<string, () => Promise<Record<string, number>>> = {
   "mail-outbox": runMailOutboxJob,
   // Dọn bộ đếm đăng nhập sai đã hết hạn (tên dò bừa không tồn tại để lại dòng). Nên chạy mỗi ngày.
   "sign-in-failures": () => sweepSignInFailures(db),
+  // Ca thi đã công bố mà đã thi xong chuyển "Đã thi". Nên chạy mỗi 15 phút (các chốt chặn đã tự kiểm theo giờ thi).
+  "exam-sessions": () => refreshExamStatuses(),
 };
 
 function authorized(request: Request) {

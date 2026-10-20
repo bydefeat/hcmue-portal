@@ -1,7 +1,7 @@
 import { requireRole } from "@/modules/authentication/authentication.query";
 import { ApplicationLayout } from "@/shared/components/layouts/application";
 import { getCurrentTerm } from "@/modules/course-registration/course-registration.query";
-import { markNotificationsRead } from "@/modules/notifications/notifications.action";
+import { markAllNotificationsRead, markNotificationsRead } from "@/modules/notifications/notifications.action";
 import { NOTIFICATION_KIND_LABEL } from "@/modules/notifications/notifications.constant";
 import { getNotifications, getUnreadNotificationCount } from "@/modules/notifications/notifications.query";
 import { formatStudentCode } from "@/shared/libs/student-code.lib";
@@ -17,6 +17,7 @@ export default async function Layout({ children }: { children: React.ReactNode }
       notifications={notifications.map((notification) => ({ ...notification, kindLabel: NOTIFICATION_KIND_LABEL[notification.kind] }))}
       unreadNotifications={unread}
       onMarkNotificationsRead={markNotificationsRead}
+      onMarkAllNotificationsRead={markAllNotificationsRead.bind(null, "student")}
     >
       {children}
     </ApplicationLayout>

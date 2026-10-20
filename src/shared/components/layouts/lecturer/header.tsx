@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Layout, Menu, type MenuProps } from "antd";
 import { Logo } from "@/shared/components/ui/logo";
-import { NotificationBell, type BellItem, type MarkNotificationsRead } from "@/shared/components/ui/notification-bell";
+import { NotificationBell, type BellItem, type MarkAllNotificationsRead, type MarkNotificationsRead } from "@/shared/components/ui/notification-bell";
 import { UserMenu, type MenuUser } from "@/shared/components/ui/user-menu";
 import {
   isActiveItem,
@@ -37,10 +37,11 @@ type LecturerHeaderProps = {
   notifications: BellItem[];
   unreadNotifications?: number;
   onMarkNotificationsRead?: MarkNotificationsRead;
+  onMarkAllNotificationsRead?: MarkAllNotificationsRead;
   accountLinks?: NavItem[];
 };
 
-export function LecturerHeader({ user, isAdvisor, notifications, unreadNotifications, onMarkNotificationsRead, accountLinks = LECTURER_ACCOUNT_LINKS }: LecturerHeaderProps) {
+export function LecturerHeader({ user, isAdvisor, notifications, unreadNotifications, onMarkNotificationsRead, onMarkAllNotificationsRead, accountLinks = LECTURER_ACCOUNT_LINKS }: LecturerHeaderProps) {
   const pathname = usePathname();
   const AdvisingIcon = LECTURER_ADVISING_GROUP.icon;
   const isAdvisingActive = LECTURER_ADVISING_GROUP.items.some((item) => isActiveItem(pathname, item));
@@ -74,7 +75,7 @@ export function LecturerHeader({ user, isAdvisor, notifications, unreadNotificat
           className="hidden min-w-0 flex-1 border-0 md:flex"
         />
         <div className="ml-auto flex shrink-0 items-center gap-1 leading-normal">
-          <NotificationBell items={notifications} unreadCount={unreadNotifications} viewAllHref={LECTURER_NOTIFICATIONS_HREF} onMarkRead={onMarkNotificationsRead} />
+          <NotificationBell items={notifications} unreadCount={unreadNotifications} viewAllHref={LECTURER_NOTIFICATIONS_HREF} onMarkRead={onMarkNotificationsRead} onMarkAllRead={onMarkAllNotificationsRead} />
           <UserMenu user={user} links={accountLinks} compact />
         </div>
       </div>

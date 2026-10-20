@@ -2,7 +2,7 @@
 
 import { Layout } from "antd";
 import { MobileNavigation } from "@/shared/components/ui/mobile-navigation";
-import type { BellItem, MarkNotificationsRead } from "@/shared/components/ui/notification-bell";
+import type { BellItem, MarkAllNotificationsRead, MarkNotificationsRead } from "@/shared/components/ui/notification-bell";
 import type { MenuUser } from "@/shared/components/ui/user-menu";
 import {
   LECTURER_ACCOUNT_LINKS,
@@ -23,12 +23,13 @@ type LecturerLayoutProps = {
   notifications: BellItem[];
   unreadNotifications?: number;
   onMarkNotificationsRead?: MarkNotificationsRead;
+  onMarkAllNotificationsRead?: MarkAllNotificationsRead;
   // Liên kết chuyển cổng (giảng viên kiêm quản trị), thêm vào menu tài khoản.
   portalLinks?: NavItem[];
   children: React.ReactNode;
 };
 
-export function LecturerLayout({ user, isAdvisor, notifications, unreadNotifications, onMarkNotificationsRead, portalLinks = [], children }: LecturerLayoutProps) {
+export function LecturerLayout({ user, isAdvisor, notifications, unreadNotifications, onMarkNotificationsRead, onMarkAllNotificationsRead, portalLinks = [], children }: LecturerLayoutProps) {
   const accountLinks = [...LECTURER_ACCOUNT_LINKS, ...portalLinks];
   const sections = [
     { title: "Giảng dạy", items: LECTURER_NAVIGATION },
@@ -44,6 +45,7 @@ export function LecturerLayout({ user, isAdvisor, notifications, unreadNotificat
         notifications={notifications}
         unreadNotifications={unreadNotifications}
         onMarkNotificationsRead={onMarkNotificationsRead}
+        onMarkAllNotificationsRead={onMarkAllNotificationsRead}
         accountLinks={accountLinks}
       />
       <Layout.Content className="mx-auto w-full max-w-7xl min-w-0 p-4 pb-28 sm:p-6 sm:pb-28 md:pb-6">{children}</Layout.Content>

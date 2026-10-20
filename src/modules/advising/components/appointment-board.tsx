@@ -137,15 +137,10 @@ export function AppointmentBoard({ appointments, advisees, notes: initialNotes }
     });
   };
 
-  const openRecord = (appointment: Appointment) => {
-    setCompleting(appointment);
-    doneForm.setFieldsValue({ attendance: Object.fromEntries(appointment.students.map((student) => [student.id, "present"])) });
-  };
+  // Giá trị đầu đặt qua initialValues của Form (modal mở mới mỗi lần), không setFieldsValue khi Form chưa gắn.
+  const openRecord = (appointment: Appointment) => setCompleting(appointment);
 
-  const openMove = (appointment: Appointment) => {
-    setMoving(appointment);
-    moveForm.setFieldsValue({ date: dayjs(appointment.date), time: dayjs(`${appointment.date}T${appointment.startTime}`), durationMinutes: appointment.durationMinutes, location: appointment.location });
-  };
+  const openMove = (appointment: Appointment) => setMoving(appointment);
 
   const move = (values: MoveValues) => {
     if (!moving) return;
@@ -410,7 +405,12 @@ export function AppointmentBoard({ appointments, advisees, notes: initialNotes }
         destroyOnHidden
       >
         {moving && (
-          <Form form={moveForm} layout="vertical" onFinish={move}>
+          <Form
+            form={moveForm}
+            layout="vertical"
+            onFinish={move}
+            initialValues={{ date: dayjs(moving.date), time: dayjs(`${moving.date}T${moving.startTime}`), durationMinutes: moving.durationMinutes, location: moving.location }}
+          >
             <p className="mb-4 text-sm text-muted">
               {moving.topic} · {moving.students.map((student) => student.fullName).join(", ")}. Sinh viên nhận thông báo giờ mới.
             </p>
@@ -444,7 +444,7 @@ export function AppointmentBoard({ appointments, advisees, notes: initialNotes }
         destroyOnHidden
       >
         {completing && (
-          <Form form={doneForm} layout="vertical" onFinish={complete}>
+          <Form form={doneForm} layout="vertical" onFinish={complete} initialValues={{ attendance: Object.fromEntries(completing.students.map((student) => [student.id, "present"])) }}>
             <p className="mb-4 text-sm text-muted">
               {completing.topic} · {completing.students.map((student) => student.fullName).join(", ")} · {formatDateTime(startOf(completing).toISOString())}
             </p>

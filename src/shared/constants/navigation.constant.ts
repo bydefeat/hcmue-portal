@@ -14,6 +14,7 @@ import {
   ChartPie,
   ClipboardCheck,
   ClipboardList,
+  EnvelopeClock,
   FileContent,
   Gauge,
   Gear,
@@ -217,6 +218,7 @@ export const ADMINISTRATOR_NAVIGATION: NavGroup[] = [
       { label: "Lịch năm học", href: "/administrator/settings/calendar", icon: CalendarGrid, permission: "settings.manage" },
       { label: "Phân quyền", href: "/administrator/settings/access", icon: ShieldUser, permission: "access.manage" },
       { label: "Nhật ký thao tác", href: "/administrator/settings/audit-log", icon: History, permission: "audit.view" },
+      { label: "Hàng đợi thư", href: "/administrator/settings/mail", icon: EnvelopeClock, permission: "settings.manage" },
     ],
   },
 ];

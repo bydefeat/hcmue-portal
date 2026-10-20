@@ -38,7 +38,7 @@ export function AccountBulkActions({ kind, selectedIds, onUpdated }: AccountBulk
       }
       onUpdated(result.data.accounts);
       const text = accountBatchSummary(action, result.data);
-      if (result.data.mailFailed > 0 || result.data.skipped.length > 0) messageApi.warning(text, 8);
+      if (result.data.skipped.length > 0) messageApi.warning(text, 8);
       else messageApi.success(text);
     });
 

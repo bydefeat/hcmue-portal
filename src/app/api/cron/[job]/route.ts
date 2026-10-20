@@ -1,6 +1,7 @@
 import { timingSafeEqual } from "node:crypto";
 import { env } from "@/shared/libs/env.lib";
 import { runAcademicWarningsJob } from "@/modules/grades/grades.lib";
+import { runMailOutboxJob } from "@/modules/mail/mail.lib";
 import { publishDueClassAnnouncements } from "@/modules/teaching/teaching.lib";
 import { sweepOrphanExamFiles } from "@/modules/exams/exams.lib";
 import { sweepOrphanRequestFiles } from "@/modules/requests/requests.lib";
@@ -15,6 +16,9 @@ const JOBS: Record<string, () => Promise<Record<string, number>>> = {
   "orphan-files": async () => ({ ...(await sweepOrphanRequestFiles()), ...(await sweepOrphanExamFiles()) }),
   // Cảnh báo học vụ của học kỳ chính vừa kết thúc; chạy lặp lại không sinh trùng. Nên chạy mỗi ngày.
   "academic-warnings": runAcademicWarningsJob,
+  // Gửi thư trong hàng đợi chưa đi được (lỗi Resend, tiến trình chết giữa chừng), lùi lịch thư lỗi, xóa thư đã gửi quá 30 ngày.
+  // Nên chạy mỗi 1 đến 5 phút: lịch gửi lại ngắn nhất là 1 phút.
+  "mail-outbox": runMailOutboxJob,
 };
 
 function authorized(request: Request) {

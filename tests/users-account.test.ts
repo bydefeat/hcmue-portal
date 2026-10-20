@@ -1,12 +1,13 @@
 import assert from "node:assert/strict";
 import { after, describe, mock, test } from "node:test";
-import { and, eq, isNull, TransactionRollbackError } from "drizzle-orm";
+import { and, eq, inArray, isNull, TransactionRollbackError } from "drizzle-orm";
 import { hashPassword } from "better-auth/crypto";
 import { db, type Transaction } from "@/shared/libs/db.lib";
 import { env } from "@/shared/libs/env.lib";
 import { createAuth } from "@/modules/authentication/authentication.lib";
 import { account, session, user } from "@/modules/authentication/authentication.schema";
-import { createAccounts, lockAccountProfiles, randomPasswordHashes, readAccountStates, setAccountsLocked } from "@/modules/users/users.account";
+import { mailOutbox } from "@/modules/mail/mail.schema";
+import { createAccounts, lockAccountProfiles, queueActivationMails, randomPasswordHashes, readAccountStates, setAccountsLocked } from "@/modules/users/users.account";
 import { accountBatchSummary, accountStatusOf, activationLink, activationMail, STAFF_SCHEMA, studentAccountIdentity } from "@/modules/users/users.rule";
 import { lecturers, students } from "@/modules/users/users.schema";
 
@@ -77,7 +78,6 @@ describe("users: hàm thuần của tài khoản", () => {
     const text = accountBatchSummary("provision", {
       changed: 2,
       mailed: 2,
-      mailFailed: 0,
       skipped: [{ reason: "Đã có tài khoản" }, { reason: "Đã có tài khoản" }],
     });
     assert.equal(text, "Đã cấp 2 tài khoản, gửi thư kích hoạt tới 2 người; bỏ qua 2 hồ sơ đã có tài khoản.");
@@ -99,6 +99,7 @@ describe("users: cấp, kích hoạt, khóa tài khoản trên DB", () => {
       .limit(1);
     assert.ok(student, "seed cần sinh viên chưa có tài khoản");
     const hashes = await randomPasswordHashes(1);
+    let mailIds: string[] = [];
     await inRollback(async (tx) => {
       const profiles = await lockAccountProfiles(tx, "student", [student.id]);
       const { created, skipped } = await createAccounts(tx, profiles, hashes);
@@ -118,6 +119,15 @@ describe("users: cấp, kích hoạt, khóa tài khoản trên DB", () => {
       const [linked] = await tx.select({ userId: students.userId }).from(students).where(eq(students.id, student.id));
       assert.equal(linked.userId, row.id);
       assert.equal((await readAccountStates(tx, "student", [student.id]))[student.id].status, "pending");
+
+      // Thư kích hoạt xếp hàng cùng transaction cấp tài khoản, chưa gửi; rollback thì thư cũng mất (kiểm sau inRollback).
+      mailIds = await queueActivationMails(tx, created);
+      const queued = await tx.select().from(mailOutbox).where(inArray(mailOutbox.id, mailIds));
+      assert.equal(queued.length, 1);
+      assert.equal(queued[0].recipient, identity.email);
+      assert.equal(queued[0].kind, "account-activation");
+      assert.equal(queued[0].status, "pending");
+      assert.ok(queued[0].text.includes(activationLink(BASE_URL, identity.email)));
 
       // Cấp lần hai cho cùng hồ sơ: bỏ qua, không tạo tài khoản thứ hai.
       const again = await createAccounts(tx, await lockAccountProfiles(tx, "student", [student.id]), hashes);
@@ -155,6 +165,8 @@ describe("users: cấp, kích hoạt, khóa tài khoản trên DB", () => {
     });
     const [afterRollback] = await db.select({ userId: students.userId }).from(students).where(eq(students.id, student.id));
     assert.equal(afterRollback.userId, null, "rollback không để lại tài khoản");
+    assert.equal(mailIds.length, 1);
+    assert.equal((await db.select({ id: mailOutbox.id }).from(mailOutbox).where(inArray(mailOutbox.id, mailIds))).length, 0, "rollback không để lại thư");
   });
 
   test("giảng viên được cấp tài khoản đăng nhập bằng email công vụ", async () => {

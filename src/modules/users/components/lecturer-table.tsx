@@ -66,7 +66,7 @@ export function LecturerTable({
     const saved: LecturerRow = { ...result.data.profile, account: result.data.account };
     const mail = result.data.mail;
     setRows((current) => (editing ? current.map((row) => (row.id === saved.id ? saved : row)) : [saved, ...current]));
-    const mailNote = mail ? (mail.failed > 0 ? `; thư kích hoạt chưa gửi được, chọn dòng rồi "Gửi lại thư kích hoạt"` : `; đã gửi thư kích hoạt tới ${saved.email}`) : "";
+    const mailNote = mail ? `; đã gửi thư kích hoạt tới ${saved.email}` : "";
     messageApi.success(editing ? `Đã lưu thông tin ${saved.displayName}` : `Đã thêm ${saved.displayName}${mailNote}`);
     setIsDrawerOpen(false);
     return undefined;

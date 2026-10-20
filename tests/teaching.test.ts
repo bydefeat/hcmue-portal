@@ -5,6 +5,7 @@ import { db, type Transaction } from "@/shared/libs/db.lib";
 import { parseInput } from "@/shared/libs/action.lib";
 import { mockId, mockSectionId } from "@/shared/libs/mock.lib";
 import { classSections, enrollments } from "@/modules/course-registration/course-registration.schema";
+import { mailOutbox } from "@/modules/mail/mail.schema";
 import { notifications } from "@/modules/notifications/notifications.schema";
 import { pgErrorMessage } from "@/shared/libs/pg-error.lib";
 import { assessmentMismatches, TEACHING_CONSTRAINT_MESSAGE } from "@/modules/teaching/teaching.constant";
@@ -289,6 +290,10 @@ describe("teaching: báo thông báo lớp hẹn giờ", () => {
       assert.equal(sent.length, withAccount.length, "mỗi sinh viên có tài khoản nhận đúng một thông báo");
       assert.ok(sent.every((row) => row.href === `/application/classes/${SECTION_ID_03}`));
       assert.equal(runs[0].emailed + runs[1].emailed, roster.length, "email tới mọi sinh viên đang học, kể cả chưa có tài khoản");
+      // Thư đi qua hàng đợi: mỗi sinh viên một dòng, đã gửi (chưa có khóa Resend thì in ra log và coi như gửi được).
+      const queued = await db.select({ recipient: mailOutbox.recipient, status: mailOutbox.status, kind: mailOutbox.kind }).from(mailOutbox).where(eq(mailOutbox.subject, `[COMP1020.01] ${original.title}`));
+      assert.deepEqual(queued.map((row) => row.recipient).toSorted(), roster.map((row) => row.email).toSorted());
+      assert.ok(queued.every((row) => row.status === "sent" && row.kind === "class-announcement"));
 
       const [updated] = await db.select({ status: classAnnouncements.status, notifiedAt: classAnnouncements.notifiedAt }).from(classAnnouncements).where(eq(classAnnouncements.id, ID));
       assert.equal(updated.status, "published");
@@ -296,6 +301,7 @@ describe("teaching: báo thông báo lớp hẹn giờ", () => {
     } finally {
       warn.mock.restore();
       await db.delete(notifications).where(eq(notifications.title, `COMP1020.01: ${original.title}`));
+      await db.delete(mailOutbox).where(eq(mailOutbox.subject, `[COMP1020.01] ${original.title}`));
       await db.update(classAnnouncements).set({ status: original.status, publishAt: original.publishAt, notifiedAt: null }).where(eq(classAnnouncements.id, ID));
     }
   });

@@ -9,7 +9,6 @@ import { actionError, actionFailure, actionOk, parseInput, type ActionResult } f
 import { daysUntil } from "@/shared/libs/date.lib";
 import { isUuid } from "@/shared/libs/id.lib";
 import { env } from "@/shared/libs/env.lib";
-import { sendMailEach } from "@/shared/libs/mail.lib";
 import { studentEmailOf } from "@/shared/libs/student-code.lib";
 import {
   ADMIN_REGISTER_SCHEMA,
@@ -60,6 +59,7 @@ import { requirePermission, requireSchoolWidePermission } from "@/modules/access
 import { courseRelations, courses, faculties, majors } from "@/modules/curriculum/curriculum.schema";
 import { academicWarnings, courseResults } from "@/modules/grades/grades.schema";
 import { regulations } from "@/modules/settings/settings.schema";
+import { deliverMailSoon, enqueueMail } from "@/modules/mail/mail.lib";
 import { notifyStudents } from "@/modules/notifications/notifications.lib";
 import { syncClassSessions, weeklyScheduleOf, type WeeklySchedule } from "@/modules/schedule/schedule.lib";
 import { INVOICE_PAID_SQL, INVOICE_TOTAL_SQL } from "@/modules/tuition/tuition.lib";
@@ -797,7 +797,7 @@ export async function adminDrop(studentId: string, sectionId: string, reason: st
 // của người gửi và vẫn còn chưa đăng ký lúc gửi; sinh viên chưa kích hoạt tài khoản cổng thì không nhận được thông báo.
 export async function remindUnregisteredStudents(
   studentIds: string[],
-): Promise<ActionResult<{ remindedIds: string[]; remindedAt: string; withoutAccount: number; mailed: number; mailFailed: number }>> {
+): Promise<ActionResult<{ remindedIds: string[]; remindedAt: string; withoutAccount: number; mailed: number }>> {
   const viewer = await requirePermission("registration.manage");
   const parsed = parseInput(z.object({ studentIds: z.array(z.uuid()).min(1, "Chưa chọn sinh viên").max(2000) }), { studentIds });
   if (!parsed.ok) return parsed;
@@ -807,41 +807,44 @@ export async function remindUnregisteredStudents(
   if (pending.length === 0) return actionError("Các sinh viên đã chọn đã đăng ký hoặc không còn trong đợt đang mở, tải lại trang.");
   const remindedAt = new Date();
   let remindedIds: string[];
+  let mailIds: string[];
   try {
-    remindedIds = await notifyStudents(
-      db,
-      pending.map((student) => student.id),
-      {
-        kind: "deadline",
-        title: "Bạn chưa đăng ký học phần",
-        body: `${term.name} đang trong đợt đăng ký của khóa bạn. Đăng ký trước khi đợt đóng để không bị thiếu tín chỉ tối thiểu.`,
-        href: REGISTRATION_REMINDER_HREF,
-        createdAt: remindedAt,
-      },
-    );
+    ({ remindedIds, mailIds } = await db.transaction(async (tx) => ({
+      remindedIds: await notifyStudents(
+        tx,
+        pending.map((student) => student.id),
+        {
+          kind: "deadline",
+          title: "Bạn chưa đăng ký học phần",
+          body: `${term.name} đang trong đợt đăng ký của khóa bạn. Đăng ký trước khi đợt đóng để không bị thiếu tín chỉ tối thiểu.`,
+          href: REGISTRATION_REMINDER_HREF,
+          createdAt: remindedAt,
+        },
+      ),
+      // Thư tới email trường của mọi sinh viên được nhắc, kể cả chưa có tài khoản cổng (kênh duy nhất tới các bạn này).
+      mailIds: await enqueueMail(tx, [
+        {
+          kind: "registration-reminder",
+          to: pending.map((student) => studentEmailOf(student.code)),
+          subject: `Nhắc đăng ký học phần ${term.name}`,
+          text: [
+            "Chào bạn,",
+            `${term.name} đang trong đợt đăng ký học phần của khóa bạn và hệ thống chưa ghi nhận bạn đăng ký lớp nào. Đăng ký trước khi đợt đóng để không bị thiếu tín chỉ tối thiểu.`,
+            `Đăng ký tại: ${env.DEFEAT_BETTER_AUTH_PUBLIC_APPLICATION_BASE_URL.replace(/\/+$/, "")}${REGISTRATION_REMINDER_HREF}`,
+            "Chưa đăng nhập được HCMUE Portal thì liên hệ Phòng Đào tạo để được cấp hoặc kích hoạt tài khoản.",
+          ].join("\n\n"),
+        },
+      ]),
+    })));
   } catch (error) {
     return actionFailure(error, REGISTRATION_CONSTRAINT_MESSAGE);
   }
-  // Thư tới email trường của mọi sinh viên được nhắc, kể cả chưa có tài khoản cổng (kênh duy nhất tới các bạn này).
-  const mail = await sendMailEach(
-    pending.map((student) => studentEmailOf(student.code)),
-    {
-      subject: `Nhắc đăng ký học phần ${term.name}`,
-      text: [
-        "Chào bạn,",
-        `${term.name} đang trong đợt đăng ký học phần của khóa bạn và hệ thống chưa ghi nhận bạn đăng ký lớp nào. Đăng ký trước khi đợt đóng để không bị thiếu tín chỉ tối thiểu.`,
-        `Đăng ký tại: ${env.DEFEAT_BETTER_AUTH_PUBLIC_APPLICATION_BASE_URL.replace(/\/+$/, "")}${REGISTRATION_REMINDER_HREF}`,
-        "Chưa đăng nhập được HCMUE Portal thì liên hệ Phòng Đào tạo để được cấp hoặc kích hoạt tài khoản.",
-      ].join("\n\n"),
-    },
-  );
-  if (remindedIds.length === 0 && mail.sent === 0) return actionError("Chưa gửi được thông báo hay thư nhắc nào. Thử lại sau ít phút.");
+  deliverMailSoon(mailIds);
   revalidatePath("/administrator/registration-monitor");
   return actionOk({
     remindedIds,
     remindedAt: remindedAt.toISOString(),
     withoutAccount: pending.length - remindedIds.length,
-    mailed: mail.sent,
-    mailFailed: mail.failed,
+    mailed: mailIds.length,
   });
 }

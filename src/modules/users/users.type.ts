@@ -122,8 +122,8 @@ export type AccountKind = "student" | "lecturer";
 export type AccountBatchResult = {
   accounts: Record<string, AccountState>;
   changed: number;
+  // Số thư kích hoạt đã xếp hàng gửi; thư lỗi được gửi lại tự động, xem ở trang Hàng đợi thư.
   mailed: number;
-  mailFailed: number;
   skipped: { id: string; name: string; reason: string }[];
 };
 
@@ -135,7 +135,7 @@ export type StaffFormValues = {
   provisionAccount: boolean;
 };
 
-export type MailOutcome = { sent: number; failed: number };
+export type MailOutcome = { queued: number };
 
 export type SavedProfile<T> = {
   profile: T;

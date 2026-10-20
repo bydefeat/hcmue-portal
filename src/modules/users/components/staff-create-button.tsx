@@ -26,8 +26,8 @@ export function StaffCreateButton() {
         messageApi.error(result.message);
         return;
       }
-      const { name, hasAccount, mail } = result.data;
-      const note = !hasAccount ? ", chưa cấp tài khoản" : mail && mail.failed > 0 ? ", thư kích hoạt chưa gửi được" : `, đã gửi thư kích hoạt tới ${values.email}`;
+      const { name, hasAccount } = result.data;
+      const note = hasAccount ? `, đã gửi thư kích hoạt tới ${values.email}` : ", chưa cấp tài khoản";
       messageApi.success(`Đã thêm cán bộ ${name}${note}. Bấm "Cấp quyền" để giao vai trò.`, 8);
       setOpen(false);
     });

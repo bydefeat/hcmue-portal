@@ -73,7 +73,7 @@ export function StudentClassAnnouncements({ announcements }: { announcements: St
                       <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted">
                         {unreadAtOpen.has(announcement.id) && <Badge status="processing" text={<span className="text-xs">Mới</span>} />}
                         <span>{announcement.author}</span>
-                        <span className="tabular-nums" title={formatDateTime(announcement.publishAt)}>
+                        <span className="tabular-nums" title={formatDateTime(announcement.publishAt)} suppressHydrationWarning>
                           {formatRelative(announcement.publishAt)}
                         </span>
                       </span>

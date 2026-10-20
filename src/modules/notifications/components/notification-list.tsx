@@ -123,7 +123,7 @@ export function NotificationList({ audience, initialPage, unreadCount }: { audie
                     <span className={`text-pretty ${item.isRead ? "" : "font-medium"}`}>{item.title}</span>
                     <span className="text-sm text-pretty text-muted">{item.body}</span>
                     <span className="text-xs text-muted">
-                      {NOTIFICATION_KIND_LABEL[item.kind]} · <span title={formatDateTime(item.createdAt)}>{formatRelative(item.createdAt)}</span>
+                      {NOTIFICATION_KIND_LABEL[item.kind]} · <span title={formatDateTime(item.createdAt)} suppressHydrationWarning>{formatRelative(item.createdAt)}</span>
                       {!item.isRead && <span className="sr-only">, chưa đọc</span>}
                     </span>
                   </span>

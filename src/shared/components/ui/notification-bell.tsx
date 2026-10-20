@@ -76,7 +76,7 @@ export function NotificationBell({ items, unreadCount, viewAllHref, onMarkRead }
                   <span className={`text-sm text-pretty ${isRead(item) ? "" : "font-medium"}`}>{item.title}</span>
                   <span className="line-clamp-2 text-xs text-pretty text-muted">{item.body}</span>
                   <span className="text-xs text-muted">
-                    {item.kindLabel} · {formatRelative(item.createdAt)}
+                    {item.kindLabel} · <span suppressHydrationWarning>{formatRelative(item.createdAt)}</span>
                     {!isRead(item) && <span className="sr-only">, chưa đọc</span>}
                   </span>
                 </span>

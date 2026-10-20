@@ -6,10 +6,11 @@ import { parseInput } from "@/shared/libs/action.lib";
 import { mockId, mockSectionId } from "@/shared/libs/mock.lib";
 import { classSections, enrollments } from "@/modules/course-registration/course-registration.schema";
 import { mailOutbox } from "@/modules/mail/mail.schema";
+import { auditLogs } from "@/modules/audit/audit.schema";
 import { notifications } from "@/modules/notifications/notifications.schema";
 import { pgErrorMessage } from "@/shared/libs/pg-error.lib";
-import { assessmentMismatches, TEACHING_CONSTRAINT_MESSAGE } from "@/modules/teaching/teaching.constant";
-import { CLASS_ANNOUNCEMENT_SCHEMA, effectiveAnnouncementStatus, SYLLABUS_SCHEMA } from "@/modules/teaching/teaching.rule";
+import { TEACHING_CONSTRAINT_MESSAGE } from "@/modules/teaching/teaching.constant";
+import { assessmentKindKey, assessmentMismatches, CLASS_ANNOUNCEMENT_SCHEMA, effectiveAnnouncementStatus, gradingChanged, SYLLABUS_SCHEMA } from "@/modules/teaching/teaching.rule";
 import {
   lecturerAnnouncements,
   lecturerClass,
@@ -20,8 +21,10 @@ import {
   studentClass,
   studentClasses,
   studentSyllabus,
+  SyllabusRevisionError,
+  writeSyllabus,
 } from "@/modules/teaching/teaching.lib";
-import { classAnnouncementReads, classAnnouncements, syllabi, syllabusAssessments, syllabusWeeks } from "@/modules/teaching/teaching.schema";
+import { classAnnouncementReads, classAnnouncements, syllabi, syllabusAssessments, syllabusRevisions, syllabusWeeks } from "@/modules/teaching/teaching.schema";
 import { CURRENT_LECTURER_ID, CURRENT_STUDENT_ID } from "@/modules/users/users.mock";
 import { lecturers, students } from "@/modules/users/users.schema";
 
@@ -93,6 +96,33 @@ describe("teaching: kiểm dữ liệu đề cương", () => {
       ],
     );
     assert.deepEqual(messages, ['"Giữa kỳ": đề cương 40%, bảng điểm 30%.', 'Bảng điểm có cột "Chuyên cần" (10%) nhưng đề cương chưa có.']);
+  });
+
+  test("khóa ổn định theo loại đánh giá: cột điểm tên \"Giữa kỳ\" (khóa giua-ky) khớp hình thức midterm, không báo lệch giả", () => {
+    assert.equal(assessmentKindKey("Giữa kỳ"), "midterm");
+    assert.equal(assessmentKindKey("Thi cuối kỳ"), "final");
+    assert.equal(assessmentKindKey("Đồ án"), "project");
+    assert.equal(assessmentKindKey("Báo cáo nhóm"), "bao-cao-nhom");
+    const sheet = [
+      { key: "chuyen-can", label: "Chuyên cần", weight: 10 },
+      { key: "giua-ky", label: "Giữa kỳ", weight: 30 },
+      { key: "cuoi-ky", label: "Cuối kỳ", weight: 60 },
+    ];
+    const published = [
+      { key: "attendance", label: "Chuyên cần", weight: 10 },
+      { key: "midterm", label: "Giữa kỳ", weight: 30 },
+      { key: "final", label: "Cuối kỳ", weight: 60 },
+    ];
+    assert.deepEqual(assessmentMismatches(published, sheet), []);
+    // Hình thức "Khác" (key rỗng hay custom-...) được server đổi thành khóa theo loại/tên, không còn custom-<thời điểm>.
+    const parsed = parseInput(SYLLABUS_SCHEMA, { ...syllabus, assessments: [{ ...syllabus.assessments[0], key: "custom-1729000000000" }, { ...syllabus.assessments[1], key: "" }] });
+    assert.ok(parsed.ok);
+    assert.deepEqual(
+      parsed.data.assessments.map((item) => item.key),
+      ["midterm", "final"],
+    );
+    assert.ok(gradingChanged(published, [{ ...published[0], weight: 20 }, published[1], { ...published[2], weight: 50 }]));
+    assert.ok(!gradingChanged(published, published.map((item) => ({ ...item }))));
   });
 });
 
@@ -314,5 +344,89 @@ describe("teaching: báo thông báo lớp hẹn giờ", () => {
       .where(eq(classAnnouncements.id, published.id))
       .catch((caught: unknown) => caught);
     assert.equal(pgErrorMessage(error, TEACHING_CONSTRAINT_MESSAGE), TEACHING_CONSTRAINT_MESSAGE.class_announcements_notified_published);
+  });
+});
+
+class Rollback extends Error {}
+
+async function inRollbackTx(run: (tx: Transaction) => Promise<void>) {
+  await db
+    .transaction(async (tx) => {
+      await run(tx);
+      tx.rollback();
+    })
+    .catch((error: unknown) => {
+      if (!(error instanceof TransactionRollbackError) && !(error instanceof Rollback)) throw error;
+    });
+}
+
+describe("teaching: phiên bản đề cương", () => {
+  test("đề cương đã công bố: đổi trọng số phải có lý do; có lý do thì lên phiên bản mới, lưu bản cũ, báo sinh viên, ghi nhật ký", async () => {
+    const actor = { userId: null, name: "ThS. Giảng viên", role: "Giảng viên" };
+    const section = { id: SECTION_ID, code: "COMP1020.01", courseName: "Cấu trúc dữ liệu và giải thuật" };
+    const current = await lecturerSyllabus(CURRENT_LECTURER_ID, SECTION_ID);
+    assert.equal(current?.syllabus?.status, "published");
+    const base = {
+      classSectionId: SECTION_ID,
+      description: current!.syllabus!.description,
+      outcomes: current!.syllabus!.outcomes.map(({ text }) => ({ text })),
+      weeks: current!.syllabus!.weeks,
+      references: current!.syllabus!.references,
+    };
+    const same = parseInput(SYLLABUS_SCHEMA, { ...base, assessments: current!.syllabus!.assessments });
+    const changed = parseInput(SYLLABUS_SCHEMA, {
+      ...base,
+      assessments: current!.syllabus!.assessments.map((item) => (item.key === "midterm" ? { ...item, weight: 20 } : item.key === "final" ? { ...item, weight: 70 } : item)),
+    });
+    assert.ok(same.ok && changed.ok);
+    await inRollbackTx(async (tx) => {
+      // Sửa phần khác (không đổi cách tính điểm): không lên phiên bản.
+      assert.equal((await writeSyllabus(tx, section, actor, { ...same.data, description: "Mô tả mới" })).isRevision, false);
+      const blocked = await tx.transaction((sp) => writeSyllabus(sp, section, actor, changed.data)).catch((error: unknown) => error);
+      assert.ok(blocked instanceof SyllabusRevisionError);
+      const saved = await writeSyllabus(tx, section, actor, { ...changed.data, revisionNote: "Giảm trọng số giữa kỳ theo góp ý của bộ môn" });
+      assert.ok(saved.isRevision);
+      assert.equal(saved.version, 2);
+      const [revision] = await tx.select().from(syllabusRevisions).where(eq(syllabusRevisions.syllabusId, saved.id));
+      assert.equal(revision.version, 1);
+      assert.ok(revision.assessments.some((item) => item.key === "midterm" && item.weight === 30));
+      // Lớp mẫu không có sinh viên có tài khoản cổng; kiểm nhật ký thao tác thay cho chuông thông báo.
+      const [log] = await tx.select({ summary: auditLogs.summary }).from(auditLogs).where(and(eq(auditLogs.entityType, "syllabus"), eq(auditLogs.entityId, saved.id)));
+      assert.match(log.summary, /phiên bản 2: Giảm trọng số giữa kỳ/);
+    });
+  });
+});
+
+describe("teaching: tác vụ báo thông báo lớp", () => {
+  test("mỗi bài một giao dịch: một bài lỗi không chặn các bài khác", async () => {
+    const ids = [mockId("class-announcement:tbl-03"), mockId("class-announcement:tbl-08")];
+    const originals = await db.select().from(classAnnouncements).where(inArray(classAnnouncements.id, ids));
+    assert.equal(originals.length, 2);
+    const error = mock.method(console, "error", () => {});
+    const realTransaction = db.transaction.bind(db);
+    let calls = 0;
+    // Giao dịch đầu tiên của tác vụ hỏng (giả lập một bài lỗi), giao dịch sau chạy bình thường.
+    const broken = mock.method(db, "transaction", ((...args: Parameters<typeof db.transaction>) => {
+      calls += 1;
+      if (calls === 1) return Promise.reject(new Error("lỗi giả lập"));
+      return realTransaction(...args);
+    }) as typeof db.transaction);
+    try {
+      await db.update(classAnnouncements).set({ publishAt: new Date(Date.now() - 60_000) }).where(inArray(classAnnouncements.id, ids));
+      const first = await publishDueClassAnnouncements();
+      assert.equal(first.failed, 1);
+      assert.equal(first.announcements, 1);
+      broken.mock.restore();
+      const second = await publishDueClassAnnouncements();
+      assert.equal(second.announcements, 1, "bài lỗi được báo ở lần chạy sau");
+    } finally {
+      broken.mock.restore();
+      error.mock.restore();
+      for (const original of originals) {
+        await db.delete(notifications).where(eq(notifications.title, `${original.classSectionId === SECTION_ID ? "COMP1020.01" : "COMP1020.02"}: ${original.title}`));
+        await db.delete(mailOutbox).where(eq(mailOutbox.subject, `[${original.classSectionId === SECTION_ID ? "COMP1020.01" : "COMP1020.02"}] ${original.title}`));
+        await db.update(classAnnouncements).set({ status: original.status, publishAt: original.publishAt, notifiedAt: null }).where(eq(classAnnouncements.id, original.id));
+      }
+    }
   });
 });

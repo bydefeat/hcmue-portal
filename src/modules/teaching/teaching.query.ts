@@ -60,6 +60,8 @@ export async function getSyllabus(classSectionId: string, fallback: { courseCode
         weeks: fillWeeks([]),
         assessments: [],
         references: [],
+        version: 1,
+        revisions: [],
       }
     );
   }

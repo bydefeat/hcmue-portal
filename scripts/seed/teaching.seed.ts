@@ -3,7 +3,7 @@ import type { Transaction } from "@/shared/libs/db.lib";
 import { mockId } from "@/shared/libs/mock.lib";
 import { classSections, enrollments } from "@/modules/course-registration/course-registration.schema";
 import { CLASS_ANNOUNCEMENTS, SYLLABI } from "@/modules/teaching/teaching.mock";
-import { classAnnouncementReads, classAnnouncements, syllabi, syllabusAssessments, syllabusOutcomes, syllabusWeeks } from "@/modules/teaching/teaching.schema";
+import { classAnnouncementReads, classAnnouncements, syllabi, syllabusAssessments, syllabusOutcomes, syllabusRevisions, syllabusWeeks } from "@/modules/teaching/teaching.schema";
 import type { SeedContext } from "./context";
 
 export const syllabusIdOf = (classSectionId: string) => mockId(`syllabus:${classSectionId}`);
@@ -18,9 +18,14 @@ export async function seedTeaching(tx: Transaction, _context: SeedContext) {
       description: syllabus.description,
       references: syllabus.references,
       publishedAt: syllabus.publishedAt ? new Date(syllabus.publishedAt) : null,
+      version: syllabus.version,
       updatedAt: new Date(syllabus.updatedAt),
     })),
   );
+  const revisions = SYLLABI.flatMap((syllabus) =>
+    syllabus.revisions.map((revision) => ({ syllabusId: syllabusIdOf(syllabus.classSectionId), version: revision.version, assessments: revision.assessments, note: revision.note, revisedAt: new Date(revision.revisedAt) })),
+  );
+  if (revisions.length > 0) await tx.insert(syllabusRevisions).values(revisions);
   await tx
     .insert(syllabusOutcomes)
     .values(SYLLABI.flatMap((syllabus) => syllabus.outcomes.map((outcome, position) => ({ syllabusId: syllabusIdOf(syllabus.classSectionId), ...outcome, position }))));

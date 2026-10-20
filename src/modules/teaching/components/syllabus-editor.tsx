@@ -8,7 +8,8 @@ import { SectionCard } from "@/shared/components/ui/section-card";
 import { StatusTag } from "@/shared/components/ui/status-tag";
 import { formatDateTime } from "@/shared/libs/date.lib";
 import { publishSyllabus, saveSyllabus } from "@/modules/teaching/teaching.action";
-import { assessmentMismatches, SYLLABUS_STATUS } from "@/modules/teaching/teaching.constant";
+import { SYLLABUS_STATUS } from "@/modules/teaching/teaching.constant";
+import { ASSESSMENT_KINDS, assessmentKindKey, assessmentMismatches } from "@/modules/teaching/teaching.rule";
 import type { LearningOutcome, Syllabus, SyllabusAssessment, SyllabusWeek } from "@/modules/teaching/teaching.type";
 
 type GradeComponentInfo = { key: string; label: string; weight: number };
@@ -42,6 +43,11 @@ function listFields(fieldErrors: Record<string, string> | undefined) {
   }));
 }
 
+// Cột bảng điểm ứng với hình thức đánh giá: cùng khóa hoặc tên cột cùng loại đánh giá.
+const componentOf = (components: GradeComponentInfo[], key: string) => components.find((entry) => entry.key === key || assessmentKindKey(entry.label) === key);
+
+const KIND_OPTIONS = [...ASSESSMENT_KINDS.map((kind) => ({ value: kind.key, label: kind.label })), { value: "", label: "Khác (theo tên)" }];
+
 export function SyllabusEditor({ syllabus: initial, gradeComponents, classCode }: SyllabusEditorProps) {
   const [messageApi, contextHolder] = message.useMessage();
   const [modal, modalContextHolder] = Modal.useModal();
@@ -49,6 +55,8 @@ export function SyllabusEditor({ syllabus: initial, gradeComponents, classCode }
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, startSaving] = useTransition();
   const [form] = Form.useForm<FormValues>();
+  const [revisionFor, setRevisionFor] = useState<FormValues | null>(null);
+  const [revisionForm] = Form.useForm<{ note: string }>();
   const mismatches = assessmentMismatches(syllabus.assessments, gradeComponents);
   const totalWeight = syllabus.assessments.reduce((sum, item) => sum + item.weight, 0);
   const emptyWeeks = syllabus.weeks.filter((week) => !week.topic.trim()).length;
@@ -64,9 +72,10 @@ export function SyllabusEditor({ syllabus: initial, gradeComponents, classCode }
     setIsEditing(true);
   };
 
-  const save = (values: FormValues) => {
+  const save = (values: FormValues, revisionNote?: string) => {
     startSaving(async () => {
       const result = await saveSyllabus({
+        revisionNote: revisionNote ?? null,
         classSectionId: syllabus.classSectionId,
         description: values.description ?? "",
         outcomes: (values.outcomes ?? []).map((outcome) => ({ text: outcome.text ?? "" })),
@@ -84,10 +93,17 @@ export function SyllabusEditor({ syllabus: initial, gradeComponents, classCode }
         return;
       }
       if (!result.ok) {
+        // Đề cương đã công bố đổi cách tính điểm: hỏi lý do rồi lưu lại thành phiên bản mới.
+        if (result.fieldErrors?.revisionNote) {
+          setRevisionFor(values);
+          return;
+        }
         form.setFields(listFields(result.fieldErrors));
         messageApi.error(Object.values(result.fieldErrors ?? {})[0] ?? result.message);
         return;
       }
+      if (revisionNote) messageApi.info(`Đã lưu phiên bản ${result.data.version} của cách tính điểm, sinh viên trong lớp nhận thông báo.`);
+      setRevisionFor(null);
       setSyllabus(result.data);
       setIsEditing(false);
       messageApi.success(result.data.status === "published" ? "Đã lưu. Sinh viên thấy bản mới ngay." : "Đã lưu bản nháp đề cương.");
@@ -129,8 +145,9 @@ export function SyllabusEditor({ syllabus: initial, gradeComponents, classCode }
     form.setFieldValue(
       "assessments",
       gradeComponents.map((component) => {
-        const existing = current.find((item) => item.key === component.key);
-        return { key: component.key, label: component.label, weight: component.weight, method: existing?.method ?? "", outcomes: existing?.outcomes ?? [] };
+        const key = assessmentKindKey(component.label);
+        const existing = current.find((item) => item.key === component.key || item.key === key);
+        return { key: ASSESSMENT_KINDS.some((kind) => kind.key === key) ? key : "", label: component.label, weight: component.weight, method: existing?.method ?? "", outcomes: existing?.outcomes ?? [] };
       }),
     );
     messageApi.info("Đã lấy cột điểm và trọng số từ bảng điểm. Lưu để áp dụng.");
@@ -150,6 +167,7 @@ export function SyllabusEditor({ syllabus: initial, gradeComponents, classCode }
             <StatusTag status={SYLLABUS_STATUS[syllabus.status]} />
             <span className="text-xs text-muted tabular-nums">
               {syllabus.publishedAt ? `Công bố ${formatDateTime(syllabus.publishedAt)}, ` : ""}sửa lần cuối {formatDateTime(syllabus.updatedAt)}
+              {syllabus.version > 1 ? `, cách tính điểm phiên bản ${syllabus.version}` : ""}
             </span>
           </div>
           <span className="text-sm text-muted">
@@ -180,7 +198,28 @@ export function SyllabusEditor({ syllabus: initial, gradeComponents, classCode }
         {contextHolder}
         {modalContextHolder}
         {header}
-        <Form form={form} layout="vertical" onFinish={save} className="flex flex-col gap-4">
+        <Modal
+          open={revisionFor !== null}
+          title="Đổi cách tính điểm của đề cương đã công bố"
+          okText="Lưu phiên bản mới"
+          cancelText="Hủy"
+          onOk={() => revisionForm.submit()}
+          confirmLoading={isSaving}
+          onCancel={() => setRevisionFor(null)}
+          mask={{ closable: false }}
+          destroyOnHidden
+        >
+          <Form form={revisionForm} layout="vertical" onFinish={({ note }) => revisionFor && save(revisionFor, note)}>
+            <p className="mb-3 text-sm text-pretty text-muted">Bản cách tính điểm hiện tại được lưu lại làm lịch sử; sinh viên của lớp nhận thông báo kèm lý do.</p>
+            <Form.Item name="note" label="Lý do đổi" rules={[{ required: true, whitespace: true, message: "Ghi lý do đổi cách tính điểm" }]}>
+              <Input.TextArea autoSize={{ minRows: 2, maxRows: 4 }} maxLength={300} showCount />
+            </Form.Item>
+          </Form>
+        </Modal>
+        <Form form={form} layout="vertical" onFinish={(values) => save(values)} className="flex flex-col gap-4">
+          {syllabus.status === "published" && (
+            <Alert type="info" showIcon title="Đề cương đã công bố" description="Sửa nội dung thì sinh viên thấy ngay. Đổi hình thức, trọng số đánh giá phải ghi lý do: lưu thành phiên bản mới và báo sinh viên." />
+          )}
           <SectionCard title="Mô tả học phần">
             <Form.Item name="description" className="mb-0">
               <Input.TextArea autoSize={{ minRows: 3, maxRows: 8 }} maxLength={1500} showCount aria-label="Mô tả học phần" />
@@ -220,7 +259,16 @@ export function SyllabusEditor({ syllabus: initial, gradeComponents, classCode }
               {(fields, { add, remove }) => (
                 <div className="flex flex-col gap-3">
                   {fields.map((field) => (
-                    <div key={field.key} className="grid gap-x-2 border-b border-border-strong pb-3 md:grid-cols-[1fr_96px_1.4fr_1fr_auto] md:items-start">
+                    <div key={field.key} className="grid gap-x-2 border-b border-border-strong pb-3 md:grid-cols-[150px_1fr_96px_1.4fr_1fr_auto] md:items-start">
+                      <Form.Item name={[field.name, "key"]} label="Loại">
+                        <Select
+                          options={KIND_OPTIONS}
+                          onChange={(value: string) => {
+                            const kind = ASSESSMENT_KINDS.find((entry) => entry.key === value);
+                            if (kind) form.setFieldValue(["assessments", field.name, "label"], kind.label);
+                          }}
+                        />
+                      </Form.Item>
                       <Form.Item name={[field.name, "label"]} label="Tên" rules={[{ required: true, message: "Chưa nhập tên" }]}>
                         <Input />
                       </Form.Item>
@@ -233,15 +281,12 @@ export function SyllabusEditor({ syllabus: initial, gradeComponents, classCode }
                       <Form.Item name={[field.name, "outcomes"]} label="Chuẩn đầu ra">
                         <Select mode="multiple" options={outcomeOptions} />
                       </Form.Item>
-                      <Form.Item name={[field.name, "key"]} hidden>
-                        <Input />
-                      </Form.Item>
                       <Button type="text" aria-label="Xóa hình thức đánh giá" icon={<Trash size={16} aria-hidden className="text-zinc-500" />} onClick={() => remove(field.name)} className="justify-self-end md:mt-8">
                         <span className="md:hidden">Xóa hình thức này</span>
                       </Button>
                     </div>
                   ))}
-                  <Button icon={<Plus size={16} aria-hidden className="text-zinc-500" />} onClick={() => add({ key: `custom-${Date.now()}`, label: "", weight: 0, method: "", outcomes: [] })} className="self-start">
+                  <Button icon={<Plus size={16} aria-hidden className="text-zinc-500" />} onClick={() => add({ key: "", label: "", weight: 0, method: "", outcomes: [] })} className="self-start">
                     Thêm hình thức đánh giá
                   </Button>
                 </div>
@@ -316,7 +361,7 @@ export function SyllabusEditor({ syllabus: initial, gradeComponents, classCode }
       width: 140,
       align: "right",
       render: (_, row) => {
-        const component = gradeComponents.find((entry) => entry.key === row.key);
+        const component = componentOf(gradeComponents, row.key);
         if (!component) return <span className="text-rose-700">Không có</span>;
         if (component.weight === row.weight) return <span className="text-muted">Khớp</span>;
         return <span className="text-rose-700 tabular-nums">{component.weight}%</span>;
@@ -338,7 +383,7 @@ export function SyllabusEditor({ syllabus: initial, gradeComponents, classCode }
           title="Cách tính điểm trong đề cương chưa khớp bảng điểm"
           description={
             <ul className="flex flex-col gap-0.5">
-              {mismatches.map((text) => (
+              {mismatches.map((text: string) => (
                 <li key={text}>{text}</li>
               ))}
             </ul>
@@ -415,7 +460,7 @@ export function SyllabusEditor({ syllabus: initial, gradeComponents, classCode }
           ) : (
             <ul className="flex flex-col divide-y divide-border-strong">
               {syllabus.assessments.map((row) => {
-                const component = gradeComponents.find((entry) => entry.key === row.key);
+                const component = componentOf(gradeComponents, row.key);
                 const isMismatch = !component || component.weight !== row.weight;
                 return (
                   <li key={row.key} className="flex flex-col gap-1 px-4 sm:px-5 py-3">
@@ -435,6 +480,23 @@ export function SyllabusEditor({ syllabus: initial, gradeComponents, classCode }
           )}
         </div>
       </SectionCard>
+
+      {syllabus.revisions.length > 0 && (
+        <SectionCard title="Lịch sử cách tính điểm">
+          <ul className="flex flex-col gap-2 text-sm">
+            {syllabus.revisions.map((revision) => (
+              <li key={revision.version} className="flex flex-col gap-0.5">
+                <span className="tabular-nums">
+                  Phiên bản {revision.version}: {revision.assessments.map((item) => `${item.label} ${item.weight}%`).join(", ")}
+                </span>
+                <span className="text-xs text-pretty text-muted">
+                  Đổi lúc {formatDateTime(revision.revisedAt)}: {revision.note}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </SectionCard>
+      )}
 
       <SectionCard title="Kế hoạch giảng dạy" flush>
         <Table rowKey="week" size="small" columns={WEEK_COLUMNS} dataSource={syllabus.weeks} pagination={false} scroll={{ x: 800 }} className="hidden md:block" />

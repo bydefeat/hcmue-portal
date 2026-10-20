@@ -6,7 +6,7 @@ import { EmptyState } from "@/shared/components/ui/empty-state";
 import { SectionCard } from "@/shared/components/ui/section-card";
 import { StatusTag } from "@/shared/components/ui/status-tag";
 import { formatDate, formatDateTime } from "@/shared/libs/date.lib";
-import { BANK_ACCOUNT, formatMoney, INVOICE_STATUS, transferContent } from "@/modules/tuition/tuition.constant";
+import { BANK_ACCOUNT, formatMoney, INVOICE_STATUS, PROVISIONAL_INVOICE, transferContent } from "@/modules/tuition/tuition.constant";
 import type { TuitionInvoiceView } from "@/modules/tuition/tuition.type";
 
 function dueText(invoice: TuitionInvoiceView) {
@@ -29,6 +29,15 @@ function InvoiceBody({ invoice }: { invoice: TuitionInvoiceView }) {
             <span className="shrink-0 tabular-nums">{formatMoney(line.amount)}</span>
           </li>
         ))}
+        {invoice.discount > 0 && (
+          <li className="flex items-start justify-between gap-3 py-2 text-sm">
+            <span className="min-w-0 text-pretty">
+              Miễn giảm
+              {invoice.discountReason && <span className="block text-xs text-muted">{invoice.discountReason}</span>}
+            </span>
+            <span className="shrink-0 tabular-nums">-{formatMoney(invoice.discount)}</span>
+          </li>
+        )}
         <li className="flex justify-between gap-3 py-2 text-sm font-semibold">
           <span>Tổng phải nộp</span>
           <span className="tabular-nums">{formatMoney(invoice.total)}</span>
@@ -47,14 +56,24 @@ function InvoiceBody({ invoice }: { invoice: TuitionInvoiceView }) {
           ))}
         </div>
       )}
+      {invoice.refunded > 0 && <span className="text-xs text-muted tabular-nums">Đã hoàn {formatMoney(invoice.refunded)}</span>}
+      {invoice.refundDue > 0 && (
+        <Alert
+          type="info"
+          showIcon
+          title={`Bạn nộp thừa ${formatMoney(invoice.refundDue)}`}
+          description="Số đã nộp nhiều hơn số phải nộp (hủy lớp, giảm tín chỉ). Phòng Kế hoạch - Tài chính hoàn lại hoặc cấn trừ, liên hệ phòng nếu cần nhận sớm."
+        />
+      )}
     </div>
   );
 }
 
-export function InvoiceList({ invoices, studentCode }: { invoices: TuitionInvoiceView[]; studentCode: string }) {
+export function InvoiceList({ invoices, studentCode, currentTermId }: { invoices: TuitionInvoiceView[]; studentCode: string; currentTermId: string }) {
   const [messageApi, contextHolder] = message.useMessage();
   const outstanding = invoices.filter((invoice) => invoice.balance > 0);
   const history = invoices.filter((invoice) => invoice.balance === 0);
+  const refunds = history.filter((invoice) => invoice.refundDue > 0);
 
   const copy = async (value: string, label: string) => {
     try {
@@ -77,6 +96,15 @@ export function InvoiceList({ invoices, studentCode }: { invoices: TuitionInvoic
     <div className="flex flex-col gap-4">
       {contextHolder}
       {outstanding.length === 0 && <Alert type="success" showIcon title="Bạn đã nộp đủ học phí các học kỳ" />}
+      {refunds.map((invoice) => (
+        <Alert
+          key={invoice.id}
+          type="info"
+          showIcon
+          title={`${invoice.termName}: nộp thừa ${formatMoney(invoice.refundDue)}`}
+          description="Phòng Kế hoạch - Tài chính hoàn lại hoặc cấn trừ phần nộp thừa."
+        />
+      ))}
       {outstanding.map((invoice) => {
         const due = dueText(invoice);
         const content = transferContent(studentCode, invoice.termKey);
@@ -87,20 +115,29 @@ export function InvoiceList({ invoices, studentCode }: { invoices: TuitionInvoic
                 <div className="flex flex-col gap-1">
                   <h2 className="text-base font-semibold">{invoice.termName}</h2>
                   <span className="text-xs text-muted tabular-nums">
-                    Phát hành {formatDate(invoice.issuedAt)} · Hạn nộp {formatDateTime(invoice.dueDate)}
+                    {invoice.isFinal ? `Phát hành ${formatDate(invoice.issuedAt)} · Hạn nộp ${formatDate(invoice.dueDate)}` : "Tạm tính theo đăng ký hiện tại, chốt sau đợt điều chỉnh"}
                   </span>
                 </div>
                 <div className="flex flex-col items-start gap-1 sm:items-end">
                   <span className="text-xl font-semibold tabular-nums">{formatMoney(invoice.balance)}</span>
                   <span className="flex items-center gap-2">
+                    {!invoice.isFinal && <StatusTag status={PROVISIONAL_INVOICE} />}
                     <StatusTag status={INVOICE_STATUS[invoice.status]} />
                     {due && <span className={`text-xs tabular-nums ${due.className}`}>{due.text}</span>}
                   </span>
                 </div>
               </header>
-              {invoice.status === "overdue" && (
-                <Alert type="error" showIcon title="Tài khoản đang bị khóa đăng ký học phần" description="Nộp đủ học phí, hệ thống mở khóa sau 1 ngày làm việc kể từ khi nhận tiền." />
-              )}
+              {invoice.status === "overdue" &&
+                (invoice.termId === currentTermId ? (
+                  <Alert
+                    type="error"
+                    showIcon
+                    title="Tài khoản đang bị khóa đăng ký học phần"
+                    description="Học phí học kỳ hiện tại quá hạn. Nộp đủ số còn nợ, khóa tự gỡ ngay khi Phòng Kế hoạch - Tài chính ghi nhận khoản nộp."
+                  />
+                ) : (
+                  <Alert type="warning" showIcon title="Khoản nợ học kỳ trước" description="Phòng Kế hoạch - Tài chính có thể khóa đăng ký học phần tới khi bạn nộp đủ khoản này." />
+                ))}
               <div className="grid gap-4 lg:grid-cols-2">
                 <InvoiceBody invoice={invoice} />
                 <div className="flex flex-col gap-2 rounded-lg bg-background p-3">
@@ -145,7 +182,7 @@ export function InvoiceList({ invoices, studentCode }: { invoices: TuitionInvoic
                       },
                     ]}
                   />
-                  <p className="text-xs text-pretty text-muted">Ghi đúng nội dung để hệ thống tự gạch nợ. Sai nội dung, mang biên lai đến Phòng Kế hoạch - Tài chính.</p>
+                  <p className="text-xs text-pretty text-muted">Ghi đúng nội dung để Phòng Kế hoạch - Tài chính đối chiếu sao kê và ghi nhận nhanh. Sai nội dung, mang biên lai đến phòng.</p>
                 </div>
               </div>
             </div>

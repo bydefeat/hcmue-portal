@@ -13,8 +13,8 @@ import { paginationItemRender } from "@/shared/constants/antd.constant";
 import { dayjs, formatDate, formatDateTime } from "@/shared/libs/date.lib";
 import { toFormFields } from "@/shared/libs/form.lib";
 import { normalizeSearch } from "@/shared/libs/search.lib";
-import { loadInvoiceDetail, recordPayment, voidPayment } from "@/modules/tuition/tuition.action";
-import { formatMoney, INVOICE_STATUS, PAYMENT_SOURCE_LABEL } from "@/modules/tuition/tuition.constant";
+import { loadInvoiceDetail, recordPayment, recordRefund, setInvoiceDiscount, voidPayment } from "@/modules/tuition/tuition.action";
+import { formatMoney, INVOICE_STATUS, PAYMENT_SOURCE_LABEL, PROVISIONAL_INVOICE } from "@/modules/tuition/tuition.constant";
 import { PAYMENT_METHODS } from "@/modules/tuition/tuition.rule";
 import { StatementImportModal } from "@/modules/tuition/components/statement-import-modal";
 import type { AdminInvoiceDetail, AdminInvoiceRow, InvoiceStatus, PaymentRecord } from "@/modules/tuition/tuition.type";
@@ -41,7 +41,10 @@ type TuitionAdminProps = {
   studentHrefBase: string | null;
 };
 
-function toRow({ lines: _lines, payments: _payments, discount: _discount, ...row }: AdminInvoiceDetail): AdminInvoiceRow {
+type DiscountFormValues = { amount: number; reason?: string };
+type RefundFormValues = { amount: number; refundedAt: Dayjs; method: string; reference: string; note?: string };
+
+function toRow({ lines: _lines, payments: _payments, discount: _discount, discountReason: _reason, refunds: _refunds, ...row }: AdminInvoiceDetail): AdminInvoiceRow {
   return row;
 }
 
@@ -94,7 +97,10 @@ export function TuitionAdmin({ invoices, terms, termId, initialQuery, studentHre
   const [voiding, setVoiding] = useState<PaymentRecord | null>(null);
   const [voidReason, setVoidReason] = useState("");
   const [isImporting, setIsImporting] = useState(false);
+  const [adjusting, setAdjusting] = useState<"discount" | "refund" | null>(null);
   const [form] = Form.useForm<PaymentFormValues>();
+  const [discountForm] = Form.useForm<DiscountFormValues>();
+  const [refundForm] = Form.useForm<RefundFormValues>();
   const [isSaving, startSaving] = useTransition();
 
   const needle = normalizeSearch(query.trim());
@@ -153,6 +159,49 @@ export function TuitionAdmin({ invoices, terms, termId, initialQuery, studentHre
       );
     });
 
+  const saveDiscount = (values: DiscountFormValues) =>
+    startSaving(async () => {
+      if (!detail) return;
+      const result = await setInvoiceDiscount({ invoiceId: detail.id, amount: values.amount, reason: values.reason ?? "" }).catch(() => null);
+      if (!result) {
+        messageApi.error(NETWORK_ERROR);
+        return;
+      }
+      if (!result.ok) {
+        discountForm.setFields(toFormFields(result.fieldErrors));
+        messageApi.error(result.message);
+        return;
+      }
+      applyDetail(result.data);
+      setAdjusting(null);
+      messageApi.success(values.amount > 0 ? `Đã ghi miễn giảm ${formatMoney(values.amount)}, sinh viên nhận thông báo.` : "Đã bỏ miễn giảm.");
+    });
+
+  const saveRefund = (values: RefundFormValues) =>
+    startSaving(async () => {
+      if (!detail) return;
+      const result = await recordRefund({
+        invoiceId: detail.id,
+        amount: values.amount,
+        refundedAt: values.refundedAt.second(0).toISOString(),
+        method: values.method,
+        reference: values.reference,
+        note: values.note ?? "",
+      }).catch(() => null);
+      if (!result) {
+        messageApi.error(NETWORK_ERROR);
+        return;
+      }
+      if (!result.ok) {
+        refundForm.setFields(toFormFields(result.fieldErrors));
+        messageApi.error(result.message);
+        return;
+      }
+      applyDetail(result.data);
+      setAdjusting(null);
+      messageApi.success(`Đã ghi nhận hoàn ${formatMoney(values.amount)}.`);
+    });
+
   const cancelPayment = () =>
     startSaving(async () => {
       if (!voiding) return;
@@ -201,10 +250,26 @@ export function TuitionAdmin({ invoices, terms, termId, initialQuery, studentHre
       align: "right",
       responsive: ["md"],
       sorter: (a, b) => a.balance - b.balance,
-      render: (value: number) => <span className="font-medium tabular-nums">{value > 0 ? formatMoney(value) : ""}</span>,
+      render: (value: number, row) =>
+        value > 0 ? (
+          <span className="font-medium tabular-nums">{formatMoney(value)}</span>
+        ) : row.refundDue > 0 ? (
+          <span className="text-xs text-amber-700 tabular-nums">Cần hoàn {formatMoney(row.refundDue)}</span>
+        ) : null,
     },
     { title: <span className="whitespace-nowrap">Hạn nộp</span>, dataIndex: "dueDate", width: 110, responsive: ["md"], render: (value: string) => <span className="tabular-nums">{formatDate(value)}</span> },
-    { title: "Trạng thái", dataIndex: "status", width: 120, responsive: ["md"], render: (value: InvoiceStatus) => (value === "paid" ? <span className="text-xs text-muted">{INVOICE_STATUS.paid.label}</span> : <StatusTag status={INVOICE_STATUS[value]} />) },
+    {
+      title: "Trạng thái",
+      dataIndex: "status",
+      width: 140,
+      responsive: ["md"],
+      render: (value: InvoiceStatus, row) => (
+        <span className="flex flex-wrap gap-1">
+          {!row.isFinal && <StatusTag status={PROVISIONAL_INVOICE} />}
+          {value === "paid" ? <span className="text-xs text-muted">{INVOICE_STATUS.paid.label}</span> : <StatusTag status={INVOICE_STATUS[value]} />}
+        </span>
+      ),
+    },
     {
       title: "",
       key: "actions",
@@ -226,9 +291,13 @@ export function TuitionAdmin({ invoices, terms, termId, initialQuery, studentHre
         title="Học phí"
         description="Ghi nhận khoản nộp tiền mặt, chuyển khoản sai nội dung, nhập sao kê ngân hàng để gạch nợ hàng loạt. Sinh viên nhận thông báo và thấy hóa đơn cập nhật ngay."
         actions={
-          <Button type="primary" icon={<BankStatement size={16} aria-hidden />} onClick={() => setIsImporting(true)}>
-            Nhập sao kê
-          </Button>
+          <>
+            <Link href="/administrator/registration-holds">Khóa đăng ký</Link>
+            <Link href="/administrator/tuition/settings">Đơn giá, khoản thu và chốt học phí</Link>
+            <Button type="primary" icon={<BankStatement size={16} aria-hidden />} onClick={() => setIsImporting(true)}>
+              Nhập sao kê
+            </Button>
+          </>
         }
       />
       <div className="flex flex-col gap-3">
@@ -259,7 +328,8 @@ export function TuitionAdmin({ invoices, terms, termId, initialQuery, studentHre
               {owing.length} hóa đơn còn nợ {formatMoney(owing.reduce((sum, row) => sum + row.balance, 0))}
             </span>
           )}
-          {overdue > 0 && <span className="text-rose-700">{overdue} quá hạn, đang bị khóa đăng ký</span>}
+          {overdue > 0 && <span className="text-rose-700">{overdue} quá hạn còn nợ (hóa đơn học kỳ hiện tại quá hạn thì bị khóa đăng ký)</span>}
+          {rows.some((row) => row.refundDue > 0) && <span className="text-amber-700">{rows.filter((row) => row.refundDue > 0).length} hóa đơn nộp thừa cần hoàn</span>}
         </p>
         <Table
           rowKey="id"
@@ -308,8 +378,24 @@ export function TuitionAdmin({ invoices, terms, termId, initialQuery, studentHre
                 <span className="text-xl font-semibold tabular-nums">{detail.balance > 0 ? formatMoney(detail.balance) : "Đã nộp đủ"}</span>
                 {detail.balance > 0 && <span className="text-xs text-muted">Còn phải nộp</span>}
               </div>
-              <StatusTag status={INVOICE_STATUS[detail.status]} />
+              <span className="flex flex-col items-end gap-1">
+                <StatusTag status={INVOICE_STATUS[detail.status]} />
+                {!detail.isFinal && <StatusTag status={PROVISIONAL_INVOICE} />}
+              </span>
             </div>
+            {detail.refundDue > 0 && (
+              <Alert
+                type="warning"
+                showIcon
+                title={`Sinh viên nộp thừa ${formatMoney(detail.refundDue)}`}
+                description="Số phải nộp giảm sau khi đã nộp (hủy lớp, giảm tín chỉ, miễn giảm). Hoàn lại cho sinh viên rồi ghi nhận ở đây."
+                action={
+                  <Button size="small" onClick={() => { refundForm.resetFields(); refundForm.setFieldsValue({ amount: detail.refundDue }); setAdjusting("refund"); }}>
+                    Ghi đã hoàn
+                  </Button>
+                }
+              />
+            )}
             <ul className="flex flex-col divide-y divide-border-strong">
               {detail.lines.map((line) => (
                 <li key={line.label} className="flex justify-between gap-3 py-2 text-sm">
@@ -319,7 +405,10 @@ export function TuitionAdmin({ invoices, terms, termId, initialQuery, studentHre
               ))}
               {detail.discount > 0 && (
                 <li className="flex justify-between gap-3 py-2 text-sm">
-                  <span>Miễn giảm</span>
+                  <span className="min-w-0 text-pretty">
+                    Miễn giảm
+                    <span className="block text-xs text-muted">{detail.discountReason}</span>
+                  </span>
                   <span className="tabular-nums">-{formatMoney(detail.discount)}</span>
                 </li>
               )}
@@ -368,6 +457,30 @@ export function TuitionAdmin({ invoices, terms, termId, initialQuery, studentHre
                 </Button>
               )
             )}
+            {!isRecording && (
+              <Button
+                className="w-fit"
+                onClick={() => {
+                  discountForm.resetFields();
+                  discountForm.setFieldsValue({ amount: detail.discount, reason: detail.discountReason });
+                  setAdjusting("discount");
+                }}
+              >
+                {detail.discount > 0 ? "Sửa miễn giảm" : "Miễn giảm"}
+              </Button>
+            )}
+            {detail.refunds.length > 0 && (
+              <section className="flex flex-col gap-2">
+                <h3 className="text-sm font-medium">Đã hoàn</h3>
+                <ul className="flex flex-col gap-1 text-xs text-muted tabular-nums">
+                  {detail.refunds.map((refund) => (
+                    <li key={refund.id}>
+                      {formatMoney(refund.amount)} · {formatDateTime(refund.refundedAt)} · {refund.method} · chứng từ {refund.reference} · {refund.recordedBy}
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
             <section className="flex flex-col gap-2">
               <h3 className="text-sm font-medium">Lịch sử thanh toán</h3>
               <PaymentHistory payments={detail.payments} onVoid={setVoiding} />
@@ -403,6 +516,72 @@ export function TuitionAdmin({ invoices, terms, termId, initialQuery, studentHre
             </Form.Item>
           </Form>
         </div>
+      </Modal>
+
+      <Modal
+        open={adjusting === "discount"}
+        title="Miễn giảm học phí"
+        okText="Lưu"
+        cancelText="Hủy"
+        confirmLoading={isSaving}
+        onOk={() => discountForm.submit()}
+        onCancel={() => setAdjusting(null)}
+        mask={{ closable: false }}
+        destroyOnHidden
+      >
+        <Form form={discountForm} layout="vertical" onFinish={saveDiscount}>
+          <Form.Item name="amount" label="Số tiền miễn giảm" rules={[{ required: true, message: "Chưa nhập số tiền" }]} extra="Nhập 0 để bỏ miễn giảm.">
+            <InputNumber<number>
+              min={0}
+              step={1000}
+              className="w-full tabular-nums"
+              suffix="đ"
+              formatter={(value) => (value === undefined ? "" : Number(value).toLocaleString("vi-VN"))}
+              parser={(value) => Number((value ?? "").replace(/\D/g, ""))}
+            />
+          </Form.Item>
+          <Form.Item name="reason" label="Lý do, căn cứ" extra="Ví dụ: Quyết định miễn giảm số 123/QĐ-ĐHSP. Sinh viên thấy lý do này.">
+            <Input.TextArea autoSize={{ minRows: 2 }} maxLength={300} showCount />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      <Modal
+        open={adjusting === "refund"}
+        title="Ghi nhận đã hoàn học phí"
+        okText="Ghi nhận"
+        cancelText="Hủy"
+        confirmLoading={isSaving}
+        onOk={() => refundForm.submit()}
+        onCancel={() => setAdjusting(null)}
+        mask={{ closable: false }}
+        destroyOnHidden
+      >
+        <Form form={refundForm} layout="vertical" onFinish={saveRefund}>
+          <Form.Item name="amount" label="Số tiền đã hoàn" rules={[{ required: true, message: "Chưa nhập số tiền" }]} extra={detail ? `Tối đa ${formatMoney(detail.refundDue)} (số nộp thừa).` : undefined}>
+            <InputNumber<number>
+              min={1000}
+              max={detail?.refundDue}
+              step={1000}
+              className="w-full tabular-nums"
+              suffix="đ"
+              formatter={(value) => (value === undefined ? "" : Number(value).toLocaleString("vi-VN"))}
+              parser={(value) => Number((value ?? "").replace(/\D/g, ""))}
+            />
+          </Form.Item>
+          <Form.Item name="refundedAt" label="Thời điểm hoàn" rules={[{ required: true, message: "Chưa chọn thời điểm" }]}>
+            <DatePicker showTime={{ format: "HH:mm" }} format="DD/MM/YYYY HH:mm" className="w-full" disabledDate={(date) => date.isAfter(dayjs(), "day")} />
+          </Form.Item>
+          <Form.Item name="method" label="Hình thức" rules={[{ required: true, whitespace: true, message: "Chưa ghi hình thức" }]}>
+            <Select options={["Chuyển khoản về tài khoản sinh viên", "Tiền mặt tại Phòng Kế hoạch - Tài chính", "Cấn trừ học phí học kỳ sau"].map((value) => ({ value, label: value }))} />
+          </Form.Item>
+          <Form.Item name="reference" label="Số chứng từ" rules={[{ required: true, whitespace: true, message: "Nhập số chứng từ hoặc mã giao dịch" }]}>
+            <Input maxLength={64} />
+          </Form.Item>
+          <Form.Item name="note" label="Ghi chú">
+            <Input.TextArea autoSize={{ minRows: 2 }} maxLength={300} showCount />
+          </Form.Item>
+        </Form>
       </Modal>
 
       <StatementImportModal

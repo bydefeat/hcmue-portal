@@ -11,6 +11,7 @@ import { requirePermission } from "@/modules/access/access.query";
 import { RegistrationMonitorSections } from "@/modules/course-registration/components/registration-monitor-sections";
 import { RegistrationMonitorStudents } from "@/modules/course-registration/components/registration-monitor-students";
 import { RegistrationReport } from "@/modules/course-registration/components/registration-report";
+import { RegistrationWaitlist } from "@/modules/course-registration/components/registration-waitlist";
 import { REGISTRATION_PERIOD_STATE } from "@/modules/course-registration/course-registration.constant";
 import {
   getClassSections,
@@ -18,6 +19,7 @@ import {
   getRegistrationQueueStatus,
   getRegistrationSummary,
   getRegistrationTargetTerm,
+  getTermWaitlists,
   getUnregisteredStudents,
 } from "@/modules/course-registration/course-registration.query";
 import { SectionCard } from "@/shared/components/ui/section-card";
@@ -37,12 +39,13 @@ function hoursText(hours: number) {
 export default async function Page() {
   const viewer = await requirePermission("registration.manage");
   const term = await getRegistrationTargetTerm();
-  const [periods, allSections, summary, unregistered, queue] = await Promise.all([
+  const [periods, allSections, summary, unregistered, queue, waitlists] = await Promise.all([
     getRegistrationPeriods(term.id),
     getClassSections(term.id),
     getRegistrationSummary(term.id),
     getUnregisteredStudents(term.id),
     getRegistrationQueueStatus(term.id),
+    getTermWaitlists(term.id),
   ]);
   const sections = allSections.filter((section) => inScope(viewer, section.faculty));
   const active = periods.filter((period) => period.state === "open" || period.state === "closing");
@@ -104,6 +107,14 @@ export default async function Page() {
         </div>
         <SectionCard title="Lớp cần xử lý">
           <RegistrationMonitorSections sections={sections} />
+        </SectionCard>
+        <SectionCard title="Danh sách chờ theo lớp">
+          <RegistrationWaitlist
+            sections={sections}
+            entries={waitlists
+              .filter((entry) => sections.some((section) => section.id === entry.sectionId))
+              .map(({ id, sectionId, position, studentCode, studentName, className, createdAt }) => ({ id, sectionId, position, studentCode, studentName, className, createdAt }))}
+          />
         </SectionCard>
         <SectionCard title="Sinh viên chưa đăng ký">
           <RegistrationMonitorStudents students={pending} />

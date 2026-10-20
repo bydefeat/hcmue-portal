@@ -394,8 +394,9 @@ npx playwright test e2e/student.spec.ts           # một file
 | Cấu trúc | `playwright.config.ts`, `e2e/*.spec.ts` (auth, access, pages, student, lecturer, admin), `e2e/support/` (fixture, tài khoản, cấp tài khoản e2e) |
 | Phiên đăng nhập | `e2e/auth.setup.ts` đăng nhập 3 tài khoản seed một lần, lưu `storageState` vào `e2e/.auth/` (thêm phiên admin đã đổi sang Quản trị hệ thống). Test tự đăng nhập dùng IP giả riêng trong `x-forwarded-for` để không chạm giới hạn 5 lần/phút |
 | Lỗi console | Fixture tự đánh trượt test có `console.error`/`pageerror`; test cố ý gây 401/403/404 khai báo `allowedConsoleErrors` |
+| Trang vừa tải | Bấm trước khi React hydrate thì không có tác dụng (nút submit còn gửi form kiểu HTML thuần): `waitForHydration(locator)` trước thao tác ghi chỉ làm một lần, thao tác mở (drawer, menu, tích dòng) thì bọc trong `expect(...).toPass()`. Select của antd là danh sách ảo: dùng `chooseOption` (lọc bằng `search` hoặc tự cuộn). `browser.newContext()` trong test nhận cả storageState của `test.use`: trang chưa đăng nhập dùng `openAnonymous` |
 | Múi giờ | Server chạy `TZ=Asia/Ho_Chi_Minh`, trình duyệt cũng vậy: giờ được định dạng theo múi giờ tiến trình, lệch là hydration mismatch |
-| Thư | e2e không gửi thư thật: `next dev` bỏ trống khóa Resend (thư in ra log), `next start` dùng khóa giả (Resend từ chối, log có tiêu đề kèm mã OTP). Log server ở `e2e/.output/server.log` |
+| Thư | e2e không gửi thư thật: `next dev` bỏ trống khóa Resend (thư in ra log), `next start` dùng khóa giả (Resend từ chối, log không có mã OTP). Log server ở `e2e/.output/server.log`. Test kích hoạt tài khoản đọc mã OTP từ log, không có thì thay mã better-auth vừa lưu trong DB bằng mã tự chọn (`e2e/support/otp.ts`) |
 | Kết quả | `e2e/.output/` (báo cáo HTML, trace khi lỗi), đã gitignore |
 
 ## 11. Lint (oxlint)

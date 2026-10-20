@@ -9,7 +9,7 @@ import { defineConfig, devices } from "@playwright/test";
 // - E2E_SKIP_BUILD=1: với E2E_SERVER=start, dùng bản build sẵn trong .next.
 // - E2E_BASE_URL: mặc định DEFEAT_BETTER_AUTH_PUBLIC_APPLICATION_BASE_URL trong .env (better-auth chỉ nhận request từ origin này).
 // - E2E_SERVER_LOG: tệp log của server. Server do Playwright bật thì ghi vào e2e/.output/server.log; dùng lại server đang chạy
-//   (reuseExistingServer) thì trỏ biến này tới log của server đó để test kích hoạt tài khoản đọc được mã OTP in ra log.
+//   (reuseExistingServer) thì trỏ biến này tới log của server đó để test kích hoạt tài khoản đọc được mã OTP in ra log (không đọc được thì test thay mã trong DB).
 if (existsSync(".env")) process.loadEnvFile(".env");
 
 const baseURL = process.env.E2E_BASE_URL ?? process.env.DEFEAT_BETTER_AUTH_PUBLIC_APPLICATION_BASE_URL ?? "http://localhost:3000";
@@ -54,8 +54,9 @@ export default defineConfig({
       // Giờ hiển thị được định dạng theo múi giờ của tiến trình: server phải chạy cùng múi giờ với người dùng (Việt Nam), lệch thì
       // React báo hydration mismatch ở mọi chỗ hiện giờ. Trình duyệt test cũng đặt Asia/Ho_Chi_Minh (use.timezoneId).
       TZ: "Asia/Ho_Chi_Minh",
-      // Không bao giờ gửi thư thật từ e2e. `next start` (production) bắt buộc có khóa nên dùng khóa giả: Resend từ chối, mail.lib ghi
-      // lỗi kèm tiêu đề thư (có mã OTP) ra log. `next dev` bỏ trống khóa: mail.lib in cả thư ra log.
+      // Không bao giờ gửi thư thật từ e2e. `next start` (production) bắt buộc có khóa nên dùng khóa giả: Resend từ chối, log không có
+      // tiêu đề thư (mã OTP). `next dev` bỏ trống khóa: mail.lib in cả thư ra log. Test kích hoạt đọc mã từ log, không có thì thay mã
+      // trong DB (e2e/support/otp.ts).
       DEFEAT_RESEND_API_KEY: mode === "start" ? "re_e2e_not_a_real_key" : "",
     },
     stdout: "ignore",

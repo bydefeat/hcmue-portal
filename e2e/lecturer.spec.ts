@@ -1,5 +1,5 @@
 import ExcelJS from "exceljs";
-import { asRole, dialog, expect, openAs, test, toast, vietnamDate, waitForAction } from "./support/fixtures";
+import { asRole, chooseOption, dialog, expect, openAs, test, toast, vietnamDate, waitForAction, waitForHydration } from "./support/fixtures";
 
 test.use(asRole("lecturer"));
 
@@ -96,16 +96,18 @@ test("đăng thông báo lớp, sinh viên của lớp thấy ngay", async ({ pa
 test("đặt lịch hẹn cố vấn", async ({ page }) => {
   const topic = `Tư vấn chọn chuyên ngành (e2e ${Date.now()})`;
   await page.goto("/lecturer/advising/appointments");
-  await page.getByRole("button", { name: "Đặt lịch hẹn" }).click();
+  const open = page.getByRole("button", { name: "Đặt lịch hẹn" });
+  await waitForHydration(open);
+  await open.click();
   const form = dialog(page, "Đặt lịch hẹn");
-  const students = form.getByLabel("Sinh viên");
-  await students.fill("Dương Khánh Châu");
-  await page.locator(".ant-select-dropdown:not(.ant-select-dropdown-hidden) .ant-select-item-option").filter({ hasText: "Dương Khánh Châu" }).click();
+  await chooseOption(page, form.getByLabel("Sinh viên"), "Dương Khánh Châu", { search: "Dương Khánh Châu" });
   await form.getByLabel("Nội dung").fill(topic);
   await form.getByLabel("Ngày").fill(vietnamDate(9));
   await form.getByLabel("Ngày").press("Enter");
   await form.getByLabel("Giờ bắt đầu").fill("14:15");
   await form.getByLabel("Giờ bắt đầu").press("Enter");
+  await expect(form.getByLabel("Ngày")).toHaveValue(vietnamDate(9));
+  await expect(form.getByLabel("Giờ bắt đầu")).toHaveValue("14:15");
   await form.getByLabel("Địa điểm hoặc đường dẫn").fill("Văn phòng khoa, phòng B.201");
   await form.getByRole("button", { name: "Gửi lời mời" }).click();
   await expect(toast(page, /Đã hẹn 1 sinh viên lúc 14:15/)).toBeVisible();

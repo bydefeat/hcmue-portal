@@ -62,7 +62,7 @@ test.describe("đăng ký học phần", () => {
     await page.goto("/application/registration");
     const row = page.getByRole("listitem").filter({ has: page.getByRole("progressbar", { name: "Đã đăng ký PHYS1010.01" }) });
     await expect(row.getByText("Chưa đạt học phần tiên quyết PHYS1001 Cơ học")).toBeVisible();
-    await expect(row.getByText(/Trùng lịch với COMP1040\.01/)).toBeVisible();
+    await expect(row.getByText(/Trùng lịch với COMP1180\.01/)).toBeVisible();
     await expect(row.getByRole("button", { name: "Chọn lớp" })).toBeDisabled();
 
     const full = page.getByRole("listitem").filter({ has: page.getByRole("progressbar", { name: "Đã đăng ký ENGL2001.01" }) });

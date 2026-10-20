@@ -7,6 +7,7 @@ import { classSections, enrollments, labGroups, sectionMeetings } from "@/module
 import { mockAttendanceRecords, mockSessionKey } from "@/modules/schedule/schedule.mock";
 import { planClassSessions } from "@/modules/schedule/schedule.rule";
 import { attendanceRecords, classSessions } from "@/modules/schedule/schedule.schema";
+import { CALENDAR_EVENTS } from "@/modules/settings/settings.mock";
 import type { SeedContext } from "./context";
 
 const CHUNK = 1000;
@@ -25,6 +26,8 @@ export async function seedSchedule(tx: Transaction, _context: SeedContext) {
       .where(and(inArray(enrollments.classSectionId, sectionIds), eq(enrollments.status, "enrolled"))),
   ]);
   const today = dayjs().format("YYYY-MM-DD");
+  // Lịch năm học seed sau bước này nên đọc ngày nghỉ lễ từ dữ liệu mẫu, cùng nguồn với bảng calendar_events.
+  const holidays = CALENDAR_EVENTS.filter((event) => event.kind === "holiday");
 
   const sessionRows: (typeof classSessions.$inferInsert)[] = [];
   const recordRows: (typeof attendanceRecords.$inferInsert)[] = [];
@@ -35,7 +38,7 @@ export async function seedSchedule(tx: Transaction, _context: SeedContext) {
       endDate: section.endDate,
       meetings: meetings.filter((meeting) => meeting.classSectionId === section.id),
       labGroups: labs.filter((lab) => lab.classSectionId === section.id),
-    });
+    }, holidays);
     const members = roster.filter((entry) => entry.sectionId === section.id);
     for (const plan of plans) {
       const key = mockSessionKey(section.id, plan.date, plan.startPeriod) + (plan.labGroupId ? `-${plan.labGroupId}` : "");

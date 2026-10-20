@@ -1,7 +1,11 @@
 import type { Transaction } from "@/shared/libs/db.lib";
 import { dayjs } from "@/shared/libs/date.lib";
 import { createRandom, mockId, mockTermId } from "@/shared/libs/mock.lib";
-import { CLASS_SECTIONS, FACULTY_MAJOR_INDEX, REGISTRATION_HOLDS, REGISTRATION_PERIODS, rosterIndices, TERMS } from "@/modules/course-registration/course-registration.mock";
+import { alias } from "drizzle-orm/pg-core";
+import { eq } from "drizzle-orm";
+import { courseRelations, courses } from "@/modules/curriculum/curriculum.schema";
+import { IMPROVABLE_GRADES } from "@/modules/course-registration/course-registration.rule";
+import { CLASS_SECTIONS, CURRENT_STUDENT_PLAN, FACULTY_MAJOR_INDEX, REGISTRATION_HOLDS, REGISTRATION_PERIODS, rosterIndices, TERMS } from "@/modules/course-registration/course-registration.mock";
 import {
   classSectionAudienceMajors,
   classSections,
@@ -14,13 +18,15 @@ import {
   sectionMeetings,
   terms,
 } from "@/modules/course-registration/course-registration.schema";
-import { PAST_TERMS } from "@/modules/grades/grades.mock";
-import { STUDENTS } from "@/modules/users/users.mock";
+import { mockTranscriptTerms, PAST_TERMS } from "@/modules/grades/grades.mock";
+import { CURRENT_STUDENT_ID, STUDENTS } from "@/modules/users/users.mock";
 import { overlaps } from "@/modules/course-registration/course-registration.constant";
 import type { ClassMeeting } from "@/modules/course-registration/course-registration.type";
 import { by, type SeedContext } from "./context";
 
 const TERM_KEY = /^hk([1-3])-(\d{4})$/;
+
+const relatedCourses = alias(courses, "related_courses");
 
 // Khóa của mọi học kỳ có trong dữ liệu mẫu: bảng điểm từ 2022 và đăng ký học phần 2025-2027.
 const TERM_KEYS = ["hk1-2022", "hk2-2022", "hk1-2023", "hk2-2023", "hk1-2024", "hk2-2024", "hk1-2025", "hk2-2025", "hk3-2025", "hk1-2026", "hk2-2026"];
@@ -50,6 +56,11 @@ function termRows() {
       isRegistrationTarget: term?.isRegistrationTarget ?? false,
     };
   });
+}
+
+// Đợt đầu tiên (đã mở) của khóa trong học kỳ: thời điểm đăng ký mẫu nằm trong đợt này.
+function periodOf(termId: string, cohort: number) {
+  return REGISTRATION_PERIODS.filter((period) => period.termId === termId && period.cohorts.includes(cohort) && dayjs(period.opensAt).isBefore(dayjs())).toSorted((a, b) => a.opensAt.localeCompare(b.opensAt))[0];
 }
 
 export async function seedRegistration(tx: Transaction, context: SeedContext) {
@@ -128,26 +139,57 @@ export async function seedRegistration(tx: Transaction, context: SeedContext) {
     if (seatMajors.length > 0) await tx.insert(reservedSeatMajors).values(seatMajors);
   }
 
-  // Danh sách lớp lấy theo cùng thứ tự chọn của dữ liệu mẫu, bỏ sinh viên không còn đang học và sinh viên đã có lớp khác
-  // của cùng học phần trong học kỳ (DB chặn bằng enrollments_active_per_course_term).
+  // Danh sách lớp lấy theo cùng thứ tự chọn của dữ liệu mẫu, chỉ gồm sinh viên đủ điều kiện như khi đăng ký thật: đang học, đúng đối
+  // tượng của lớp, đã đạt học phần tiên quyết (điểm lần học cuối trong bảng điểm mẫu), có học phần song hành cùng học kỳ hoặc đã đạt,
+  // chưa đạt học phần (trừ điểm học cải thiện được), không đang học học phần đó ở học kỳ hiện tại, không trùng lịch, không hai lớp
+  // của cùng học phần. Lớp có ít sinh viên đủ điều kiện hơn sĩ số mẫu thì chỉ xếp số đủ điều kiện.
+  const relationRows = await tx
+    .select({ course: courses.code, kind: courseRelations.kind, related: relatedCourses.code })
+    .from(courseRelations)
+    .innerJoin(courses, eq(courses.id, courseRelations.courseId))
+    .innerJoin(relatedCourses, eq(relatedCourses.id, courseRelations.relatedCourseId));
+  const relationsOf = (kind: "prerequisite" | "corequisite" | "equivalent", code: string) => relationRows.filter((row) => row.kind === kind && row.course === code).map((row) => row.related);
+  const lastGrades = STUDENTS.map((_, index) => {
+    const last: Record<string, string> = {};
+    for (const term of mockTranscriptTerms(index)) if (!term.isInProgress) for (const course of term.courses) if (course.letter) last[course.courseCode] = course.letter;
+    return last;
+  });
+  const passed = (index: number, code: string) =>
+    [code, ...relationsOf("equivalent", code)].some((entry) => lastGrades[index][entry] !== undefined && lastGrades[index][entry] !== "F");
+  const currentTermId = TERMS.find((term) => term.isCurrent)!.id;
+
   const taken = new Set<string>();
+  const courseCodesOf = new Map<string, Set<string>>();
   const busy = new Map<string, ClassMeeting[]>();
   const clashes = (key: string, meetings: ClassMeeting[]) => (busy.get(key) ?? []).some((theirs) => meetings.some((mine) => overlaps(mine, theirs)));
   const rows: (typeof enrollments.$inferInsert)[] = [];
+  const seated = new Map<string, number>();
   for (const section of CLASS_SECTIONS) {
     if (section.status !== "open" || section.enrolled === 0) continue;
-    const term = TERMS.find((entry) => entry.id === section.termId)!;
     const random = createRandom(section.capacity * 31 + section.enrolled);
     const courseId = context.courseByCode.get(section.courseCode)!.id;
     const labLoad = section.labGroups.map(() => 0);
     let count = 0;
-    for (const index of rosterIndices(section.id, STUDENTS.length, FACULTY_MAJOR_INDEX[section.faculty] ?? 0)) {
+    const termKey = keyOf.get(section.termId)!;
+    const currentIndex = STUDENTS.findIndex((student) => student.id === CURRENT_STUDENT_ID);
+    const order = rosterIndices(section.id, STUDENTS.length, FACULTY_MAJOR_INDEX[section.faculty] ?? 0);
+    const roster = CURRENT_STUDENT_PLAN[termKey]?.includes(section.code) ? [currentIndex, ...order.filter((index) => index !== currentIndex)] : order.filter((index) => index !== currentIndex || !CURRENT_STUDENT_PLAN[termKey]);
+    for (const index of roster) {
       if (count >= section.enrolled) break;
       const student = STUDENTS[index];
       const key = `${student.id}:${section.termId}:${section.courseCode}`;
       const slotKey = `${student.id}:${section.termId}`;
-      // Không xếp sinh viên vào hai lớp trùng giờ trong cùng học kỳ.
+      const termCourses = courseCodesOf.get(slotKey) ?? new Set<string>();
       if (student.status !== "studying" || taken.has(key) || clashes(slotKey, section.meetings)) continue;
+      const audience = section.audience;
+      if (audience && ((audience.majorCodes.length > 0 && !audience.majorCodes.includes(student.majorCode)) || (audience.cohorts.length > 0 && !audience.cohorts.includes(student.cohort)))) continue;
+      if (relationsOf("prerequisite", section.courseCode).some((code) => !passed(index, code))) continue;
+      if (relationsOf("corequisite", section.courseCode).some((code) => !passed(index, code) && !termCourses.has(code))) continue;
+      const own = lastGrades[index][section.courseCode];
+      if (own && !IMPROVABLE_GRADES.includes(own) && own !== "F") continue;
+      if (section.termId !== currentTermId && courseCodesOf.get(`${student.id}:${currentTermId}`)?.has(section.courseCode)) continue;
+      const period = periodOf(section.termId, student.cohort);
+      if (!period) continue;
       let labGroupId: string | null = null;
       if (section.labGroups.length > 0) {
         // Chia vào nhóm thực hành đang ít người nhất còn chỗ.
@@ -163,8 +205,15 @@ export async function seedRegistration(tx: Transaction, context: SeedContext) {
         continue;
       }
       taken.add(key);
+      termCourses.add(section.courseCode);
+      courseCodesOf.set(slotKey, termCourses);
       busy.set(slotKey, [...(busy.get(slotKey) ?? []), ...section.meetings, ...(labMeeting ? [labMeeting] : [])]);
       count += 1;
+      // Thời điểm đăng ký nằm trong đợt của khóa, trước hiện tại.
+      const opensAt = dayjs(period.opensAt);
+      const closes = dayjs(period.closesAt);
+      const until = closes.isBefore(dayjs().subtract(1, "hour")) ? closes : dayjs().subtract(1, "hour");
+      const span = Math.max(1, until.diff(opensAt, "minute"));
       rows.push({
         id: mockId(`enrollment:${section.id}:${student.id}`),
         studentId: student.id,
@@ -172,12 +221,10 @@ export async function seedRegistration(tx: Transaction, context: SeedContext) {
         termId: section.termId,
         courseId,
         labGroupId,
-        registeredAt: dayjs(term.startDate)
-          .subtract(30, "day")
-          .add(Math.floor(random() * 6 * 24), "hour")
-          .toDate(),
+        registeredAt: opensAt.add(Math.floor(random() * span), "minute").toDate(),
       });
     }
+    seated.set(section.id, count);
   }
   for (let start = 0; start < rows.length; start += 500) await tx.insert(enrollments).values(rows.slice(start, start + 500));
 
@@ -194,5 +241,5 @@ export async function seedRegistration(tx: Transaction, context: SeedContext) {
     })),
   );
 
-  return { terms: insertedTerms.length, sections: CLASS_SECTIONS.length, enrollments: rows.length };
+  return { terms: insertedTerms.length, sections: CLASS_SECTIONS.length, enrollments: rows.length, seated };
 }

@@ -49,7 +49,7 @@ describe("seed khớp dữ liệu mẫu", () => {
     assert.ok(student);
   });
 
-  test("sĩ số mỗi lớp bằng số đăng ký đang hiệu lực và bằng dữ liệu mẫu", async () => {
+  test("sĩ số mỗi lớp bằng số đăng ký đang hiệu lực, không vượt sĩ số mẫu và sức chứa phòng", async () => {
     const rows = await db
       .select({ id: enrollments.classSectionId, total: count() })
       .from(enrollments)
@@ -58,8 +58,14 @@ describe("seed khớp dữ liệu mẫu", () => {
     const totalOf = new Map(rows.map((row) => [row.id, row.total]));
     const sections = await db.select({ id: classSections.id, enrolled: classSections.enrolledCount }).from(classSections);
     for (const section of sections) assert.equal(section.enrolled, totalOf.get(section.id) ?? 0);
+    // Seed chỉ xếp sinh viên đủ điều kiện (đối tượng, tiên quyết, song hành) nên lớp có thể ít hơn sĩ số mẫu.
     const mockEnrolled = new Map(CLASS_SECTIONS.map((entry) => [entry.id, entry.status === "open" ? entry.enrolled : 0]));
-    for (const section of sections) assert.equal(section.enrolled, mockEnrolled.get(section.id));
+    for (const section of sections) assert.ok(section.enrolled <= mockEnrolled.get(section.id)!);
+    assert.ok(sections.reduce((total, section) => total + section.enrolled, 0) > 1000);
+    const overRoom = await db.execute<{ code: string }>(sql`
+      SELECT DISTINCT cs.code FROM class_sections cs JOIN section_meetings m ON m.class_section_id = cs.id JOIN rooms r ON r.id = m.room_id
+      WHERE cs.status <> 'cancelled' AND (r.capacity < cs.capacity OR r.status = 'maintenance')`);
+    assert.deepEqual(overRoom.map((row) => row.code), []);
   });
 
   test("tài khoản seed gắn đúng hồ sơ sinh viên, giảng viên hiện tại của dữ liệu mẫu", async () => {

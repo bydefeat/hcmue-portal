@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { ClassSectionTable } from "@/modules/course-registration/components/class-section-table";
 import { getClassSections, getRegistrationTargetTerm, getTerms } from "@/modules/course-registration/course-registration.query";
 import { getCourses, getMajors } from "@/modules/curriculum/curriculum.query";
-import { getRooms } from "@/modules/facilities/facilities.query";
+import { getCampuses, getRooms } from "@/modules/facilities/facilities.query";
 import { getCohorts, getLecturers } from "@/modules/users/users.query";
 import { inScope } from "@/modules/access/access.constant";
 import { requirePermission } from "@/modules/access/access.query";
@@ -21,6 +21,10 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ t
     getMajors(),
     getCohorts(),
   ]);
+  const campuses = await getCampuses();
+  const campusOf = new Map(campuses.map((campus) => [campus.id, campus.name]));
+  // Phòng bảo trì không xếp lớp được (server cũng chặn).
+  const activeRooms = rooms.filter((room) => room.status === "active");
   const termId = terms.some((entry) => entry.id === term) ? term! : targetTerm.id;
   const sections = (await getClassSections(termId)).filter((section) => inScope(viewer, section.faculty));
   const openTerms = terms.filter((entry) => entry.isCurrent || entry.isRegistrationTarget);
@@ -37,7 +41,8 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ t
       termId={termId}
       initialQuery={q}
       courses={courses.filter((course) => course.isActive).map(({ code, name, credits, faculty }) => ({ code, name, credits, faculty }))}
-      rooms={rooms.filter((room) => room.status === "active").map((room) => room.code)}
+      rooms={activeRooms.map((room) => room.code)}
+      roomLabels={Object.fromEntries(activeRooms.map((room) => [room.code, `${room.code} · ${room.capacity} chỗ · ${campusOf.get(room.campusId) ?? ""}`]))}
       majors={majors.map(({ code, name }) => ({ code, name }))}
       cohorts={cohorts}
       lecturers={lecturers

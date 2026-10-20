@@ -331,11 +331,12 @@ describe("pdf: server action tải PDF kiểm quyền như trang", () => {
   });
 
   test("phiếu đăng ký PDF có đủ lớp đang học và đúng mã xác thực như trang", async () => {
-    const result = await asRequest(cookies.student, () => registration.downloadRegistrationReceiptPdf());
+    // Phiếu chọn được học kỳ (mặc định học kỳ đang nhận đăng ký); ở đây lấy phiếu của học kỳ hiện tại.
+    const [term] = await db.select({ id: terms.id }).from(terms).where(eq(terms.isCurrent, true));
+    const result = await asRequest(cookies.student, () => registration.downloadRegistrationReceiptPdf(term.id));
     const { text } = readPdf(result);
     assert.ok(result.ok && result.data.fileName.endsWith(".pdf"));
     assert.ok(text.includes("PHIẾU ĐĂNG KÝ HỌC PHẦN"));
-    const [term] = await db.select({ id: terms.id }).from(terms).where(eq(terms.isCurrent, true));
     const sections = await asRequest(cookies.student, async () =>
       (await registrationQuery.getStudentEnrollments(student.id, term.id)).map(({ section }) => section).toSorted((a, b) => a.code.localeCompare(b.code)),
     );

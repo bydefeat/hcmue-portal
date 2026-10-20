@@ -62,7 +62,7 @@ test.describe("đăng ký học phần", () => {
     await page.goto("/application/registration");
     const row = page.getByRole("listitem").filter({ has: page.getByRole("progressbar", { name: "Đã đăng ký PHYS1010.01" }) });
     await expect(row.getByText("Chưa đạt học phần tiên quyết PHYS1001 Cơ học")).toBeVisible();
-    await expect(row.getByText(/Trùng lịch với COMP1040\.01/)).toBeVisible();
+    await expect(row.getByText(/Trùng lịch với COMP1180\.01/)).toBeVisible();
     await expect(row.getByRole("button", { name: "Chọn lớp" })).toBeDisabled();
 
     const full = page.getByRole("listitem").filter({ has: page.getByRole("progressbar", { name: "Đã đăng ký ENGL2001.01" }) });
@@ -83,8 +83,9 @@ test("kết quả học tập theo học kỳ", async ({ page }) => {
 test("học phí hiện số phải nộp và nội dung chuyển khoản", async ({ page }) => {
   await page.goto("/application/tuition");
   await expect(page.getByRole("heading", { name: "Học kỳ 1, năm học 2026-2027", level: 2 })).toBeVisible();
-  await expect(page.getByRole("listitem").filter({ hasText: "Tổng phải nộp" })).toContainText("7.503.600 đ");
-  await expect(page.getByRole("row", { name: /Nội dung/ })).toContainText("HP 5001104009 HK1-2026");
+  // Có cả hóa đơn tạm tính của học kỳ đang đăng ký: kiểm dòng tổng của học kỳ hiện tại.
+  await expect(page.getByRole("listitem").filter({ hasText: "Tổng phải nộp" }).filter({ hasText: "7.503.600 đ" })).toBeVisible();
+  await expect(page.getByRole("row", { name: /Nội dung/ }).filter({ hasText: "HP 5001104009 HK1-2026" })).toBeVisible();
 });
 
 test("gửi đơn kèm tệp PDF, tải lại được tệp, rồi hủy đơn", async ({ page }) => {

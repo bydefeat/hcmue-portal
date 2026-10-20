@@ -56,7 +56,7 @@ export function RegistrationMonitorSections({ sections }: { sections: ClassSecti
       const created = result.data;
       setRows((current) => [...current, ...created]);
       setSelected([]);
-      messageApi.success(`Đã tạo ${created.length} lớp nháp (${created.map((section) => section.code).join(", ")}). Phân công giảng viên và xếp phòng ở mục Lớp học phần rồi mở đăng ký.`);
+      messageApi.success(`Đã tạo ${created.length} lớp nháp (${created.map((section) => section.code).join(", ")}) cùng sĩ số, đối tượng. Xếp lịch, phòng, giảng viên ở mục Lớp học phần rồi mở đăng ký.`);
     });
 
   const cancel = () =>
@@ -96,18 +96,30 @@ export function RegistrationMonitorSections({ sections }: { sections: ClassSecti
         messageApi.error(result?.message ?? NETWORK_ERROR);
         return;
       }
-      const { moved, remaining } = result.data;
+      const { moved, remaining, skipped } = result.data;
       setRows((current) =>
         current.map((section) =>
           section.id === target.id ? { ...section, enrolled: section.enrolled + moved, isFull: section.enrolled + moved >= section.capacity } : section,
         ),
       );
       setOutcomes((current) => current.map((entry) => (entry.section.id === outcome.section.id ? { ...entry, movedTo: target.code } : entry)));
-      messageApi.success(
-        remaining > 0
-          ? `Đã chuyển ${moved} sinh viên sang ${target.code}; còn ${remaining} sinh viên chưa có chỗ, cần chọn lớp khác`
-          : `Đã chuyển cả ${moved} sinh viên sang ${target.code}`,
-      );
+      if (remaining > 0) {
+        modal.info({
+          title: `Đã chuyển ${moved} sinh viên sang ${target.code}, còn ${remaining} sinh viên chưa chuyển được`,
+          content: (
+            <ul className="flex flex-col gap-1 text-sm">
+              {skipped.map((entry) => (
+                <li key={entry.studentName}>
+                  {entry.studentName}: {entry.reason}
+                </li>
+              ))}
+            </ul>
+          ),
+          okText: "Đã hiểu",
+        });
+      } else {
+        messageApi.success(`Đã chuyển cả ${moved} sinh viên sang ${target.code}`);
+      }
     });
 
   const columns: TableColumnsType<ClassSectionView> = [

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { after, describe, test } from "node:test";
-import { and, eq, TransactionRollbackError } from "drizzle-orm";
+import { TransactionRollbackError, and, eq, gte } from "drizzle-orm";
 import { db } from "@/shared/libs/db.lib";
 import { registrationActivityOf } from "@/modules/course-registration/course-registration.lib";
 import { classSections, enrollments, registrationEvents } from "@/modules/course-registration/course-registration.schema";
@@ -14,7 +14,7 @@ describe("theo dõi đăng ký: nhịp đăng ký từ registration_events", () 
     const ago = (seconds: number) => new Date(now.getTime() - seconds * 1000);
     await db
       .transaction(async (tx) => {
-        const [section] = await tx.select({ id: classSections.id, termId: classSections.termId }).from(classSections).where(eq(classSections.status, "open")).limit(1);
+        const [section] = await tx.select({ id: classSections.id, termId: classSections.termId }).from(classSections).where(and(eq(classSections.status, "open"), gte(classSections.enrolledCount, 3))).limit(1);
         const roster = await tx
           .select({ studentId: enrollments.studentId })
           .from(enrollments)

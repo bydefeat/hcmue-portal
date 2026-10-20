@@ -18,8 +18,9 @@ export type RegistrationPeriod = {
   cohorts: number[];
   opensAt: string;
   closesAt: string;
-  minCredits: number;
-  maxCredits: number;
+  // Bỏ trống là theo quy chế đang áp dụng.
+  minCredits: number | null;
+  maxCredits: number | null;
   eligibleStudents: number;
   registeredStudents: number;
 };
@@ -131,8 +132,8 @@ export type RegistrationPeriodFormValues = {
   name: string;
   cohorts: number[];
   range: [string, string];
-  minCredits: number;
-  maxCredits: number;
+  minCredits: number | null;
+  maxCredits: number | null;
 };
 
 export type StudentEnrollment = {

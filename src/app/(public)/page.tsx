@@ -87,9 +87,11 @@ export default async function Page() {
                   <span className="text-xs text-muted tabular-nums">
                     {formatDateTime(period.opensAt)} đến {formatDateTime(period.closesAt)}
                   </span>
-                  <span className="text-xs text-muted tabular-nums">
-                    Từ {period.minCredits} đến {period.maxCredits} tín chỉ
-                  </span>
+                  {period.minCredits !== null && period.maxCredits !== null && (
+                    <span className="text-xs text-muted tabular-nums">
+                      Từ {period.minCredits} đến {period.maxCredits} tín chỉ
+                    </span>
+                  )}
                 </li>
               ))}
             </ul>

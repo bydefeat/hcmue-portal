@@ -10,7 +10,7 @@ export const metadata: Metadata = { title: "Thời khóa biểu" };
 
 export default async function Page() {
   const [student, term] = await Promise.all([getCurrentStudent(), getCurrentTerm()]);
-  const { events, sectionCount, credits } = await getStudentTimetable(term.id);
+  const { events, sessions, sectionCount, credits } = await getStudentTimetable(term.id);
   const periods = events.reduce((sum, event) => sum + event.endPeriod - event.startPeriod + 1, 0);
 
   return (
@@ -20,9 +20,7 @@ export default async function Page() {
         description={`${term.name} · ${sectionCount} lớp, ${credits} tín chỉ, ${periods} tiết mỗi tuần`}
         actions={
           <IcsExportButton
-            events={events}
-            termStart={term.startDate}
-            termEnd={term.endDate}
+            sessions={sessions}
             calendarName={`Thời khóa biểu ${term.shortName}`}
             fileName={`tkb-${student.code}-${term.code}.ics`}
           />

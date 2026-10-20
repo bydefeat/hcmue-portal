@@ -18,11 +18,11 @@ export default async function Page() {
         title="Học phí"
         description={
           price
-            ? `Ngành ${student.majorName}: ${formatMoney(price)} mỗi tín chỉ, tính theo số tín chỉ đăng ký sau đợt điều chỉnh.`
+            ? `Ngành ${student.majorName}: ${formatMoney(price)} mỗi tín chỉ. Hóa đơn tạm tính cập nhật theo đăng ký, chính thức khi Phòng Kế hoạch - Tài chính chốt học phí; sau khi chốt, thay đổi đăng ký thành dòng điều chỉnh.`
             : `Ngành ${student.majorName} thuộc diện miễn học phí sư phạm, chỉ thu bảo hiểm y tế.`
         }
       />
-      <InvoiceList invoices={invoices} studentCode={student.code} />
+      <InvoiceList invoices={invoices} studentCode={student.code} currentTermId={term.id} />
     </>
   );
 }

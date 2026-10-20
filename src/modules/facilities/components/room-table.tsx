@@ -21,13 +21,15 @@ type RoomTableProps = {
   campuses: Campus[];
   bookings: Record<string, RoomBooking[]>;
   termName: string;
+  // Danh mục phòng là dữ liệu toàn trường: vai trò theo khoa chỉ xem lịch phòng (server cũng chặn).
+  canManage: boolean;
 };
 
 function usedSlots(bookings: RoomBooking[]) {
   return bookings.reduce((sum, booking) => sum + booking.endPeriod - booking.startPeriod + 1, 0);
 }
 
-export function RoomTable({ rooms, campuses, bookings, termName }: RoomTableProps) {
+export function RoomTable({ rooms, campuses, bookings, termName, canManage }: RoomTableProps) {
   const [messageApi, contextHolder] = message.useMessage();
   const [rows, setRows] = useState(rooms);
   const [query, setQuery] = useState("");
@@ -182,10 +184,12 @@ export function RoomTable({ rooms, campuses, bookings, termName }: RoomTableProp
         title={opened ? `Phòng ${opened.code}` : ""}
         footer={
           <div className="flex justify-end gap-2">
-            <Button onClick={() => setOpenId(null)}>Hủy</Button>
-            <Button type="primary" loading={isSaving} onClick={() => form.submit()}>
-              Lưu thay đổi
-            </Button>
+            <Button onClick={() => setOpenId(null)}>{canManage ? "Hủy" : "Đóng"}</Button>
+            {canManage && (
+              <Button type="primary" loading={isSaving} onClick={() => form.submit()}>
+                Lưu thay đổi
+              </Button>
+            )}
           </div>
         }
       >
@@ -199,7 +203,7 @@ export function RoomTable({ rooms, campuses, bookings, termName }: RoomTableProp
                 <RoomWeekGrid bookings={bookings[opened.code] ?? []} />
               )}
             </section>
-            <Form form={form} layout="vertical" onFinish={save}>
+            <Form form={form} layout="vertical" onFinish={save} disabled={!canManage}>
               <div className="grid gap-x-3 sm:grid-cols-3">
                 <Form.Item name="type" label="Loại phòng">
                   <Select options={ROOM_TYPE_OPTIONS} />

@@ -9,12 +9,12 @@ export const TERMS: Term[] = [
 ];
 
 export const REGISTRATION_PERIODS: RegistrationPeriod[] = [
-  { id: mockId("period:dot-hk1-1"), termId: mockTermId("hk1-2026"), name: "Đợt 1, khóa 48 và 49", cohorts: [48, 49], opensAt: "2026-08-03T01:00:00Z", closesAt: "2026-08-09T10:00:00Z", minCredits: 14, maxCredits: 25, eligibleStudents: 268, registeredStudents: 259 },
-  { id: mockId("period:dot-hk1-2"), termId: mockTermId("hk1-2026"), name: "Đợt 2, khóa 50 và 51", cohorts: [50, 51], opensAt: "2026-08-12T01:00:00Z", closesAt: "2026-08-18T10:00:00Z", minCredits: 14, maxCredits: 25, eligibleStudents: 300, registeredStudents: 296 },
-  { id: mockId("period:dot-hk1-3"), termId: mockTermId("hk1-2026"), name: "Đợt điều chỉnh", cohorts: [48, 49, 50, 51], opensAt: "2026-09-07T01:00:00Z", closesAt: "2026-09-13T10:00:00Z", minCredits: 14, maxCredits: 25, eligibleStudents: 568, registeredStudents: 74 },
-  { id: mockId("period:dot-hk2-1"), termId: mockTermId("hk2-2026"), name: "Đợt 1, khóa 48 và 49", cohorts: [48, 49], opensAt: mockDate(-4, "08:00"), closesAt: mockDate(1, "17:00"), minCredits: 14, maxCredits: 25, eligibleStudents: 268, registeredStudents: 187 },
-  { id: mockId("period:dot-hk2-2"), termId: mockTermId("hk2-2026"), name: "Đợt 2, khóa 50 và 51", cohorts: [50, 51], opensAt: mockDate(-1, "08:00"), closesAt: mockDate(6, "17:00"), minCredits: 14, maxCredits: 25, eligibleStudents: 300, registeredStudents: 0 },
-  { id: mockId("period:dot-hk2-3"), termId: mockTermId("hk2-2026"), name: "Đợt điều chỉnh", cohorts: [48, 49, 50, 51], opensAt: mockDate(24, "08:00"), closesAt: mockDate(28, "17:00"), minCredits: 14, maxCredits: 25, eligibleStudents: 568, registeredStudents: 0 },
+  { id: mockId("period:dot-hk1-1"), termId: mockTermId("hk1-2026"), name: "Đợt 1, khóa 48 và 49", cohorts: [48, 49], opensAt: "2026-08-03T01:00:00Z", closesAt: "2026-08-09T10:00:00Z", minCredits: null, maxCredits: null, eligibleStudents: 268, registeredStudents: 259 },
+  { id: mockId("period:dot-hk1-2"), termId: mockTermId("hk1-2026"), name: "Đợt 2, khóa 50 và 51", cohorts: [50, 51], opensAt: "2026-08-12T01:00:00Z", closesAt: "2026-08-18T10:00:00Z", minCredits: null, maxCredits: null, eligibleStudents: 300, registeredStudents: 296 },
+  { id: mockId("period:dot-hk1-3"), termId: mockTermId("hk1-2026"), name: "Đợt điều chỉnh", cohorts: [48, 49, 50, 51], opensAt: "2026-09-07T01:00:00Z", closesAt: "2026-09-13T10:00:00Z", minCredits: null, maxCredits: null, eligibleStudents: 568, registeredStudents: 74 },
+  { id: mockId("period:dot-hk2-1"), termId: mockTermId("hk2-2026"), name: "Đợt 1, khóa 48 và 49", cohorts: [48, 49], opensAt: mockDate(-4, "08:00"), closesAt: mockDate(1, "17:00"), minCredits: null, maxCredits: null, eligibleStudents: 268, registeredStudents: 187 },
+  { id: mockId("period:dot-hk2-2"), termId: mockTermId("hk2-2026"), name: "Đợt 2, khóa 50 và 51", cohorts: [50, 51], opensAt: mockDate(-1, "08:00"), closesAt: mockDate(6, "17:00"), minCredits: null, maxCredits: null, eligibleStudents: 300, registeredStudents: 0 },
+  { id: mockId("period:dot-hk2-3"), termId: mockTermId("hk2-2026"), name: "Đợt điều chỉnh", cohorts: [48, 49, 50, 51], opensAt: mockDate(24, "08:00"), closesAt: mockDate(28, "17:00"), minCredits: null, maxCredits: 22, eligibleStudents: 568, registeredStudents: 0 },
 ];
 
 export const COURSE_INFO: Record<string, { name: string; credits: number; faculty: string }> = {
@@ -38,6 +38,8 @@ export const COURSE_INFO: Record<string, { name: string; credits: number; facult
   COMP1100: { name: "Học máy", credits: 3, faculty: "Khoa Công nghệ Thông tin" },
   COMP1120: { name: "An toàn và bảo mật thông tin", credits: 3, faculty: "Khoa Công nghệ Thông tin" },
   COMP1121: { name: "Thực hành an toàn thông tin", credits: 1, faculty: "Khoa Công nghệ Thông tin" },
+  COMP1150: { name: "Kiểm thử phần mềm", credits: 3, faculty: "Khoa Công nghệ Thông tin" },
+  COMP1180: { name: "Phân tích thiết kế hệ thống", credits: 3, faculty: "Khoa Công nghệ Thông tin" },
   LITR1010: { name: "Văn học Việt Nam hiện đại", credits: 3, faculty: "Khoa Ngữ văn" },
   LITR1020: { name: "Lý luận văn học", credits: 3, faculty: "Khoa Ngữ văn" },
   ENGL2001: { name: "Nghe nói tiếng Anh nâng cao", credits: 3, faculty: "Khoa Tiếng Anh" },
@@ -60,11 +62,11 @@ const CURRENT_TERM_SECTIONS: SectionSeed[] = [
   ["COMP1020", 2, 0, 45, 38, [[4, 7, 9, "B.405"]]],
   ["COMP1070", 1, 0, 40, 40, [[5, 1, 3, "C.301 (Phòng máy)"]]],
   ["COMP1080", 1, 0, 50, 47, [[6, 7, 9, "B.302"]]],
-  ["COMP1010", 1, 6, 50, 49, [[2, 7, 9, "C.302 (Phòng máy)"]]],
-  ["COMP1010", 2, 12, 50, 44, [[3, 1, 3, "C.302 (Phòng máy)"]]],
-  ["COMP1031", 1, 18, 45, 45, [[3, 7, 9, "C.301 (Phòng máy)"]]],
-  ["COMP1040", 1, 6, 45, 41, [[4, 1, 3, "B.408"]]],
-  ["COMP1060", 1, 12, 45, 36, [[5, 7, 9, "B.408"]]],
+  ["COMP1010", 1, 6, 40, 40, [[2, 7, 9, "C.302 (Phòng máy)"]]],
+  ["COMP1010", 2, 12, 40, 38, [[3, 1, 3, "C.302 (Phòng máy)"]]],
+  ["COMP1031", 1, 18, 40, 40, [[3, 7, 9, "C.301 (Phòng máy)"]]],
+  ["COMP1040", 1, 6, 45, 41, [[4, 1, 3, "B.405"]]],
+  ["COMP1060", 1, 12, 45, 36, [[5, 7, 9, "B.405"]]],
   ["COMP1090", 1, 18, 45, 39, [[6, 1, 3, "B.405"]]],
   ["MATH1011", 1, 1, 60, 58, [[2, 1, 3, "A.201"]]],
   ["MATH1013", 1, 7, 60, 52, [[4, 4, 6, "A.201"]]],
@@ -83,14 +85,14 @@ const CURRENT_TERM_SECTIONS: SectionSeed[] = [
 ];
 
 const TARGET_TERM_SECTIONS: SectionSeed[] = [
-  ["COMP1031", 1, 0, 45, 45, [[2, 1, 3, "C.301 (Phòng máy)"]]],
-  ["COMP1031", 2, 18, 45, 39, [[4, 1, 3, "C.301 (Phòng máy)"]]],
+  ["COMP1031", 1, 0, 40, 40, [[2, 1, 3, "C.301 (Phòng máy)"]]],
+  ["COMP1031", 2, 18, 40, 36, [[4, 1, 3, "C.301 (Phòng máy)"]]],
   ["COMP1060", 1, 12, 45, 28, [[3, 7, 9, "B.405"]]],
   ["COMP1090", 1, 0, 45, 33, [[5, 7, 9, "B.405"]]],
   ["COMP1100", 1, 0, 40, 40, [[6, 1, 3, "C.302 (Phòng máy)"]]],
   ["COMP1100", 2, 6, 40, 12, [[6, 2, 4, "C.302 (Phòng máy)"]]],
-  ["COMP1120", 1, 12, 40, 21, [[4, 7, 9, "B.408"]]],
-  ["COMP1040", 1, 6, 45, 30, [[3, 1, 3, "B.408"]]],
+  ["COMP1120", 1, 12, 40, 21, [[4, 7, 9, "B.405"]]],
+  ["COMP1040", 1, 6, 45, 30, [[3, 1, 3, "B.405"]]],
   ["MATH1013", 1, 7, 60, 41, [[2, 4, 6, "A.201"]]],
   ["MATH2001", 1, 13, 50, 18, [[5, 4, 6, "A.203"]]],
   ["MATH2020", 1, 19, 40, 0, [[6, 4, 6, "A.305"]], "draft"],
@@ -104,7 +106,16 @@ const TARGET_TERM_SECTIONS: SectionSeed[] = [
   ["MATH1011", 2, 1, 60, 0, [[2, 1, 3, "A.201"]], "cancelled"],
   ["COMP1121", 1, 12, 40, 18, [[4, 10, 12, "C.301 (Phòng máy)"]]],
   ["PSYC2001", 2, 11, 50, 9, [[6, 7, 9, "A.203"]]],
+  ["COMP1150", 1, 6, 45, 24, [[2, 7, 9, "B.302"]]],
+  ["COMP1180", 1, 18, 45, 19, [[3, 1, 3, "B.302"]]],
 ];
+
+// Lớp của sinh viên đang đăng nhập trong dữ liệu mẫu (xếp trước, vẫn qua kiểm điều kiện như mọi sinh viên) để các màn hình demo
+// và kịch bản e2e có thời khóa biểu ổn định.
+export const CURRENT_STUDENT_PLAN: Record<string, string[]> = {
+  "hk1-2026": ["COMP1020.02", "COMP1060.01", "COMP1080.01", "POLI1001.01"],
+  "hk2-2026": ["COMP1100.02", "COMP1120.01", "COMP1121.01", "PSYC2001.01", "COMP1150.01", "COMP1180.01"],
+};
 
 export const MIN_ENROLLMENT = 15;
 
@@ -141,21 +152,21 @@ const LABS: Record<string, LabSeed[]> = {
     ["TH3", 3, 10, 12, "C.302 (Phòng máy)", 20, 20],
   ],
   "hk2-2026:COMP1031.02": [
-    ["TH1", 5, 7, 9, "C.301 (Phòng máy)", 23, 21],
-    ["TH2", 5, 10, 12, "C.301 (Phòng máy)", 22, 18],
+    ["TH1", 5, 7, 9, "C.301 (Phòng máy)", 20, 19],
+    ["TH2", 5, 10, 12, "C.301 (Phòng máy)", 20, 17],
   ],
 };
 
 export const REGISTRATION_HOLDS: RegistrationHold[] = [
-  [29, "tuition", true, "Nợ học phí học kỳ 2, năm học 2025-2026: 8.320.000 đ", "Nộp đủ học phí qua tài khoản định danh, khóa tự gỡ sau 1 ngày làm việc"],
+  [29, "tuition", true, "Nợ học phí học kỳ 2, năm học 2025-2026", "Nộp đủ khoản nợ qua tài khoản định danh; khóa tự gỡ ngay khi Phòng Kế hoạch - Tài chính ghi nhận"],
   [77, "discipline", true, "Đang trong thời gian kỷ luật đình chỉ học tập", "Chờ hết thời hạn kỷ luật theo quyết định 1229/QĐ-ĐHSP"],
   [5, "academic-status", true, "Đang xét buộc thôi học do cảnh báo học vụ mức 3", "Chờ kết luận của Hội đồng xét học vụ"],
   [60, "academic-status", true, "Đang làm thủ tục bảo lưu học kỳ 2", "Rút đơn bảo lưu tại Phòng Đào tạo nếu muốn tiếp tục học"],
-  [130, "tuition", true, "Nợ học phí học kỳ 1, năm học 2026-2027 quá hạn", "Nộp học phí hoặc nộp đơn xin gia hạn tại Phòng Kế hoạch - Tài chính"],
+  [130, "tuition", true, "Nợ học phí học kỳ 1, năm học 2025-2026", "Nộp đủ khoản nợ hoặc nộp đơn xin gia hạn tại Phòng Kế hoạch - Tài chính"],
   [204, "documents", true, "Chưa nộp bằng tốt nghiệp THPT bản chính để đối chiếu", "Mang bản chính đến Phòng Đào tạo, phòng A.102"],
   [18, "advisor", false, "Kế hoạch học tập học kỳ 2 bị cố vấn trả lại", "Sửa kế hoạch theo góp ý của cố vấn và nộp lại"],
   [12, "documents", false, "Thiếu bản sao giấy khai sinh trong hồ sơ nhập học", "Nộp tại Phòng Đào tạo trước 30/11, không ảnh hưởng đăng ký học phần"],
-  [96, "tuition", false, "Học phí học kỳ 1 còn thiếu 1.040.000 đ, hạn 28/10", "Nộp trước hạn để tránh bị khóa đăng ký"],
+  [96, "tuition", false, "Học phí học kỳ 1, năm học 2026-2027 còn thiếu", "Nộp trước hạn để tránh bị khóa đăng ký"],
 ].map(([index, kind, blocking, reason, resolveHint], position) => {
   const student = mockStudentIdentity(index as number);
   return {

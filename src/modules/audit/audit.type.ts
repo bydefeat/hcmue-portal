@@ -17,7 +17,9 @@ export type AuditEntityType =
   | "program"
   | "staff"
   | "course"
-  | "graduation";
+  | "graduation"
+  | "term"
+  | "tuition";
 
 export type AuditChange = {
   field: string;

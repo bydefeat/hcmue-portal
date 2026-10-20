@@ -1,35 +1,29 @@
 import "server-only";
 import { cache } from "react";
 import { and, asc, countDistinct, desc, eq, gt, inArray, lte, max, notExists, sql, type SQL } from "drizzle-orm";
-import { alias } from "drizzle-orm/pg-core";
 import { db } from "@/shared/libs/db.lib";
 import { isUuid } from "@/shared/libs/id.lib";
 import { formatStudentCode } from "@/shared/libs/student-code.lib";
 import { requirePermission } from "@/modules/access/access.query";
 import { requireSession } from "@/modules/authentication/authentication.query";
-import { registrationActivityOf } from "@/modules/course-registration/course-registration.lib";
+import { creditLimitsFor, loadSections, registrationActivityOf, registrationStudentOf, termFactsOf } from "@/modules/course-registration/course-registration.lib";
 import { conflictsOf, periodState } from "@/modules/course-registration/course-registration.constant";
+import { computeWorkloads, normHoursOf, periodsPerWeekOf, TEACHING_WEEKS } from "@/modules/course-registration/teaching-assignment.rule";
+import { getRegulation } from "@/modules/settings/settings.query";
 import {
-  classSectionAudienceMajors,
   classSections,
   enrollments,
-  labGroups,
   registrationEvents,
   registrationHolds,
   registrationPeriods,
-  reservedSeatMajors,
-  reservedSeats,
-  sectionMeetings,
   terms,
   waitlistEntries,
 } from "@/modules/course-registration/course-registration.schema";
 import { courses, faculties, majors } from "@/modules/curriculum/curriculum.schema";
-import { rooms } from "@/modules/facilities/facilities.schema";
 import { notifications } from "@/modules/notifications/notifications.schema";
 import { administrativeClasses, lecturerLoadNorms, lecturers, students } from "@/modules/users/users.schema";
 import type {
   UnregisteredStudent,
-  ClassSection,
   ClassSectionView,
   FacultyRegistrationSummary,
   LecturerWorkload,
@@ -109,118 +103,24 @@ async function periodRows(where?: SQL): Promise<RegistrationPeriod[]> {
   }));
 }
 
+// Đợt "sắp đóng" khi còn dưới số giờ của quy chế đang áp dụng (workflow.registrationClosingSoonHours).
 export async function getRegistrationPeriods(termId?: string) {
   await requireSession();
   if (termId !== undefined && !isUuid(termId)) return [];
-  return (await periodRows(termId ? eq(registrationPeriods.termId, termId) : undefined)).map(periodState);
+  const [rows, regulation] = await Promise.all([periodRows(termId ? eq(registrationPeriods.termId, termId) : undefined), getRegulation()]);
+  return rows.map((period) => periodState(period, regulation.workflow.registrationClosingSoonHours));
 }
 
 export async function getActiveRegistrationPeriods() {
   await requireSession();
-  return (await periodRows(sql`${registrationPeriods.closesAt} > now()`)).map(periodState).filter((period) => period.state === "open" || period.state === "closing");
+  const [rows, regulation] = await Promise.all([periodRows(sql`${registrationPeriods.closesAt} > now()`), getRegulation()]);
+  return rows.map((period) => periodState(period, regulation.workflow.registrationClosingSoonHours)).filter((period) => period.state === "open" || period.state === "closing");
 }
 
-const lecturer = alias(lecturers, "section_lecturer");
-
-// Toàn bộ lớp của một học kỳ, ghép buổi học, nhóm thực hành, chỗ dành riêng, đối tượng. Xung đột phòng và giảng viên
-// tính trên cả học kỳ nên luôn tải theo học kỳ rồi lọc.
+// Toàn bộ lớp của một học kỳ. Xung đột phòng và giảng viên tính trên cả học kỳ (mọi khoa) nên luôn tải theo học kỳ rồi mới lọc.
 async function loadTermSections(termId: string): Promise<ClassSectionView[]> {
   if (!isUuid(termId)) return [];
-  const rows = await db
-    .select({
-      id: classSections.id,
-      code: classSections.code,
-      termId: classSections.termId,
-      courseCode: courses.code,
-      courseName: courses.name,
-      credits: courses.credits,
-      faculty: faculties.name,
-      lecturerId: classSections.lecturerId,
-      lecturerTitle: lecturer.title,
-      lecturerName: lecturer.fullName,
-      capacity: classSections.capacity,
-      enrolled: classSections.enrolledCount,
-      status: classSections.status,
-      startDate: classSections.startDate,
-      endDate: classSections.endDate,
-      minEnrollment: classSections.minEnrollment,
-      audienceCohorts: classSections.audienceCohorts,
-      audienceNote: classSections.audienceNote,
-    })
-    .from(classSections)
-    .innerJoin(courses, eq(courses.id, classSections.courseId))
-    .innerJoin(faculties, eq(faculties.id, courses.facultyId))
-    .leftJoin(lecturer, eq(lecturer.id, classSections.lecturerId))
-    .where(eq(classSections.termId, termId))
-    .orderBy(asc(classSections.code));
-  if (rows.length === 0) return [];
-  const sectionIds = rows.map((row) => row.id);
-  const [meetings, labs, seats, seatMajors, audienceMajors] = await Promise.all([
-    db
-      .select({ sectionId: sectionMeetings.classSectionId, dayOfWeek: sectionMeetings.dayOfWeek, startPeriod: sectionMeetings.startPeriod, endPeriod: sectionMeetings.endPeriod, room: rooms.code })
-      .from(sectionMeetings)
-      .innerJoin(rooms, eq(rooms.id, sectionMeetings.roomId))
-      .where(inArray(sectionMeetings.classSectionId, sectionIds))
-      .orderBy(asc(sectionMeetings.dayOfWeek), asc(sectionMeetings.startPeriod)),
-    db
-      .select({
-        id: labGroups.id,
-        sectionId: labGroups.classSectionId,
-        code: labGroups.code,
-        dayOfWeek: labGroups.dayOfWeek,
-        startPeriod: labGroups.startPeriod,
-        endPeriod: labGroups.endPeriod,
-        room: rooms.code,
-        capacity: labGroups.capacity,
-        enrolled: labGroups.enrolledCount,
-      })
-      .from(labGroups)
-      .innerJoin(rooms, eq(rooms.id, labGroups.roomId))
-      .where(inArray(labGroups.classSectionId, sectionIds))
-      .orderBy(asc(labGroups.code)),
-    db.select().from(reservedSeats).where(inArray(reservedSeats.classSectionId, sectionIds)).orderBy(asc(reservedSeats.id)),
-    db
-      .select({ seatId: reservedSeatMajors.reservedSeatId, code: majors.code })
-      .from(reservedSeatMajors)
-      .innerJoin(reservedSeats, eq(reservedSeats.id, reservedSeatMajors.reservedSeatId))
-      .innerJoin(majors, eq(majors.id, reservedSeatMajors.majorId))
-      .where(inArray(reservedSeats.classSectionId, sectionIds)),
-    db
-      .select({ sectionId: classSectionAudienceMajors.classSectionId, code: majors.code, name: majors.name })
-      .from(classSectionAudienceMajors)
-      .innerJoin(majors, eq(majors.id, classSectionAudienceMajors.majorId))
-      .where(inArray(classSectionAudienceMajors.classSectionId, sectionIds))
-      .orderBy(asc(majors.code)),
-  ]);
-  const sections: ClassSection[] = rows.map(({ lecturerTitle, lecturerName, audienceCohorts, audienceNote, ...row }) => {
-    const audienceOf = audienceMajors.filter((entry) => entry.sectionId === row.id);
-    const audienceCodes = audienceOf.map((entry) => entry.code);
-    const hasAudience = audienceCodes.length > 0 || (audienceCohorts?.length ?? 0) > 0 || Boolean(audienceNote);
-    return {
-      ...row,
-      lecturerName: lecturerName ? `${lecturerTitle} ${lecturerName}` : null,
-      meetings: meetings.filter((meeting) => meeting.sectionId === row.id).map(({ sectionId: _sectionId, ...meeting }) => meeting),
-      audience: hasAudience ? { majorCodes: audienceCodes, majorNames: audienceOf.map((entry) => entry.name), cohorts: audienceCohorts ?? [], note: audienceNote ?? "" } : null,
-      reservedSeats: seats
-        .filter((seat) => seat.classSectionId === row.id)
-        .map((seat) => ({
-          label: seat.label,
-          seats: seat.seats,
-          taken: seat.takenCount,
-          cohorts: seat.cohorts,
-          majorCodes: seatMajors.filter((entry) => entry.seatId === seat.id).map((entry) => entry.code),
-        })),
-      labGroups: labs
-        .filter((lab) => lab.sectionId === row.id)
-        .map((lab) => ({
-          id: lab.id,
-          code: lab.code,
-          meeting: { dayOfWeek: lab.dayOfWeek, startPeriod: lab.startPeriod, endPeriod: lab.endPeriod, room: lab.room },
-          capacity: lab.capacity,
-          enrolled: lab.enrolled,
-        })),
-    };
-  });
+  const sections = await loadSections(db, eq(classSections.termId, termId));
   return sections.map((section) => ({ ...section, isFull: section.enrolled >= section.capacity, conflicts: conflictsOf(section, sections) }));
 }
 
@@ -380,47 +280,40 @@ export async function getRegistrationEvents(studentId: string, termId: string): 
   return [...events.map(({ sectionId: _sectionId, ...event }) => ({ ...event, at: event.at.toISOString() })), ...imported].toSorted((a, b) => b.at.localeCompare(a.at));
 }
 
-const TEACHING_WEEKS = 15;
-
-// Hệ số quy đổi giờ chuẩn theo sĩ số lớp.
-function classSizeFactor(enrolled: number) {
-  if (enrolled > 80) return 1.3;
-  if (enrolled > 50) return 1.15;
-  return 1;
+export async function getLoadNorms(): Promise<Record<string, number>> {
+  await requireSession();
+  const rows = await db.select({ title: lecturerLoadNorms.title, normHours: lecturerLoadNorms.normHours }).from(lecturerLoadNorms);
+  return Object.fromEntries(rows.map((row) => [row.title, row.normHours]));
 }
 
-function periodsOf(section: ClassSectionView) {
-  return section.meetings.reduce((total, meeting) => total + meeting.endPeriod - meeting.startPeriod + 1, 0);
-}
-
+// Giờ chuẩn của mọi giảng viên trong học kỳ, cùng hàm với trang phân công giảng dạy (computeWorkloads).
 export async function getLecturerWorkloads(termId: string): Promise<LecturerWorkload[]> {
   await requireSession();
   const [people, norms, sections] = await Promise.all([
     db
-      .select({ id: lecturers.id, title: lecturers.title, fullName: lecturers.fullName, faculty: faculties.name })
+      .select({ id: lecturers.id, title: lecturers.title, fullName: lecturers.fullName, faculty: faculties.name, status: lecturers.status })
       .from(lecturers)
       .innerJoin(faculties, eq(faculties.id, lecturers.facultyId))
       .orderBy(asc(lecturers.code)),
-    db.select().from(lecturerLoadNorms),
+    getLoadNorms(),
     termSections(termId),
   ]);
-  const normOf = new Map(norms.map((norm) => [norm.title, norm.normHours]));
-  return people.map((person) => {
-    const taught = sections.filter((section) => section.lecturerId === person.id && section.status !== "cancelled");
-    const periodsPerWeek = taught.reduce((sum, section) => sum + periodsOf(section), 0);
-    const standardHours = taught.reduce((sum, section) => sum + periodsOf(section) * TEACHING_WEEKS * classSizeFactor(section.enrolled), 0);
-    return {
-      lecturerId: person.id,
-      lecturerName: `${person.title} ${person.fullName}`,
-      faculty: person.faculty,
-      title: person.title,
-      sectionCodes: taught.map((section) => section.code),
-      periodsPerWeek,
-      teachingHours: periodsPerWeek * TEACHING_WEEKS,
-      standardHours: Math.round(standardHours),
-      normHours: normOf.get(person.title) ?? 135,
-    };
-  });
+  const rows = computeWorkloads(
+    sections,
+    people.map((person) => ({ id: person.id, displayName: `${person.title} ${person.fullName}`, title: person.title, faculty: person.faculty, status: person.status })),
+    norms,
+  );
+  return rows.map((row) => ({
+    lecturerId: row.id,
+    lecturerName: row.displayName,
+    faculty: row.faculty,
+    title: row.title,
+    sectionCodes: row.sections.map((section) => section.code),
+    periodsPerWeek: row.periodsPerWeek,
+    teachingHours: row.sections.reduce((sum, section) => sum + periodsPerWeekOf(section), 0) * TEACHING_WEEKS,
+    standardHours: row.standardHours,
+    normHours: normHoursOf(row.title, norms),
+  }));
 }
 
 export async function getRegistrationHolds(studentId?: string): Promise<RegistrationHold[]> {
@@ -530,5 +423,73 @@ export async function getUnregisteredStudents(termId: string): Promise<Unregiste
       hasAccount: userId !== null,
       remindedAt: remindedAt && remindedAt >= opensAtOf.get(row.cohort)! ? remindedAt.toISOString() : null,
     };
+  });
+}
+
+// Học kỳ kèm số lớp, số đợt đăng ký, đếm bằng SQL (không tải lớp chỉ để đếm).
+export async function getTermOverview() {
+  await requireSession();
+  return db
+    .select({
+      ...termColumns,
+      academicYear: terms.academicYear,
+      semester: terms.semester,
+      sectionCount: sql<number>`(SELECT count(*) FROM ${classSections} WHERE ${classSections.termId} = ${terms.id})`.mapWith(Number),
+      periodCount: sql<number>`(SELECT count(*) FROM ${registrationPeriods} WHERE ${registrationPeriods.termId} = ${terms.id})`.mapWith(Number),
+    })
+    .from(terms)
+    .orderBy(asc(terms.startDate));
+}
+
+// Hạn mức tín chỉ của sinh viên ở học kỳ đăng ký, cùng hàm với server (creditLimitsFor), kèm mức cảnh báo học vụ đã ban hành.
+export async function getCreditLimits(studentId: string, termId: string) {
+  await requireSession();
+  const regulation = await getRegulation();
+  if (!isUuid(studentId) || !isUuid(termId)) return null;
+  const [student, term] = await Promise.all([registrationStudentOf(db, studentId), termFactsOf(db, termId)]);
+  if (!student || !term) return null;
+  return creditLimitsFor(db, student, term, regulation, new Date());
+}
+
+export type WaitlistRow = {
+  id: string;
+  sectionId: string;
+  position: number;
+  studentId: string;
+  studentCode: string;
+  studentName: string;
+  className: string;
+  faculty: string;
+  createdAt: string;
+};
+
+// Danh sách chờ đang hiệu lực của các lớp trong học kỳ, theo thứ tự vào chờ, cho trang theo dõi đăng ký.
+export async function getTermWaitlists(termId: string): Promise<WaitlistRow[]> {
+  await requirePermission("registration.manage");
+  if (!isUuid(termId)) return [];
+  const rows = await db
+    .select({
+      id: waitlistEntries.id,
+      sectionId: waitlistEntries.classSectionId,
+      studentId: students.id,
+      studentCode: students.code,
+      studentName: students.fullName,
+      className: administrativeClasses.code,
+      faculty: faculties.name,
+      createdAt: waitlistEntries.createdAt,
+    })
+    .from(waitlistEntries)
+    .innerJoin(classSections, eq(classSections.id, waitlistEntries.classSectionId))
+    .innerJoin(students, eq(students.id, waitlistEntries.studentId))
+    .innerJoin(administrativeClasses, eq(administrativeClasses.id, students.administrativeClassId))
+    .innerJoin(majors, eq(majors.id, administrativeClasses.majorId))
+    .innerJoin(faculties, eq(faculties.id, majors.facultyId))
+    .where(and(eq(classSections.termId, termId), eq(waitlistEntries.status, "waiting")))
+    .orderBy(asc(waitlistEntries.createdAt), asc(waitlistEntries.id));
+  const seen = new Map<string, number>();
+  return rows.map((row) => {
+    const position = (seen.get(row.sectionId) ?? 0) + 1;
+    seen.set(row.sectionId, position);
+    return { ...row, position, studentCode: formatStudentCode(row.studentCode), createdAt: row.createdAt.toISOString() };
   });
 }

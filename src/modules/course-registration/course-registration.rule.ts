@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { periodLabel, weekdayLabel } from "@/shared/constants/period.constant";
 import { audienceText, overlaps } from "@/modules/course-registration/course-registration.constant";
-import type { ClassMeeting, ClassSectionView, RegistrationHold, StudentEnrollment } from "@/modules/course-registration/course-registration.type";
+import type { ClassMeeting, ClassSection, RegistrationHold, StudentEnrollment } from "@/modules/course-registration/course-registration.type";
 import { latestGrades } from "@/modules/grades/grades.rule";
 
 export type RegistrationIssueKind =
@@ -31,7 +31,7 @@ export type RegistrationStudent = {
 };
 
 export type EligibilityContext = {
-  planned: ClassSectionView[];
+  planned: ClassSection[];
   passedGrades: Record<string, string>;
   prerequisites: Record<string, string[]>;
   corequisites?: Record<string, string[]>;
@@ -50,7 +50,7 @@ export function sectionCredits(sections: { credits: number }[]) {
   return sections.reduce((sum, section) => sum + section.credits, 0);
 }
 
-export function chosenMeetings(section: ClassSectionView, labChoices: Record<string, string> = {}): ClassMeeting[] {
+export function chosenMeetings(section: ClassSection, labChoices: Record<string, string> = {}): ClassMeeting[] {
   const lab = section.labGroups.find((group) => group.id === labChoices[section.id]);
   return lab ? [...section.meetings, lab.meeting] : section.meetings;
 }
@@ -69,7 +69,7 @@ function courseLabel(code: string, context: EligibilityContext) {
   return `${code} ${context.courseNames[code] ?? ""}`.trim();
 }
 
-export function seatsAvailableFor(section: ClassSectionView, student?: RegistrationStudent) {
+export function seatsAvailableFor(section: ClassSection, student?: RegistrationStudent) {
   const free = section.capacity - section.enrolled;
   const heldForOthers = section.reservedSeats
     .filter((seat) => {
@@ -82,7 +82,7 @@ export function seatsAvailableFor(section: ClassSectionView, student?: Registrat
   return Math.max(0, free - heldForOthers);
 }
 
-export function evaluateSection(section: ClassSectionView, context: EligibilityContext): RegistrationIssue[] {
+export function evaluateSection(section: ClassSection, context: EligibilityContext): RegistrationIssue[] {
   const issues: RegistrationIssue[] = [];
   const others = context.planned.filter((entry) => entry.id !== section.id);
   const isPlanned = context.planned.some((entry) => entry.id === section.id);
@@ -215,7 +215,7 @@ export function evaluateSection(section: ClassSectionView, context: EligibilityC
   return issues;
 }
 
-export function basketProblems(basket: ClassSectionView[], context: Omit<EligibilityContext, "planned">) {
+export function basketProblems<T extends ClassSection>(basket: T[], context: Omit<EligibilityContext, "planned">) {
   return basket.flatMap((section) => {
     const issues = evaluateSection(section, { ...context, planned: basket }).filter(
       (issue) => issue.blocking && ["corequisite", "conflict", "duplicate", "audience"].includes(issue.kind),
@@ -230,17 +230,62 @@ export function basketProblems(basket: ClassSectionView[], context: Omit<Eligibi
   });
 }
 
-export function creditCapOf(
-  regulation: { maxPerTerm: number; maxWhenWarned: number },
-  warningLevel: number,
-): { max: number; note?: string } {
-  if (warningLevel > 0) {
-    return {
-      max: regulation.maxWhenWarned,
-      note: `Sinh viên bị cảnh báo học vụ mức ${warningLevel} chỉ được đăng ký tối đa ${regulation.maxWhenWarned} tín chỉ.`,
-    };
+export type CreditRules = { minPerTerm: number; maxPerTerm: number; maxSummer: number; maxWhenWarned: number };
+
+export type CreditLimits = {
+  min: number;
+  max: number;
+  // Lý do hạn mức tối đa thấp hơn mức thường (cảnh báo học vụ, hạn mức của đợt), hiện cạnh số tín chỉ.
+  note?: string;
+  // Lý do được đăng ký dưới mức tối thiểu của quy chế (học kỳ hè, sắp hoàn thành chương trình).
+  minNote?: string;
+};
+
+// Hạn mức tín chỉ một học kỳ, dùng chung cho trang đăng ký và server. Học kỳ hè theo maxSummer và không bắt tối thiểu;
+// bị cảnh báo học vụ (đã ban hành) thì tối đa maxWhenWarned; đợt đăng ký đặt hạn mức riêng thì giới hạn thêm;
+// sinh viên chỉ còn ít tín chỉ hơn mức tối thiểu để hoàn thành chương trình thì tối thiểu là số còn lại.
+export function creditLimitsOf(params: {
+  rules: CreditRules;
+  semester: number;
+  warningLevel: number;
+  period?: { minCredits: number | null; maxCredits: number | null } | null;
+  remainingCredits?: number | null;
+}): CreditLimits {
+  const { rules, semester, warningLevel, period, remainingCredits } = params;
+  const isSummer = semester === 3;
+  let max = isSummer ? rules.maxSummer : rules.maxPerTerm;
+  let note: string | undefined;
+  if (warningLevel > 0 && rules.maxWhenWarned < max) {
+    max = rules.maxWhenWarned;
+    note = `Sinh viên bị cảnh báo học vụ mức ${warningLevel} chỉ được đăng ký tối đa ${max} tín chỉ.`;
   }
-  return { max: regulation.maxPerTerm };
+  if (period && period.maxCredits !== null && period.maxCredits < max) {
+    max = period.maxCredits;
+    note = `Đợt đăng ký này cho đăng ký tối đa ${max} tín chỉ.`;
+  }
+  let min = isSummer ? 0 : rules.minPerTerm;
+  let minNote: string | undefined = isSummer ? "Học kỳ hè không bắt buộc số tín chỉ tối thiểu." : undefined;
+  if (period && period.minCredits !== null && period.minCredits > min) {
+    min = period.minCredits;
+    minNote = undefined;
+  }
+  if (remainingCredits !== null && remainingCredits !== undefined && remainingCredits < min) {
+    min = Math.max(0, remainingCredits);
+    minNote = `Bạn chỉ còn ${min} tín chỉ để hoàn thành chương trình nên được đăng ký dưới mức tối thiểu.`;
+  }
+  return { min: Math.min(min, max), max, note, minNote };
+}
+
+// Hủy lớp không được làm tổng tín chỉ xuống dưới mức tối thiểu, như khi đăng ký; muốn đổi lớp thì dùng Đổi lớp.
+export function dropCreditProblem(creditsAfter: number, limits: CreditLimits) {
+  if (creditsAfter >= limits.min) return null;
+  return `Hủy lớp này còn ${creditsAfter} tín chỉ, dưới mức tối thiểu ${limits.min} tín chỉ của học kỳ. Đăng ký lớp khác trước, dùng Đổi lớp, hoặc gửi đơn rút học phần.`;
+}
+
+// Học phần song hành: còn học phần khác trong học kỳ bắt buộc học cùng học phần sắp hủy (và chưa đạt) thì không hủy riêng được.
+export function corequisiteDependents(dropCode: string, remainingCodes: string[], corequisites: Record<string, string[]>, passed: (code: string) => boolean) {
+  if (passed(dropCode)) return [];
+  return remainingCodes.filter((code) => code !== dropCode && (corequisites[code] ?? []).includes(dropCode));
 }
 
 export function blockingHolds(holds: RegistrationHold[]) {
@@ -248,15 +293,38 @@ export function blockingHolds(holds: RegistrationHold[]) {
 }
 
 // Thời khóa biểu của sinh viên là mọi lớp đang đăng ký (đã đọc từ bảng enrollments), xếp theo mã lớp.
-// Giữ chữ ký cũ để các trang đang gọi không phải sửa; hai tham số sau không còn dùng.
-export function pickTimetable(enrollments: StudentEnrollment[], _passedGrades?: Record<string, string>, _options?: unknown) {
+// Tham số sau enrollments là chữ ký cũ, không dùng; vài trang ngoài phần đăng ký học phần còn truyền, bỏ khi sửa các trang đó.
+export function pickTimetable(enrollments: StudentEnrollment[], ..._legacy: unknown[]) {
   return [...enrollments].toSorted((a, b) => a.section.code.localeCompare(b.section.code));
 }
 
-// Điểm chữ của từng học phần theo LẦN HỌC CUỐI (quy chế: học lại, cải thiện tính lần cuối; lần cuối F là đang nợ), không phải
-// điểm cao nhất. Giữ tên cũ cho các trang đang gọi; nên gọi thẳng latestGrades của grades.rule.
-export function bestGrades(terms: { isInProgress: boolean; courses: { courseCode: string; letter: string | null }[] }[]) {
-  return latestGrades(terms);
+// Điểm của LẦN HỌC CUỐI mỗi học phần (quy chế: học lại, học cải thiện lấy lần cuối): "đã học đạt" khi kiểm tiên quyết và học cải
+// thiện dựa trên điểm này. Dùng chung hàm latestGrades của module grades.
+export const lastAttemptGrades = latestGrades;
+
+/** @deprecated Tên cũ, nay theo lần học cuối (lastAttemptGrades). */
+export const bestGrades = lastAttemptGrades;
+
+// Học phần sinh viên đang học ở học kỳ hiện tại thì chưa đăng ký lại ở học kỳ sau. Đăng ký (điều chỉnh) ngay trong học kỳ hiện tại
+// thì các lớp đó là lớp đã đăng ký, không phải "đang học".
+export function inProgressCodesFor(targetTermId: string, currentTermId: string, currentTermCourseCodes: string[]) {
+  return targetTermId === currentTermId ? [] : [...new Set(currentTermCourseCodes)];
+}
+
+type PeriodWindow = { cohorts: number[]; opensAt: string; closesAt: string };
+
+// Đợt áp dụng cho một khóa: đợt đang mở (mở muộn nhất nếu nhiều đợt cùng mở), không có thì đợt sắp mở gần nhất, không có nữa thì
+// đợt vừa đóng. Trang sinh viên, trang quản trị, phiếu đăng ký và server cùng chọn đợt bằng hàm này.
+export function applicablePeriod<T extends PeriodWindow>(periods: T[], cohort: number, now: Date = new Date()): T | null {
+  const time = now.getTime();
+  const mine = periods.filter((period) => period.cohorts.includes(cohort));
+  const opens = (period: T) => new Date(period.opensAt).getTime();
+  const closes = (period: T) => new Date(period.closesAt).getTime();
+  const open = mine.filter((period) => opens(period) <= time && time < closes(period)).toSorted((a, b) => opens(b) - opens(a));
+  if (open[0]) return open[0];
+  const upcoming = mine.filter((period) => opens(period) > time).toSorted((a, b) => opens(a) - opens(b));
+  if (upcoming[0]) return upcoming[0];
+  return mine.filter((period) => closes(period) <= time).toSorted((a, b) => closes(b) - closes(a))[0] ?? null;
 }
 
 export const REGISTER_SCHEMA = z.object({
@@ -339,11 +407,12 @@ export const PERIOD_SCHEMA = z
       .transform((cohorts) => [...new Set(cohorts)].toSorted((a, b) => a - b)),
     opensAt: z.iso.datetime({ offset: true }),
     closesAt: z.iso.datetime({ offset: true }),
-    minCredits: z.int().min(0).max(40),
-    maxCredits: z.int().min(1).max(40),
+    // Bỏ trống là theo quy chế đang áp dụng.
+    minCredits: z.int().min(0).max(40).nullable().default(null),
+    maxCredits: z.int().min(1).max(40).nullable().default(null),
   })
   .refine((period) => new Date(period.opensAt) < new Date(period.closesAt), { path: ["range"], message: "Thời điểm đóng phải sau thời điểm mở" })
-  .refine((period) => period.minCredits <= period.maxCredits, { path: ["minCredits"], message: "Tối thiểu không lớn hơn tối đa" });
+  .refine((period) => period.minCredits === null || period.maxCredits === null || period.minCredits <= period.maxCredits, { path: ["minCredits"], message: "Tối thiểu không lớn hơn tối đa" });
 
 export type PeriodInput = z.input<typeof PERIOD_SCHEMA>;
 
@@ -362,8 +431,38 @@ export const ADMIN_REGISTER_SCHEMA = z.object({
   sectionId: z.uuid("Chưa chọn lớp"),
   labGroupId: z.uuid().nullish(),
   reason: z.string().trim().min(1, "Ghi lý do đăng ký hộ").max(300),
+  // Bỏ qua điều kiện học vụ (tiên quyết, song hành, đối tượng, hạn mức, khóa đăng ký); lý do ghi vào lịch sử. Sĩ số, trùng lịch vẫn chặn.
   override: z.boolean().default(false),
 });
+
+// Đổi sang lớp khác cùng học phần, hoặc đổi nhóm thực hành trong cùng lớp (toSectionId trùng fromSectionId), trong một bước.
+export const SWAP_SCHEMA = z.object({
+  fromSectionId: z.uuid(),
+  toSectionId: z.uuid("Chưa chọn lớp mới"),
+  labGroupId: z.uuid().nullish(),
+});
+
+export type SwapInput = z.input<typeof SWAP_SCHEMA>;
+
+const isoDate = z.iso.date("Chưa chọn ngày");
+
+export const TERM_SCHEMA = z
+  .object({
+    academicYear: z.int("Chưa nhập năm học").min(2000).max(2100),
+    semester: z.int().min(1).max(3),
+    startDate: isoDate,
+    endDate: isoDate,
+  })
+  .refine((term) => term.startDate < term.endDate, { path: ["endDate"], message: "Ngày kết thúc phải sau ngày bắt đầu" });
+
+export type TermInput = z.input<typeof TERM_SCHEMA>;
+
+// Mã, tên học kỳ sinh theo năm học và học kỳ, cùng mẫu với dữ liệu đang có ("2026-2027.1", "Học kỳ 1, năm học 2026-2027").
+export function termNaming(academicYear: number, semester: number) {
+  const years = `${academicYear}-${academicYear + 1}`;
+  const label = semester === 3 ? "Học kỳ hè" : `Học kỳ ${semester}`;
+  return { code: `${years}.${semester}`, name: `${label}, năm học ${years}`, shortName: semester === 3 ? `Hè ${years}` : `HK${semester} ${years}` };
+}
 
 export type AdminRegisterInput = z.input<typeof ADMIN_REGISTER_SCHEMA>;
 
@@ -374,8 +473,7 @@ export function receiptVerificationCode(studentId: string, termId: string, secti
   return hash.toString(36).toUpperCase().padStart(7, "0").slice(0, 7);
 }
 
-// Phiếu xác nhận theo lúc đóng đợt đăng ký của khóa; học kỳ chưa có đợt thì theo lần đăng ký gần nhất, rồi ngày bắt đầu học kỳ.
-export function receiptConfirmedAt(periods: { cohorts: number[]; closesAt: string }[], cohort: number, events: { at: string }[], termStart: string) {
-  const period = periods.find((entry) => entry.cohorts.includes(cohort)) ?? periods.at(-1);
-  return period?.closesAt ?? events[0]?.at ?? termStart;
+// Phiếu xác nhận theo lúc đóng đợt áp dụng của khóa (applicablePeriod); học kỳ chưa có đợt thì theo lần đăng ký gần nhất, rồi ngày bắt đầu học kỳ.
+export function receiptConfirmedAt(periods: { cohorts: number[]; opensAt: string; closesAt: string }[], cohort: number, events: { at: string }[], termStart: string, now: Date = new Date()) {
+  return applicablePeriod(periods, cohort, now)?.closesAt ?? events[0]?.at ?? termStart;
 }

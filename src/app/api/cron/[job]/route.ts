@@ -8,6 +8,7 @@ import { publishDueClassAnnouncements } from "@/modules/teaching/teaching.lib";
 import { sweepOrphanExamFiles } from "@/modules/exams/exams.lib";
 import { sweepOrphanRequestFiles } from "@/modules/requests/requests.lib";
 import { runDecisionEffectsJob } from "@/modules/users/users.decision";
+import { resyncOpenClassSessions } from "@/modules/schedule/schedule.lib";
 
 // Tác vụ định kỳ, gọi từ bộ hẹn giờ ngoài (cron của máy chủ, Vercel Cron, ...): POST /api/cron/<tác vụ>
 // với header Authorization: Bearer <DEFEAT_CRON_SECRET>. Mỗi tác vụ phải chạy lặp lại được (gọi hai lần không sinh trùng).
@@ -26,6 +27,8 @@ const JOBS: Record<string, () => Promise<Record<string, number>>> = {
   "sign-in-failures": () => sweepSignInFailures(db),
   // Quyết định sinh viên đã ký trước ngày hiệu lực: tới ngày thì đổi tình trạng, lớp của sinh viên. Nên chạy mỗi ngày, sau 0 giờ.
   "decision-effects": runDecisionEffectsJob,
+  // Sinh lại buổi học của các lớp đang mở theo ngày nghỉ lễ mới nhất của lịch năm học. Nên chạy mỗi ngày.
+  "class-sessions": () => resyncOpenClassSessions(db),
 };
 
 function authorized(request: Request) {

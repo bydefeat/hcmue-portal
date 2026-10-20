@@ -15,14 +15,17 @@ import {
   basketProblems,
   blockingHolds,
   chosenMeetings,
+  corequisiteDependents,
+  dropCreditProblem,
   evaluateSection,
   sectionCredits,
+  type CreditLimits,
   type RegistrationIssue,
   type RegistrationStudent,
 } from "@/modules/course-registration/course-registration.rule";
 import type { ClassSectionView, RegistrationHold, RegistrationPeriodState, RegistrationPeriodView } from "@/modules/course-registration/course-registration.type";
 import { LabGroupPicker } from "@/modules/course-registration/components/lab-group-picker";
-import { dropSection, joinWaitlist, leaveWaitlist, registerSections } from "@/modules/course-registration/course-registration.action";
+import { dropSection, joinWaitlist, leaveWaitlist, registerSections, swapSection } from "@/modules/course-registration/course-registration.action";
 import { PeriodCountdown } from "@/modules/course-registration/components/student-period-countdown";
 import { normalizeSearch } from "@/shared/libs/search.lib";
 
@@ -36,7 +39,7 @@ type StudentRegistrationProps = {
   corequisites: Record<string, string[]>;
   equivalents: Record<string, string[]>;
   courseNames: Record<string, string>;
-  credits: { min: number; max: number; note?: string };
+  credits: CreditLimits;
   planCodes: string[];
   inProgressCodes: string[];
   initialRegisteredIds: string[];
@@ -47,7 +50,7 @@ type StudentRegistrationProps = {
 
 const NETWORK_ERROR = "Chưa gửi được, kiểm tra kết nối rồi thử lại.";
 
-function PeriodBanner({ period, state, cohort }: { period: RegistrationPeriodView | null; state: RegistrationPeriodState | null; cohort: number }) {
+function PeriodBanner({ period, state, cohort, credits }: { period: RegistrationPeriodView | null; state: RegistrationPeriodState | null; cohort: number; credits: CreditLimits }) {
   if (!period || !state) {
     return (
       <Alert
@@ -82,7 +85,7 @@ function PeriodBanner({ period, state, cohort }: { period: RegistrationPeriodVie
             {period.name} đang mở: <PeriodCountdown target={period.closesAt} prefix="đóng" />
           </span>
         }
-        description={`Hạn mức từ ${period.minCredits} đến ${period.maxCredits} tín chỉ. Lớp chỉ được giữ chỗ sau khi bấm Đăng ký thành công.`}
+        description={`Hạn mức của bạn từ ${credits.min} đến ${credits.max} tín chỉ. Lớp chỉ được giữ chỗ sau khi bấm Đăng ký thành công.`}
       />
     );
   }
@@ -245,7 +248,20 @@ export function StudentRegistration({
     </span>
   );
 
-  const withdraw = (section: ClassSectionView) =>
+  const isPassed = (code: string) => Boolean(passedGrades[code] && passedGrades[code] !== "F");
+  const dropIssue = (section: ClassSectionView) => {
+    const remaining = registered.filter((entry) => entry.id !== section.id);
+    const dependents = corequisiteDependents(section.courseCode, remaining.map((entry) => entry.courseCode), corequisites, isPassed);
+    if (dependents.length > 0) return `${section.courseCode} là học phần song hành bắt buộc của ${dependents.join(", ")}. Hủy ${dependents.join(", ")} trước.`;
+    return dropCreditProblem(sectionCredits(remaining), credits);
+  };
+
+  const withdraw = (section: ClassSectionView) => {
+    const issue = dropIssue(section);
+    if (issue) {
+      modal.warning({ title: `Chưa hủy được ${section.code}`, content: issue, okText: "Đã hiểu" });
+      return;
+    }
     modal.confirm({
       title: `Hủy đăng ký ${section.code}?`,
       content: "Chỗ của bạn sẽ trả lại cho sinh viên khác. Muốn học lại phải đăng ký khi lớp còn chỗ.",
@@ -264,13 +280,56 @@ export function StudentRegistration({
         router.refresh();
       },
     });
+  };
+
+  // Lớp khác cùng học phần (và nhóm thực hành khác) để đổi một bước; giữ chỗ cũ tới khi nhận được chỗ mới.
+  const swapOptions = (section: ClassSectionView) =>
+    sections
+      .filter((entry) => entry.courseCode === section.courseCode)
+      .flatMap((entry) => {
+        if (entry.labGroups.length === 0) {
+          if (entry.id === section.id) return [];
+          const full = entry.enrolled >= entry.capacity;
+          return [{ value: `${entry.id}|`, label: `${entry.code} · ${entry.meetings.map(meetingText).join("; ")}${full ? " · đã đủ chỗ" : ""}`, disabled: full }];
+        }
+        return entry.labGroups
+          .filter((group) => !(entry.id === section.id && group.id === labChoices[section.id]))
+          .map((group) => {
+            const full = group.enrolled >= group.capacity || (entry.id !== section.id && entry.enrolled >= entry.capacity);
+            return {
+              value: `${entry.id}|${group.id}`,
+              label: `${entry.code}, nhóm ${group.code.split(".").at(-1)} · ${meetingText(group.meeting)}${full ? " · đã đủ chỗ" : ""}`,
+              disabled: full,
+            };
+          });
+      });
+
+  const [swapping, setSwapping] = useState<{ section: ClassSectionView; target?: string } | null>(null);
+
+  const swap = () => {
+    if (!swapping?.target) return;
+    const [toSectionId, labGroupId] = swapping.target.split("|");
+    const from = swapping.section;
+    startSubmitting(async () => {
+      const result = await swapSection({ fromSectionId: from.id, toSectionId, labGroupId: labGroupId || null }).catch(() => null);
+      if (!result?.ok) {
+        messageApi.error(result?.message ?? NETWORK_ERROR);
+        return;
+      }
+      setRegisteredIds(result.data.registeredIds);
+      if (labGroupId) setLabChoices((current) => ({ ...Object.fromEntries(Object.entries(current).filter(([id]) => id !== from.id)), [toSectionId]: labGroupId }));
+      setSwapping(null);
+      messageApi.success(toSectionId === from.id ? `Đã đổi nhóm thực hành lớp ${from.code}` : `Đã đổi từ ${from.code} sang ${byId.get(toSectionId)?.code ?? "lớp mới"}`);
+      router.refresh();
+    });
+  };
 
   return (
     <div className="flex flex-col gap-4">
       {contextHolder}
       {modalContextHolder}
       <div className="flex flex-col gap-2">
-        <PeriodBanner period={period} state={state} cohort={cohort} />
+        <PeriodBanner period={period} state={state} cohort={cohort} credits={credits} />
         {holds
           .filter((hold) => !hold.releasedAt)
           .map((hold) => (
@@ -284,6 +343,7 @@ export function StudentRegistration({
             />
           ))}
         {credits.note && <Alert type="warning" showIcon title={credits.note} />}
+        {credits.minNote && <Alert type="info" showIcon title={credits.minNote} />}
       </div>
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_340px] lg:items-start">
@@ -327,7 +387,8 @@ export function StudentRegistration({
                 const isPlanned = plannedIds.includes(section.id);
                 const isRegistered = registeredIds.includes(section.id);
                 const blocked = issues.some((issue) => issue.blocking);
-                const onlyFull = blocked && issues.filter((issue) => issue.blocking).every((issue) => issue.kind === "full");
+                // Chỉ bị chặn vì hết chỗ (đầy, hoặc phần còn lại là chỗ dành riêng): vào danh sách chờ, cùng điều kiện server nhận.
+                const onlyFull = blocked && issues.filter((issue) => issue.blocking).every((issue) => issue.kind === "full" || issue.kind === "reserved");
                 const waitingAt = waitlist[section.id];
                 return (
                   <li key={section.id}>
@@ -396,7 +457,7 @@ export function StudentRegistration({
                                   return;
                                 }
                                 setWaitlist((current) => ({ ...current, [section.id]: result.data.position }));
-                                messageApi.success(`Đã vào danh sách chờ lớp ${section.code}, vị trí ${result.data.position}. Phòng Đào tạo xếp lớp khi có chỗ trống.`);
+                                messageApi.success(`Đã vào danh sách chờ lớp ${section.code}, vị trí ${result.data.position}. Có chỗ trống thì hệ thống tự xếp bạn vào lớp và báo trên cổng.`);
                               })
                             }
                           >
@@ -432,9 +493,16 @@ export function StudentRegistration({
                       </span>
                     </span>
                     {isOpen ? (
-                      <Button size="small" danger onClick={() => withdraw(section)}>
-                        Hủy
-                      </Button>
+                      <span className="flex shrink-0 gap-1">
+                        {swapOptions(section).length > 0 && (
+                          <Button size="small" onClick={() => setSwapping({ section })}>
+                            {section.labGroups.length > 0 && swapOptions(section).every((option) => option.value.startsWith(`${section.id}|`)) ? "Đổi nhóm" : "Đổi lớp"}
+                          </Button>
+                        )}
+                        <Button size="small" danger onClick={() => withdraw(section)}>
+                          Hủy
+                        </Button>
+                      </span>
                     ) : (
                       <Link href="/application/requests" className="shrink-0 text-xs">
                         Gửi đơn rút
@@ -500,6 +568,32 @@ export function StudentRegistration({
           </Button>
         </div>
       </div>
+
+      <Modal
+        open={swapping !== null}
+        title={swapping ? `Đổi lớp ${swapping.section.code}` : ""}
+        okText="Đổi"
+        cancelText="Giữ lớp hiện tại"
+        okButtonProps={{ disabled: !swapping?.target, loading: isSubmitting }}
+        onOk={swap}
+        onCancel={() => setSwapping(null)}
+        mask={{ closable: false }}
+        destroyOnHidden
+      >
+        <div className="flex flex-col gap-3">
+          <p className="text-sm text-pretty text-muted">Bạn giữ chỗ ở lớp hiện tại cho tới khi nhận được chỗ ở lớp mới. Lớp mới đầy hoặc trùng lịch thì không đổi gì.</p>
+          {swapping && (
+            <Select
+              aria-label="Lớp hoặc nhóm thực hành mới"
+              placeholder="Chọn lớp hoặc nhóm mới"
+              value={swapping.target}
+              onChange={(target: string) => setSwapping({ ...swapping, target })}
+              options={swapOptions(swapping.section)}
+              className="w-full"
+            />
+          )}
+        </div>
+      </Modal>
 
       <LabGroupPicker
         key={pickerSection?.id ?? "none"}

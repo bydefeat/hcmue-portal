@@ -37,6 +37,8 @@ export const AUDIT_ENTITY_LABEL: Record<AuditEntityType, string> = {
   staff: "Cán bộ",
   course: "Học phần",
   graduation: "Xét tốt nghiệp",
+  term: "Học kỳ",
+  tuition: "Học phí",
 };
 
 export const AUDIT_CONSTRAINT_MESSAGE: Partial<Record<string, string>> = {

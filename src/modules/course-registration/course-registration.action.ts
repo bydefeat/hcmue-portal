@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { forbidden } from "next/navigation";
 import { z } from "zod";
 import { and, eq, gt, inArray, isNull, lte, ne, notInArray, sql } from "drizzle-orm";
-import { db, type Transaction } from "@/shared/libs/db.lib";
+import { db } from "@/shared/libs/db.lib";
 import { actionError, actionFailure, actionOk, InputError, parseInput, type ActionResult } from "@/shared/libs/action.lib";
 import { formatDate, formatDateTime } from "@/shared/libs/date.lib";
 import { isUuid } from "@/shared/libs/id.lib";
@@ -43,6 +43,8 @@ import {
   moveStudents,
   promoteWaitlist,
   registerForStudent,
+  scheduleProblemOf,
+  switchTermFlag,
   swapForStudent,
   type RegistrationActor,
 } from "@/modules/course-registration/course-registration.lib";
@@ -199,48 +201,6 @@ function idsByCode(rows: { id: string; code: string }[], wanted: string[], field
   return new Map(rows.map((row) => [row.code, row.id]));
 }
 
-type RoomFacts = { id: string; code: string; capacity: number; status: "active" | "maintenance"; note: string; campus: string };
-
-// Phòng phải đang dùng được và đủ chỗ (phòng lý thuyết cho cả lớp, phòng thực hành cho từng nhóm); lịch không trùng phòng, không
-// trùng giờ giảng viên với lớp khác trong cả học kỳ (mọi khoa, kể cả lớp nháp), cùng tiêu chí với conflictsOf của giao diện.
-async function scheduleProblem(
-  tx: Transaction,
-  candidate: {
-    id: string | null;
-    termId: string;
-    lecturerId: string | null;
-    capacity: number;
-    meetings: { dayOfWeek: number; startPeriod: number; endPeriod: number; room: string }[];
-    labGroups: { code: string; dayOfWeek: number; startPeriod: number; endPeriod: number; room: string; capacity: number }[];
-  },
-  roomRows: RoomFacts[],
-) {
-  const roomOf = new Map(roomRows.map((room) => [room.code, room]));
-  for (const meeting of candidate.meetings) {
-    const room = roomOf.get(meeting.room)!;
-    if (room.status === "maintenance") return { field: "meetings", message: `Phòng ${room.code} đang bảo trì${room.note ? ` (${room.note})` : ""}, chọn phòng khác.` };
-    if (room.capacity < candidate.capacity) return { field: "capacity", message: `Phòng ${room.code} chỉ có ${room.capacity} chỗ, ít hơn sĩ số tối đa ${candidate.capacity}. Giảm sĩ số hoặc chọn phòng lớn hơn.` };
-  }
-  for (const group of candidate.labGroups) {
-    const room = roomOf.get(group.room)!;
-    if (room.status === "maintenance") return { field: "labGroups", message: `Phòng ${room.code} đang bảo trì${room.note ? ` (${room.note})` : ""}, chọn phòng khác cho nhóm ${group.code}.` };
-    if (room.capacity < group.capacity) return { field: "labGroups", message: `Phòng ${room.code} chỉ có ${room.capacity} chỗ, ít hơn sĩ số nhóm ${group.code} (${group.capacity}).` };
-  }
-  const others = await loadSections(tx, and(eq(classSections.termId, candidate.termId), ne(classSections.status, "cancelled"), candidate.id ? ne(classSections.id, candidate.id) : undefined)!);
-  const [conflict] = conflictsOf(
-    {
-      id: candidate.id ?? "",
-      status: "open",
-      lecturerId: candidate.lecturerId,
-      meetings: candidate.meetings,
-      labGroups: candidate.labGroups.map((group) => ({ id: group.code, code: group.code, capacity: group.capacity, enrolled: 0, meeting: group })),
-    },
-    others,
-  );
-  if (conflict) return { field: conflict.kind === "lecturer" ? "lecturerId" : "meetings", message: `${conflict.message}. Đổi giờ, phòng hoặc giảng viên trước khi lưu.` };
-  return null;
-}
-
 async function inScopeSections(viewer: Viewer, termId: string) {
   const rows = await loadSections(db, eq(classSections.termId, termId));
   return rows
@@ -325,7 +285,7 @@ export async function saveClassSection(termId: string, id: string | null, input:
         rowId = row.id;
       }
 
-      const problem = await scheduleProblem(tx, { id: rowId, termId, lecturerId: columns.lecturerId, capacity: values.capacity, meetings: values.meetings, labGroups: values.labGroups }, roomRows);
+      const problem = await scheduleProblemOf(tx, { id: rowId, termId, lecturerId: columns.lecturerId, capacity: values.capacity, meetings: values.meetings, labGroups: values.labGroups }, roomRows);
       if (problem) throw new InputError(problem.message, problem.field);
 
       await tx.delete(sectionMeetings).where(eq(sectionMeetings.classSectionId, rowId));
@@ -556,10 +516,6 @@ export async function removeWaitlistEntry(entryId: string, reason: string): Prom
 
 // ---- Học kỳ, đợt đăng ký ----
 
-function termLabel(term: { name: string }) {
-  return term.name;
-}
-
 export async function createTerm(input: TermInput): Promise<ActionResult<Term>> {
   const viewer = await requireSchoolWidePermission("registration.manage");
   const parsed = parseInput(TERM_SCHEMA, input);
@@ -585,17 +541,10 @@ export async function createTerm(input: TermInput): Promise<ActionResult<Term>> 
 export async function setTermFlag(termId: string, flag: "current" | "registration-target"): Promise<ActionResult<Term[]>> {
   const viewer = await requireSchoolWidePermission("registration.manage");
   if (!isUuid(termId)) return actionError("Học kỳ không còn tồn tại, tải lại trang.");
-  const column = flag === "current" ? terms.isCurrent : terms.isRegistrationTarget;
   const label = flag === "current" ? "học kỳ hiện tại" : "học kỳ nhận đăng ký";
   try {
     await db.transaction(async (tx) => {
-      const [target] = await tx.select({ id: terms.id, name: terms.name }).from(terms).where(eq(terms.id, termId)).for("update");
-      if (!target) throw new InputError("Học kỳ không còn tồn tại, tải lại trang.");
-      const [previous] = await tx.select({ id: terms.id, name: terms.name }).from(terms).where(eq(column, true)).for("update");
-      if (previous?.id === termId) throw new InputError(`${termLabel(target)} đã là ${label}.`);
-      const set = flag === "current" ? { isCurrent: false } : { isRegistrationTarget: false };
-      if (previous) await tx.update(terms).set(set).where(eq(terms.id, previous.id));
-      await tx.update(terms).set(flag === "current" ? { isCurrent: true } : { isRegistrationTarget: true }).where(eq(terms.id, termId));
+      const { target, previous } = await switchTermFlag(tx, termId, flag);
       await recordAudit(tx, {
         actor: auditActorOf(viewer),
         action: "update",

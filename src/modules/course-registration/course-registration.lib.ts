@@ -17,7 +17,7 @@ import {
   terms,
   waitlistEntries,
 } from "@/modules/course-registration/course-registration.schema";
-import { HOLD_KIND_LABEL, overlaps } from "@/modules/course-registration/course-registration.constant";
+import { conflictsOf, HOLD_KIND_LABEL, overlaps } from "@/modules/course-registration/course-registration.constant";
 import {
   applicablePeriod,
   basketProblems,
@@ -925,4 +925,59 @@ export async function moveStudents(tx: Transaction, params: { fromId: string; to
     href: "/application/schedule",
   });
   return { moved: moved.length, skipped };
+}
+
+export type RoomFacts = { id: string; code: string; capacity: number; status: "active" | "maintenance"; note: string; campus: string };
+
+// Phòng phải đang dùng được và đủ chỗ (phòng lý thuyết cho cả lớp, phòng thực hành cho từng nhóm); lịch không trùng phòng, không
+// trùng giờ giảng viên với lớp khác trong cả học kỳ (mọi khoa, kể cả lớp nháp), cùng tiêu chí với conflictsOf của giao diện.
+export async function scheduleProblemOf(
+  tx: Transaction,
+  candidate: {
+    id: string | null;
+    termId: string;
+    lecturerId: string | null;
+    capacity: number;
+    meetings: { dayOfWeek: number; startPeriod: number; endPeriod: number; room: string }[];
+    labGroups: { code: string; dayOfWeek: number; startPeriod: number; endPeriod: number; room: string; capacity: number }[];
+  },
+  roomRows: RoomFacts[],
+) {
+  const roomOf = new Map(roomRows.map((room) => [room.code, room]));
+  for (const meeting of candidate.meetings) {
+    const room = roomOf.get(meeting.room)!;
+    if (room.status === "maintenance") return { field: "meetings", message: `Phòng ${room.code} đang bảo trì${room.note ? ` (${room.note})` : ""}, chọn phòng khác.` };
+    if (room.capacity < candidate.capacity) return { field: "capacity", message: `Phòng ${room.code} chỉ có ${room.capacity} chỗ, ít hơn sĩ số tối đa ${candidate.capacity}. Giảm sĩ số hoặc chọn phòng lớn hơn.` };
+  }
+  for (const group of candidate.labGroups) {
+    const room = roomOf.get(group.room)!;
+    if (room.status === "maintenance") return { field: "labGroups", message: `Phòng ${room.code} đang bảo trì${room.note ? ` (${room.note})` : ""}, chọn phòng khác cho nhóm ${group.code}.` };
+    if (room.capacity < group.capacity) return { field: "labGroups", message: `Phòng ${room.code} chỉ có ${room.capacity} chỗ, ít hơn sĩ số nhóm ${group.code} (${group.capacity}).` };
+  }
+  const others = await loadSections(tx, and(eq(classSections.termId, candidate.termId), ne(classSections.status, "cancelled"), candidate.id ? ne(classSections.id, candidate.id) : undefined)!);
+  const [conflict] = conflictsOf(
+    {
+      id: candidate.id ?? "",
+      status: "open",
+      lecturerId: candidate.lecturerId,
+      meetings: candidate.meetings,
+      labGroups: candidate.labGroups.map((group) => ({ id: group.code, code: group.code, capacity: group.capacity, enrolled: 0, meeting: group })),
+    },
+    others,
+  );
+  if (conflict) return { field: conflict.kind === "lecturer" ? "lecturerId" : "meetings", message: `${conflict.message}. Đổi giờ, phòng hoặc giảng viên trước khi lưu.` };
+  return null;
+}
+
+// Đặt học kỳ hiện tại hoặc học kỳ nhận đăng ký: mỗi loại chỉ một học kỳ (unique index), bỏ cờ ở học kỳ cũ rồi đặt cho học kỳ mới
+// trong cùng transaction.
+export async function switchTermFlag(tx: Transaction, termId: string, flag: "current" | "registration-target") {
+  const column = flag === "current" ? terms.isCurrent : terms.isRegistrationTarget;
+  const [target] = await tx.select({ id: terms.id, name: terms.name }).from(terms).where(eq(terms.id, termId)).for("update");
+  if (!target) throw new InputError("Học kỳ không còn tồn tại, tải lại trang.");
+  const [previous] = await tx.select({ id: terms.id, name: terms.name }).from(terms).where(eq(column, true)).for("update");
+  if (previous?.id === termId) throw new InputError(`${target.name} đã là ${flag === "current" ? "học kỳ hiện tại" : "học kỳ nhận đăng ký"}.`);
+  if (previous) await tx.update(terms).set(flag === "current" ? { isCurrent: false } : { isRegistrationTarget: false }).where(eq(terms.id, previous.id));
+  await tx.update(terms).set(flag === "current" ? { isCurrent: true } : { isRegistrationTarget: true }).where(eq(terms.id, termId));
+  return { target, previous: previous ?? null };
 }

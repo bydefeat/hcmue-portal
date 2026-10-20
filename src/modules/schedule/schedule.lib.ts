@@ -8,7 +8,7 @@ import { rooms } from "@/modules/facilities/facilities.schema";
 import { notifyLecturers, notifyStudents } from "@/modules/notifications/notifications.lib";
 import { diffClassSessions, planClassSessions, type Holiday } from "@/modules/schedule/schedule.rule";
 import { calendarEvents } from "@/modules/settings/settings.schema";
-import { attendanceRecords, classSessions } from "@/modules/schedule/schedule.schema";
+import { attendanceRecords, classSessionLeaves, classSessions } from "@/modules/schedule/schedule.schema";
 
 export type WeeklySchedule = { signature: string; description: string };
 
@@ -62,7 +62,7 @@ export async function syncClassSessions(tx: Transaction, sectionId: string, opti
     tx.execute<{ today: string }>(sql`SELECT to_char((now() AT TIME ZONE 'Asia/Ho_Chi_Minh')::date, 'YYYY-MM-DD') AS today`),
   ]);
   if (!section) return { added: 0, removed: 0, kept: 0, notified: false };
-  const [meetings, labs, existing] = await Promise.all([
+  const [meetings, labs, existing, leaves] = await Promise.all([
     tx
       .select({ dayOfWeek: sectionMeetings.dayOfWeek, startPeriod: sectionMeetings.startPeriod, endPeriod: sectionMeetings.endPeriod, roomId: sectionMeetings.roomId })
       .from(sectionMeetings)
@@ -85,9 +85,13 @@ export async function syncClassSessions(tx: Transaction, sectionId: string, opti
       .from(classSessions)
       .where(eq(classSessions.classSectionId, sectionId))
       .for("update", { of: classSessions }),
+    tx
+      .select({ date: classSessionLeaves.date, startPeriod: classSessionLeaves.startPeriod, labGroupId: classSessionLeaves.labGroupId })
+      .from(classSessionLeaves)
+      .where(eq(classSessionLeaves.classSectionId, sectionId)),
   ]);
   const holidays = section.status === "open" ? await holidaysBetween(tx, section.startDate, section.endDate) : [];
-  const plans = section.status === "open" ? planClassSessions({ id: section.id, startDate: section.startDate, endDate: section.endDate, meetings, labGroups: labs }, holidays) : [];
+  const plans = section.status === "open" ? planClassSessions({ id: section.id, startDate: section.startDate, endDate: section.endDate, meetings, labGroups: labs }, holidays, leaves) : [];
   const diff = diffClassSessions(existing, plans, today);
   if (diff.removeIds.length > 0) await tx.delete(classSessions).where(inArray(classSessions.id, diff.removeIds));
   if (diff.add.length > 0) await tx.insert(classSessions).values(diff.add);

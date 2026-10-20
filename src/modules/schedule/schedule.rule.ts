@@ -53,10 +53,19 @@ function weeklyPlans(section: PlanSection): SessionPlan[] {
     .toSorted((a, b) => a.date.localeCompare(b.date) || a.startPeriod - b.startPeriod);
 }
 
+// Khung buổi nghỉ theo đơn nghỉ dạy đã duyệt (class_session_leaves): bỏ khỏi lịch như ngày nghỉ lễ.
+export type LeaveSlot = Pick<SessionPlan, "date" | "startPeriod" | "labGroupId">;
+
 // Buổi học của một lớp sinh từ lịch tuần (lý thuyết cho cả lớp, thực hành theo nhóm) trong khoảng ngày học của lớp, bỏ các buổi
-// rơi vào ngày nghỉ lễ của lịch năm học (calendar_events loại holiday).
-export function planClassSessions(section: PlanSection, holidays: Holiday[] = []): SessionPlan[] {
-  return weeklyPlans(section).filter((plan) => !holidayOn(plan.date, holidays));
+// rơi vào ngày nghỉ lễ của lịch năm học (calendar_events loại holiday) và các buổi nghỉ dạy đã duyệt.
+export function planClassSessions(section: PlanSection, holidays: Holiday[] = [], leaves: LeaveSlot[] = []): SessionPlan[] {
+  const skipped = new Set(leaves.map(slotKey));
+  return weeklyPlans(section).filter((plan) => !holidayOn(plan.date, holidays) && !skipped.has(slotKey(plan)));
+}
+
+// Buổi của lớp trong ngày nghỉ dạy, giao với khoảng tiết nghỉ (đơn ghi buổi theo tiết bắt đầu - kết thúc).
+export function sessionsInLeave<T extends { date: string; startPeriod: number; endPeriod: number }>(sessions: T[], leave: { date: string; startPeriod: number; endPeriod: number }) {
+  return sessions.filter((session) => session.date === leave.date && session.startPeriod <= leave.endPeriod && session.endPeriod >= leave.startPeriod);
 }
 
 // Buổi theo lịch tuần bị trừ vì nghỉ lễ: giảng viên cần xếp dạy bù (đơn dạy bù ở mục Đơn từ).

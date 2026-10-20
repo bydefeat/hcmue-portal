@@ -458,3 +458,59 @@ export const RESUBMIT_SCHEMA = z.object({
 });
 
 export type ResubmitInput = z.input<typeof RESUBMIT_SCHEMA>;
+
+// ---------- Đọc lại nội dung đơn cho kết quả đơn (handler khi duyệt xong) ----------
+// Phần chi tiết của đơn do server ghép (studentRequestContent, teachingLeaveContent) nên đọc lại theo đúng nhãn và định dạng đó.
+
+export function detailValue(details: RequestDetail[], label: string) {
+  return details.find((detail) => detail.label === label)?.value ?? null;
+}
+
+// Số tín chỉ xin đăng ký của đơn học vượt.
+export function overloadCreditsOf(details: RequestDetail[]) {
+  const value = Number((detailValue(details, "Số tín chỉ xin đăng ký") ?? "").replace(",", "."));
+  return Number.isInteger(value) && value > 0 ? value : null;
+}
+
+// Số học kỳ xin bảo lưu ("1 học kỳ", "2 học kỳ").
+export function reserveTermsOf(details: RequestDetail[]) {
+  const match = /(\d+)/.exec(detailValue(details, "Thời gian bảo lưu") ?? "");
+  return match ? Number(match[1]) : null;
+}
+
+// Bảo lưu: tổng số học kỳ đã bảo lưu (và đang xin) cộng số học kỳ của đơn này không vượt quy chế.
+export function reserveBlockedReason(input: { used: number; requested: number }, maxReserveTerms: number) {
+  if (input.used + input.requested <= maxReserveTerms) return null;
+  const left = Math.max(0, maxReserveTerms - input.used);
+  return left === 0
+    ? `Bạn đã bảo lưu (hoặc đang xin bảo lưu) đủ ${maxReserveTerms} học kỳ tối đa theo quy chế, không xin thêm được.`
+    : `Quy chế cho bảo lưu tối đa ${maxReserveTerms} học kỳ; bạn đã dùng ${input.used} học kỳ nên chỉ xin thêm được ${left} học kỳ.`;
+}
+
+const COURSE_CODE_IN_TEXT = /\b([A-Z]{4}\d{4})\b/;
+
+// Mã học phần trong đơn xin mở lớp ("COMP1031 Lập trình hướng đối tượng").
+export function openClassCourseCode(details: RequestDetail[], subject: string) {
+  const text = (detailValue(details, "Mã và tên học phần") ?? subject).toUpperCase();
+  return COURSE_CODE_IN_TEXT.exec(text)?.[1] ?? null;
+}
+
+export function openClassPeersOf(details: RequestDetail[]) {
+  const value = Number(detailValue(details, "Số sinh viên cùng đề nghị") ?? "");
+  return Number.isInteger(value) && value > 0 ? value : null;
+}
+
+// Buổi nghỉ của đơn nghỉ dạy: "Thứ 3, 20/10/2026, Tiết 1-3, phòng B.405" (sessionLabel) cùng lịch dạy bù đề xuất.
+export function teachingLeaveSlotOf(details: RequestDetail[]) {
+  const text = detailValue(details, "Buổi nghỉ") ?? "";
+  const date = /(\d{2})\/(\d{2})\/(\d{4})/.exec(text);
+  const periods = /tiết\s*(\d{1,2})(?:\s*-\s*(\d{1,2}))?/i.exec(text);
+  if (!date || !periods) return null;
+  const startPeriod = Number(periods[1]);
+  return {
+    date: `${date[3]}-${date[2]}-${date[1]}`,
+    startPeriod,
+    endPeriod: periods[2] ? Number(periods[2]) : startPeriod,
+    makeup: detailValue(details, "Dạy bù") ?? "",
+  };
+}

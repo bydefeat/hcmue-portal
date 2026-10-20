@@ -243,15 +243,17 @@ export type CreditLimits = {
 
 // Hạn mức tín chỉ một học kỳ, dùng chung cho trang đăng ký và server. Học kỳ hè theo maxSummer và không bắt tối thiểu;
 // bị cảnh báo học vụ (đã ban hành) thì tối đa maxWhenWarned; đợt đăng ký đặt hạn mức riêng thì giới hạn thêm;
-// sinh viên chỉ còn ít tín chỉ hơn mức tối thiểu để hoàn thành chương trình thì tối thiểu là số còn lại.
+// sinh viên chỉ còn ít tín chỉ hơn mức tối thiểu để hoàn thành chương trình thì tối thiểu là số còn lại. Đơn học vượt đã duyệt
+// (credit_overrides) nâng tối đa lên số được duyệt, kể cả trên hạn mức của đợt; sinh viên đang bị cảnh báo thì không áp dụng.
 export function creditLimitsOf(params: {
   rules: CreditRules;
   semester: number;
   warningLevel: number;
   period?: { minCredits: number | null; maxCredits: number | null } | null;
   remainingCredits?: number | null;
+  overrideMax?: number | null;
 }): CreditLimits {
-  const { rules, semester, warningLevel, period, remainingCredits } = params;
+  const { rules, semester, warningLevel, period, remainingCredits, overrideMax } = params;
   const isSummer = semester === 3;
   let max = isSummer ? rules.maxSummer : rules.maxPerTerm;
   let note: string | undefined;
@@ -262,6 +264,10 @@ export function creditLimitsOf(params: {
   if (period && period.maxCredits !== null && period.maxCredits < max) {
     max = period.maxCredits;
     note = `Đợt đăng ký này cho đăng ký tối đa ${max} tín chỉ.`;
+  }
+  if (overrideMax !== null && overrideMax !== undefined && overrideMax > max && warningLevel === 0) {
+    max = overrideMax;
+    note = `Đơn học vượt đã duyệt cho đăng ký tối đa ${max} tín chỉ trong học kỳ này.`;
   }
   let min = isSummer ? 0 : rules.minPerTerm;
   let minNote: string | undefined = isSummer ? "Học kỳ hè không bắt buộc số tín chỉ tối thiểu." : undefined;

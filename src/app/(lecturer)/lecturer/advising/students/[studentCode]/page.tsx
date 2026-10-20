@@ -11,6 +11,8 @@ import { formatPoint, STANDING_LABEL, WARNING_LEVEL } from "@/modules/grades/gra
 import { getStudentStandings, getTranscript } from "@/modules/grades/grades.query";
 import { STUDY_PLAN_STATUS } from "@/modules/study-plan/study-plan.constant";
 import { getStudyPlanOfStudent } from "@/modules/study-plan/study-plan.query";
+import { AdvisingNotePanel } from "@/modules/advising/components/advising-note-panel";
+import { getMeetingNotes } from "@/modules/advising/advising.query";
 import { StudentProfileCard } from "@/modules/users/components/student-profile-card";
 import { getAdvisees, getCurrentLecturer } from "@/modules/users/users.query";
 import { normalizeStudentCode } from "@/shared/libs/student-code.lib";
@@ -24,10 +26,11 @@ export default async function Page({ params }: { params: Promise<{ studentCode: 
   const code = normalizeStudentCode(decodeURIComponent(studentCode));
   const student = advisees.find((entry) => normalizeStudentCode(entry.code) === code);
   if (!student) notFound();
-  const [[standing], transcript, plan] = await Promise.all([
+  const [[standing], transcript, plan, notes] = await Promise.all([
     getStudentStandings([student.id]),
     getTranscript(student.id),
     getStudyPlanOfStudent(student.id),
+    getMeetingNotes([student.id]),
   ]);
 
   return (
@@ -70,6 +73,8 @@ export default async function Page({ params }: { params: Promise<{ studentCode: 
               <p className="text-sm text-muted">Sinh viên chưa lập kế hoạch học tập.</p>
             )}
           </SectionCard>
+
+          <AdvisingNotePanel studentId={student.id} notes={notes} />
 
           <section className="flex flex-col gap-2">
             <h2 className="text-lg font-semibold">Kết quả học tập</h2>

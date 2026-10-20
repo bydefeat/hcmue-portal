@@ -11,12 +11,14 @@ export default async function Page() {
   const lecturer = await getCurrentLecturer();
   const advisees = await getAdvisees(lecturer.id);
   const warnings = await getAcademicWarnings(advisees.map((student) => student.id));
+  // Học kỳ xét cảnh báo lấy theo dữ liệu, không ghi cứng.
+  const terms = [...new Set(warnings.map((warning) => warning.termName))];
 
   return (
     <>
       <PageHeader
         title="Cảnh báo học vụ"
-        description={`${warnings.length} sinh viên bị cảnh báo sau học kỳ 2, năm học 2025-2026. Gặp từng sinh viên và ghi nhận trên cổng.`}
+        description={`${warnings.length} sinh viên bị cảnh báo${terms.length > 0 ? ` sau ${terms.join(", ").toLowerCase()}` : ""}. Gặp từng sinh viên và ghi nhận trên cổng.`}
       />
       <ul className="mb-4 flex flex-col gap-1 text-xs text-muted">
         {WARNING_RULES.map((rule) => (

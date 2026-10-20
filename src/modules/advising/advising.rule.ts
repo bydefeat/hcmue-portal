@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { Dayjs } from "dayjs";
-import { dayjs } from "@/shared/libs/date.lib";
+import { dayjs, schoolTime } from "@/shared/libs/date.lib";
 
 // Dùng chung cho form đặt lịch và server action; DB còn chặn bằng advising_appointments_duration_range.
 export const APPOINTMENT_SCHEMA = z.object({
@@ -19,18 +19,54 @@ export const APPOINTMENT_SCHEMA = z.object({
 
 export type AppointmentInput = z.input<typeof APPOINTMENT_SCHEMA>;
 
-export const APPOINTMENT_DONE_SCHEMA = z.object({
-  id: z.uuid(),
-  note: z.string().trim().min(1, "Ghi lại nội dung chính đã trao đổi").max(1000, "Tối đa 1000 ký tự"),
-  followUp: z
+// Giờ bắt đầu buổi hẹn (giờ Việt Nam).
+export const appointmentStart = (appointment: { date: string; startTime: string }) => schoolTime(`${appointment.date}T${appointment.startTime.slice(0, 5)}`);
+
+const OPTIONAL_TEXT = (max: number) =>
+  z
     .string()
     .trim()
-    .max(300, "Tối đa 300 ký tự")
+    .max(max, `Tối đa ${max} ký tự`)
     .nullish()
-    .transform((value) => value || null),
+    .transform((value) => value || null);
+
+// Ghi nhận buổi đã diễn ra: có mặt hay vắng của TỪNG sinh viên; có người có mặt thì phải ghi nội dung trao đổi.
+export const APPOINTMENT_OUTCOME_SCHEMA = z
+  .object({
+    id: z.uuid(),
+    attendance: z.record(z.uuid(), z.enum(["present", "absent"], "Chọn có mặt hay vắng")),
+    note: OPTIONAL_TEXT(1000),
+    followUp: OPTIONAL_TEXT(300),
+  })
+  .refine((value) => !Object.values(value.attendance).includes("present") || value.note, { path: ["note"], message: "Ghi lại nội dung chính đã trao đổi" });
+
+export type AppointmentOutcomeInput = z.input<typeof APPOINTMENT_OUTCOME_SCHEMA>;
+
+// Dời buổi hẹn còn "đã hẹn" sang giờ khác.
+export const APPOINTMENT_RESCHEDULE_SCHEMA = z.object({
+  id: z.uuid(),
+  date: APPOINTMENT_SCHEMA.shape.date,
+  startTime: APPOINTMENT_SCHEMA.shape.startTime,
+  durationMinutes: APPOINTMENT_SCHEMA.shape.durationMinutes,
+  location: APPOINTMENT_SCHEMA.shape.location,
 });
 
-export type AppointmentDoneInput = z.input<typeof APPOINTMENT_DONE_SCHEMA>;
+export type AppointmentRescheduleInput = z.input<typeof APPOINTMENT_RESCHEDULE_SCHEMA>;
+
+// Ghi chú cố vấn độc lập (không cần buổi hẹn): gọi điện, gặp ngoài lịch, trao đổi qua tin nhắn.
+export const ADVISING_NOTE_SCHEMA = z.object({
+  studentId: z.uuid("Chọn sinh viên"),
+  topic: z.string("Nhập chủ đề").trim().min(1, "Nhập chủ đề").max(200, "Tối đa 200 ký tự"),
+  content: z.string("Nhập nội dung").trim().min(1, "Nhập nội dung").max(1000, "Tối đa 1000 ký tự"),
+  followUp: OPTIONAL_TEXT(300),
+});
+
+export type AdvisingNoteInput = z.input<typeof ADVISING_NOTE_SCHEMA>;
+
+// Trạng thái chung của buổi sau khi ghi nhận: có ít nhất một người có mặt là "đã gặp", tất cả vắng là "vắng".
+export function outcomeStatus(attendance: Record<string, "present" | "absent">) {
+  return Object.values(attendance).includes("present") ? ("done" as const) : ("missed" as const);
+}
 
 const minutesOf = (time: string) => Number(time.slice(0, 2)) * 60 + Number(time.slice(3, 5));
 

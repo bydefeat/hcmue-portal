@@ -173,7 +173,7 @@ export type RegistrationHold = {
   releasedBy: string | null;
 };
 
-export type RegistrationEventKind = "add" | "drop" | "swap" | "waitlist" | "waitlist-promoted" | "admin-add" | "admin-drop" | "section-cancelled";
+export type RegistrationEventKind = "add" | "drop" | "swap" | "waitlist" | "waitlist-promoted" | "admin-add" | "admin-drop" | "section-cancelled" | "waitlist-expired";
 
 export type RegistrationEvent = {
   id: string;

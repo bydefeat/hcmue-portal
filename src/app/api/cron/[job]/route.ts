@@ -13,6 +13,7 @@ import { runRequestSlaJob, sweepOrphanRequestFiles } from "@/modules/requests/re
 import { purgeReportExports } from "@/modules/settings/settings.lib";
 import { runDecisionEffectsJob } from "@/modules/users/users.decision";
 import { resyncOpenClassSessions } from "@/modules/schedule/schedule.lib";
+import { expireWaitlists } from "@/modules/course-registration/course-registration.lib";
 import { sealClosedSurveys } from "@/modules/surveys/surveys.lib";
 
 // Tác vụ định kỳ, gọi từ bộ hẹn giờ ngoài (crontab của máy chủ, Vercel Cron...): GET hoặc POST /api/cron/<tác vụ> với header
@@ -49,6 +50,8 @@ const JOBS: Record<string, () => Promise<Record<string, number>>> = {
   "exam-sessions": () => refreshExamStatuses(),
   // Xáo phiếu các đợt khảo sát vừa đóng để phiếu không ghép được với người nộp; giảng viên xem kết quả từ lúc này. Mỗi giờ.
   surveys: sealClosedSurveys,
+  // Lượt chờ của khóa đã hết mọi đợt đăng ký trong học kỳ chuyển "hết hạn", báo sinh viên. Mỗi giờ (đóng đợt bằng tay đã tự chạy).
+  "waitlist-expiry": () => db.transaction((tx) => expireWaitlists(tx, new Date())),
 };
 
 function matches(given: Buffer, secret: string | undefined) {

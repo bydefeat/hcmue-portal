@@ -114,6 +114,7 @@ export const REGISTRATION_EVENT: Record<RegistrationEventKind, StatusMeta> = {
   swap: { label: "Đổi lớp", tone: "neutral" },
   waitlist: { label: "Vào danh sách chờ", tone: "warning" },
   "waitlist-promoted": { label: "Được xếp từ danh sách chờ", tone: "success" },
+  "waitlist-expired": { label: "Lượt chờ hết hạn", tone: "neutral" },
   "admin-add": { label: "Phòng Đào tạo đăng ký hộ", tone: "warning" },
   "admin-drop": { label: "Phòng Đào tạo hủy hộ", tone: "warning" },
   "section-cancelled": { label: "Lớp bị hủy", tone: "danger" },

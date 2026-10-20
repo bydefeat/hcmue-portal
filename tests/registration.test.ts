@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { after, describe, test } from "node:test";
-import { and, asc, eq, TransactionRollbackError } from "drizzle-orm";
+import { and, asc, eq, sql, TransactionRollbackError } from "drizzle-orm";
 import { db, type Transaction } from "@/shared/libs/db.lib";
 import { InputError } from "@/shared/libs/action.lib";
 import { mockTermId } from "@/shared/libs/mock.lib";
@@ -10,8 +10,10 @@ import {
   adminDropStudent,
   creditLimitsFor,
   dropForStudent,
+  expireWaitlists,
   joinWaitlistForStudent,
   lockRegistration,
+  promoteWaitlist,
   registerForStudent,
   registrationStudentOf,
   scheduleProblemOf,
@@ -20,8 +22,10 @@ import {
   termFactsOf,
   type RegistrationRules,
 } from "@/modules/course-registration/course-registration.lib";
-import { applicablePeriod, corequisiteDependents, creditLimitsOf, dropCreditProblem, inProgressCodesFor, lastAttemptGrades } from "@/modules/course-registration/course-registration.rule";
-import { classSections, enrollments, labGroups, registrationEvents, terms, waitlistEntries } from "@/modules/course-registration/course-registration.schema";
+import { addsSeats, applicablePeriod, corequisiteDependents, creditLimitsOf, dropCreditProblem, inProgressCodesFor, lastAttemptGrades } from "@/modules/course-registration/course-registration.rule";
+import { classSections, enrollments, labGroups, registrationEvents, registrationPeriods, terms, waitlistEntries } from "@/modules/course-registration/course-registration.schema";
+import { notifications } from "@/modules/notifications/notifications.schema";
+import { students } from "@/modules/users/users.schema";
 import { campuses, rooms } from "@/modules/facilities/facilities.schema";
 import { academicWarnings } from "@/modules/grades/grades.schema";
 import { holidaySessions, planClassSessions } from "@/modules/schedule/schedule.rule";
@@ -217,6 +221,53 @@ describe("registration: đăng ký, hủy, đổi lớp trên DB", () => {
       assert.equal(entry.status, "promoted");
       const [event] = await tx.select({ kind: registrationEvents.kind }).from(registrationEvents).where(and(eq(registrationEvents.studentId, CURRENT_STUDENT_ID), eq(registrationEvents.classSectionId, math), eq(registrationEvents.kind, "waitlist-promoted")));
       assert.ok(event);
+    });
+  });
+
+  test("danh sách chờ: tăng sĩ số một nhóm thực hành (lớp còn chỗ, mọi nhóm đầy) cũng xếp người chờ", async () => {
+    assert.equal(addsSeats({ capacity: 40, labGroups: [{ code: "A.TH1", capacity: 20 }] }, { capacity: 40, labGroups: [{ code: "A.TH1", capacity: 21 }] }), true);
+    assert.equal(addsSeats({ capacity: 40, labGroups: [{ code: "A.TH1", capacity: 20 }] }, { capacity: 40, labGroups: [{ code: "A.TH1", capacity: 20 }, { code: "A.TH2", capacity: 10 }] }), true);
+    assert.equal(addsSeats({ capacity: 40, labGroups: [{ code: "A.TH1", capacity: 20 }] }, { capacity: 40, labGroups: [{ code: "A.TH1", capacity: 18 }] }), false);
+    await rolledBack(async (tx) => {
+      const lab = await sectionId(tx, "COMP1100.02");
+      await tx.update(enrollments).set({ status: "dropped", droppedAt: new Date() }).where(and(eq(enrollments.studentId, CURRENT_STUDENT_ID), eq(enrollments.classSectionId, lab), eq(enrollments.status, "enrolled")));
+      await tx.update(labGroups).set({ capacity: sql`${labGroups.enrolledCount}` }).where(eq(labGroups.classSectionId, lab));
+      const position = await joinWaitlistForStudent(tx, { studentId: CURRENT_STUDENT_ID, termId: TARGET, sectionId: lab, rules: RULES, now: now() });
+      assert.equal(position, 1);
+      assert.deepEqual(await promoteWaitlist(tx, lab, RULES, now()), []);
+      await tx.update(labGroups).set({ capacity: sql`${labGroups.capacity} + 1` }).where(and(eq(labGroups.classSectionId, lab), eq(labGroups.code, "COMP1100.02.TH1")));
+      assert.deepEqual(await promoteWaitlist(tx, lab, RULES, now()), [CURRENT_STUDENT_ID]);
+      assert.ok((await registeredCodes(tx)).includes("COMP1100.02"));
+    });
+  });
+
+  test("danh sách chờ hết hạn khi khóa hết mọi đợt đăng ký: không còn tự xếp, báo sinh viên, chạy lại không trùng", async () => {
+    await rolledBack(async (tx) => {
+      const math = await sectionId(tx, "MATH2001.01");
+      const [section] = await tx.select({ enrolled: classSections.enrolledCount }).from(classSections).where(eq(classSections.id, math));
+      await tx.update(classSections).set({ capacity: section.enrolled }).where(eq(classSections.id, math));
+      await joinWaitlistForStudent(tx, { studentId: CURRENT_STUDENT_ID, termId: TARGET, sectionId: math, rules: RULES, now: now() });
+      // Đợt của khóa 50 còn mở hoặc đợt điều chỉnh sắp mở: chưa hết hạn.
+      assert.equal((await expireWaitlists(tx, now(), TARGET)).expired, 0);
+      const closedAt = new Date(Date.now() - 60_000);
+      await tx
+        .update(registrationPeriods)
+        .set({ opensAt: new Date(closedAt.getTime() - 3_600_000), closesAt: closedAt })
+        .where(and(eq(registrationPeriods.termId, TARGET), sql`50 = ANY(${registrationPeriods.cohorts})`));
+      // Ngoài đợt: lớp có chỗ cũng không xếp người chờ.
+      await tx.update(classSections).set({ capacity: section.enrolled + 1 }).where(eq(classSections.id, math));
+      assert.deepEqual(await promoteWaitlist(tx, math, RULES, now()), []);
+      const result = await expireWaitlists(tx, now(), TARGET);
+      assert.ok(result.expired >= 1);
+      const [entry] = await tx.select({ status: waitlistEntries.status, resolvedAt: waitlistEntries.resolvedAt }).from(waitlistEntries).where(and(eq(waitlistEntries.studentId, CURRENT_STUDENT_ID), eq(waitlistEntries.classSectionId, math)));
+      assert.equal(entry.status, "expired");
+      assert.ok(entry.resolvedAt);
+      const [event] = await tx.select({ kind: registrationEvents.kind }).from(registrationEvents).where(and(eq(registrationEvents.studentId, CURRENT_STUDENT_ID), eq(registrationEvents.classSectionId, math), eq(registrationEvents.kind, "waitlist-expired")));
+      assert.ok(event);
+      const [student] = await tx.select({ userId: students.userId }).from(students).where(eq(students.id, CURRENT_STUDENT_ID));
+      const notes = await tx.select({ title: notifications.title }).from(notifications).where(and(eq(notifications.recipientUserId, student.userId!), sql`${notifications.title} LIKE '%MATH2001.01%hết hạn'`));
+      assert.equal(notes.length, 1);
+      assert.deepEqual(await expireWaitlists(tx, now(), TARGET), { expired: 0, students: 0 });
     });
   });
 

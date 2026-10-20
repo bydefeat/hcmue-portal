@@ -327,6 +327,16 @@ export function applicablePeriod<T extends PeriodWindow>(periods: T[], cohort: n
   return mine.filter((period) => closes(period) <= time).toSorted((a, b) => closes(b) - closes(a))[0] ?? null;
 }
 
+// Sửa lớp có mở thêm chỗ cho người chờ không: tăng sĩ số lớp, tăng sĩ số một nhóm thực hành hoặc thêm nhóm mới (lớp còn chỗ
+// nhưng mọi nhóm đã đầy thì người chờ vẫn chưa vào được).
+export function addsSeats(before: { capacity: number; labGroups: { code: string; capacity: number }[] }, after: { capacity: number; labGroups: { code: string; capacity: number }[] }) {
+  if (after.capacity > before.capacity) return true;
+  return after.labGroups.some((group) => {
+    const previous = before.labGroups.find((lab) => lab.code === group.code);
+    return !previous || group.capacity > previous.capacity;
+  });
+}
+
 export const REGISTER_SCHEMA = z.object({
   sectionIds: z
     .array(z.uuid())

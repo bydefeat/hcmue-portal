@@ -13,6 +13,7 @@ import { PDF_MIME } from "@/shared/libs/pdf.lib";
 import { bytesToBase64 } from "@/shared/libs/spreadsheet.lib";
 import { studentEmailOf } from "@/shared/libs/student-code.lib";
 import {
+  addsSeats,
   ADMIN_REGISTER_SCHEMA,
   CLASS_SECTION_SCHEMA,
   HOLD_SCHEMA,
@@ -38,6 +39,7 @@ import {
   adminRegisterStudent,
   cancelSection,
   dropForStudent,
+  expireWaitlists,
   joinWaitlistForStudent,
   loadSections,
   moveStudents,
@@ -298,6 +300,8 @@ export async function saveClassSection(termId: string, id: string | null, input:
 
       // Nhóm thực hành và chỗ dành riêng giữ theo mã/tên để không mất sinh viên đã xếp; bỏ nhóm đang có người thì DB chặn.
       const labCodes = values.labGroups.map((group) => `${code}.${group.code}`);
+      const previousLabs = id ? await tx.select({ code: labGroups.code, capacity: labGroups.capacity }).from(labGroups).where(eq(labGroups.classSectionId, rowId)) : [];
+      const seatsAdded = addsSeats({ capacity: previousCapacity, labGroups: previousLabs }, { capacity: values.capacity, labGroups: values.labGroups.map((group, index) => ({ code: labCodes[index], capacity: group.capacity })) });
       await tx.delete(labGroups).where(and(eq(labGroups.classSectionId, rowId), labCodes.length > 0 ? notInArray(labGroups.code, labCodes) : undefined));
       for (const group of values.labGroups) {
         const labValues = { dayOfWeek: group.dayOfWeek, startPeriod: group.startPeriod, endPeriod: group.endPeriod, roomId: roomIds.get(group.room)!, capacity: group.capacity };
@@ -321,8 +325,8 @@ export async function saveClassSection(termId: string, id: string | null, input:
       }
       // Buổi học (điểm danh) sinh lại theo lịch tuần mới; đổi lịch thì báo sinh viên của lớp và giảng viên.
       await syncClassSessions(tx, rowId, { previous: previousSchedule });
-      // Tăng sĩ số lớp đang mở: xếp người trong danh sách chờ vào chỗ mới.
-      if (id && values.status === "open" && values.capacity > previousCapacity) await promoteWaitlist(tx, rowId, regulation, new Date());
+      // Tăng sĩ số lớp hoặc nhóm thực hành của lớp đang mở: xếp người trong danh sách chờ vào chỗ mới.
+      if (id && values.status === "open" && seatsAdded) await promoteWaitlist(tx, rowId, regulation, new Date());
       await recordAudit(tx, {
         actor: auditActorOf(viewer),
         action: id ? "update" : "create",
@@ -567,13 +571,14 @@ function periodAudit(values: { name: string; cohorts: number[]; opensAt: Date; c
   return `${values.name}: khóa ${values.cohorts.join(", ")}, ${formatDateTime(values.opensAt)} đến ${formatDateTime(values.closesAt)}, hạn mức ${credits}`;
 }
 
-export async function savePeriod(termId: string, id: string | null, input: PeriodInput): Promise<ActionResult<RegistrationPeriodView>> {
+export async function savePeriod(termId: string, id: string | null, input: PeriodInput): Promise<ActionResult<{ period: RegistrationPeriodView; expiredWaitlist: number }>> {
   const viewer = await requireSchoolWidePermission("registration.manage");
   if (!isUuid(termId) || (id !== null && !isUuid(id))) return actionError("Đợt đăng ký không còn tồn tại, tải lại trang.");
   const parsed = parseInput(PERIOD_SCHEMA, input);
   if (!parsed.ok) return parsed;
   const values = { ...parsed.data, opensAt: new Date(parsed.data.opensAt), closesAt: new Date(parsed.data.closesAt) };
   let periodId: string;
+  let expiredWaitlist = 0;
   try {
     periodId = await db.transaction(async (tx) => {
       const [row] = id
@@ -581,6 +586,8 @@ export async function savePeriod(termId: string, id: string | null, input: Perio
         : await tx.insert(registrationPeriods).values({ ...values, termId }).returning({ id: registrationPeriods.id });
       if (!row) throw new InputError("Đợt đăng ký không còn tồn tại, tải lại trang.");
       await recordAudit(tx, { actor: auditActorOf(viewer), action: id ? "update" : "create", entityType: "registration-period", entityId: row.id, entityLabel: values.name, summary: periodAudit(values) });
+      // Dời giờ đóng về trước hiện tại hoặc bỏ bớt khóa có thể làm khóa đó hết đợt: lượt chờ hết hạn ngay.
+      expiredWaitlist = (await expireWaitlists(tx, new Date(), termId)).expired;
       return row.id;
     });
   } catch (error) {
@@ -588,15 +595,16 @@ export async function savePeriod(termId: string, id: string | null, input: Perio
   }
   revalidateRegistration();
   const period = (await getRegistrationPeriods(termId)).find((entry) => entry.id === periodId);
-  return period ? actionOk(period) : actionError("Đã lưu nhưng chưa đọc lại được, tải lại trang.");
+  return period ? actionOk({ period, expiredWaitlist }) : actionError("Đã lưu nhưng chưa đọc lại được, tải lại trang.");
 }
 
 // Đóng sớm đợt đang mở: dời giờ đóng về hiện tại. Đợt đã đóng thì không mở lại được ở đây.
-export async function closePeriod(id: string): Promise<ActionResult<RegistrationPeriodView>> {
+export async function closePeriod(id: string): Promise<ActionResult<{ period: RegistrationPeriodView; expiredWaitlist: number }>> {
   const viewer = await requireSchoolWidePermission("registration.manage");
   if (!isUuid(id)) return actionError("Đợt đăng ký không còn tồn tại, tải lại trang.");
   const now = new Date();
   let termId: string;
+  let expiredWaitlist = 0;
   try {
     termId = await db.transaction(async (tx) => {
       const [row] = await tx
@@ -606,6 +614,7 @@ export async function closePeriod(id: string): Promise<ActionResult<Registration
         .returning({ termId: registrationPeriods.termId, name: registrationPeriods.name });
       if (!row) throw new InputError("Đợt không đang mở, không đóng được.");
       await recordAudit(tx, { actor: auditActorOf(viewer), action: "lock", entityType: "registration-period", entityId: id, entityLabel: row.name, summary: `Đóng sớm ${row.name} lúc ${formatDateTime(now)}` });
+      expiredWaitlist = (await expireWaitlists(tx, now, row.termId)).expired;
       return row.termId;
     });
   } catch (error) {
@@ -613,7 +622,7 @@ export async function closePeriod(id: string): Promise<ActionResult<Registration
   }
   revalidateRegistration();
   const period = (await getRegistrationPeriods(termId)).find((entry) => entry.id === id);
-  return period ? actionOk(period) : actionError("Đã đóng nhưng chưa đọc lại được, tải lại trang.");
+  return period ? actionOk({ period, expiredWaitlist }) : actionError("Đã đóng nhưng chưa đọc lại được, tải lại trang.");
 }
 
 // ---- Khóa đăng ký ----

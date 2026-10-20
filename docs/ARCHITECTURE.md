@@ -164,7 +164,8 @@ Ngoại lệ: file mà Next.js quy định tên (`proxy.ts`, `layout.tsx`, `page
 
 **Ngoại lệ ghi kèm thao tác:** code server của một module (action, `*.lib.ts` server-only) được gọi hai hàm ghi dùng chung, luôn truyền transaction của thao tác để thao tác rollback thì dòng ghi kèm cũng mất:
 - `recordAudit(tx, record)` (`@/modules/audit/audit.lib`): ghi nhật ký thao tác.
-- `notifyStudents(tx, studentIds, message)`, `notifyLecturers(tx, lecturerIds, message)`, `notifyUsers(tx, userIds, audience, message)` (`@/modules/notifications/notifications.lib`): ghi thông báo vào chuông và trang Thông báo của cổng người nhận. Sinh viên, giảng viên chưa có tài khoản cổng (`userId` trống) bị bỏ qua; hàm trả về id đã nhận để nơi gọi đếm số chưa nhận. `href` phải là đường dẫn thật trong cổng của người nhận. Chưa có dịch vụ email: đây là kênh báo duy nhất, giao diện không được hứa "đã gửi email".
+- `notifyStudents(tx, studentIds, message)`, `notifyLecturers(tx, lecturerIds, message)`, `notifyUsers(tx, userIds, audience, message)` (`@/modules/notifications/notifications.lib`): ghi thông báo vào chuông và trang Thông báo của cổng người nhận. Sinh viên, giảng viên chưa có tài khoản cổng (`userId` trống) bị bỏ qua; hàm trả về id đã nhận để nơi gọi đếm số chưa nhận. `href` phải là đường dẫn thật trong cổng của người nhận. Email không đi kèm tự động: cần email thì xếp thư bằng `enqueueMail` (dưới đây).
+- `enqueueMail(tx, messages)` (`@/modules/mail/mail.lib`): xếp thư vào hàng đợi `mail_outbox` (mỗi người nhận một dòng), trả id thư; sau khi commit gọi `deliverMailSoon(ids)` để gửi ngay sau khi trả phản hồi (`after()`), hoặc `await deliverQueuedMail(ids)` trong tác vụ nền. Không gọi thẳng `sendMail` cho thư nghiệp vụ (xem mục "Hàng đợi thư").
 
 **Ngoại lệ duy nhất: `*.schema.ts`.** Khóa ngoại nối bảng giữa các module (đăng ký học phần trỏ tới sinh viên, lớp học phần trỏ tới học phần), nên file schema được import file schema của module khác, và chỉ file schema. Import qua alias `@/modules/users/users.schema` như mọi file khác (drizzle-kit đọc được `paths` của tsconfig). Thứ tự phụ thuộc: `authentication` → `curriculum` → `users`, `facilities` → `course-registration` → các module còn lại; không có vòng.
 
@@ -324,7 +325,7 @@ Giờ tiết học ở `shared/constants/period.constant.ts`: 12 tiết, mỗi t
 
 Trigger báo lỗi bằng `RAISE ... USING CONSTRAINT = '<tên>'` nên `pgErrorMessage()` tra được câu tiếng Việt như ràng buộc thường.
 
-- **Kiểu dữ liệu khớp frontend:** `tests/schema-types.check.ts` so từng `pgEnum` với kiểu union tương ứng trong `*.type.ts` (35 cặp); lệch một giá trị là `tsc` báo lỗi.
+- **Kiểu dữ liệu khớp frontend:** `tests/schema-types.check.ts` so từng `pgEnum` với kiểu union tương ứng trong `*.type.ts` (38 cặp); lệch một giá trị là `tsc` báo lỗi.
 - **Lưu ý drizzle-kit:** khi thêm khóa ngoại kép cùng ràng buộc unique mà nó trỏ tới, drizzle-kit có thể sinh câu `ADD FOREIGN KEY` trước `ADD UNIQUE`; kiểm migration bằng cách chạy trên DB trắng trước khi commit.
 
 - **Ràng buộc đặt ở DB**, không chỉ ở code: sĩ số trong sức chứa, một đăng ký hiệu lực mỗi lớp và một lớp mỗi học phần trong học kỳ (unique index có điều kiện), nhóm thực hành thuộc đúng lớp và học kỳ, học phần trên đăng ký khớp lớp (khóa ngoại kép), tiết 1..12, thứ 2..8, điểm 0..10, một học kỳ hiện tại, một kế hoạch học tập hiệu lực mỗi SV, đơn từ có đúng một người gửi.
@@ -377,6 +378,17 @@ Phân quyền cổng quản trị đọc từ DB: `getViewer()` lấy các vai t
 | Giao dịch | `withStoredFiles(files, work)`: ghi tệp trước, chạy giao dịch; giao dịch hỏng thì xóa tệp vừa ghi. Nộp lại đề thì xóa tệp cũ sau commit. Tiến trình chết giữa chừng hoặc xóa không được thì tác vụ `POST /api/cron/orphan-files` xóa tệp không còn dòng DB nào trỏ tới (chỉ tệp cũ hơn 1 giờ) |
 | Tải xuống | Route handler `/api/files/requests/[attachmentId]` (người xem được đơn: người gửi, cố vấn khi đơn có bước cố vấn, giảng viên được giao bước, cán bộ có bước thuộc vai trò mình trong phạm vi khoa) và `/api/files/exams/[sessionId]/[paper|answer-key]` (giảng viên dạy lớp, cán bộ có `exams.manage` trong phạm vi khoa). Không quyền trả 404. Header: `Content-Disposition` RFC 6266/5987 giữ tên tiếng Việt, `Content-Type` đã lưu, `Cache-Control: private, no-store`, `X-Content-Type-Options: nosniff` |
 | Seed | Mỗi minh chứng, đề mẫu có một tệp PDF nhỏ "Tệp mẫu" (`scripts/seed/sample-file.ts`), khóa tất định theo id mock; seed xóa tệp cũ trong kho vì DB vừa bị xóa sạch |
+
+### Hàng đợi thư
+
+| Việc | Cách làm |
+|---|---|
+| Module | `mail` (không đặt trong `notifications`: thông báo trên cổng và thư là hai kênh khác nhau, hàng đợi chỉ lo gửi thư): bảng `mail_outbox` (người nhận, tiêu đề, nội dung chữ + HTML tùy chọn, loại `account-activation` / `registration-reminder` / `class-announcement`, trạng thái `pending` / `sending` / `sent` / `failed`, số lần thử, lỗi cuối, `next_attempt_at`, id thư Resend) |
+| Ghi | `enqueueMail(tx, ...)` trong transaction của thao tác: rollback thì không có thư, commit thì thư chắc chắn được gửi. Thư kích hoạt tài khoản, nhắc đăng ký học phần, email thông báo lớp đi qua hàng đợi. Riêng mã OTP của better-auth vẫn gửi thẳng `sendMail` (không lưu mã vào DB) |
+| Gửi | `deliverDueMail()` lấy thư đến hạn bằng một câu `UPDATE ... WHERE id IN (SELECT ... FOR UPDATE SKIP LOCKED)`, đổi sang `sending`, tăng số lần thử và giữ chỗ 10 phút (`next_attempt_at`): hai lần chạy song song không gửi trùng; tiến trình chết giữa lúc gửi thì hết hạn giữ chỗ là được lấy lại. Lỗi thì lùi lịch 1, 5, 30 phút, 2 giờ, 8 giờ; lỗi lần thứ 6 thì `failed` |
+| Kích gửi | Action gọi `deliverMailSoon(ids)` sau commit (thư đi ngay khi mọi thứ bình thường); tác vụ `POST /api/cron/mail-outbox` (mỗi 1–5 phút) gửi phần còn lại, gửi lại thư lỗi và xóa thư đã gửi quá 30 ngày |
+| Chưa có khóa Resend | `sendMail` in thư ra log và coi như gửi được, thư thành `sent` |
+| Xem | `/administrator/settings/mail` (quyền `settings.manage`, phạm vi toàn trường): số thư chờ, đã gửi, lỗi; thư lỗi gần đây (người nhận, tiêu đề, lỗi, số lần thử, không hiện nội dung) và nút "Gửi lại" (đặt lại `pending`, đếm lại số lần thử) |
 
 ### Kiểm thử end-to-end (Playwright)
 

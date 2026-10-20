@@ -3,9 +3,9 @@ import { and, asc, count, desc, eq, isNull, lte, type SQL } from "drizzle-orm";
 import { db, type Transaction } from "@/shared/libs/db.lib";
 import { env } from "@/shared/libs/env.lib";
 import { isUuid } from "@/shared/libs/id.lib";
-import { sendMailEach } from "@/shared/libs/mail.lib";
 import { classSections, enrollments, terms } from "@/modules/course-registration/course-registration.schema";
 import { courses } from "@/modules/curriculum/curriculum.schema";
+import { deliverQueuedMail, enqueueMail } from "@/modules/mail/mail.lib";
 import { notifyStudents } from "@/modules/notifications/notifications.lib";
 import { SYLLABUS_WEEKS } from "@/modules/teaching/teaching.constant";
 import { effectiveAnnouncementStatus } from "@/modules/teaching/teaching.rule";
@@ -240,12 +240,10 @@ export async function recordAnnouncementRead(studentId: string, announcementId: 
   return true;
 }
 
-export type ClassMail = { recipients: string[]; subject: string; text: string };
-
 type AnnouncementToSend = { id: string; classSectionId: string; title: string; body: string; sendEmail: boolean };
 
-// Báo bài đăng tới sinh viên đang học lớp: ghi thông báo trên cổng và notified_at trong cùng transaction.
-// Email không gửi trong transaction (gọi mạng khi đang giữ khóa dòng); trả về thư để nơi gọi gửi sau khi commit.
+// Báo bài đăng tới sinh viên đang học lớp: ghi thông báo trên cổng, notified_at và thư (nếu bật email) trong cùng transaction.
+// Thư chỉ xếp hàng, không gửi khi đang giữ khóa dòng; trả id thư để nơi gọi gửi sau khi commit.
 export async function announceToClass(tx: Transaction, announcement: AnnouncementToSend) {
   const [section] = await tx
     .select({ code: classSections.code, courseName: courses.name, lecturerTitle: lecturers.title, lecturerName: lecturers.fullName })
@@ -266,27 +264,17 @@ export async function announceToClass(tx: Transaction, announcement: Announcemen
   );
   await tx.update(classAnnouncements).set({ notifiedAt: new Date(), status: "published" }).where(eq(classAnnouncements.id, announcement.id));
   const author = section.lecturerName ? `${section.lecturerTitle} ${section.lecturerName}` : "Giảng viên";
-  const mail: ClassMail | null =
-    announcement.sendEmail && roster.length > 0
-      ? {
-          recipients: roster.map((student) => student.email),
+  const mailIds = announcement.sendEmail
+    ? await enqueueMail(tx, [
+        {
+          kind: "class-announcement",
+          to: roster.map((student) => student.email),
           subject: `[${section.code}] ${announcement.title}`,
           text: `${announcement.body}\n\n${author}, lớp ${section.code} (${section.courseName}).\nXem trên cổng sinh viên: ${env.DEFEAT_BETTER_AUTH_PUBLIC_APPLICATION_BASE_URL}${href}`,
-        }
-      : null;
-  return { students: roster.length, notified: notified.length, mail };
-}
-
-export async function sendClassMails(mails: (ClassMail | null)[]) {
-  let sent = 0;
-  let failed = 0;
-  for (const mail of mails) {
-    if (!mail) continue;
-    const result = await sendMailEach(mail.recipients, { subject: mail.subject, text: mail.text });
-    sent += result.sent;
-    failed += result.failed;
-  }
-  return { sent, failed };
+        },
+      ])
+    : [];
+  return { students: roster.length, notified: notified.length, mailIds };
 }
 
 // Mỗi lần chạy báo tối đa ngần này bài; còn thì lần chạy sau báo tiếp.
@@ -295,7 +283,7 @@ const DUE_BATCH = 50;
 // Báo các bài đã tới giờ đăng mà chưa báo. Khóa dòng FOR UPDATE SKIP LOCKED: hai lần chạy song song (cron và trang lớp gọi bù)
 // không lấy trùng bài, bài đang bị lần chạy kia hoặc giảng viên đang sửa giữ khóa thì bỏ qua cho lần sau.
 export async function publishDueClassAnnouncements(options: { classSectionId?: string } = {}) {
-  if (options.classSectionId !== undefined && !isUuid(options.classSectionId)) return { announcements: 0, notified: 0, emailed: 0, emailFailed: 0 };
+  if (options.classSectionId !== undefined && !isUuid(options.classSectionId)) return { announcements: 0, notified: 0, emailed: 0, emailRetrying: 0 };
   const results = await db.transaction(async (tx) => {
     const due = await tx
       .select({
@@ -320,11 +308,12 @@ export async function publishDueClassAnnouncements(options: { classSectionId?: s
     for (const announcement of due) done.push(await announceToClass(tx, announcement));
     return done;
   });
-  const mail = await sendClassMails(results.map((result) => result.mail));
+  // Tác vụ nền nên chờ gửi luôn; thư lỗi nằm lại hàng đợi cho tác vụ mail-outbox gửi lại.
+  const mail = await deliverQueuedMail(results.flatMap((result) => result.mailIds));
   return {
     announcements: results.length,
     notified: results.reduce((sum, result) => sum + result.notified, 0),
     emailed: mail.sent,
-    emailFailed: mail.failed,
+    emailRetrying: mail.retrying + mail.failed,
   };
 }

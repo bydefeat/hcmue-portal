@@ -2,14 +2,14 @@
 
 import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { after } from "next/server";
 import { db } from "@/shared/libs/db.lib";
 import { actionError, actionFailure, actionOk, parseInput, type ActionResult } from "@/shared/libs/action.lib";
 import { isUuid } from "@/shared/libs/id.lib";
 import { classSections } from "@/modules/course-registration/course-registration.schema";
 import { courses } from "@/modules/curriculum/curriculum.schema";
+import { deliverMailSoon } from "@/modules/mail/mail.lib";
 import { TEACHING_CONSTRAINT_MESSAGE } from "@/modules/teaching/teaching.constant";
-import { announceToClass, classPageHref, recordAnnouncementRead, sendClassMails, type ClassMail } from "@/modules/teaching/teaching.lib";
+import { announceToClass, classPageHref, recordAnnouncementRead } from "@/modules/teaching/teaching.lib";
 import { getClassAnnouncement, getSyllabus } from "@/modules/teaching/teaching.query";
 import { assessmentTotal, CLASS_ANNOUNCEMENT_SCHEMA, SYLLABUS_SCHEMA, type ClassAnnouncementInput, type SyllabusInput } from "@/modules/teaching/teaching.rule";
 import { classAnnouncements, syllabi, syllabusAssessments, syllabusOutcomes, syllabusWeeks } from "@/modules/teaching/teaching.schema";
@@ -99,7 +99,7 @@ export async function saveClassAnnouncement(id: string | null, input: ClassAnnou
   const parsed = parseInput(CLASS_ANNOUNCEMENT_SCHEMA, input);
   if (!parsed.ok) return parsed;
   const { schedule, publishAt, classSectionId: _classSectionId, ...values } = parsed.data;
-  let saved: { id: string; mail: ClassMail | null } | null;
+  let saved: { id: string; mailIds: string[] } | null;
   try {
     saved = await db.transaction(async (tx) => {
       if (id === null) {
@@ -115,7 +115,7 @@ export async function saveClassAnnouncement(id: string | null, input: ClassAnnou
           .returning({ id: classAnnouncements.id });
         // Bài hẹn giờ chờ tác vụ class-announcements báo khi tới giờ.
         const announced = schedule ? null : await announceToClass(tx, { id: row.id, classSectionId: section.id, ...values });
-        return { id: row.id, mail: announced?.mail ?? null };
+        return { id: row.id, mailIds: announced?.mailIds ?? [] };
       }
       // Khóa dòng để không chạy song song với tác vụ báo bài hẹn giờ (tác vụ bỏ qua dòng đang bị khóa).
       const [current] = await tx
@@ -137,16 +137,15 @@ export async function saveClassAnnouncement(id: string | null, input: ClassAnnou
         .where(eq(classAnnouncements.id, id));
       // Bài đã báo thì sửa không báo lại; bài chưa báo mà giờ đăng ngay (bỏ hẹn giờ, hoặc đã quá giờ hẹn) thì báo như đăng mới.
       const announced = !schedule && !current.notifiedAt ? await announceToClass(tx, { id, classSectionId: section.id, ...values }) : null;
-      return { id, mail: announced?.mail ?? null };
+      return { id, mailIds: announced?.mailIds ?? [] };
     });
   } catch (error) {
     if (error instanceof AlreadyAnnouncedError) return actionError("Thông báo đã đăng và đã báo tới sinh viên nên không hẹn giờ lại được. Tắt Hẹn giờ đăng để lưu nội dung sửa.", { schedule: "Bài đã đăng không hẹn giờ lại được" });
     return actionFailure(error, TEACHING_CONSTRAINT_MESSAGE);
   }
   if (!saved) return actionError("Thông báo không còn tồn tại, tải lại trang.");
-  // Gửi email sau khi đã trả kết quả cho giảng viên: không bắt giảng viên chờ gửi cho cả lớp, lỗi gửi chỉ ghi log.
-  const mail = saved.mail;
-  if (mail) after(() => sendClassMails([mail]).catch((error: unknown) => console.error("[teaching] Không gửi được email thông báo lớp:", error)));
+  // Thư đã xếp hàng cùng bài đăng; gửi sau khi đã trả kết quả để giảng viên không phải chờ gửi cho cả lớp.
+  deliverMailSoon(saved.mailIds);
   revalidateClass(section.id);
   const announcement = await getClassAnnouncement(saved.id);
   return announcement ? actionOk(announcement) : actionError("Đã lưu nhưng chưa đọc lại được, tải lại trang.");

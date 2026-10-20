@@ -4,9 +4,9 @@ import { eq, inArray, or, sql } from "drizzle-orm";
 import { hashPassword } from "better-auth/crypto";
 import type { db, Transaction } from "@/shared/libs/db.lib";
 import { env } from "@/shared/libs/env.lib";
-import { sendMail } from "@/shared/libs/mail.lib";
 import { account, session, user } from "@/modules/authentication/authentication.schema";
 import { faculties, majors } from "@/modules/curriculum/curriculum.schema";
+import { enqueueMail } from "@/modules/mail/mail.lib";
 import { accountStatusOf, activationLink, activationMail, studentAccountIdentity } from "@/modules/users/users.rule";
 import { administrativeClasses, lecturers, staffMembers, students } from "@/modules/users/users.schema";
 import type { AccountKind, AccountState } from "@/modules/users/users.type";
@@ -28,7 +28,6 @@ export type AccountProfile = {
 
 export type NewAccount = AccountProfile & { userId: string };
 
-const MAIL_BATCH = 50;
 const HASH_BATCH = 25;
 
 // Mật khẩu ban đầu ngẫu nhiên, không hiện cho ai và không lưu dạng rõ: người dùng tự đặt qua "Kích hoạt tài khoản".
@@ -134,26 +133,22 @@ export async function setAccountsLocked(tx: Transaction, userIds: string[], lock
   if (locked) await tx.delete(session).where(inArray(session.userId, userIds));
 }
 
-// Gửi thư kích hoạt sau khi transaction đã commit. Mỗi người một đường dẫn riêng (điền sẵn email) nên gửi từng thư.
-export async function sendActivationMails(accounts: Pick<AccountProfile, "name" | "email" | "loginName" | "role">[]) {
-  let sent = 0;
-  for (let start = 0; start < accounts.length; start += MAIL_BATCH) {
-    const results = await Promise.all(
-      accounts.slice(start, start + MAIL_BATCH).map((entry) =>
-        sendMail({
-          to: entry.email,
-          ...activationMail({
-            name: entry.name,
-            loginName: entry.loginName,
-            isStudent: entry.role === "student",
-            link: activationLink(env.DEFEAT_BETTER_AUTH_PUBLIC_APPLICATION_BASE_URL, entry.email),
-          }),
-        }),
-      ),
-    );
-    sent += results.filter((result) => result.ok).length;
-  }
-  return { sent, failed: accounts.length - sent };
+// Xếp thư kích hoạt vào hàng đợi trong transaction cấp tài khoản: rollback thì không có thư, commit thì thư chắc chắn được gửi (có gửi lại).
+// Mỗi người một đường dẫn riêng (điền sẵn email) nên mỗi người một thư. Trả id thư để kích gửi ngay sau commit.
+export async function queueActivationMails(tx: Transaction, accounts: Pick<AccountProfile, "name" | "email" | "loginName" | "role">[]) {
+  return enqueueMail(
+    tx,
+    accounts.map((entry) => ({
+      kind: "account-activation",
+      to: entry.email,
+      ...activationMail({
+        name: entry.name,
+        loginName: entry.loginName,
+        isStudent: entry.role === "student",
+        link: activationLink(env.DEFEAT_BETTER_AUTH_PUBLIC_APPLICATION_BASE_URL, entry.email),
+      }),
+    })),
+  );
 }
 
 // Trạng thái tài khoản theo id hồ sơ; không truyền ids thì đọc mọi hồ sơ của loại đó.

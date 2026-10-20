@@ -12,8 +12,6 @@ export type MailMessage = {
 export type MailResult = { ok: true; id: string | null } | { ok: false; error: string };
 
 const RESEND_ENDPOINT = "https://api.resend.com/emails";
-// Resend nhận tối đa 50 người nhận mỗi thư; gửi nhiều người thì tách lô.
-const MAX_RECIPIENTS = 50;
 
 function escapeHtml(value: string) {
   return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -26,7 +24,9 @@ function textToHtml(text: string) {
     .join("")}</div>`;
 }
 
-// Gửi một thư. Chưa cấu hình DEFEAT_RESEND_API_KEY thì in thư ra log server và coi như gửi được, để môi trường phát triển chạy đủ luồng.
+// Gửi một thư ngay. Thư nghiệp vụ không gọi thẳng hàm này mà xếp vào hàng đợi (enqueueMail của module mail) để được gửi lại khi lỗi;
+// chỉ mã OTP của better-auth gửi thẳng vì không lưu mã vào DB.
+// Chưa cấu hình DEFEAT_RESEND_API_KEY thì in thư ra log server và coi như gửi được, để môi trường phát triển chạy đủ luồng.
 // Lỗi gửi không ném ra: nơi gọi quyết định báo người dùng hay bỏ qua (thông báo trên cổng vẫn là kênh chính).
 export async function sendMail(message: MailMessage): Promise<MailResult> {
   const recipients = [...new Set([message.to].flat().map((address) => address.trim()).filter(Boolean))];
@@ -57,17 +57,8 @@ export async function sendMail(message: MailMessage): Promise<MailResult> {
     return { ok: true, id: body?.id ?? null };
   } catch (error) {
     console.error(`[mail] Không gửi được thư tới ${recipients.length} người nhận:`, error);
-    return { ok: false, error: error instanceof Error ? error.message : "Không gửi được thư" };
+    // fetch của Node chỉ báo "fetch failed", nguyên nhân thật (DNS, TLS, từ chối kết nối) nằm ở cause.
+    const cause = error instanceof Error && typeof (error.cause as { message?: unknown } | undefined)?.message === "string" ? `: ${(error.cause as Error).message}` : "";
+    return { ok: false, error: error instanceof Error ? `${error.message}${cause}` : "Không gửi được thư" };
   }
-}
-
-// Gửi cùng một thư cho nhiều người, mỗi người một thư riêng (không lộ địa chỉ của nhau), tối đa MAX_RECIPIENTS thư một lô song song.
-export async function sendMailEach(recipients: string[], message: Omit<MailMessage, "to">) {
-  const unique = [...new Set(recipients.map((address) => address.trim()).filter(Boolean))];
-  let sent = 0;
-  for (let start = 0; start < unique.length; start += MAX_RECIPIENTS) {
-    const results = await Promise.all(unique.slice(start, start + MAX_RECIPIENTS).map((to) => sendMail({ ...message, to })));
-    sent += results.filter((result) => result.ok).length;
-  }
-  return { sent, failed: unique.length - sent };
 }

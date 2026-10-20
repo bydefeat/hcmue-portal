@@ -201,8 +201,8 @@ export type StaffInput = z.input<typeof STAFF_SCHEMA>;
 
 export type AccountBatchAction = "provision" | "resend" | "lock" | "unlock";
 
-// Câu báo sau thao tác hàng loạt: số đã làm, số thư gửi được, số dòng bỏ qua gom theo lý do.
-export function accountBatchSummary(action: AccountBatchAction, result: { changed: number; mailed: number; mailFailed: number; skipped: { reason: string }[] }) {
+// Câu báo sau thao tác hàng loạt: số đã làm, số thư đã xếp gửi, số dòng bỏ qua gom theo lý do.
+export function accountBatchSummary(action: AccountBatchAction, result: { changed: number; mailed: number; skipped: { reason: string }[] }) {
   const head = {
     provision: `Đã cấp ${result.changed} tài khoản, gửi thư kích hoạt tới ${result.mailed} người`,
     resend: `Đã gửi lại thư kích hoạt tới ${result.mailed} người`,
@@ -210,7 +210,6 @@ export function accountBatchSummary(action: AccountBatchAction, result: { change
     unlock: `Đã mở khóa ${result.changed} tài khoản`,
   }[action];
   const parts = [head];
-  if (result.mailFailed > 0) parts.push(`${result.mailFailed} thư chưa gửi được, thử "Gửi lại thư kích hoạt" sau ít phút`);
   if (result.skipped.length > 0) {
     const byReason = new Map<string, number>();
     for (const entry of result.skipped) byReason.set(entry.reason, (byReason.get(entry.reason) ?? 0) + 1);

@@ -35,7 +35,7 @@ const NETWORK_ERROR = "Chưa lưu được, kiểm tra kết nối rồi thử l
 
 function mailNote(mail: MailOutcome | null) {
   if (!mail) return "";
-  return mail.failed > 0 ? `; ${mail.failed} thư kích hoạt chưa gửi được, chọn dòng rồi "Gửi lại thư kích hoạt"` : `; đã gửi thư kích hoạt tới ${mail.sent} email trường`;
+  return `; đã gửi thư kích hoạt tới ${mail.queued} email trường`;
 }
 
 type StudentTableProps = {

@@ -8,6 +8,7 @@ import { dayjs, formatDate } from "@/shared/libs/date.lib";
 import { toCsv } from "@/shared/libs/download.lib";
 import { buildSpreadsheet, bytesToBase64, XLSX_MIME } from "@/shared/libs/spreadsheet.lib";
 import { isUuid } from "@/shared/libs/id.lib";
+import { buildTablePdf, PDF_MIME } from "@/shared/libs/pdf.lib";
 import { requirePermission, requireSchoolWidePermission } from "@/modules/access/access.query";
 import { auditActorOf, recordAudit } from "@/modules/audit/audit.lib";
 import { auditChanges } from "@/modules/audit/audit.rule";
@@ -170,7 +171,7 @@ export async function requestReportExport(input: ReportExportInput): Promise<Act
 }
 
 // Tải báo cáo đã xuất: đọc lại dữ liệu theo đúng tham số lúc xuất, tạo tệp theo định dạng đã chọn để trình duyệt lưu.
-// Excel trả base64 (server action chỉ truyền được dữ liệu tuần tự hóa), CSV trả chữ.
+// Excel, PDF trả base64 (server action chỉ truyền được dữ liệu tuần tự hóa), CSV trả chữ.
 export async function downloadReportExport(id: string): Promise<ActionResult<{ fileName: string; content: string; encoding: "base64" | "text"; mimeType: string }>> {
   const viewer = await requirePermission("reports.view");
   if (!isUuid(id)) return actionError("Không tìm thấy báo cáo.");
@@ -184,10 +185,20 @@ export async function downloadReportExport(id: string): Promise<ActionResult<{ f
   if (viewer.faculty && faculty !== viewer.faculty) return actionError("Bạn chỉ tải được báo cáo của khoa mình.");
   const table = params.termId ? await getReportTable(job.reportKey, params.termId, faculty) : null;
   if (!table) return actionError("Học kỳ của báo cáo không còn trong danh mục.");
-  const [term] = await db.select({ code: terms.code }).from(terms).where(eq(terms.id, params.termId!));
+  const [term] = await db.select({ code: terms.code, name: terms.name }).from(terms).where(eq(terms.id, params.termId!));
   const fileName = reportFileName(job.reportKey, term?.code ?? "hoc-ky", params.format);
+  const report = REPORT_DEFINITIONS.find((entry) => entry.id === job.reportKey);
+  if (params.format === "pdf") {
+    const bytes = await buildTablePdf({
+      title: report?.name ?? job.reportKey,
+      subtitle: [term?.name, faculty === "all" ? "Toàn trường" : faculty].filter(Boolean).join(" · "),
+      unit: "Phòng Đào tạo",
+      header: table.header,
+      rows: table.rows.map((row) => row.map(reportCellText)),
+    });
+    return actionOk({ fileName, content: bytesToBase64(bytes), encoding: "base64", mimeType: PDF_MIME });
+  }
   if (params.format === "xlsx") {
-    const report = REPORT_DEFINITIONS.find((entry) => entry.id === job.reportKey);
     const bytes = await buildSpreadsheet(
       report?.name ?? job.reportKey,
       table.header.map((header) => ({ header, text: /^(MSSV|Mã)/.test(header) })),

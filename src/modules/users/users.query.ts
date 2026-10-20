@@ -231,6 +231,17 @@ export async function getAdvisorOf(studentId: string) {
 export async function getDecisions(studentId?: string): Promise<StudentDecision[]> {
   await requireSession();
   if (studentId !== undefined && !isUuid(studentId)) return [];
+  return decisionRows(studentId ? eq(studentDecisions.studentId, studentId) : undefined);
+}
+
+export async function getDecision(id: string): Promise<StudentDecision | null> {
+  await requireSession();
+  if (!isUuid(id)) return null;
+  const [row] = await decisionRows(eq(studentDecisions.id, id));
+  return row ?? null;
+}
+
+async function decisionRows(where?: SQL): Promise<StudentDecision[]> {
   const rows = await db
     .select({
       id: studentDecisions.id,
@@ -253,7 +264,7 @@ export async function getDecisions(studentId?: string): Promise<StudentDecision[
     .innerJoin(administrativeClasses, eq(administrativeClasses.id, students.administrativeClassId))
     .innerJoin(majors, eq(majors.id, administrativeClasses.majorId))
     .innerJoin(faculties, eq(faculties.id, majors.facultyId))
-    .where(studentId ? eq(studentDecisions.studentId, studentId) : undefined)
+    .where(where)
     .orderBy(desc(studentDecisions.effectiveDate), asc(studentDecisions.id));
   return rows.map((row) => ({ ...row, studentCode: formatStudentCode(row.studentCode), signedAt: row.signedAt?.toISOString() ?? null }));
 }

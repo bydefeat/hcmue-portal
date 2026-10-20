@@ -48,7 +48,7 @@ export default async function Page({ params }: { params: Promise<{ classId: stri
           </Link>
         </div>
       </Card>
-      <ClassRosterTable roster={roster} classCode={section?.code ?? ""} />
+      <ClassRosterTable roster={roster} classCode={section?.code ?? ""} classSectionId={classId} />
     </div>
   );
 }

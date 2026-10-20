@@ -374,3 +374,16 @@ export const ADMIN_REGISTER_SCHEMA = z.object({
 });
 
 export type AdminRegisterInput = z.input<typeof ADMIN_REGISTER_SCHEMA>;
+
+// Mã xác thực của phiếu đăng ký: băm sinh viên, học kỳ và các lớp đang học; đổi lớp là đổi mã. Trang và bản PDF dùng chung.
+export function receiptVerificationCode(studentId: string, termId: string, sectionIds: string[]) {
+  const value = `${studentId}:${termId}:${sectionIds.join(",")}`;
+  const hash = [...value].reduce((sum, char) => (sum * 31 + char.charCodeAt(0)) >>> 0, 17);
+  return hash.toString(36).toUpperCase().padStart(7, "0").slice(0, 7);
+}
+
+// Phiếu xác nhận theo lúc đóng đợt đăng ký của khóa; học kỳ chưa có đợt thì theo lần đăng ký gần nhất, rồi ngày bắt đầu học kỳ.
+export function receiptConfirmedAt(periods: { cohorts: number[]; closesAt: string }[], cohort: number, events: { at: string }[], termStart: string) {
+  const period = periods.find((entry) => entry.cohorts.includes(cohort)) ?? periods.at(-1);
+  return period?.closesAt ?? events[0]?.at ?? termStart;
+}

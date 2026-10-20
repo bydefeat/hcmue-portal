@@ -6,6 +6,9 @@ import { forbidden } from "next/navigation";
 import { db, type Transaction } from "@/shared/libs/db.lib";
 import { dayjs } from "@/shared/libs/date.lib";
 import { actionError, actionFailure, actionOk, parseInput, type ActionResult } from "@/shared/libs/action.lib";
+import { isUuid } from "@/shared/libs/id.lib";
+import { PDF_MIME } from "@/shared/libs/pdf.lib";
+import { bytesToBase64 } from "@/shared/libs/spreadsheet.lib";
 import { can, inScope } from "@/modules/access/access.constant";
 import { requirePermission } from "@/modules/access/access.query";
 import { auditActorOf, recordAudit } from "@/modules/audit/audit.lib";
@@ -13,10 +16,11 @@ import { requireSession } from "@/modules/authentication/authentication.query";
 import { classSections, enrollments, terms } from "@/modules/course-registration/course-registration.schema";
 import { courses, faculties, majors } from "@/modules/curriculum/curriculum.schema";
 import { notifyLecturers, notifyStudents } from "@/modules/notifications/notifications.lib";
-import { DEFAULT_COMPONENTS, DEFAULT_DEADLINE_DAYS, GRADES_CONSTRAINT_MESSAGE, weightedScore } from "@/modules/grades/grades.constant";
+import { DEFAULT_COMPONENTS, DEFAULT_DEADLINE_DAYS, GRADE_SHEET_STATE, GRADES_CONSTRAINT_MESSAGE, weightedScore } from "@/modules/grades/grades.constant";
 import { gradeSheetWorkbook, readWorkbookMatrix, XLSX_MIME } from "@/modules/grades/grades.excel";
 import { GradeActionError, replaceGradeComponents, sectionRoster, syncAcademicWarnings, type WarningSyncResult } from "@/modules/grades/grades.lib";
-import { getGradeSheet } from "@/modules/grades/grades.query";
+import { gradeSheetPdf, transcriptPdf } from "@/modules/grades/grades.pdf";
+import { getGradeSheet, getStudentStandings, getTranscript } from "@/modules/grades/grades.query";
 import {
   ACADEMIC_WARNING_GENERATE_SCHEMA,
   courseGrade,
@@ -36,7 +40,7 @@ import {
 } from "@/modules/grades/grades.rule";
 import { academicWarnings, courseResults, gradeComponents, gradeScores, gradeSheets } from "@/modules/grades/grades.schema";
 import type { GradeComponent, GradeSheetStatus, WarningStatus } from "@/modules/grades/grades.type";
-import { getCurrentLecturer } from "@/modules/users/users.query";
+import { getCurrentLecturer, getCurrentStudent, getStudent } from "@/modules/users/users.query";
 import { administrativeClasses, lecturers, students } from "@/modules/users/users.schema";
 
 function failure(error: unknown) {
@@ -54,7 +58,7 @@ function revalidateGrades() {
 // Giảng viên chỉ thao tác trên bảng điểm lớp mình dạy.
 async function requireOwnSection(lecturerId: string, classSectionId: string) {
   const [section] = await db
-    .select({ id: classSections.id, code: classSections.code, courseName: courses.name, lecturerId: classSections.lecturerId, termEnd: terms.endDate })
+    .select({ id: classSections.id, code: classSections.code, courseName: courses.name, lecturerId: classSections.lecturerId, termName: terms.name, termEnd: terms.endDate })
     .from(classSections)
     .innerJoin(terms, eq(terms.id, classSections.termId))
     .innerJoin(courses, eq(courses.id, classSections.courseId))
@@ -416,6 +420,52 @@ export async function exportGradeSheetExcel(classSectionId: string): Promise<Act
     locked: !EDITABLE.includes(sheet.status),
   });
   return actionOk({ fileName: `bang-diem-${section.code}.xlsx`, base64: buffer.toString("base64"), mimeType: XLSX_MIME });
+}
+
+type PdfFile = { fileName: string; base64: string; mimeType: string };
+
+// Bảng điểm lớp bản PDF để in, ký nộp khoa: chỉ khi đã chốt (điểm không còn đổi), chỉ lớp giảng viên dạy.
+export async function exportGradeSheetPdf(classSectionId: string): Promise<ActionResult<PdfFile>> {
+  const lecturer = await getCurrentLecturer();
+  const parsed = parseInput(GRADE_SHEET_SCHEMA, { classSectionId });
+  if (!parsed.ok) return parsed;
+  const section = await requireOwnSection(lecturer.id, parsed.data.classSectionId);
+  const [sheet, roster] = await Promise.all([getGradeSheet(section.id), sectionRoster(db, section.id)]);
+  if (!sheet) return actionError("Lớp học phần không còn, tải lại trang.");
+  if (EDITABLE.includes(sheet.status)) return actionError("Bảng điểm chưa chốt. Chốt điểm rồi mới tải được bản PDF để in.");
+  const bytes = await gradeSheetPdf({
+    classCode: section.code,
+    courseName: section.courseName,
+    termName: section.termName,
+    lecturerName: lecturer.fullName,
+    statusLabel: GRADE_SHEET_STATE[sheet.state].label,
+    lockedAt: sheet.lockedAt,
+    components: sheet.components,
+    students: roster,
+    scores: sheet.scores,
+  });
+  return actionOk({ fileName: `bang-diem-${section.code}.pdf`, base64: bytesToBase64(bytes), mimeType: PDF_MIME });
+}
+
+async function transcriptFile(student: { id: string; code: string; fullName: string; dateOfBirth: string; className: string; majorName: string; faculty: string; cohort: number }) {
+  const [transcript, [standing]] = await Promise.all([getTranscript(student.id), getStudentStandings([student.id])]);
+  const bytes = await transcriptPdf(student, transcript, standing);
+  return { fileName: `bang-diem-${student.code.replace(/\./g, "")}.pdf`, base64: bytesToBase64(bytes), mimeType: PDF_MIME };
+}
+
+// Sinh viên tải bảng điểm của chính mình (không nhận mã sinh viên từ trình duyệt).
+export async function downloadOwnTranscriptPdf(): Promise<ActionResult<PdfFile>> {
+  const student = await getCurrentStudent();
+  return actionOk(await transcriptFile(student));
+}
+
+// Cán bộ có quyền xem sinh viên tải bảng điểm của sinh viên trong phạm vi khoa mình.
+export async function downloadStudentTranscriptPdf(studentId: string): Promise<ActionResult<PdfFile>> {
+  const viewer = await requirePermission("students.view");
+  const student = isUuid(studentId) ? await getStudent(studentId) : null;
+  if (!student) return actionError("Không tìm thấy sinh viên, tải lại trang.");
+  if (!inScope(viewer, student.faculty)) forbidden();
+  return actionOk(await transcriptFile(student));
 }
 
 // Đọc tệp .xlsx theo mẫu đã xuất, trả các ô điểm để bảng nhập điểm điền và lưu nháp như khi gõ tay.

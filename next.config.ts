@@ -25,6 +25,10 @@ const nextConfig: NextConfig = {
       },
     ];
   },
+  // pdfkit nạp dữ liệu font chuẩn bằng require theo đường dẫn của chính gói: để Node require nguyên gói, không đóng gói lại.
+  serverExternalPackages: ["pdfkit"],
+  // Font của tệp PDF đọc bằng fs lúc chạy, khai báo để bản triển khai (output file tracing) mang theo.
+  outputFileTracingIncludes: { "/*": ["./src/shared/assets/fonts/*"] },
   modularizeImports: {
     antd: { transform: "antd/es/{{ kebabCase member }}" },
   },

@@ -42,11 +42,12 @@ export const REPORT_DEFINITIONS: ReportDefinition[] = [
   { id: "graduation", name: "Danh sách xét tốt nghiệp", description: "Sinh viên đủ và chưa đủ điều kiện tốt nghiệp, kèm lý do chưa đạt.", audience: "Hội đồng xét tốt nghiệp" },
 ];
 
-// Excel (.xlsx: tiêu đề in đậm, cố định hàng tiêu đề, ô số là số) hoặc CSV (UTF-8 có BOM) cho phần mềm khác nhập lại.
-export const REPORT_FORMATS = ["xlsx", "csv"] as const;
+// Excel (.xlsx: tiêu đề in đậm, cố định hàng tiêu đề, ô số là số), PDF (in, gửi kèm văn bản) hoặc CSV (UTF-8 có BOM) cho phần mềm khác nhập lại.
+export const REPORT_FORMATS = ["xlsx", "pdf", "csv"] as const;
 
 export const REPORT_FORMAT_LABEL: Record<(typeof REPORT_FORMATS)[number], string> = {
   xlsx: "Excel (.xlsx)",
+  pdf: "PDF (.pdf)",
   csv: "CSV (.csv)",
 };
 

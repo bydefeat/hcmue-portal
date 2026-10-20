@@ -197,7 +197,7 @@ export function ReportExportCenter({ reports, terms, faculties, defaultTermId, j
           <Form.Item
             name="format"
             label="Định dạng"
-            extra="Excel giữ ô số là số, cố định hàng tiêu đề. CSV dùng để nhập vào phần mềm khác."
+            extra="Excel giữ ô số là số, cố định hàng tiêu đề. PDF để in hoặc gửi kèm văn bản. CSV dùng để nhập vào phần mềm khác."
           >
             <Radio.Group options={REPORT_FORMATS.map((value) => ({ value, label: REPORT_FORMAT_LABEL[value] }))} />
           </Form.Item>

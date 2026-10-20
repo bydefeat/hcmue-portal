@@ -3,9 +3,11 @@
 import { useState } from "react";
 import { Button, Input, message, Table, type TableColumnsType } from "antd";
 import { Download, Envelope, Magnifier } from "defeat-icons-react";
+import { DownloadPdfButton } from "@/shared/components/ui/download-pdf-button";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { formatDate } from "@/shared/libs/date.lib";
 import { downloadFile, toCsv } from "@/shared/libs/download.lib";
+import { exportClassRosterPdf } from "@/modules/course-registration/course-registration.action";
 import type { RosterEntry } from "@/modules/course-registration/course-registration.type";
 import { paginationItemRender } from "@/shared/constants/antd.constant";
 import { normalizeSearch } from "@/shared/libs/search.lib";
@@ -15,7 +17,7 @@ function emailOf(studentCode: string) {
   return studentEmailOf(studentCode);
 }
 
-export function ClassRosterTable({ roster, classCode }: { roster: RosterEntry[]; classCode: string }) {
+export function ClassRosterTable({ roster, classCode, classSectionId }: { roster: RosterEntry[]; classCode: string; classSectionId: string }) {
   const [messageApi, contextHolder] = message.useMessage();
   const [query, setQuery] = useState("");
   const needle = normalizeSearch(query.trim());
@@ -78,6 +80,7 @@ export function ClassRosterTable({ roster, classCode }: { roster: RosterEntry[];
             }}>
             Xuất danh sách
           </Button>
+          <DownloadPdfButton action={() => exportClassRosterPdf(classSectionId)} />
         </div>
       </div>
       <Table

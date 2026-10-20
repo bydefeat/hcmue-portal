@@ -91,7 +91,7 @@ const ADMIN_PAGES = [
 ];
 
 // Trang chỉ vai trò Quản trị hệ thống vào được.
-const SYSTEM_PAGES = ["/administrator/settings/access", "/administrator/settings/audit-log"];
+const SYSTEM_PAGES = ["/administrator/settings/access", "/administrator/settings/audit-log", "/administrator/settings/mail"];
 
 // Đường dẫn chuyển hướng: chỉ cần đến đúng trang đích.
 const REDIRECTS: [role: "student" | "lecturer" | "admin", from: string, to: RegExp][] = [

@@ -232,6 +232,20 @@
       "when": 1792499377369,
       "tag": "0032_request_step_permissions",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1792501230024,
+      "tag": "0033_exams_surveys_teaching_advising",
+      "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1792501256082,
+      "tag": "0034_exams_surveys_guards",
+      "breakpoints": true
     }
   ]
 }

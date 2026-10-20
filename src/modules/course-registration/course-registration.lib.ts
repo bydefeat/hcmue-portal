@@ -122,7 +122,7 @@ export async function loadSections(executor: Executor, where: SQL): Promise<Clas
   const sectionIds = rows.map((row) => row.id);
   const [meetings, labs, seats, seatMajors, audienceMajors] = await Promise.all([
     executor
-      .select({ sectionId: sectionMeetings.classSectionId, dayOfWeek: sectionMeetings.dayOfWeek, startPeriod: sectionMeetings.startPeriod, endPeriod: sectionMeetings.endPeriod, room: rooms.code })
+      .select({ sectionId: sectionMeetings.classSectionId, dayOfWeek: sectionMeetings.dayOfWeek, startPeriod: sectionMeetings.startPeriod, endPeriod: sectionMeetings.endPeriod, room: rooms.code, roomId: rooms.id })
       .from(sectionMeetings)
       .innerJoin(rooms, eq(rooms.id, sectionMeetings.roomId))
       .where(inArray(sectionMeetings.classSectionId, sectionIds))
@@ -136,6 +136,7 @@ export async function loadSections(executor: Executor, where: SQL): Promise<Clas
         startPeriod: labGroups.startPeriod,
         endPeriod: labGroups.endPeriod,
         room: rooms.code,
+        roomId: rooms.id,
         capacity: labGroups.capacity,
         enrolled: labGroups.enrolledCount,
       })
@@ -180,7 +181,7 @@ export async function loadSections(executor: Executor, where: SQL): Promise<Clas
         .map((lab) => ({
           id: lab.id,
           code: lab.code,
-          meeting: { dayOfWeek: lab.dayOfWeek, startPeriod: lab.startPeriod, endPeriod: lab.endPeriod, room: lab.room },
+          meeting: { dayOfWeek: lab.dayOfWeek, startPeriod: lab.startPeriod, endPeriod: lab.endPeriod, room: lab.room, roomId: lab.roomId },
           capacity: lab.capacity,
           enrolled: lab.enrolled,
         })),
@@ -707,7 +708,9 @@ export async function promoteWaitlist(tx: Transaction, sectionId: string, rules:
           const busy = state.registered.flatMap((registeredSection) => chosenMeetings(registeredSection, state.labChoices));
           const lab = target.labGroups.find((group) => group.enrolled < group.capacity && !busy.some((meeting) => overlaps(meeting, group.meeting)));
           if (target.labGroups.length > 0 && !lab) return false;
+          // Ngoài đợt đăng ký của khóa thì không xếp: lượt chờ chờ đợt sau hoặc hết hạn khi mọi đợt đã đóng (expireWaitlists).
           const period = await periodOf(savepoint, term.id, student.cohort, now);
+          if (!period?.isOpen) return false;
           const eligibility = await eligibilityOf(savepoint, state, [target], rules, period);
           await insertEnrollments(savepoint, { state, adds: [target], labChoices: lab ? { [target.id]: lab.id } : {}, eligibility, eventKind: "waitlist-promoted", actor: SYSTEM_ACTOR });
           await syncTermInvoice(savepoint, student.id, term.id, `xếp vào ${target.code} từ danh sách chờ`);
@@ -739,6 +742,52 @@ export async function promoteWaitlist(tx: Transaction, sectionId: string, rules:
     });
   }
   return promoted;
+}
+
+// Lượt chờ hết hạn khi khóa của sinh viên không còn đợt đăng ký nào của học kỳ chưa đóng (kể cả đợt điều chỉnh sắp mở):
+// hệ thống thôi tự xếp, báo sinh viên một lần. Chỉ lấy lượt đang chờ nên chạy lại không ghi trùng; lượt đang bị thao tác khác
+// khóa thì để lần chạy sau. Gọi từ tác vụ waitlist-expiry và lúc Phòng Đào tạo đóng, sửa đợt.
+export async function expireWaitlists(tx: Transaction, now: Date, termId?: string) {
+  const due = tx
+    .select({ id: waitlistEntries.id })
+    .from(waitlistEntries)
+    .innerJoin(classSections, eq(classSections.id, waitlistEntries.classSectionId))
+    .innerJoin(students, eq(students.id, waitlistEntries.studentId))
+    .innerJoin(administrativeClasses, eq(administrativeClasses.id, students.administrativeClassId))
+    .where(
+      and(
+        eq(waitlistEntries.status, "waiting"),
+        termId ? eq(classSections.termId, termId) : undefined,
+        sql`NOT EXISTS (SELECT 1 FROM ${registrationPeriods} WHERE ${registrationPeriods.termId} = ${classSections.termId} AND ${administrativeClasses.cohort} = ANY(${registrationPeriods.cohorts}) AND ${registrationPeriods.closesAt} > ${now.toISOString()}::timestamptz)`,
+      ),
+    )
+    .for("update", { of: waitlistEntries, skipLocked: true });
+  const expired = await tx
+    .update(waitlistEntries)
+    .set({ status: "expired", resolvedAt: now })
+    .where(and(inArray(waitlistEntries.id, due), eq(waitlistEntries.status, "waiting")))
+    .returning({ studentId: waitlistEntries.studentId, sectionId: waitlistEntries.classSectionId });
+  if (expired.length === 0) return { expired: 0, students: 0 };
+  await tx.insert(registrationEvents).values(
+    expired.map((row) => ({ studentId: row.studentId, classSectionId: row.sectionId, kind: "waitlist-expired" as const, actorLabel: SYSTEM_ACTOR.label, channel: SYSTEM_ACTOR.channel, note: "Đợt đăng ký của khóa đã đóng" })),
+  );
+  const sections = await tx
+    .select({ id: classSections.id, code: classSections.code, termId: classSections.termId })
+    .from(classSections)
+    .where(inArray(classSections.id, [...new Set(expired.map((row) => row.sectionId))]));
+  const sectionOf = new Map(sections.map((section) => [section.id, section]));
+  const byStudent = new Map<string, string[]>();
+  for (const row of expired) byStudent.set(row.studentId, [...(byStudent.get(row.studentId) ?? []), row.sectionId]);
+  for (const [studentId, sectionIds] of byStudent) {
+    const codes = sectionIds.map((id) => sectionOf.get(id)!.code).toSorted();
+    await notifyStudents(tx, [studentId], {
+      kind: "system",
+      title: codes.length === 1 ? `Lượt chờ lớp ${codes[0]} đã hết hạn` : `${codes.length} lượt chờ đã hết hạn`,
+      body: `Đợt đăng ký của khóa bạn đã đóng nên lượt chờ ${codes.length === 1 ? "lớp" : "các lớp"} ${codes.join(", ")} hết hạn, hệ thống không còn tự xếp lớp. Cần học thì liên hệ Phòng Đào tạo hoặc đăng ký ở đợt sau.`,
+      href: historyHref(sectionOf.get(sectionIds[0])!.termId),
+    });
+  }
+  return { expired: expired.length, students: byStudent.size };
 }
 
 // Phòng Đào tạo đăng ký hộ: sinh viên phải đang học; được bỏ qua điều kiện học vụ và khóa đăng ký khi ghi lý do (override),
@@ -922,19 +971,19 @@ export async function scheduleProblemOf(
     termId: string;
     lecturerId: string | null;
     capacity: number;
-    meetings: { dayOfWeek: number; startPeriod: number; endPeriod: number; room: string }[];
-    labGroups: { code: string; dayOfWeek: number; startPeriod: number; endPeriod: number; room: string; capacity: number }[];
+    meetings: { dayOfWeek: number; startPeriod: number; endPeriod: number; roomId: string }[];
+    labGroups: { code: string; dayOfWeek: number; startPeriod: number; endPeriod: number; roomId: string; capacity: number }[];
   },
   roomRows: RoomFacts[],
 ) {
-  const roomOf = new Map(roomRows.map((room) => [room.code, room]));
+  const roomOf = new Map(roomRows.map((room) => [room.id, room]));
   for (const meeting of candidate.meetings) {
-    const room = roomOf.get(meeting.room)!;
+    const room = roomOf.get(meeting.roomId)!;
     if (room.status === "maintenance") return { field: "meetings", message: `Phòng ${room.code} đang bảo trì${room.note ? ` (${room.note})` : ""}, chọn phòng khác.` };
     if (room.capacity < candidate.capacity) return { field: "capacity", message: `Phòng ${room.code} chỉ có ${room.capacity} chỗ, ít hơn sĩ số tối đa ${candidate.capacity}. Giảm sĩ số hoặc chọn phòng lớn hơn.` };
   }
   for (const group of candidate.labGroups) {
-    const room = roomOf.get(group.room)!;
+    const room = roomOf.get(group.roomId)!;
     if (room.status === "maintenance") return { field: "labGroups", message: `Phòng ${room.code} đang bảo trì${room.note ? ` (${room.note})` : ""}, chọn phòng khác cho nhóm ${group.code}.` };
     if (room.capacity < group.capacity) return { field: "labGroups", message: `Phòng ${room.code} chỉ có ${room.capacity} chỗ, ít hơn sĩ số nhóm ${group.code} (${group.capacity}).` };
   }
@@ -944,8 +993,8 @@ export async function scheduleProblemOf(
       id: candidate.id ?? "",
       status: "open",
       lecturerId: candidate.lecturerId,
-      meetings: candidate.meetings,
-      labGroups: candidate.labGroups.map((group) => ({ id: group.code, code: group.code, capacity: group.capacity, enrolled: 0, meeting: group })),
+      meetings: candidate.meetings.map((meeting) => ({ ...meeting, room: roomOf.get(meeting.roomId)!.code })),
+      labGroups: candidate.labGroups.map((group) => ({ id: group.code, code: group.code, capacity: group.capacity, enrolled: 0, meeting: { ...group, room: roomOf.get(group.roomId)!.code } })),
     },
     others,
   );

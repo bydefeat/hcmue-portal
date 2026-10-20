@@ -34,7 +34,9 @@ export type ClassMeeting = {
   dayOfWeek: number;
   startPeriod: number;
   endPeriod: number;
+  // Mã phòng để hiện; mã có thể trùng giữa các cơ sở nên so trùng phòng theo roomId khi có.
   room: string;
+  roomId?: string;
 };
 
 export type ClassSectionStatus = "draft" | "open" | "cancelled";
@@ -119,13 +121,13 @@ export type ClassSectionFormValues = {
   lecturerId?: string;
   capacity: number;
   status: ClassSectionStatus;
-  meetings: ClassMeeting[];
+  meetings: { dayOfWeek: number; startPeriod: number; endPeriod: number; roomId: string }[];
   minEnrollment: number;
   audienceMajors: string[];
   audienceCohorts: number[];
   audienceNote?: string;
   reservedSeats: { label: string; seats: number; majorCodes: string[]; cohorts: number[] }[];
-  labGroups: { code: string; dayOfWeek: number; startPeriod: number; endPeriod: number; room: string; capacity: number }[];
+  labGroups: { code: string; dayOfWeek: number; startPeriod: number; endPeriod: number; roomId: string; capacity: number }[];
 };
 
 export type RegistrationPeriodFormValues = {
@@ -173,7 +175,7 @@ export type RegistrationHold = {
   releasedBy: string | null;
 };
 
-export type RegistrationEventKind = "add" | "drop" | "swap" | "waitlist" | "waitlist-promoted" | "admin-add" | "admin-drop" | "section-cancelled";
+export type RegistrationEventKind = "add" | "drop" | "swap" | "waitlist" | "waitlist-promoted" | "admin-add" | "admin-drop" | "section-cancelled" | "waitlist-expired";
 
 export type RegistrationEvent = {
   id: string;

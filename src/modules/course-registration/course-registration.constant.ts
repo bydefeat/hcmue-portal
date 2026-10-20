@@ -60,7 +60,7 @@ export function conflictsOf(section: Pick<ClassSection, "id" | "status" | "lectu
       for (const theirs of allMeetings(other)) {
         if (!overlaps(mine, theirs)) continue;
         const when = `${weekdayLabel(mine.dayOfWeek)}, ${periodLabel(theirs.startPeriod, theirs.endPeriod)}`;
-        if (!room && mine.room === theirs.room) {
+        if (!room && (mine.roomId && theirs.roomId ? mine.roomId === theirs.roomId : mine.room === theirs.room)) {
           room = true;
           conflicts.push({ kind: "room", withCode: other.code, message: `Trùng phòng ${mine.room} với ${other.code} (${when})` });
         }
@@ -114,6 +114,7 @@ export const REGISTRATION_EVENT: Record<RegistrationEventKind, StatusMeta> = {
   swap: { label: "Đổi lớp", tone: "neutral" },
   waitlist: { label: "Vào danh sách chờ", tone: "warning" },
   "waitlist-promoted": { label: "Được xếp từ danh sách chờ", tone: "success" },
+  "waitlist-expired": { label: "Lượt chờ hết hạn", tone: "neutral" },
   "admin-add": { label: "Phòng Đào tạo đăng ký hộ", tone: "warning" },
   "admin-drop": { label: "Phòng Đào tạo hủy hộ", tone: "warning" },
   "section-cancelled": { label: "Lớp bị hủy", tone: "danger" },

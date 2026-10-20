@@ -327,6 +327,16 @@ export function applicablePeriod<T extends PeriodWindow>(periods: T[], cohort: n
   return mine.filter((period) => closes(period) <= time).toSorted((a, b) => closes(b) - closes(a))[0] ?? null;
 }
 
+// Sửa lớp có mở thêm chỗ cho người chờ không: tăng sĩ số lớp, tăng sĩ số một nhóm thực hành hoặc thêm nhóm mới (lớp còn chỗ
+// nhưng mọi nhóm đã đầy thì người chờ vẫn chưa vào được).
+export function addsSeats(before: { capacity: number; labGroups: { code: string; capacity: number }[] }, after: { capacity: number; labGroups: { code: string; capacity: number }[] }) {
+  if (after.capacity > before.capacity) return true;
+  return after.labGroups.some((group) => {
+    const previous = before.labGroups.find((lab) => lab.code === group.code);
+    return !previous || group.capacity > previous.capacity;
+  });
+}
+
 export const REGISTER_SCHEMA = z.object({
   sectionIds: z
     .array(z.uuid())
@@ -343,7 +353,7 @@ const meetingSchema = z
     dayOfWeek: z.int().min(2).max(8),
     startPeriod: z.int().min(1).max(12),
     endPeriod: z.int().min(1).max(12),
-    room: z.string().trim().min(1, "Chưa chọn phòng"),
+    roomId: z.uuid("Chưa chọn phòng"),
   })
   .refine((meeting) => meeting.startPeriod <= meeting.endPeriod, { path: ["endPeriod"], message: "Tiết kết thúc không trước tiết bắt đầu" });
 
@@ -378,7 +388,7 @@ export const CLASS_SECTION_SCHEMA = z
             dayOfWeek: z.int().min(2).max(8),
             startPeriod: z.int().min(1).max(12),
             endPeriod: z.int().min(1).max(12),
-            room: z.string().trim().min(1, "Chưa chọn phòng"),
+            roomId: z.uuid("Chưa chọn phòng"),
             capacity: z.int().min(1),
           })
           .refine((group) => group.startPeriod <= group.endPeriod, { path: ["endPeriod"], message: "Tiết kết thúc không trước tiết bắt đầu" }),

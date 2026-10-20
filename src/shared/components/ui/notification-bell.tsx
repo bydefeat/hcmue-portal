@@ -19,6 +19,8 @@ export type BellItem = {
 
 // Lưu trạng thái đã đọc (server action do layout của cổng truyền vào). Không truyền thì chỉ đánh dấu tại chỗ.
 export type MarkNotificationsRead = (input: { ids: string[] }) => Promise<unknown>;
+// Đánh dấu đã đọc mọi thông báo chưa đọc của cổng ở server (kể cả dòng không có trong chuông), như trang Thông báo.
+export type MarkAllNotificationsRead = () => Promise<unknown>;
 
 type NotificationBellProps = {
   items: BellItem[];
@@ -26,22 +28,33 @@ type NotificationBellProps = {
   unreadCount?: number;
   viewAllHref: string;
   onMarkRead?: MarkNotificationsRead;
+  onMarkAllRead?: MarkAllNotificationsRead;
 };
 
 const VISIBLE = 6;
 
-export function NotificationBell({ items, unreadCount, viewAllHref, onMarkRead }: NotificationBellProps) {
+export function NotificationBell({ items, unreadCount, viewAllHref, onMarkRead, onMarkAllRead }: NotificationBellProps) {
   const [open, setOpen] = useState(false);
   const [readIds, setReadIds] = useState<string[]>([]);
-  const isRead = (item: BellItem) => item.isRead || readIds.includes(item.id);
+  // Mốc "đọc hết": mọi thông báo tới thông báo mới nhất đang có coi như đã đọc; thông báo đến sau vẫn hiện chưa đọc.
+  const [readAllUpTo, setReadAllUpTo] = useState<string | null>(null);
+  const isRead = (item: BellItem) => item.isRead || readIds.includes(item.id) || (readAllUpTo !== null && item.createdAt <= readAllUpTo);
   const unreadShown = items.filter((item) => !isRead(item)).length;
   const markedHere = items.filter((item) => !item.isRead && readIds.includes(item.id)).length;
-  const unread = unreadCount === undefined ? unreadShown : Math.max(unreadShown, unreadCount - markedHere);
+  const unread = unreadCount === undefined || readAllUpTo !== null ? unreadShown : Math.max(unreadShown, unreadCount - markedHere);
   const markRead = (ids: string[]) => {
     const unreadIds = items.filter((item) => ids.includes(item.id) && !isRead(item)).map((item) => item.id);
     if (unreadIds.length === 0) return;
     setReadIds((current) => [...current, ...unreadIds]);
     onMarkRead?.({ ids: unreadIds }).catch(() => undefined);
+  };
+  const markAllRead = () => {
+    if (!onMarkAllRead) {
+      markRead(items.map((item) => item.id));
+      return;
+    }
+    setReadAllUpTo(items[0]?.createdAt ?? "");
+    onMarkAllRead().catch(() => setReadAllUpTo(null));
   };
 
   const content = (
@@ -49,7 +62,7 @@ export function NotificationBell({ items, unreadCount, viewAllHref, onMarkRead }
       <div className="flex items-center justify-between gap-3 border-b border-border-strong px-1 pb-2">
         <span className="font-semibold">Thông báo</span>
         {unread > 0 && (
-          <Button type="link" size="small" className="px-0" onClick={() => markRead(items.map((item) => item.id))}>
+          <Button type="link" size="small" className="px-0" onClick={markAllRead}>
             Đánh dấu đã đọc hết
           </Button>
         )}

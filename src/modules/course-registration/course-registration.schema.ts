@@ -19,6 +19,7 @@ export const registrationEventKindEnum = pgEnum("registration_event_kind", [
   "admin-add",
   "admin-drop",
   "section-cancelled",
+  "waitlist-expired",
 ]);
 
 const DAY_OF_WEEK = (column: unknown) => sql`${column} BETWEEN 2 AND 8`;

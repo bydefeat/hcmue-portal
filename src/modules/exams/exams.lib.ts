@@ -11,12 +11,13 @@ import type { Viewer } from "@/modules/access/access.type";
 import { auditActorOf, recordAudit } from "@/modules/audit/audit.lib";
 import { classSections, enrollments, terms } from "@/modules/course-registration/course-registration.schema";
 import { courses, faculties } from "@/modules/curriculum/curriculum.schema";
-import { ADMIN_EXAMS_HREF, EXAM_KIND_LABEL, EXAM_PAPER_STATUS, EXAM_START_TIMES, LECTURER_EXAMS_HREF, PROCTORS_PER_ROOM, STUDENT_EXAMS_HREF } from "@/modules/exams/exams.constant";
+import { ADMIN_EXAMS_HREF, EXAM_FORMAT_LABEL, EXAM_KIND_LABEL, EXAM_PAPER_STATUS, EXAM_START_TIMES, LECTURER_EXAMS_HREF, PROCTORS_PER_ROOM, STUDENT_EXAMS_HREF } from "@/modules/exams/exams.constant";
 import {
   assignCandidates,
   byVietnameseName,
   examConflicts,
   examStartsAt,
+  finalExamFormatOf,
   paperReviewBlockedReason,
   paperSubmitBlockedReason,
   slotsOverlap,
@@ -31,6 +32,7 @@ import type { ExamConflict, ExamKind, ExamSession } from "@/modules/exams/exams.
 import { rooms } from "@/modules/facilities/facilities.schema";
 import { notifyLecturers, notifyStudents, notifyUsers } from "@/modules/notifications/notifications.lib";
 import { classSessions } from "@/modules/schedule/schedule.schema";
+import { syllabi, syllabusAssessments } from "@/modules/teaching/teaching.schema";
 import { lecturers, students } from "@/modules/users/users.schema";
 
 type Executor = Transaction | typeof db;
@@ -742,12 +744,21 @@ export async function updateSession(tx: Transaction, viewer: Viewer, input: z.ou
 
 // Sinh hàng loạt ca cuối kỳ dự kiến cho lớp mở chưa có ca.
 export async function generateFinals(tx: Transaction, viewer: Viewer, input: z.output<typeof EXAM_GENERATE_SCHEMA>) {
-  const { termId, fromDate, toDate, durationMinutes, paperDaysBefore } = input;
+  const { termId, fromDate, toDate, durationMinutes, paperDaysBefore, defaultFormat } = input;
   await lockExamTerm(tx, termId);
   const [term] = await tx.select({ id: terms.id }).from(terms).where(eq(terms.id, termId));
   if (!term) throw new ExamInputError("Học kỳ không còn, tải lại trang.");
   const sections = (await sectionsWithoutFinal(tx, termId)).filter((section) => inScope(viewer, section.faculty)).toReversed();
   if (sections.length === 0) throw new ExamInputError("Mọi lớp mở trong phạm vi của bạn đã có ca cuối kỳ.");
+  // Hình thức thi theo bài cuối kỳ trong đề cương đã công bố của lớp; không có thì theo hình thức mặc định đã chọn.
+  const assessments = await tx
+    .select({ sectionId: syllabi.classSectionId, key: syllabusAssessments.key, label: syllabusAssessments.label, method: syllabusAssessments.method })
+    .from(syllabusAssessments)
+    .innerJoin(syllabi, eq(syllabi.id, syllabusAssessments.syllabusId))
+    .where(and(eq(syllabi.status, "published"), inArray(syllabi.classSectionId, sections.map((section) => section.id))))
+    .orderBy(asc(syllabusAssessments.position));
+  const syllabusFormat = new Map(sections.map((section) => [section.id, finalExamFormatOf(assessments.filter((item) => item.sectionId === section.id))]));
+  let fromSyllabus = 0;
   const slots: { date: string; startTime: string }[] = [];
   for (let day = dayjs(fromDate); !day.isAfter(dayjs(toDate)); day = day.add(1, "day")) {
     if (day.day() === 0) continue;
@@ -802,7 +813,7 @@ export async function generateFinals(tx: Transaction, viewer: Viewer, input: z.o
           termId,
           classSectionId: section.id,
           kind: "final",
-          format: "written",
+          format: syllabusFormat.get(section.id) ?? defaultFormat,
           date: slot.date,
           startTime: slot.startTime,
           durationMinutes,
@@ -814,6 +825,7 @@ export async function generateFinals(tx: Transaction, viewer: Viewer, input: z.o
       for (const person of picked) load.set(person.id, (load.get(person.id) ?? 0) + 1);
       busy.push({ id: row.id, classCode: section.code, ...at, roomIds: chosen.map((room) => room.id), proctors: picked.map((person) => ({ id: person.id, name: "" })), studentIds });
       created += 1;
+      if (syllabusFormat.get(section.id)) fromSyllabus += 1;
       placed = true;
       break;
     }
@@ -825,9 +837,9 @@ export async function generateFinals(tx: Transaction, viewer: Viewer, input: z.o
     entityType: "exam",
     entityId: termId,
     entityLabel: "Lịch thi cuối kỳ",
-    summary: `Sinh ${created} ca thi cuối kỳ dự kiến từ ${formatDate(fromDate)} đến ${formatDate(toDate)}${skipped.length > 0 ? `; chưa xếp được: ${skipped.join(", ")}` : ""}`,
+    summary: `Sinh ${created} ca thi cuối kỳ dự kiến từ ${formatDate(fromDate)} đến ${formatDate(toDate)} (${fromSyllabus} ca theo hình thức trong đề cương, còn lại ${EXAM_FORMAT_LABEL[defaultFormat].toLowerCase()})${skipped.length > 0 ? `; chưa xếp được: ${skipped.join(", ")}` : ""}`,
   });
-  return { created, skipped };
+  return { created, skipped, fromSyllabus };
 }
 
 // Công bố mọi ca dự kiến cùng loại của học kỳ trong phạm vi khoa, báo mọi người liên quan.

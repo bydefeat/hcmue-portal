@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { Breadcrumb, Layout } from "antd";
 import { Logo } from "@/shared/components/ui/logo";
 import { MobileNavigation } from "@/shared/components/ui/mobile-navigation";
-import { NotificationBell, type BellItem, type MarkNotificationsRead } from "@/shared/components/ui/notification-bell";
+import { NotificationBell, type BellItem, type MarkAllNotificationsRead, type MarkNotificationsRead } from "@/shared/components/ui/notification-bell";
 import { UserMenu, type MenuUser, type RoleSwitcher } from "@/shared/components/ui/user-menu";
 import {
   type NavItem,
@@ -35,6 +35,7 @@ type AdministratorLayoutProps = {
   notifications: BellItem[];
   unreadNotifications?: number;
   onMarkNotificationsRead?: MarkNotificationsRead;
+  onMarkAllNotificationsRead?: MarkAllNotificationsRead;
   switcher?: RoleSwitcher;
   children: React.ReactNode;
 };
@@ -67,6 +68,7 @@ export function AdministratorLayout({
   notifications,
   unreadNotifications,
   onMarkNotificationsRead,
+  onMarkAllNotificationsRead,
   switcher,
   children,
 }: AdministratorLayoutProps) {
@@ -92,7 +94,7 @@ export function AdministratorLayout({
           </div>
           <span className="hidden shrink-0 text-sm text-muted 2xl:block">{termLabel}</span>
           <div className="ml-auto flex shrink-0 items-center gap-1 leading-normal md:ml-0">
-            <NotificationBell items={notifications} unreadCount={unreadNotifications} viewAllHref={ADMINISTRATOR_NOTIFICATIONS_HREF} onMarkRead={onMarkNotificationsRead} />
+            <NotificationBell items={notifications} unreadCount={unreadNotifications} viewAllHref={ADMINISTRATOR_NOTIFICATIONS_HREF} onMarkRead={onMarkNotificationsRead} onMarkAllRead={onMarkAllNotificationsRead} />
             <div className="lg:hidden">
               <UserMenu user={user} links={accountLinks} switcher={switcher} compact />
             </div>

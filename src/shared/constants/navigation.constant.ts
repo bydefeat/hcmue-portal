@@ -185,7 +185,8 @@ export const ADMINISTRATOR_NAVIGATION: NavGroup[] = [
     items: [
       { label: "Học kỳ và đợt đăng ký", shortLabel: "Học kỳ", href: "/administrator/terms", icon: CalendarClock, permission: "registration.manage" },
       { label: "Theo dõi đăng ký", href: "/administrator/registration-monitor", icon: ChartActivity, permission: "registration.manage" },
-      { label: "Khóa đăng ký", href: "/administrator/registration-holds", icon: UserLock, permission: "registration.manage" },
+      // Phòng Kế hoạch - Tài chính (tuition.manage) đặt, gỡ khóa học phí ở cùng trang.
+      { label: "Khóa đăng ký", href: "/administrator/registration-holds", icon: UserLock, permission: ["registration.manage", "tuition.manage"] },
       { label: "Học phí", href: "/administrator/tuition", icon: Receipt, permission: "tuition.manage" },
       { label: "Duyệt và công bố điểm", href: "/administrator/grade-publishing", icon: ClipboardCheck, permission: ["grades.approve", "grades.publish"] },
       { label: "Quyết định sinh viên", href: "/administrator/decisions", icon: ScrollText, permission: ["decisions.manage", "decisions.sign"] },

@@ -48,6 +48,8 @@ function termOrder(term: Term) {
 
 const NETWORK_ERROR = "Chưa thực hiện được, kiểm tra kết nối rồi thử lại.";
 
+const expiredNote = (count: number) => (count > 0 ? `; ${count} lượt chờ hết hạn, sinh viên đã được báo` : "");
+
 export function RegistrationPeriodList({ terms, periods, cohorts, regulationCredits, canManage }: RegistrationPeriodListProps) {
   const [messageApi, messageHolder] = message.useMessage();
   const [modal, modalHolder] = Modal.useModal();
@@ -61,7 +63,7 @@ export function RegistrationPeriodList({ terms, periods, cohorts, regulationCred
     const remaining = period.eligibleStudents - period.registeredStudents;
     modal.confirm({
       title: `Đóng ${period.name} ngay?`,
-      content: `${remaining} sinh viên chưa đăng ký sẽ phải chờ đợt điều chỉnh. Không thể mở lại đợt sau khi đóng.`,
+      content: `${remaining} sinh viên chưa đăng ký sẽ phải chờ đợt điều chỉnh. Khóa nào không còn đợt nào chưa đóng thì lượt chờ của khóa đó hết hạn và sinh viên được báo. Không thể mở lại đợt sau khi đóng.`,
       okText: "Đóng đợt",
       cancelText: "Hủy",
       okButtonProps: { danger: true },
@@ -72,8 +74,8 @@ export function RegistrationPeriodList({ terms, periods, cohorts, regulationCred
           messageApi.error(result?.message ?? NETWORK_ERROR);
           return;
         }
-        setRows((current) => current.map((row) => (row.id === period.id ? result.data : row)));
-        messageApi.success(`Đã đóng ${period.name}`);
+        setRows((current) => current.map((row) => (row.id === period.id ? result.data.period : row)));
+        messageApi.success(`Đã đóng ${period.name}${expiredNote(result.data.expiredWaitlist)}`);
       },
     });
   };
@@ -89,9 +91,9 @@ export function RegistrationPeriodList({ terms, periods, cohorts, regulationCred
       messageApi.error(result.message);
       return result.fieldErrors;
     }
-    const saved = result.data;
+    const saved = result.data.period;
     setRows((current) => (editing.period ? current.map((row) => (row.id === saved.id ? saved : row)) : [...current, saved]));
-    messageApi.success(editing.period ? `Đã lưu ${saved.name}` : `Đã tạo ${saved.name}. Sinh viên thấy đợt này khi đến giờ mở.`);
+    messageApi.success(`${editing.period ? `Đã lưu ${saved.name}` : `Đã tạo ${saved.name}. Sinh viên thấy đợt này khi đến giờ mở.`}${expiredNote(result.data.expiredWaitlist)}`);
     setEditing(null);
     return undefined;
   };

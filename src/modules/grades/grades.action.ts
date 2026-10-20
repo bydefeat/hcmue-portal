@@ -4,7 +4,6 @@ import { and, eq, inArray, or, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { forbidden } from "next/navigation";
 import { db, type Transaction } from "@/shared/libs/db.lib";
-import { dayjs } from "@/shared/libs/date.lib";
 import { actionError, actionFailure, actionOk, parseInput, type ActionResult } from "@/shared/libs/action.lib";
 import { isUuid } from "@/shared/libs/id.lib";
 import { PDF_MIME } from "@/shared/libs/pdf.lib";
@@ -16,7 +15,7 @@ import { requireSession } from "@/modules/authentication/authentication.query";
 import { classSections, enrollments, terms } from "@/modules/course-registration/course-registration.schema";
 import { courses, faculties, majors } from "@/modules/curriculum/curriculum.schema";
 import { notifyLecturers, notifyStudents } from "@/modules/notifications/notifications.lib";
-import { DEFAULT_COMPONENTS, DEFAULT_DEADLINE_DAYS, GRADE_SHEET_STATE, GRADES_CONSTRAINT_MESSAGE, weightedScore } from "@/modules/grades/grades.constant";
+import { DEFAULT_COMPONENTS, GRADE_SHEET_STATE, GRADES_CONSTRAINT_MESSAGE } from "@/modules/grades/grades.constant";
 import { gradeSheetWorkbook, readWorkbookMatrix, XLSX_MIME } from "@/modules/grades/grades.excel";
 import { GradeActionError, replaceGradeComponents, sectionRoster, syncAcademicWarnings, type WarningSyncResult } from "@/modules/grades/grades.lib";
 import { gradeSheetPdf, transcriptPdf } from "@/modules/grades/grades.pdf";
@@ -25,6 +24,7 @@ import {
   ACADEMIC_WARNING_GENERATE_SCHEMA,
   courseGrade,
   GRADE_COMPONENTS_SAVE_SCHEMA,
+  gradeEntryDeadline,
   GRADE_IMPORT_MAX_BYTES,
   GRADE_SCORES_SAVE_SCHEMA,
   GRADE_SHEET_RETURN_SCHEMA,
@@ -33,6 +33,7 @@ import {
   NEXT_WARNING_STATUS,
   parseScoreMatrix,
   WARNING_ADVANCE_SCHEMA,
+  weightedScore,
   type GradeComponentsSaveInput,
   type GradeScoresSaveInput,
   type ScoreChange,
@@ -40,6 +41,8 @@ import {
 } from "@/modules/grades/grades.rule";
 import { academicWarnings, courseResults, gradeComponents, gradeScores, gradeSheets } from "@/modules/grades/grades.schema";
 import type { GradeComponent, GradeSheetStatus, WarningStatus } from "@/modules/grades/grades.type";
+import { examSessions } from "@/modules/exams/exams.schema";
+import { regulationAt } from "@/modules/settings/settings.lib";
 import { getCurrentLecturer, getCurrentStudent, getStudent } from "@/modules/users/users.query";
 import { administrativeClasses, lecturers, students } from "@/modules/users/users.schema";
 
@@ -49,6 +52,10 @@ function failure(error: unknown) {
 }
 
 const EDITABLE: GradeSheetStatus[] = ["draft", "returned"];
+
+function lecturerActor(userId: string, lecturer: { displayName: string }) {
+  return { userId, name: lecturer.displayName, role: "Giảng viên" };
+}
 
 function revalidateGrades() {
   revalidatePath("/lecturer", "layout");
@@ -67,11 +74,16 @@ async function requireOwnSection(lecturerId: string, classSectionId: string) {
   return section;
 }
 
-// Khóa dòng bảng điểm trong giao dịch để lưu điểm và chốt điểm không chen nhau. Lớp chưa có bảng điểm thì tạo với cột mặc định.
+// Khóa dòng bảng điểm trong giao dịch để lưu điểm và chốt điểm không chen nhau. Lớp chưa có bảng điểm thì tạo với cột mặc định,
+// hạn nhập theo quy chế (ngày thi cuối kỳ của lớp, chưa có lịch thi thì ngày kết thúc học kỳ, cộng số ngày nhập điểm).
 async function lockSheet(tx: Transaction, section: { id: string; termEnd: string }) {
   const [existing] = await tx.select().from(gradeSheets).where(eq(gradeSheets.classSectionId, section.id)).for("update");
   if (existing) return existing;
-  const deadline = dayjs(section.termEnd).add(DEFAULT_DEADLINE_DAYS, "day").hour(23).minute(59).toDate();
+  const [[final], regulation] = await Promise.all([
+    tx.select({ date: examSessions.date }).from(examSessions).where(and(eq(examSessions.classSectionId, section.id), eq(examSessions.kind, "final"))),
+    regulationAt(tx),
+  ]);
+  const deadline = new Date(gradeEntryDeadline({ finalExamDate: final?.date ?? null, termEnd: section.termEnd }, regulation.workflow.gradeEntryDays));
   const [created] = await tx.insert(gradeSheets).values({ classSectionId: section.id, deadline }).returning();
   await tx.insert(gradeComponents).values(DEFAULT_COMPONENTS.map((component, index) => ({ ...component, gradeSheetId: created.id, position: index + 1 })));
   return created;
@@ -79,6 +91,7 @@ async function lockSheet(tx: Transaction, section: { id: string; termEnd: string
 
 export async function saveGradeScores(input: GradeScoresSaveInput): Promise<ActionResult<{ savedAt: string }>> {
   const lecturer = await getCurrentLecturer();
+  const session = await requireSession();
   const parsed = parseInput(GRADE_SCORES_SAVE_SCHEMA, input);
   if (!parsed.ok) return parsed;
   const section = await requireOwnSection(lecturer.id, parsed.data.classSectionId);
@@ -116,6 +129,15 @@ export async function saveGradeScores(input: GradeScoresSaveInput): Promise<Acti
           .where(or(...cleared.map((cell) => and(eq(gradeScores.gradeComponentId, cell.gradeComponentId), eq(gradeScores.enrollmentId, cell.enrollmentId)))));
       }
       const [row] = await tx.update(gradeSheets).set({ savedAt: new Date() }).where(eq(gradeSheets.id, sheet.id)).returning({ savedAt: gradeSheets.savedAt });
+      // Mỗi lần lưu (tự lưu gộp các ô sửa liên tiếp) ghi một dòng nhật ký, không ghi từng ô.
+      await recordAudit(tx, {
+        actor: lecturerActor(session.user.id, lecturer),
+        action: "update",
+        entityType: "grade-sheet",
+        entityId: sheet.id,
+        entityLabel: `${section.code} ${section.courseName}`,
+        summary: `Lưu điểm lớp ${section.code}: ${filled.length} ô có điểm${cleared.length > 0 ? `, xóa ${cleared.length} ô` : ""}`,
+      });
       return row.savedAt!.toISOString();
     });
     revalidatePath("/lecturer", "layout");
@@ -127,6 +149,7 @@ export async function saveGradeScores(input: GradeScoresSaveInput): Promise<Acti
 
 export async function lockGradeSheet(classSectionId: string): Promise<ActionResult<{ status: GradeSheetStatus; lockedAt: string }>> {
   const lecturer = await getCurrentLecturer();
+  const session = await requireSession();
   const parsed = parseInput(GRADE_SHEET_SCHEMA, { classSectionId });
   if (!parsed.ok) return parsed;
   const section = await requireOwnSection(lecturer.id, parsed.data.classSectionId);
@@ -155,6 +178,14 @@ export async function lockGradeSheet(classSectionId: string): Promise<ActionResu
         .set({ status: "locked", lockedAt: new Date() })
         .where(eq(gradeSheets.id, sheet.id))
         .returning({ status: gradeSheets.status, lockedAt: gradeSheets.lockedAt });
+      await recordAudit(tx, {
+        actor: lecturerActor(session.user.id, lecturer),
+        action: "lock",
+        entityType: "grade-sheet",
+        entityId: sheet.id,
+        entityLabel: `${section.code} ${section.courseName}`,
+        summary: `Chốt điểm lớp ${section.code} (${enrolled} sinh viên), chuyển khoa duyệt`,
+      });
       return { status: row.status, lockedAt: row.lockedAt!.toISOString() };
     });
     revalidateGrades();
@@ -198,6 +229,16 @@ export async function approveGradeSheets(classSectionIds: string[]): Promise<Act
         .set({ status: "approved", approvedAt: new Date(), approvedByUserId: viewer.id })
         .where(inArray(gradeSheets.id, sheets.map((sheet) => sheet.id)))
         .returning({ classSectionId: gradeSheets.classSectionId });
+      for (const sheet of sheets) {
+        await recordAudit(tx, {
+          actor: auditActorOf(viewer),
+          action: "approve",
+          entityType: "grade-sheet",
+          entityId: sheet.id,
+          entityLabel: `${sheet.code} ${sheet.courseName}`,
+          summary: `Khoa duyệt bảng điểm lớp ${sheet.code}`,
+        });
+      }
       return rows.map((row) => row.classSectionId);
     });
     revalidateGrades();
@@ -220,6 +261,15 @@ export async function returnGradeSheet(input: GradeSheetReturnInput): Promise<Ac
         .set({ status: "returned", returnReason: parsed.data.reason })
         .where(eq(gradeSheets.id, sheet.id))
         .returning({ classSectionId: gradeSheets.classSectionId, returnReason: gradeSheets.returnReason });
+      await recordAudit(tx, {
+        actor: auditActorOf(viewer),
+        action: "reject",
+        entityType: "grade-sheet",
+        entityId: sheet.id,
+        entityLabel: `${sheet.code} ${sheet.courseName}`,
+        summary: `Trả lại bảng điểm lớp ${sheet.code} cho giảng viên`,
+        changes: [{ field: "Lý do trả lại", before: "", after: parsed.data.reason }],
+      });
       if (sheet.lecturerId) {
         await notifyLecturers(tx, [sheet.lecturerId], {
           kind: "grade",
@@ -261,15 +311,17 @@ export async function publishGradeSheets(classSectionIds: string[]): Promise<Act
       ]);
       const scoreOf = new Map(scores.map((row) => [`${row.componentId}:${row.enrollmentId}`, row.score]));
       const recordedAt = new Date();
+      // Điểm chữ, thang 4 quy đổi theo bản quy chế áp dụng ngày công bố và lưu vào course_results; quy chế đổi sau không đổi điểm đã công bố.
+      const { grading } = await regulationAt(tx);
       const results = sheets.flatMap((sheet) => {
         const columns = components.filter((component) => component.gradeSheetId === sheet.id);
         return roster
           .filter((entry) => entry.classSectionId === sheet.classSectionId)
           .map((entry) => {
             const row = Object.fromEntries(columns.map((column) => [column.key, scoreOf.get(`${column.id}:${entry.id}`) ?? null]));
-            const total = weightedScore(columns, row);
+            const total = weightedScore(columns, row, grading.roundingStep);
             if (total === null) throw new GradeActionError("Có bảng điểm còn ô trống, trả lại cho giảng viên nhập đủ trước khi công bố.");
-            return { studentId: entry.studentId, courseId: entry.courseId, termId: entry.termId, enrollmentId: entry.id, source: "class" as const, ...courseGrade(total), recordedAt };
+            return { studentId: entry.studentId, courseId: entry.courseId, termId: entry.termId, enrollmentId: entry.id, source: "class" as const, ...courseGrade(total, grading.scale), recordedAt };
           });
       });
       if (results.length > 0) {
@@ -286,6 +338,17 @@ export async function publishGradeSheets(classSectionIds: string[]): Promise<Act
         .set({ status: "published", publishedAt: recordedAt, publishedByUserId: viewer.id })
         .where(inArray(gradeSheets.id, sheetIds))
         .returning({ classSectionId: gradeSheets.classSectionId });
+      for (const sheet of sheets) {
+        const count = roster.filter((entry) => entry.classSectionId === sheet.classSectionId).length;
+        await recordAudit(tx, {
+          actor: auditActorOf(viewer),
+          action: "publish",
+          entityType: "grade-sheet",
+          entityId: sheet.id,
+          entityLabel: `${sheet.code} ${sheet.courseName}`,
+          summary: `Công bố điểm lớp ${sheet.code} cho ${count} sinh viên`,
+        });
+      }
       // Mỗi lớp một thông báo cho sinh viên có điểm tổng kết vừa công bố.
       for (const sheet of sheets) {
         await notifyStudents(
@@ -310,7 +373,7 @@ export async function publishGradeSheets(classSectionIds: string[]): Promise<Act
   }
 }
 
-// Cố vấn xử lý cảnh báo của sinh viên lớp mình; Phòng Đào tạo, khoa xử lý trong phạm vi được phân quyền.
+// Cố vấn xử lý cảnh báo của sinh viên lớp mình; Phòng Đào tạo, khoa xử lý trong phạm vi được phân quyền (warnings.manage).
 export async function advanceAcademicWarning(id: string, from: WarningStatus): Promise<ActionResult<{ id: string; status: WarningStatus }>> {
   const session = await requireSession();
   const parsed = parseInput(WARNING_ADVANCE_SCHEMA, { id, from });
@@ -336,8 +399,9 @@ export async function advanceAcademicWarning(id: string, from: WarningStatus): P
   const [lecturer] = session.roles.includes("lecturer")
     ? await db.select({ id: lecturers.id }).from(lecturers).where(eq(lecturers.userId, session.user.id))
     : [];
+  // Cán bộ cần quyền xử lý cảnh báo (quyền xem báo cáo thôi chưa đủ) và đúng phạm vi khoa.
   if (!lecturer || lecturer.id !== warning.advisorId) {
-    const viewer = await requirePermission("reports.view");
+    const viewer = await requirePermission("warnings.manage");
     if (!inScope(viewer, warning.faculty)) forbidden();
   }
   const next = NEXT_WARNING_STATUS[parsed.data.from]!;
@@ -382,7 +446,7 @@ export async function saveGradeComponents(input: GradeComponentsSaveInput): Prom
       if (!EDITABLE.includes(sheet.status)) throw new GradeActionError("Bảng điểm đã chốt, không đổi được cột điểm. Tải lại trang để xem trạng thái mới.");
       const change = await replaceGradeComponents(tx, { gradeSheetId: sheet.id, components: parsed.data.components, confirmDropScores: parsed.data.confirmDropScores });
       await recordAudit(tx, {
-        actor: { userId: session.user.id, name: lecturer.displayName, role: "Giảng viên" },
+        actor: lecturerActor(session.user.id, lecturer),
         action: "update",
         entityType: "grade-sheet",
         entityId: sheet.id,
@@ -418,6 +482,7 @@ export async function exportGradeSheetExcel(classSectionId: string): Promise<Act
     students: roster,
     scores: sheet.scores,
     locked: !EDITABLE.includes(sheet.status),
+    grading: sheet.grading,
   });
   return actionOk({ fileName: `bang-diem-${section.code}.xlsx`, base64: buffer.toString("base64"), mimeType: XLSX_MIME });
 }
@@ -443,6 +508,7 @@ export async function exportGradeSheetPdf(classSectionId: string): Promise<Actio
     components: sheet.components,
     students: roster,
     scores: sheet.scores,
+    grading: sheet.grading,
   });
   return actionOk({ fileName: `bang-diem-${section.code}.pdf`, base64: bytesToBase64(bytes), mimeType: PDF_MIME });
 }

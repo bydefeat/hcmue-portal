@@ -94,8 +94,13 @@ export function ProgramFormDrawer({ open, program, majors, cohorts, onClose, onS
         <Form.Item name="cohorts" label="Khóa áp dụng" rules={[{ required: true, type: "array", min: 1, message: "Chọn ít nhất một khóa" }]}>
           <Select mode="multiple" options={cohortOptions} />
         </Form.Item>
-        <Form.Item name="status" label="Trạng thái" rules={[{ required: true, message: "Chưa chọn trạng thái" }]}>
-          <Select options={PROGRAM_STATUS_OPTIONS} />
+        <Form.Item
+          name="status"
+          label="Trạng thái"
+          rules={[{ required: true, message: "Chưa chọn trạng thái" }]}
+          extra={program?.status === "archived" ? "Chương trình đã ngừng áp dụng không mở lại được." : "Mỗi ngành, khóa chỉ một chương trình đang áp dụng. Ngừng áp dụng là trạng thái cuối."}
+        >
+          <Select options={PROGRAM_STATUS_OPTIONS.map((option) => ({ ...option, disabled: program?.status === "archived" && option.value !== "archived" }))} />
         </Form.Item>
       </Form>
     </Drawer>

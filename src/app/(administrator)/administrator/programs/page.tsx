@@ -7,7 +7,7 @@ import { requirePermission } from "@/modules/access/access.query";
 export const metadata: Metadata = { title: "Chương trình đào tạo" };
 
 export default async function Page() {
-  await requirePermission("curriculum.manage");
+  const viewer = await requirePermission("curriculum.manage");
   const [programs, majors, cohorts] = await Promise.all([getPrograms(), getMajors(), getCohorts()]);
   return (
     <ProgramTable
@@ -16,8 +16,9 @@ export default async function Page() {
         description: "Khung chương trình theo ngành và khóa áp dụng. Sinh viên đăng ký học phần dựa trên khung của khóa mình.",
       }}
       programs={programs}
-      majors={majors}
+      majors={viewer.faculty ? majors.filter((major) => major.faculty === viewer.faculty) : majors}
       cohorts={cohorts}
+      scopeFaculty={viewer.faculty}
     />
   );
 }

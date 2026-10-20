@@ -1,46 +1,89 @@
 import "server-only";
 import { cache } from "react";
 import { forbidden } from "next/navigation";
-import { and, asc, count, desc, eq, inArray, ne } from "drizzle-orm";
+import { and, asc, count, desc, eq, exists, inArray, lte, ne, or } from "drizzle-orm";
 import { db } from "@/shared/libs/db.lib";
-import { dayjs } from "@/shared/libs/date.lib";
+import { schoolToday } from "@/shared/libs/date.lib";
 import { isUuid } from "@/shared/libs/id.lib";
 import { formatStudentCode } from "@/shared/libs/student-code.lib";
 import { requireRole, requireSession } from "@/modules/authentication/authentication.query";
 import { classSections, enrollments, terms } from "@/modules/course-registration/course-registration.schema";
-import { courses, faculties, majors } from "@/modules/curriculum/curriculum.schema";
-import { DEFAULT_COMPONENTS, DEFAULT_DEADLINE_DAYS } from "@/modules/grades/grades.constant";
-import { buildTranscript, computeStanding, isWarningTerm, sheetState, sheetSummary, summarizeStandings, type TranscriptTermInput } from "@/modules/grades/grades.rule";
-import { academicWarnings, courseResults, gradeComponents, gradeScores, gradeSheets } from "@/modules/grades/grades.schema";
+import { faculties, majors } from "@/modules/curriculum/curriculum.schema";
+import { examSessions } from "@/modules/exams/exams.schema";
+import { DEFAULT_COMPONENTS } from "@/modules/grades/grades.constant";
+import { cumulativeResults, currentWarnings, loadTranscripts } from "@/modules/grades/grades.lib";
+import {
+  computeStanding,
+  consecutiveWarnings,
+  expulsionReasons,
+  gradeEntryDeadline,
+  isWarningTerm,
+  sheetState,
+  sheetSummary,
+  standingRulesOf,
+  summarizeStandings,
+  toStanding,
+} from "@/modules/grades/grades.rule";
+import { academicWarnings, gradeComponents, gradeScores, gradeSheets } from "@/modules/grades/grades.schema";
 import type {
   AcademicWarning,
+  CurrentWarning,
+  ExpulsionProposal,
   FacultyStandingSummary,
   GradeComponent,
   GradeSheet,
   GradeSheetState,
   GradeSheetSummary,
-  LetterGrade,
+  GradingRules,
   StudentStanding,
-  TranscriptCourse,
   TranscriptTerm,
 } from "@/modules/grades/grades.type";
+import { graduationRounds } from "@/modules/graduation/graduation.schema";
+import { getRegulation } from "@/modules/settings/settings.query";
 import { syllabi, syllabusAssessments } from "@/modules/teaching/teaching.schema";
-import { administrativeClasses, students } from "@/modules/users/users.schema";
-
-// Khóa đang xét tốt nghiệp không tính vào báo cáo xếp loại học lực.
-const GRADUATING_COHORT = 48;
+import { administrativeClasses, lecturers, students } from "@/modules/users/users.schema";
 
 const ownStudentId = cache(async (userId: string) => {
   const [row] = await db.select({ id: students.id }).from(students).where(eq(students.userId, userId));
   return row?.id ?? null;
 });
 
-// Sinh viên chỉ đọc được kết quả của chính mình; giảng viên, cán bộ đọc theo trang của từng cổng.
+// Giảng viên chỉ đọc kết quả của sinh viên lớp mình cố vấn hoặc đang, đã học lớp học phần mình dạy.
+const lecturerReach = cache(async (userId: string, key: string) => {
+  const ids = key.split(",");
+  const [lecturer] = await db.select({ id: lecturers.id }).from(lecturers).where(eq(lecturers.userId, userId));
+  if (!lecturer) return false;
+  const reachable = await db
+    .select({ id: students.id })
+    .from(students)
+    .leftJoin(administrativeClasses, eq(administrativeClasses.id, students.administrativeClassId))
+    .where(
+      and(
+        inArray(students.id, ids),
+        or(
+          eq(administrativeClasses.advisorId, lecturer.id),
+          exists(
+            db
+              .select({ id: enrollments.id })
+              .from(enrollments)
+              .innerJoin(classSections, eq(classSections.id, enrollments.classSectionId))
+              .where(and(eq(enrollments.studentId, students.id), eq(classSections.lecturerId, lecturer.id))),
+          ),
+        ),
+      ),
+    );
+  return reachable.length === ids.length;
+});
+
+// Sinh viên chỉ đọc kết quả của chính mình; giảng viên chỉ sinh viên mình dạy hoặc cố vấn; cán bộ đọc theo quyền của trang từng cổng.
 async function requireResultAccess(studentIds: string[]) {
   const session = await requireSession();
-  if (session.roles.includes("admin") || session.roles.includes("lecturer")) return;
-  const own = await ownStudentId(session.user.id);
-  if (studentIds.some((id) => id !== own)) forbidden();
+  if (session.roles.includes("admin")) return;
+  const ids = [...new Set(studentIds.filter(isUuid))].toSorted();
+  if (ids.length === 0) return;
+  if (session.roles.includes("lecturer") && (await lecturerReach(session.user.id, ids.join(",")))) return;
+  const own = session.roles.includes("student") ? await ownStudentId(session.user.id) : null;
+  if (ids.some((id) => id !== own)) forbidden();
 }
 
 async function requireStaff() {
@@ -54,112 +97,75 @@ const currentTermId = cache(async () => {
   return row?.id ?? null;
 });
 
-function transcriptCourse(row: { courseCode: string; courseName: string; credits: number; score10: number | null; letter: string | null; point4: number | null }): TranscriptCourse {
-  return { ...row, letter: row.letter as LetterGrade | null };
-}
-
-// Bảng điểm theo kỳ: các kỳ có kết quả học phần, cộng kỳ hiện tại (đang học) lấy từ đăng ký, kèm điểm đã công bố nếu có.
-async function loadTranscripts(studentIds: string[] | null): Promise<Map<string, TranscriptTerm[]>> {
-  const ids = studentIds?.filter(isUuid) ?? null;
-  const transcripts = new Map<string, TranscriptTerm[]>();
-  if (ids && ids.length === 0) return transcripts;
-  const current = await currentTermId();
-  const [results, ongoing] = await Promise.all([
-    db
-      .select({
-        studentId: courseResults.studentId,
-        termId: courseResults.termId,
-        termName: terms.name,
-        termStart: terms.startDate,
-        enrollmentId: courseResults.enrollmentId,
-        courseCode: courses.code,
-        courseName: courses.name,
-        credits: courses.credits,
-        score10: courseResults.score10,
-        letter: courseResults.letter,
-        point4: courseResults.point4,
-      })
-      .from(courseResults)
-      .innerJoin(courses, eq(courses.id, courseResults.courseId))
-      .innerJoin(terms, eq(terms.id, courseResults.termId))
-      .where(ids ? inArray(courseResults.studentId, ids) : undefined)
-      .orderBy(asc(terms.startDate), asc(courseResults.recordedAt), asc(courses.code)),
-    current
-      ? db
-          .select({
-            studentId: enrollments.studentId,
-            enrollmentId: enrollments.id,
-            termName: terms.name,
-            termStart: terms.startDate,
-            courseCode: courses.code,
-            courseName: courses.name,
-            credits: courses.credits,
-          })
-          .from(enrollments)
-          .innerJoin(courses, eq(courses.id, enrollments.courseId))
-          .innerJoin(terms, eq(terms.id, enrollments.termId))
-          .where(and(eq(enrollments.termId, current), eq(enrollments.status, "enrolled"), ids ? inArray(enrollments.studentId, ids) : undefined))
-          .orderBy(asc(enrollments.registeredAt))
-      : Promise.resolve([]),
-  ]);
-
-  const raw = new Map<string, Map<string, TranscriptTermInput & { start: string }>>();
-  const termOf = (studentId: string, termId: string, termName: string, start: string) => {
-    const byTerm = raw.get(studentId) ?? new Map<string, TranscriptTermInput & { start: string }>();
-    raw.set(studentId, byTerm);
-    const term = byTerm.get(termId) ?? { termId, termName, start, isInProgress: termId === current, courses: [] };
-    byTerm.set(termId, term);
-    return term;
-  };
-  const resultByEnrollment = new Map(results.filter((row) => row.enrollmentId).map((row) => [row.enrollmentId!, row]));
-  for (const row of ongoing) {
-    const result = resultByEnrollment.get(row.enrollmentId);
-    termOf(row.studentId, current!, row.termName, row.termStart).courses.push(
-      transcriptCourse({ ...row, score10: result?.score10 ?? null, letter: result?.letter ?? null, point4: result?.point4 ?? null }),
-    );
-  }
-  for (const row of results) {
-    if (row.termId === current && row.enrollmentId) continue;
-    termOf(row.studentId, row.termId, row.termName, row.termStart).courses.push(transcriptCourse(row));
-  }
-  for (const [studentId, byTerm] of raw) {
-    const ordered = [...byTerm.values()].toSorted((a, b) => a.start.localeCompare(b.start)).map(({ start: _start, ...term }) => term);
-    transcripts.set(studentId, buildTranscript(ordered));
-  }
-  return transcripts;
-}
+// Bảng điểm của một sinh viên, cache theo request: trang sinh viên gọi cả bảng điểm lẫn xếp loại mà chỉ đọc DB một lần.
+const transcriptOf = cache(async (studentId: string): Promise<TranscriptTerm[]> => {
+  const transcripts = await loadTranscripts(db, [studentId], { currentTermId: await currentTermId(), withOngoing: true });
+  return transcripts.get(studentId) ?? [];
+});
 
 export async function getTranscript(studentId: string): Promise<TranscriptTerm[]> {
   await requireResultAccess([studentId]);
   if (!isUuid(studentId)) return [];
-  return (await loadTranscripts([studentId])).get(studentId) ?? [];
+  return transcriptOf(studentId);
 }
 
 export async function getStudentStandings(studentIds: string[]): Promise<StudentStanding[]> {
   await requireResultAccess(studentIds);
-  const transcripts = await loadTranscripts(studentIds.length > 200 ? null : studentIds);
-  return studentIds.map((id) => computeStanding(id, transcripts.get(id) ?? []));
+  const regulation = await getRegulation();
+  const rules = standingRulesOf(regulation);
+  if (studentIds.length === 1 && isUuid(studentIds[0])) return [computeStanding(studentIds[0], await transcriptOf(studentIds[0]), rules)];
+  const transcripts = await loadTranscripts(db, studentIds, { currentTermId: await currentTermId() });
+  return studentIds.map((id) => computeStanding(id, transcripts.get(id) ?? [], rules));
 }
 
+// Cảnh báo chính thức đang có hiệu lực (đã gửi thông báo, học kỳ có cảnh báo đã ban hành gần nhất) của các sinh viên.
+export async function getCurrentWarnings(studentIds: string[]): Promise<Record<string, CurrentWarning>> {
+  await requireResultAccess(studentIds);
+  return Object.fromEntries(await currentWarnings(db, studentIds));
+}
+
+// Khóa đang xét tốt nghiệp theo đợt xét đang mở (cấu hình ở trang Xét tốt nghiệp).
+const graduatingCohorts = cache(async () => {
+  const [round] = await db.select({ cohorts: graduationRounds.cohorts }).from(graduationRounds).where(eq(graduationRounds.isOpen, true)).limit(1);
+  return round?.cohorts ?? [];
+});
+
+// Xếp loại học lực theo khoa đến hết học kỳ đã kết thúc gần nhất, tổng hợp trong SQL; không gồm khóa đang xét tốt nghiệp.
 export async function getStandingSummary(): Promise<FacultyStandingSummary[]> {
   await requireRole("admin");
-  const [rows, transcripts] = await Promise.all([
+  const [regulation, cohorts] = await Promise.all([getRegulation(), graduatingCohorts()]);
+  const [rows, results, warnings] = await Promise.all([
     db
-      .select({ id: students.id, faculty: faculties.name })
+      .select({ id: students.id, faculty: faculties.name, cohort: administrativeClasses.cohort })
       .from(students)
       .innerJoin(administrativeClasses, eq(administrativeClasses.id, students.administrativeClassId))
       .innerJoin(majors, eq(majors.id, administrativeClasses.majorId))
       .innerJoin(faculties, eq(faculties.id, majors.facultyId))
-      .where(ne(administrativeClasses.cohort, GRADUATING_COHORT))
+      .where(eq(students.status, "studying"))
       .orderBy(asc(students.code)),
-    loadTranscripts(null),
+    cumulativeResults(db, { excludeCurrent: true }),
+    currentWarnings(db),
   ]);
-  return summarizeStandings(rows.map((row) => ({ faculty: row.faculty, standing: computeStanding(row.id, transcripts.get(row.id) ?? []) })));
+  return summarizeStandings(
+    rows
+      .filter((row) => !cohorts.includes(row.cohort))
+      .map((row) => {
+        const result = results.get(row.id);
+        return {
+          faculty: row.faculty,
+          standing: { cpa4: result?.cpa4 ?? null, standing: result ? toStanding(result.cpa4, regulation.grading.standing) : null },
+          warned: warnings.has(row.id),
+        };
+      }),
+  );
 }
 
 // Cảnh báo học vụ của một học kỳ (bỏ trống là học kỳ xét gần nhất), mức nặng và CPA thấp lên đầu.
+// Giảng viên (cố vấn) chỉ đọc cảnh báo của sinh viên mình phụ trách; cán bộ đọc toàn trường rồi trang lọc theo khoa.
 export async function getAcademicWarnings(studentIds?: string[], termId?: string): Promise<AcademicWarning[]> {
-  await requireStaff();
+  const session = await requireStaff();
+  if (studentIds === undefined && !session.roles.includes("admin")) forbidden();
+  if (studentIds) await requireResultAccess(studentIds);
   if (termId !== undefined && !isUuid(termId)) return [];
   const ids = studentIds?.filter(isUuid);
   if (ids && ids.length === 0) return [];
@@ -202,13 +208,64 @@ export async function getAcademicWarnings(studentIds?: string[], termId?: string
     .toSorted((a, b) => b.level - a.level || a.cpa4 - b.cpa4);
 }
 
-export type GradeSheetView = GradeSheet & { state: GradeSheetState };
+// Đề xuất xét buộc thôi học sau một học kỳ: sinh viên có cảnh báo ở học kỳ đó và bị cảnh báo đủ số học kỳ chính liên tiếp theo quy chế,
+// hoặc ở mức 3. Chỉ là danh sách cho Phòng Đào tạo; quyết định buộc thôi học lập ở mục Quyết định sinh viên.
+export async function getExpulsionProposals(termId: string): Promise<ExpulsionProposal[]> {
+  await requireRole("admin");
+  if (!isUuid(termId)) return [];
+  const [[term], regulation] = await Promise.all([db.select({ startDate: terms.startDate }).from(terms).where(eq(terms.id, termId)), getRegulation()]);
+  if (!term) return [];
+  const [mainTerms, current] = await Promise.all([
+    db
+      .select({ id: terms.id })
+      .from(terms)
+      .where(and(ne(terms.semester, 3), lte(terms.startDate, term.startDate)))
+      .orderBy(asc(terms.startDate)),
+    db
+      .select({
+        studentId: students.id,
+        studentCode: students.code,
+        fullName: students.fullName,
+        className: administrativeClasses.code,
+        faculty: faculties.name,
+        level: academicWarnings.level,
+        cpa4: academicWarnings.cpa4,
+      })
+      .from(academicWarnings)
+      .innerJoin(students, eq(students.id, academicWarnings.studentId))
+      .innerJoin(administrativeClasses, eq(administrativeClasses.id, students.administrativeClassId))
+      .innerJoin(majors, eq(majors.id, administrativeClasses.majorId))
+      .innerJoin(faculties, eq(faculties.id, majors.facultyId))
+      .where(and(eq(academicWarnings.termId, termId), eq(students.status, "studying"))),
+  ]);
+  if (current.length === 0) return [];
+  const history = await db
+    .select({ studentId: academicWarnings.studentId, termId: academicWarnings.termId })
+    .from(academicWarnings)
+    .where(inArray(academicWarnings.studentId, current.map((row) => row.studentId)));
+  const warnedTerms = new Map<string, Set<string>>();
+  for (const row of history) warnedTerms.set(row.studentId, (warnedTerms.get(row.studentId) ?? new Set()).add(row.termId));
+  const termIds = mainTerms.map((row) => row.id);
+  return current
+    .map((row) => {
+      const consecutive = consecutiveWarnings(termIds, warnedTerms.get(row.studentId) ?? new Set());
+      return { ...row, studentCode: formatStudentCode(row.studentCode), level: row.level as 1 | 2 | 3, consecutiveWarnings: consecutive, reasons: expulsionReasons({ consecutive, level: row.level }, regulation.warning) };
+    })
+    .filter((row) => row.reasons.length > 0)
+    .toSorted((a, b) => b.consecutiveWarnings - a.consecutiveWarnings || b.level - a.level || a.cpa4 - b.cpa4);
+}
 
-// Bảng điểm của nhiều lớp trong 5 câu lệnh. Lớp chưa có bảng điểm thì trả bảng nháp mặc định, lưu lần đầu mới tạo dòng.
+// Bảng điểm lớp kèm trạng thái (theo hạn nhập và số ngày nhắc của quy chế) và quy đổi điểm của bản quy chế đang áp dụng,
+// để trang nhập điểm, duyệt điểm tính tổng và điểm chữ đúng như lúc công bố.
+export type GradeSheetView = GradeSheet & { state: GradeSheetState; grading: GradingRules };
+
+// Bảng điểm của nhiều lớp trong vài câu lệnh. Lớp chưa có bảng điểm thì trả bảng nháp mặc định, hạn nhập tính theo quy chế
+// (ngày thi cuối kỳ hoặc ngày kết thúc học kỳ cộng số ngày nhập điểm); lưu lần đầu mới tạo dòng với đúng hạn đó.
 async function sheetViews(sectionIds: string[]): Promise<GradeSheetView[]> {
   const ids = [...new Set(sectionIds.filter(isUuid))];
   if (ids.length === 0) return [];
-  const [sections, sheets, roster] = await Promise.all([
+  const [regulation, sections, sheets, roster, finals] = await Promise.all([
+    getRegulation(),
     db
       .select({ id: classSections.id, termEnd: terms.endDate })
       .from(classSections)
@@ -219,6 +276,10 @@ async function sheetViews(sectionIds: string[]): Promise<GradeSheetView[]> {
       .select({ id: enrollments.id, studentId: enrollments.studentId, classSectionId: enrollments.classSectionId })
       .from(enrollments)
       .where(and(inArray(enrollments.classSectionId, ids), eq(enrollments.status, "enrolled"))),
+    db
+      .select({ classSectionId: examSessions.classSectionId, date: examSessions.date })
+      .from(examSessions)
+      .where(and(inArray(examSessions.classSectionId, ids), eq(examSessions.kind, "final"))),
   ]);
   const sheetIds = sheets.map((sheet) => sheet.id);
   const [components, scores] =
@@ -235,6 +296,8 @@ async function sheetViews(sectionIds: string[]): Promise<GradeSheetView[]> {
   const scoreOf = new Map(scores.map((row) => [`${row.componentId}:${row.enrollmentId}`, row.score]));
   const sheetBySection = new Map(sheets.map((sheet) => [sheet.classSectionId, sheet]));
   const sectionById = new Map(sections.map((section) => [section.id, section]));
+  const finalOf = new Map(finals.map((row) => [row.classSectionId, row.date]));
+  const grading = { scale: regulation.grading.scale, roundingStep: regulation.grading.roundingStep };
 
   return ids
     .filter((id) => sectionById.has(id))
@@ -253,7 +316,7 @@ async function sheetViews(sectionIds: string[]): Promise<GradeSheetView[]> {
       );
       const deadline = sheet
         ? sheet.deadline.toISOString()
-        : dayjs(sectionById.get(id)!.termEnd).add(DEFAULT_DEADLINE_DAYS, "day").hour(23).minute(59).toISOString();
+        : gradeEntryDeadline({ finalExamDate: finalOf.get(id) ?? null, termEnd: sectionById.get(id)!.termEnd }, regulation.workflow.gradeEntryDays);
       const status = sheet?.status ?? "draft";
       return {
         classSectionId: id,
@@ -264,7 +327,8 @@ async function sheetViews(sectionIds: string[]): Promise<GradeSheetView[]> {
         savedAt: sheet?.savedAt?.toISOString() ?? null,
         returnReason: sheet?.returnReason ?? null,
         scores: rows,
-        state: sheetState(status, deadline),
+        state: sheetState(status, deadline, regulation.workflow.gradeDueSoonDays),
+        grading,
       };
     });
 }
@@ -290,7 +354,7 @@ export type WarningTermOption = { id: string; name: string; warnings: number; ca
 // Học kỳ có cảnh báo hoặc xét được cảnh báo (học kỳ chính đã kết thúc), mới nhất lên đầu.
 export async function getWarningTerms(): Promise<WarningTermOption[]> {
   await requireStaff();
-  const today = dayjs().format("YYYY-MM-DD");
+  const today = schoolToday();
   const [rows, counts] = await Promise.all([
     db.select({ id: terms.id, name: terms.name, semester: terms.semester, endDate: terms.endDate }).from(terms).orderBy(desc(terms.startDate)),
     db.select({ termId: academicWarnings.termId, total: count() }).from(academicWarnings).groupBy(academicWarnings.termId),

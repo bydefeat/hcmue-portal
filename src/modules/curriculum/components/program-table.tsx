@@ -27,9 +27,11 @@ type ProgramTableProps = {
   // Các khóa đang có lớp sinh hoạt, đọc từ DB.
   cohorts: number[];
   header: { title: string; description?: React.ReactNode };
+  // Cán bộ theo khoa chỉ sửa chương trình của khoa mình (server kiểm lại).
+  scopeFaculty?: string | null;
 };
 
-export function ProgramTable({ programs, majors, cohorts, header }: ProgramTableProps) {
+export function ProgramTable({ programs, majors, cohorts, header, scopeFaculty = null }: ProgramTableProps) {
   const [messageApi, contextHolder] = message.useMessage();
   const [rows, setRows] = useState(programs);
   const [query, setQuery] = useState("");
@@ -120,11 +122,12 @@ export function ProgramTable({ programs, majors, cohorts, header }: ProgramTable
       width: 80,
       align: "right",
       fixed: "right",
-      render: (_, row) => (
-        <Button size="small" type="text" icon={<Pen size={14} aria-hidden className="text-zinc-500" />} onClick={() => openForm(row)} aria-label={`Sửa ${row.name}`}>
-          Sửa
-        </Button>
-      ),
+      render: (_, row) =>
+        scopeFaculty && row.faculty !== scopeFaculty ? null : (
+          <Button size="small" type="text" icon={<Pen size={14} aria-hidden className="text-zinc-500" />} onClick={() => openForm(row)} aria-label={`Sửa ${row.name}`}>
+            Sửa
+          </Button>
+        ),
     },
   ];
 

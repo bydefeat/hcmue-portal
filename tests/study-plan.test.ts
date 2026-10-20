@@ -6,7 +6,18 @@ import { parseInput } from "@/shared/libs/action.lib";
 import { pgErrorMessage } from "@/shared/libs/pg-error.lib";
 import { courses } from "@/modules/curriculum/curriculum.schema";
 import { STUDY_PLAN_CONSTRAINT_MESSAGE } from "@/modules/study-plan/study-plan.constant";
-import { parseTermName, planEditMode, STUDY_PLAN_REVIEW_SCHEMA, STUDY_PLAN_SCHEMA, termNameOf, termsOutOfRange } from "@/modules/study-plan/study-plan.rule";
+import { REGULATION_RULES } from "@/modules/settings/settings.mock";
+import {
+  parseTermName,
+  planEditMode,
+  STUDY_PLAN_REVIEW_SCHEMA,
+  STUDY_PLAN_SCHEMA,
+  termCreditLimits,
+  termCreditLimitsByName,
+  termNameOf,
+  termsOutOfRange,
+  upcomingPlanTerms,
+} from "@/modules/study-plan/study-plan.rule";
 import { studyPlanItems, studyPlans } from "@/modules/study-plan/study-plan.schema";
 
 after(() => db.$client.end());
@@ -75,9 +86,36 @@ describe("study-plan: kiểm dữ liệu kế hoạch", () => {
       { termName: "C", credits: 26 },
     ];
     assert.deepEqual(
-      termsOutOfRange(terms, { min: 14, max: 25 }).map((term) => term.termName),
+      termsOutOfRange(terms, () => ({ min: 14, max: 25 })).map((term) => term.termName),
       ["A", "C"],
     );
+  });
+
+  test("hạn mức theo quy chế: học kỳ hè tối đa maxSummer không bắt tối thiểu, đang bị cảnh báo tối đa maxWhenWarned", () => {
+    const credits = REGULATION_RULES.credits;
+    assert.deepEqual(termCreditLimits({ academicYear: 2026, semester: 2 }, credits, false), { min: 14, max: 25 });
+    assert.deepEqual(termCreditLimits({ academicYear: 2026, semester: 3 }, credits, false), { min: 0, max: 12 });
+    assert.deepEqual(termCreditLimits({ academicYear: 2026, semester: 1 }, credits, true), { min: 14, max: 14 });
+    assert.deepEqual(termCreditLimits({ academicYear: 2026, semester: 1 }, { ...credits, maxWhenWarned: 12 }, true), { min: 12, max: 12 });
+    const terms = [
+      { termName: "Học kỳ hè, năm học 2026-2027", credits: 0 },
+      { termName: "Học kỳ 2, năm học 2026-2027", credits: 18 },
+    ];
+    assert.deepEqual(termsOutOfRange(terms, (name) => termCreditLimitsByName(name, credits, false)), []);
+    assert.deepEqual(
+      termsOutOfRange(terms, (name) => termCreditLimitsByName(name, credits, true)).map((term) => term.credits),
+      [18],
+    );
+  });
+
+  test("các học kỳ kế hoạch tính từ học kỳ hiện tại, gồm học kỳ hè xen giữa", () => {
+    assert.deepEqual(upcomingPlanTerms({ academicYear: 2026, semester: 1 }).map(termNameOf), [
+      "Học kỳ 2, năm học 2026-2027",
+      "Học kỳ hè, năm học 2026-2027",
+      "Học kỳ 1, năm học 2027-2028",
+      "Học kỳ 2, năm học 2027-2028",
+    ]);
+    assert.deepEqual(upcomingPlanTerms({ academicYear: 2026, semester: 3 }, 2).map(termNameOf), ["Học kỳ 1, năm học 2027-2028", "Học kỳ 2, năm học 2027-2028"]);
   });
 });
 

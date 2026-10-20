@@ -19,6 +19,7 @@ export type Permission =
   | "lecturers.manage"
   | "advisors.assign"
   | "reports.view"
+  | "warnings.manage"
   | "surveys.view"
   | "settings.manage"
   | "access.manage"

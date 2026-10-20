@@ -9,8 +9,8 @@ import { formatDate, formatDateTime } from "@/shared/libs/date.lib";
 import { PrintableTranscript } from "@/modules/grades/components/printable-transcript";
 import { TranscriptView } from "@/modules/grades/components/transcript-view";
 import { downloadStudentTranscriptPdf } from "@/modules/grades/grades.action";
-import { formatPoint, STANDING_LABEL, WARNING_LEVEL } from "@/modules/grades/grades.constant";
-import { getStudentStandings, getTranscript } from "@/modules/grades/grades.query";
+import { formatPoint, standingLabel, WARNING_LEVEL } from "@/modules/grades/grades.constant";
+import { getCurrentWarnings, getStudentStandings, getTranscript } from "@/modules/grades/grades.query";
 import { STUDY_PLAN_STATUS } from "@/modules/study-plan/study-plan.constant";
 import { getStudyPlanOfStudent } from "@/modules/study-plan/study-plan.query";
 import { StudentProfileCard } from "@/modules/users/components/student-profile-card";
@@ -21,7 +21,8 @@ import { getAuditLog } from "@/modules/audit/audit.query";
 import { can, inScope } from "@/modules/access/access.constant";
 import { requirePermission } from "@/modules/access/access.query";
 import { AdminStudentRegistration } from "@/modules/course-registration/components/admin-student-registration";
-import { bestGrades, creditCapOf } from "@/modules/course-registration/course-registration.rule";
+import { creditCapOf } from "@/modules/course-registration/course-registration.rule";
+import { latestGrades } from "@/modules/grades/grades.rule";
 import { getClassSections, getRegistrationEvents, getRegistrationHolds, getRegistrationPeriods, getRegistrationTargetTerm, getStudentEnrollments } from "@/modules/course-registration/course-registration.query";
 import { getCourses } from "@/modules/curriculum/curriculum.query";
 import { getRegulation } from "@/modules/settings/settings.query";
@@ -44,14 +45,17 @@ export default async function Page({ params }: PageProps) {
   if (!student) notFound();
   if (!inScope(viewer, student.faculty)) forbidden();
 
-  const [assignments, [standing], transcript, plan, decisions, history] = await Promise.all([
+  const [assignments, [standing], transcript, plan, decisions, history, warnings] = await Promise.all([
     getAdvisorAssignments(),
     getStudentStandings([student.id]),
     getTranscript(student.id),
     getStudyPlanOfStudent(student.id),
     getDecisions(student.id),
     getAuditLog({ entityType: "student", entityId: student.id }),
+    getCurrentWarnings([student.id]),
   ]);
+  // Hạn mức và hiển thị theo cảnh báo chính thức (đã gửi thông báo), không theo mức dự báo từ điểm hiện có.
+  const warning = warnings[student.id];
   const advisorName = assignments.find((assignment) => assignment.className === student.className)?.advisorName ?? null;
   const targetTerm = await getRegistrationTargetTerm();
   const [targetSections, targetEnrollments, holds, periods, courses, regulation] = await Promise.all([
@@ -63,9 +67,9 @@ export default async function Page({ params }: PageProps) {
     getRegulation(),
   ]);
   const period = periods.find((entry) => entry.cohorts.includes(student.cohort)) ?? periods[0];
-  const cap = creditCapOf(regulation.credits, standing.warningLevel);
+  const cap = creditCapOf(regulation.credits, warning?.level ?? 0);
   const registrationEvents = await getRegistrationEvents(student.id, targetTerm.id);
-  const hasResults = standing.earnedCredits > 0;
+  const hasResults = standing.cpa4 !== null;
   // Đăng ký hộ, hủy đăng ký chỉ cho người có quyền cấu hình đăng ký; vai trò chỉ xem hồ sơ không thấy khối này.
   const canRegister = can(viewer, "registration.manage");
 
@@ -143,12 +147,12 @@ export default async function Page({ params }: PageProps) {
                 hint={hasResults ? `Thang 10: ${formatPoint(standing.cpa10)}` : undefined}
               />
               <StatTile label="Tín chỉ tích lũy" value={standing.earnedCredits} hint={standing.failedCredits > 0 ? `Nợ ${standing.failedCredits} tín chỉ` : "Không nợ tín chỉ"} tone={standing.failedCredits > 0 ? "warning" : undefined} />
-              <StatTile label="Xếp loại" value={hasResults ? STANDING_LABEL[standing.standing] : "Chưa xếp"} />
+              <StatTile label="Xếp loại" value={standingLabel(standing.standing)} />
               <StatTile
                 label="Cảnh báo học vụ"
-                value={standing.warningLevel > 0 ? WARNING_LEVEL[standing.warningLevel as 1 | 2 | 3].label : "Không"}
-                hint={standing.warningLevel > 0 ? `ĐTB học kỳ gần nhất ${formatPoint(standing.lastTermGpa4)}` : undefined}
-                tone={standing.warningLevel > 0 ? "danger" : undefined}
+                value={warning ? WARNING_LEVEL[warning.level].label : "Không"}
+                hint={warning ? `Sau ${warning.termName.toLowerCase()}` : standing.warningLevel > 0 ? `Dự báo mức ${standing.warningLevel} theo điểm hiện có` : undefined}
+                tone={warning ? "danger" : undefined}
               />
             </div>
             {canRegister && (
@@ -161,7 +165,7 @@ export default async function Page({ params }: PageProps) {
               registered={period && period.state !== "upcoming" ? targetEnrollments.map((entry) => entry.section) : []}
               holds={holds}
               events={registrationEvents.filter((event) => event.kind !== "section-cancelled")}
-              passedGrades={bestGrades(transcript)}
+              passedGrades={latestGrades(transcript)}
               prerequisites={Object.fromEntries(courses.map((course) => [course.code, course.prerequisiteCodes]))}
               corequisites={Object.fromEntries(courses.map((course) => [course.code, course.corequisiteCodes]))}
               equivalents={Object.fromEntries(courses.map((course) => [course.code, course.equivalentCodes]))}

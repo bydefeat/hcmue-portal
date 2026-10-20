@@ -15,7 +15,9 @@ export type AuditEntityType =
   | "calendar-event"
   | "report"
   | "program"
-  | "staff";
+  | "staff"
+  | "course"
+  | "graduation";
 
 export type AuditChange = {
   field: string;

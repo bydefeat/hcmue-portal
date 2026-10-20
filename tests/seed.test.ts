@@ -13,7 +13,8 @@ import { SURVEY, SURVEY_RESULTS } from "@/modules/surveys/surveys.mock";
 import { surveyAnswers, surveyQuestions, surveyResponses, surveys, surveySubmissions } from "@/modules/surveys/surveys.schema";
 import { GRADE_SHEET_SEEDS, mockTranscriptTerms, mockWarningMeta } from "@/modules/grades/grades.mock";
 import { academicWarnings, courseResults, gradeSheets } from "@/modules/grades/grades.schema";
-import { graduationRecords } from "@/modules/graduation/graduation.schema";
+import { GRADUATION_ROUND } from "@/modules/graduation/graduation.mock";
+import { graduationRecords, graduationRounds } from "@/modules/graduation/graduation.schema";
 import { CURRENT_LECTURER_ID, CURRENT_STUDENT_ID, STUDENTS } from "@/modules/users/users.mock";
 import { lecturers, studentDecisions, students } from "@/modules/users/users.schema";
 import { roleAssignments, rolePermissions } from "@/modules/access/access.schema";
@@ -170,6 +171,8 @@ describe("seed khớp dữ liệu mẫu: học phí, thông báo, nhật ký, c�
     const [latest] = await db.select().from(regulations).orderBy(desc(regulations.effectiveFrom)).limit(1);
     assert.equal(latest.version, REGULATION.version);
     assert.deepEqual(latest.rules.credits, REGULATION.credits);
+    assert.deepEqual(latest.rules.graduation, REGULATION.graduation);
+    assert.deepEqual(latest.rules.grading.standing, REGULATION.grading.standing);
     const [[versions], [events]] = await Promise.all([db.select({ total: count() }).from(regulations), db.select({ total: count() }).from(calendarEvents)]);
     assert.equal(versions.total, REGULATION_VERSIONS.length);
     assert.equal(events.total, CALENDAR_EVENTS.length);
@@ -238,7 +241,9 @@ describe("seed grades, graduation khớp dữ liệu mẫu", () => {
     assert.ok(warnings.length > 0);
     assert.ok(STUDENTS.some((_, index) => ids.has(mockWarningMeta(index).id)));
     const [{ total }] = await db.select({ total: count() }).from(graduationRecords);
-    assert.equal(total, STUDENTS.filter((student) => student.cohort === 48).length);
+    assert.equal(total, STUDENTS.filter((student) => GRADUATION_ROUND.cohorts.includes(student.cohort)).length);
+    const rounds = await db.select({ cohorts: graduationRounds.cohorts }).from(graduationRounds).where(eq(graduationRounds.isOpen, true));
+    assert.deepEqual(rounds, [{ cohorts: GRADUATION_ROUND.cohorts }]);
   });
 });
 

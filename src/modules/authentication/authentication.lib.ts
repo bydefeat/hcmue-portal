@@ -23,7 +23,8 @@ const OTP_PURPOSE: Record<string, string> = {
 
 // Chỉ mở các endpoint app thật sự dùng. Còn lại trả 404: /update-user (tự đổi tên làm sai nhãn người thao tác trong nhật ký,
 // tự đặt username là mã số của người khác), /is-username-available (dò mã số nào có tài khoản), /sign-in/email-otp, /sign-up/email,
-// /forget-password/email-otp (bản trùng của request-password-reset, né được rate limit riêng), đổi email, xóa tài khoản...
+// /forget-password/email-otp (bản trùng của request-password-reset, né được rate limit riêng), đổi email, xóa tài khoản,
+// /email-otp/send-verification-otp và /email-otp/verify-email (gửi thư tới email bất kỳ; kích hoạt tài khoản đi qua luồng quên mật khẩu)...
 export const ALLOWED_AUTH_PATHS = new Set([
   "/get-session",
   "/sign-out",
@@ -33,8 +34,6 @@ export const ALLOWED_AUTH_PATHS = new Set([
   "/email-otp/request-password-reset",
   "/email-otp/check-verification-otp",
   "/email-otp/reset-password",
-  "/email-otp/send-verification-otp",
-  "/email-otp/verify-email",
   "/ok",
   "/error",
 ]);
@@ -120,9 +119,6 @@ export function createAuth(database: typeof db | Transaction) {
           if (loginName && (await reserveSignInAttempt(database, loginName))) {
             throw new APIError("TOO_MANY_REQUESTS", { message: AUTH_ERROR.SIGN_IN_LOCKED, code: "SIGN_IN_LOCKED" });
           }
-        }
-        if (ctx.path === "/email-otp/send-verification-otp" && ctx.body?.type !== "email-verification") {
-          throw new APIError("BAD_REQUEST");
         }
       }),
       after: createAuthMiddleware(async (ctx) => {

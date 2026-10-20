@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
-import { Button, Card, Dropdown, Input, message, Select, Table, type TableColumnsType } from "antd";
+import { Button, Card, Form, Input, message, Modal, Select, Table, type TableColumnsType } from "antd";
 import { FileArrowIn, Magnifier, Pen, Plus } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { PageHeader } from "@/shared/components/ui/page-header";
@@ -23,7 +23,8 @@ import { StudentFormDrawer } from "@/modules/users/components/student-form-drawe
 import { StudentImportModal } from "@/modules/users/components/student-import-modal";
 import { paginationItemRender } from "@/shared/constants/antd.constant";
 import { normalizeSearch } from "@/shared/libs/search.lib";
-import { importStudents, saveStudent, setStudentsStatus } from "@/modules/users/users.action";
+import { toFormFields } from "@/shared/libs/form.lib";
+import { importStudents, overrideStudentsStatus, saveStudent } from "@/modules/users/users.action";
 
 export type StudentRow = Student & {
   cpa4: number | null;
@@ -44,9 +45,15 @@ type StudentTableProps = {
   majors: MajorRef[];
   cohorts: number[];
   header: { title: string; description?: React.ReactNode };
+  // students.manage: thêm, nhập, sửa hồ sơ, thao tác tài khoản. Không có thì bảng chỉ để xem.
+  canManage: boolean;
+  // Quản trị hệ thống: sửa tay tình trạng học tập (kèm lý do) khi dữ liệu sai; nghiệp vụ thường đi qua quyết định.
+  canOverrideStatus: boolean;
 };
 
-export function StudentTable({ students, majors, cohorts, header }: StudentTableProps) {
+type OverrideValues = { status: StudentStatus; reason: string };
+
+export function StudentTable({ students, majors, cohorts, header, canManage, canOverrideStatus }: StudentTableProps) {
   const [messageApi, contextHolder] = message.useMessage();
   const [rows, setRows] = useState(students);
   const [query, setQuery] = useState("");
@@ -59,6 +66,8 @@ export function StudentTable({ students, majors, cohorts, header }: StudentTable
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [isSaving, startSaving] = useTransition();
+  const [isOverrideOpen, setIsOverrideOpen] = useState(false);
+  const [overrideForm] = Form.useForm<OverrideValues>();
   const facultyFilterOptions = useMemo(() => facultyOptions(facultiesOf(majors)), [majors]);
   const cohortFilterOptions = useMemo(() => cohortOptions(cohorts), [cohorts]);
   // Thêm mới hoặc nhập file được chọn cả khóa kế tiếp (tân sinh viên chưa có lớp).
@@ -108,18 +117,20 @@ export function StudentTable({ students, majors, cohorts, header }: StudentTable
     return undefined;
   };
 
-  const changeStatus = (next: StudentStatus) =>
+  const overrideStatus = (values: OverrideValues) =>
     startSaving(async () => {
       const ids = selectedIds.map(String);
-      const result = await setStudentsStatus(ids, next).catch(() => null);
+      const result = await overrideStudentsStatus({ ids, ...values }).catch(() => null);
       if (!result?.ok) {
+        if (result?.fieldErrors) overrideForm.setFields(toFormFields(result.fieldErrors));
         messageApi.error(result?.message ?? NETWORK_ERROR);
         return;
       }
       const chosen = new Set(ids);
-      setRows((current) => current.map((row) => (chosen.has(row.id) ? { ...row, status: next } : row)));
-      messageApi.success(`Đã chuyển ${result.data.updated} sinh viên sang "${STUDENT_STATUS[next].label}"`);
+      setRows((current) => current.map((row) => (chosen.has(row.id) ? { ...row, status: values.status } : row)));
+      messageApi.success(`Đã sửa tình trạng ${result.data.updated} sinh viên thành "${STUDENT_STATUS[values.status].label}", có ghi nhật ký`);
       setSelectedIds([]);
+      setIsOverrideOpen(false);
     });
 
   const columns: TableColumnsType<StudentRow> = [
@@ -178,7 +189,9 @@ export function StudentTable({ students, majors, cohorts, header }: StudentTable
       responsive: ["lg"],
       render: (_, row) => <AccountStatus account={row.account} />,
     },
-    {
+  ];
+  if (canManage) {
+    columns.push({
       title: "",
       key: "actions",
       width: 80,
@@ -189,8 +202,8 @@ export function StudentTable({ students, majors, cohorts, header }: StudentTable
           Sửa
         </Button>
       ),
-    },
-  ];
+    });
+  }
 
   return (
     <>
@@ -198,14 +211,16 @@ export function StudentTable({ students, majors, cohorts, header }: StudentTable
       <PageHeader
         {...header}
         actions={
-          <>
-            <Button icon={<FileArrowIn size={16} aria-hidden className="text-zinc-500" />} onClick={() => setIsImportOpen(true)}>
-              Nhập từ Excel
-            </Button>
-            <Button type="primary" icon={<Plus size={16} aria-hidden />} onClick={openCreate}>
-              Thêm sinh viên
-            </Button>
-          </>
+          canManage ? (
+            <>
+              <Button icon={<FileArrowIn size={16} aria-hidden className="text-zinc-500" />} onClick={() => setIsImportOpen(true)}>
+                Nhập từ Excel
+              </Button>
+              <Button type="primary" icon={<Plus size={16} aria-hidden />} onClick={openCreate}>
+                Thêm sinh viên
+              </Button>
+            </>
+          ) : undefined
         }
       />
       <div className="flex flex-col gap-3">
@@ -241,20 +256,21 @@ export function StudentTable({ students, majors, cohorts, header }: StudentTable
           />
         </div>
 
-        {selectedIds.length > 0 && (
+        {canManage && selectedIds.length > 0 && (
           <Card size="small" classNames={{ body: "flex flex-wrap items-center gap-3 py-2" }}>
             <span className="text-sm tabular-nums">Đã chọn {selectedIds.length} sinh viên</span>
-            <Dropdown
-              trigger={["click"]}
-              menu={{
-                items: STUDENT_STATUS_OPTIONS.map((option) => ({ key: option.value, label: option.label })),
-                onClick: ({ key }) => changeStatus(key as StudentStatus),
-              }}
-            >
-              <Button size="small" loading={isSaving}>
-                Đổi trạng thái
+            {canOverrideStatus && (
+              <Button
+                size="small"
+                loading={isSaving}
+                onClick={() => {
+                  overrideForm.resetFields();
+                  setIsOverrideOpen(true);
+                }}
+              >
+                Sửa tình trạng
               </Button>
-            </Dropdown>
+            )}
             <AccountBulkActions
               kind="student"
               selectedIds={selectedIds.map(String)}
@@ -271,7 +287,7 @@ export function StudentTable({ students, majors, cohorts, header }: StudentTable
           size="middle"
           columns={columns}
           dataSource={filtered}
-          rowSelection={{ selectedRowKeys: selectedIds, onChange: setSelectedIds }}
+          rowSelection={canManage ? { selectedRowKeys: selectedIds, onChange: setSelectedIds } : undefined}
           scroll={{ x: "max-content" }}
           pagination={{ itemRender: paginationItemRender, pageSize: 20, showSizeChanger: false, showTotal: (total) => `${total} sinh viên` }}
           locale={{
@@ -284,6 +300,30 @@ export function StudentTable({ students, majors, cohorts, header }: StudentTable
             ),
           }}
         />
+
+        <Modal
+          open={isOverrideOpen}
+          onCancel={() => setIsOverrideOpen(false)}
+          title={`Sửa tình trạng ${selectedIds.length} sinh viên`}
+          mask={{ closable: false }}
+          destroyOnHidden
+          okText="Sửa tình trạng"
+          okButtonProps={{ danger: true, loading: isSaving }}
+          cancelText="Hủy"
+          onOk={() => overrideForm.submit()}
+        >
+          <p className="mb-4 text-sm text-pretty text-muted">
+            Bảo lưu, tạm ngừng, thôi học, tốt nghiệp lập ở trang Quyết định sinh viên. Chỉ sửa tay khi dữ liệu đang sai; lý do được ghi vào nhật ký của từng sinh viên.
+          </p>
+          <Form form={overrideForm} layout="vertical" onFinish={overrideStatus}>
+            <Form.Item name="status" label="Tình trạng đúng" rules={[{ required: true, message: "Chưa chọn tình trạng" }]}>
+              <Select options={STUDENT_STATUS_OPTIONS} />
+            </Form.Item>
+            <Form.Item name="reason" label="Lý do" rules={[{ required: true, whitespace: true, min: 10, message: "Ghi lý do, ít nhất 10 ký tự" }]}>
+              <Input.TextArea autoSize={{ minRows: 2, maxRows: 4 }} maxLength={500} showCount />
+            </Form.Item>
+          </Form>
+        </Modal>
 
         <StudentFormDrawer
           open={isDrawerOpen}

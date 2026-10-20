@@ -9,6 +9,8 @@ import { staffAccountIdentity } from "@/shared/libs/login-name.lib";
 import { faculties, majors } from "@/modules/curriculum/curriculum.schema";
 import { enqueueMail } from "@/modules/mail/mail.lib";
 import { accountStatusOf, activationLink, activationMail, studentAccountIdentity } from "@/modules/users/users.rule";
+import { roleAssignments, rolePermissions, roles } from "@/modules/access/access.schema";
+import type { Permission } from "@/modules/access/access.type";
 import { administrativeClasses, lecturers, staffMembers, students } from "@/modules/users/users.schema";
 import type { AccountKind, AccountState } from "@/modules/users/users.type";
 
@@ -60,6 +62,15 @@ export async function lockAccountProfiles(tx: Transaction, kind: AccountKind, id
       .where(inArray(students.id, ids))
       .for("update", { of: students });
     return rows.map(studentProfile);
+  }
+  if (kind === "staff") {
+    const rows = await tx
+      .select({ id: staffMembers.id, userId: staffMembers.userId, code: staffMembers.code, name: staffMembers.fullName, email: staffMembers.email, unit: staffMembers.unit })
+      .from(staffMembers)
+      .where(inArray(staffMembers.id, ids))
+      .for("update", { of: staffMembers });
+    // Cán bộ không thuộc khoa: faculty ghi đơn vị để câu báo dễ đọc; quyền thao tác kiểm theo phạm vi toàn trường.
+    return rows.map(({ unit, ...row }) => staffProfile({ ...row, faculty: unit }, "admin"));
   }
   const rows = await tx
     .select({ id: lecturers.id, userId: lecturers.userId, code: lecturers.code, title: lecturers.title, fullName: lecturers.fullName, email: lecturers.email, faculty: faculties.name })
@@ -163,7 +174,7 @@ export async function queueActivationMails(tx: Transaction, accounts: Pick<Accou
 // Trạng thái tài khoản theo id hồ sơ; không truyền ids thì đọc mọi hồ sơ của loại đó.
 export async function readAccountStates(database: Database, kind: AccountKind, ids?: string[]): Promise<Record<string, AccountState>> {
   if (ids && ids.length === 0) return {};
-  const profile = kind === "student" ? students : lecturers;
+  const profile = { student: students, lecturer: lecturers, staff: staffMembers }[kind];
   const rows = await database
     .select({ id: profile.id, userId: profile.userId, banned: user.banned, lastSignInAt: user.lastSignInAt })
     .from(profile)
@@ -181,4 +192,28 @@ export async function syncAccountProfile(tx: Transaction, userId: string | null,
     .update(user)
     .set({ name: values.name, ...(values.email ? { email: values.email.toLowerCase(), emailVerified: sql`${user.email} = ${values.email.toLowerCase()} AND ${user.emailVerified}` } : {}) })
     .where(eq(user.id, userId));
+}
+
+// Vai trò quản trị đang giữ của từng tài khoản, để chặn người thấp hơn khóa tài khoản của quản trị cao hơn.
+export async function readHeldRoles(database: Database, userIds: string[]) {
+  const held = new Map<string, { name: string; scope: "university" | "faculty"; isSystem: boolean; permissions: Permission[] }[]>();
+  if (userIds.length === 0) return held;
+  const rows = await database
+    .select({ userId: roleAssignments.userId, roleId: roles.id, name: roles.name, scope: roles.scope, isSystem: roles.isSystem, permission: rolePermissions.permission })
+    .from(roleAssignments)
+    .innerJoin(roles, eq(roles.id, roleAssignments.roleId))
+    .leftJoin(rolePermissions, eq(rolePermissions.roleId, roles.id))
+    .where(inArray(roleAssignments.userId, userIds));
+  const byKey = new Map<string, { name: string; scope: "university" | "faculty"; isSystem: boolean; permissions: Permission[] }>();
+  for (const row of rows) {
+    const key = `${row.userId}:${row.roleId}`;
+    let entry = byKey.get(key);
+    if (!entry) {
+      entry = { name: row.name, scope: row.scope, isSystem: row.isSystem, permissions: [] };
+      byKey.set(key, entry);
+      held.set(row.userId, [...(held.get(row.userId) ?? []), entry]);
+    }
+    if (row.permission) entry.permissions.push(row.permission);
+  }
+  return held;
 }

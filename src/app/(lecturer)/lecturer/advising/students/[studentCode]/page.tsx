@@ -7,8 +7,8 @@ import { StatTile } from "@/shared/components/ui/stat-tile";
 import { StatusTag } from "@/shared/components/ui/status-tag";
 import { formatDateTime } from "@/shared/libs/date.lib";
 import { TranscriptView } from "@/modules/grades/components/transcript-view";
-import { formatPoint, STANDING_LABEL, WARNING_LEVEL } from "@/modules/grades/grades.constant";
-import { getStudentStandings, getTranscript } from "@/modules/grades/grades.query";
+import { formatPoint, standingLabel, WARNING_LEVEL } from "@/modules/grades/grades.constant";
+import { getCurrentWarnings, getStudentStandings, getTranscript } from "@/modules/grades/grades.query";
 import { STUDY_PLAN_STATUS } from "@/modules/study-plan/study-plan.constant";
 import { getStudyPlanOfStudent } from "@/modules/study-plan/study-plan.query";
 import { AdvisingNotePanel } from "@/modules/advising/components/advising-note-panel";
@@ -26,12 +26,14 @@ export default async function Page({ params }: { params: Promise<{ studentCode: 
   const code = normalizeStudentCode(decodeURIComponent(studentCode));
   const student = advisees.find((entry) => normalizeStudentCode(entry.code) === code);
   if (!student) notFound();
-  const [[standing], transcript, plan, notes] = await Promise.all([
+  const [[standing], transcript, plan, warnings, notes] = await Promise.all([
     getStudentStandings([student.id]),
     getTranscript(student.id),
     getStudyPlanOfStudent(student.id),
+    getCurrentWarnings([student.id]),
     getMeetingNotes([student.id]),
   ]);
+  const warning = warnings[student.id];
 
   return (
     <>
@@ -40,7 +42,7 @@ export default async function Page({ params }: { params: Promise<{ studentCode: 
         <StudentProfileCard student={student} advisorName={lecturer.displayName} />
         <div className="flex min-w-0 flex-col gap-4">
           <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
-            <StatTile label="CPA hệ 4" value={formatPoint(standing.cpa4)} hint={STANDING_LABEL[standing.standing]} tone={standing.cpa4 < 2 ? "warning" : undefined} />
+            <StatTile label="CPA hệ 4" value={formatPoint(standing.cpa4) || "Chưa có"} hint={standingLabel(standing.standing)} tone={standing.warningLevel > 0 ? "warning" : undefined} />
             <StatTile label="Tín chỉ tích lũy" value={standing.earnedCredits} />
             <StatTile
               label="Tín chỉ nợ"
@@ -50,9 +52,9 @@ export default async function Page({ params }: { params: Promise<{ studentCode: 
             />
             <StatTile
               label="Cảnh báo học vụ"
-              value={standing.warningLevel > 0 ? WARNING_LEVEL[standing.warningLevel as 1 | 2 | 3].label : "Không"}
-              hint={standing.warningLevel > 0 ? "Hẹn gặp sinh viên trong tháng" : undefined}
-              tone={standing.warningLevel > 0 ? "danger" : undefined}
+              value={warning ? WARNING_LEVEL[warning.level].label : "Không"}
+              hint={warning ? `Sau ${warning.termName.toLowerCase()}, hẹn gặp sinh viên` : standing.warningLevel > 0 ? `Điểm hiện có dưới ngưỡng mức ${standing.warningLevel} (dự báo)` : undefined}
+              tone={warning ? "danger" : standing.warningLevel > 0 ? "warning" : undefined}
             />
           </div>
 

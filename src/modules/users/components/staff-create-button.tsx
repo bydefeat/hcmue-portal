@@ -1,19 +1,32 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Button, Checkbox, Drawer, Form, Input, message } from "antd";
+import { Button, Checkbox, Drawer, Form, Input, message, Select } from "antd";
 import { Plus } from "defeat-icons-react";
 import { toFormFields } from "@/shared/libs/form.lib";
 import { isStaffCode, STAFF_CODE_HINT } from "@/shared/libs/login-name.lib";
 import { createStaffMember } from "@/modules/users/users.action";
+import { OFFICIAL_EMAIL_MESSAGE } from "@/modules/users/users.rule";
 import type { StaffFormValues } from "@/modules/users/users.type";
 
-// Thêm cán bộ (kèm tài khoản) ở trang Phân quyền; tạo xong thì cán bộ có trong danh sách "Cấp quyền".
-export function StaffCreateButton() {
+export type StaffRoleOption = { id: string; name: string; scope: "university" | "faculty" };
+
+type StaffCreateButtonProps = {
+  roles: StaffRoleOption[];
+  faculties: string[];
+  onCreated?: () => void;
+};
+
+// Thêm cán bộ kèm tài khoản và vai trò quản trị ban đầu. Không chọn vai trò thì tài khoản chưa vào được cổng quản trị
+// cho tới khi được cấp vai trò ở trang Phân quyền.
+export function StaffCreateButton({ roles, faculties, onCreated }: StaffCreateButtonProps) {
   const [messageApi, contextHolder] = message.useMessage();
   const [open, setOpen] = useState(false);
   const [form] = Form.useForm<StaffFormValues>();
   const [isPending, startTransition] = useTransition();
+  const provision = Form.useWatch("provisionAccount", form);
+  const roleId = Form.useWatch("roleId", form);
+  const needsFaculty = roles.find((role) => role.id === roleId)?.scope === "faculty";
 
   const submit = (values: StaffFormValues) =>
     startTransition(async () => {
@@ -27,10 +40,12 @@ export function StaffCreateButton() {
         messageApi.error(result.message);
         return;
       }
-      const { name, hasAccount } = result.data;
+      const { name, hasAccount, roleName } = result.data;
       const note = hasAccount ? `, đã gửi thư kích hoạt tới ${values.email}` : ", chưa cấp tài khoản";
-      messageApi.success(`Đã thêm cán bộ ${name}${note}. Bấm "Cấp quyền" để giao vai trò.`, 8);
+      const roleNote = roleName ? `, vai trò ${roleName}` : hasAccount ? ". Chưa có vai trò quản trị, cấp ở trang Phân quyền" : "";
+      messageApi.success(`Đã thêm cán bộ ${name}${note}${roleNote}.`, 8);
       setOpen(false);
+      onCreated?.();
     });
 
   return (
@@ -80,14 +95,24 @@ export function StaffCreateButton() {
             extra="Nhận mã kích hoạt và đặt lại mật khẩu. Cán bộ đăng nhập bằng mã cán bộ, không dùng email."
             rules={[
               { required: true, message: "Chưa nhập email" },
-              { pattern: /^[^@\s]+@hcmue\.edu\.vn$/i, message: "Dùng email công vụ có đuôi @hcmue.edu.vn" },
+              { pattern: /^[^@\s]+@hcmue\.edu\.vn$/i, message: OFFICIAL_EMAIL_MESSAGE },
             ]}
           >
             <Input autoComplete="off" inputMode="email" />
           </Form.Item>
-          <Form.Item name="provisionAccount" valuePropName="checked" extra="Cán bộ tự đặt mật khẩu qua đường dẫn trong thư. Vai trò quản trị cấp riêng ở bảng bên dưới.">
+          <Form.Item name="provisionAccount" valuePropName="checked" extra="Cán bộ tự đặt mật khẩu qua đường dẫn trong thư.">
             <Checkbox>Cấp tài khoản và gửi thư kích hoạt</Checkbox>
           </Form.Item>
+          {provision && (
+            <Form.Item name="roleId" label="Vai trò quản trị" extra="Bỏ trống thì tài khoản chưa vào được cổng quản trị cho tới khi được cấp vai trò.">
+              <Select allowClear options={roles.map((role) => ({ value: role.id, label: role.name }))} />
+            </Form.Item>
+          )}
+          {provision && needsFaculty && (
+            <Form.Item name="faculty" label="Khoa được quản lý" rules={[{ required: true, message: "Vai trò theo khoa cần chọn khoa" }]}>
+              <Select options={faculties.map((value) => ({ value, label: value }))} />
+            </Form.Item>
+          )}
         </Form>
       </Drawer>
     </>

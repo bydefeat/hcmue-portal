@@ -17,11 +17,14 @@ export function CourseTable({
   faculties: allFaculties,
   initialQuery = "",
   header,
+  scopeFaculty = null,
 }: {
   courses: Course[];
   faculties: string[];
   initialQuery?: string;
   header: { title: string; description?: React.ReactNode };
+  // Cán bộ theo khoa chỉ sửa học phần của khoa mình (server kiểm lại).
+  scopeFaculty?: string | null;
 }) {
   const [messageApi, contextHolder] = message.useMessage();
   const [rows, setRows] = useState(courses);
@@ -148,11 +151,12 @@ export function CourseTable({
       width: 72,
       align: "right",
       fixed: "right",
-      render: (_, row) => (
-        <Button size="small" type="text" icon={<Pen size={14} aria-hidden className="text-zinc-500" />} onClick={() => openForm(row)} aria-label={`Sửa ${row.code}`}>
-          Sửa
-        </Button>
-      ),
+      render: (_, row) =>
+        scopeFaculty && row.faculty !== scopeFaculty ? null : (
+          <Button size="small" type="text" icon={<Pen size={14} aria-hidden className="text-zinc-500" />} onClick={() => openForm(row)} aria-label={`Sửa ${row.code}`}>
+            Sửa
+          </Button>
+        ),
     },
   ];
 

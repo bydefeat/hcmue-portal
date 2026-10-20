@@ -35,7 +35,7 @@ export default async function Page() {
         code: student.code,
         unit: student.className,
         faculty: student.faculty,
-        cpa4: standing.cpa4,
+        cpa4: standing.cpa4 ?? 0,
         advisorId: advisor?.id ?? null,
         advisorName: advisor?.displayName ?? null,
       }}

@@ -8,6 +8,7 @@ import { MobileNavigation } from "@/shared/components/ui/mobile-navigation";
 import { NotificationBell, type BellItem, type MarkNotificationsRead } from "@/shared/components/ui/notification-bell";
 import { UserMenu, type MenuUser, type RoleSwitcher } from "@/shared/components/ui/user-menu";
 import {
+  type NavItem,
   ADMINISTRATOR_ACCOUNT_LINKS,
   ADMINISTRATOR_BOTTOM_TABS,
   ADMINISTRATOR_HOME_HREF,
@@ -26,6 +27,10 @@ type AdministratorLayoutProps = {
   user: MenuUser;
   termLabel: string;
   permissions: string[];
+  // Vai trò theo khoa (false) không thấy mục chỉ dành cho phạm vi toàn trường.
+  schoolWide: boolean;
+  // Liên kết chuyển cổng (giảng viên kiêm quản trị), thêm vào menu tài khoản.
+  portalLinks?: NavItem[];
   searchEntries: SearchEntry[];
   notifications: BellItem[];
   onMarkNotificationsRead?: MarkNotificationsRead;
@@ -55,6 +60,8 @@ export function AdministratorLayout({
   user,
   termLabel,
   permissions,
+  schoolWide,
+  portalLinks = [],
   searchEntries,
   notifications,
   onMarkNotificationsRead,
@@ -62,17 +69,18 @@ export function AdministratorLayout({
   children,
 }: AdministratorLayoutProps) {
   const pathname = usePathname();
-  const groups = filterNavigation(ADMINISTRATOR_NAVIGATION, permissions);
+  const groups = filterNavigation(ADMINISTRATOR_NAVIGATION, permissions, { schoolWide });
+  const accountLinks = [...ADMINISTRATOR_ACCOUNT_LINKS, ...portalLinks];
   const navItems = groups.flatMap((group) => group.items);
   const dockItems = navItems.filter((item) => ADMINISTRATOR_BOTTOM_TABS.includes(item.href));
   const mobileSections = [
     ...groups.map((group) => ({ title: group.label, items: group.items })),
-    { title: "Tài khoản", items: ADMINISTRATOR_ACCOUNT_LINKS },
+    { title: "Tài khoản", items: accountLinks },
   ];
 
   return (
     <Layout hasSider className="min-h-dvh">
-      <AdministratorSidebar user={user} groups={groups} switcher={switcher} />
+      <AdministratorSidebar user={user} groups={groups} switcher={switcher} accountLinks={accountLinks} />
       <Layout className="min-w-0">
         <Layout.Header className="sticky top-0 z-10 flex h-16 items-center gap-3 border-b border-border-strong px-4 sm:px-6 print:!hidden">
           <Logo href={ADMINISTRATOR_HOME_HREF} className="shrink-0 lg:hidden" />
@@ -84,7 +92,7 @@ export function AdministratorLayout({
           <div className="ml-auto flex shrink-0 items-center gap-1 leading-normal md:ml-0">
             <NotificationBell items={notifications} viewAllHref={ADMINISTRATOR_NOTIFICATIONS_HREF} onMarkRead={onMarkNotificationsRead} />
             <div className="lg:hidden">
-              <UserMenu user={user} links={ADMINISTRATOR_ACCOUNT_LINKS} switcher={switcher} compact />
+              <UserMenu user={user} links={accountLinks} switcher={switcher} compact />
             </div>
           </div>
         </Layout.Header>

@@ -10,11 +10,12 @@ import {
   getStudentEnrollments,
 } from "@/modules/course-registration/course-registration.query";
 import { bestGrades, pickTimetable } from "@/modules/course-registration/course-registration.rule";
-import { getCourses } from "@/modules/curriculum/curriculum.query";
+import { getCourses, getProgramOf } from "@/modules/curriculum/curriculum.query";
 import { EXAM_KIND_LABEL } from "@/modules/exams/exams.constant";
 import { getStudentExams } from "@/modules/exams/exams.query";
-import { formatPoint, STANDING_LABEL, WARNING_LEVEL } from "@/modules/grades/grades.constant";
-import { getStudentStandings, getTranscript } from "@/modules/grades/grades.query";
+import { formatPoint, standingLabel, WARNING_LEVEL } from "@/modules/grades/grades.constant";
+import { getCurrentWarnings, getStudentStandings, getTranscript } from "@/modules/grades/grades.query";
+import { getRegulation } from "@/modules/settings/settings.query";
 import { NOTIFICATION_KIND_LABEL } from "@/modules/notifications/notifications.constant";
 import { getNotifications } from "@/modules/notifications/notifications.query";
 import { REQUEST_KINDS, REQUEST_STATUS } from "@/modules/requests/requests.constant";
@@ -34,14 +35,19 @@ export const metadata: Metadata = { title: "Tổng quan" };
 
 export default async function Page() {
   const [student, term, targetTerm, courses] = await Promise.all([getCurrentStudent(), getCurrentTerm(), getRegistrationTargetTerm(), getCourses()]);
-  const [enrollments, transcript, [standing], periods, requests, notifications] = await Promise.all([
+  const [enrollments, transcript, [standing], periods, requests, notifications, warnings, program, regulation] = await Promise.all([
     getStudentEnrollments(student.id, term.id),
     getTranscript(student.id),
     getStudentStandings([student.id]),
     getRegistrationPeriods(targetTerm.id),
     getRequestsOf(student.id),
     getNotifications("student"),
+    getCurrentWarnings([student.id]),
+    getProgramOf(student.majorCode, student.cohort),
+    getRegulation(),
   ]);
+  // Cảnh báo chính thức (đã gửi thông báo), không phải dự báo theo điểm hiện có.
+  const warning = warnings[student.id];
   const timetable = pickTimetable(enrollments, bestGrades(transcript), {
     faculty: student.faculty,
     prerequisites: Object.fromEntries(courses.map((course) => [course.code, course.prerequisiteCodes])),
@@ -59,7 +65,7 @@ export default async function Page() {
   const upcomingExams = exams.filter((exam) => daysUntil(exam.date) >= 0).slice(0, 3);
   const openRequests = requests.filter((request) => request.status === "pending" || request.status === "in-review");
   const unread = notifications.filter((notification) => !notification.isRead);
-  const totalCredits = 130;
+  const totalCredits = program?.totalCredits ?? null;
   const showTuition = invoice && invoice.balance > 0 && invoice.daysToDue <= 14;
 
   return (
@@ -67,12 +73,12 @@ export default async function Page() {
       <PageHeader title="Tổng quan" description={`${weekdayLabel(today)}, ${schoolTime().format("DD/MM/YYYY")}. ${term.name}.`} />
       <div className="flex flex-col gap-4 sm:gap-6">
 
-        {standing.warningLevel > 0 && (
+        {warning && (
           <Alert
             type="error"
             showIcon
-            title={`Bạn đang bị cảnh báo học vụ ${WARNING_LEVEL[standing.warningLevel as 1 | 2 | 3].label.toLowerCase()}`}
-            description="Học kỳ tới chỉ được đăng ký tối đa 14 tín chỉ. Hẹn gặp cố vấn học tập để lập kế hoạch cải thiện."
+            title={`Bạn đang bị cảnh báo học vụ ${WARNING_LEVEL[warning.level].label.toLowerCase()} sau ${warning.termName.toLowerCase()}`}
+            description={`Học kỳ tới chỉ được đăng ký tối đa ${regulation.credits.maxWhenWarned} tín chỉ. Hẹn gặp cố vấn học tập để lập kế hoạch cải thiện.`}
             action={<Link href="/application/grades">Xem kết quả</Link>}
           />
         )}
@@ -91,8 +97,8 @@ export default async function Page() {
         )}
 
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          <StatTile label="Điểm trung bình tích lũy" value={formatPoint(standing.cpa4)} hint={`Xếp loại ${STANDING_LABEL[standing.standing]}`} href="/application/grades" />
-          <StatTile label="Tín chỉ tích lũy" value={`${standing.earnedCredits}/${totalCredits}`} hint={`Học kỳ này ${timetable.reduce((sum, { section }) => sum + section.credits, 0)} tín chỉ`} href="/application/curriculum" />
+          <StatTile label="Điểm trung bình tích lũy" value={formatPoint(standing.cpa4) || "Chưa có"} hint={`Xếp loại ${standingLabel(standing.standing).toLowerCase()}`} href="/application/grades" />
+          <StatTile label="Tín chỉ tích lũy" value={totalCredits ? `${standing.earnedCredits}/${totalCredits}` : standing.earnedCredits} hint={`Học kỳ này ${timetable.reduce((sum, { section }) => sum + section.credits, 0)} tín chỉ`} href="/application/curriculum" />
           <StatTile
             label="Đơn đang xử lý"
             value={openRequests.length}

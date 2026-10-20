@@ -6,10 +6,11 @@ import { Lock } from "defeat-icons-react";
 import { StatusTag } from "@/shared/components/ui/status-tag";
 import { PERMISSION_GROUPS, SCOPE_LABEL } from "@/modules/access/access.constant";
 import { saveRolePermissions } from "@/modules/access/access.action";
+import { isPrivilegedRole, SCHOOL_WIDE_PERMISSIONS } from "@/modules/access/access.rule";
 import type { Permission, RoleRow } from "@/modules/access/access.type";
 import { SectionCard } from "@/shared/components/ui/section-card";
 
-export function RolePermissionMatrix({ roles }: { roles: RoleRow[] }) {
+export function RolePermissionMatrix({ roles, viewer }: { roles: RoleRow[]; viewer: { faculty: string | null; permissions: Permission[] } }) {
   const [messageApi, contextHolder] = message.useMessage();
   const [rows, setRows] = useState(roles);
   const [selectedId, setSelectedId] = useState(roles[0]?.id);
@@ -17,6 +18,9 @@ export function RolePermissionMatrix({ roles }: { roles: RoleRow[] }) {
   const [isSaving, startSaving] = useTransition();
   const selected = rows.find((role) => role.id === selectedId);
   const isDirty = selected ? JSON.stringify([...draft].toSorted()) !== JSON.stringify([...selected.permissions].toSorted()) : false;
+  // Người theo khoa không sửa vai trò có quyền phân quyền, không thêm quyền toàn trường hay quyền chính mình không có.
+  const isLocked = !selected || selected.isSystem || (viewer.faculty !== null && isPrivilegedRole(selected));
+  const canAdd = (permission: Permission) => viewer.faculty === null || (!SCHOOL_WIDE_PERMISSIONS.includes(permission) && viewer.permissions.includes(permission));
 
   const select = (role: RoleRow) => {
     setSelectedId(role.id);
@@ -73,6 +77,8 @@ export function RolePermissionMatrix({ roles }: { roles: RoleRow[] }) {
             <p className="text-sm text-pretty text-muted">{selected.description}</p>
             {selected.isSystem ? (
               <Alert type="info" showIcon title="Vai trò hệ thống không sửa được quyền" description="Tạo vai trò mới nếu cần một tổ hợp quyền khác." />
+            ) : isLocked ? (
+              <Alert type="info" showIcon title="Chỉ quản trị toàn trường sửa được vai trò này" description="Vai trò có quyền phân quyền." />
             ) : (
               selected.scope === "faculty" && (
                 <Alert type="info" showIcon title="Vai trò theo khoa" description="Người được cấp chỉ thấy sinh viên, lớp, bảng điểm và đơn từ của khoa được chỉ định khi cấp quyền." />
@@ -86,7 +92,7 @@ export function RolePermissionMatrix({ roles }: { roles: RoleRow[] }) {
                     <Checkbox
                       key={permission.key}
                       checked={draft.includes(permission.key)}
-                      disabled={selected.isSystem}
+                      disabled={isLocked || (!selected.permissions.includes(permission.key) && !canAdd(permission.key))}
                       onChange={(event) => toggle(permission.key, event.target.checked)}
                     >
                       {permission.label}
@@ -95,7 +101,10 @@ export function RolePermissionMatrix({ roles }: { roles: RoleRow[] }) {
                 </fieldset>
               ))}
             </div>
-            {!selected.isSystem && (
+            {viewer.faculty !== null && !isLocked && (
+              <p className="text-xs text-pretty text-muted">Vai trò theo khoa áp dụng cho mọi khoa. Quyền dùng cho toàn trường và quyền vai trò của bạn không có thì không thêm được.</p>
+            )}
+            {!isLocked && (
               <div className="flex flex-wrap items-center justify-end gap-2 border-t border-border-strong pt-4">
                 {isDirty && <StatusTag status={{ label: "Chưa lưu", tone: "warning" }} />}
                 <Button disabled={!isDirty} onClick={() => setDraft(selected.permissions)}>

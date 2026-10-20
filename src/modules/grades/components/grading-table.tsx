@@ -11,14 +11,14 @@ import { dayjs, daysUntil, formatDateTime, schoolTime } from "@/shared/libs/date
 import { downloadBase64, parseCsv } from "@/shared/libs/download.lib";
 import { GradeComponentsEditor } from "@/modules/grades/components/grade-components-editor";
 import { exportGradeSheetExcel, exportGradeSheetPdf, lockGradeSheet, readGradeSheetExcel, saveGradeComponents, saveGradeScores } from "@/modules/grades/grades.action";
-import { formatPoint, GRADE_SHEET_STATE, toLetter, weightedScore, letterTextClass } from "@/modules/grades/grades.constant";
-import { GRADE_IMPORT_MAX_BYTES, parseScoreMatrix, type ScoreChange } from "@/modules/grades/grades.rule";
+import { formatPoint, GRADE_SHEET_STATE, letterTextClass } from "@/modules/grades/grades.constant";
+import { GRADE_IMPORT_MAX_BYTES, letterOf as gradeLetterOf, parseScoreMatrix, weightedScore, type ScoreChange } from "@/modules/grades/grades.rule";
 import {
   NewLecturerRequestDrawer,
   type BusySlot,
   type RequestClassOption,
 } from "@/modules/requests/components/new-lecturer-request-drawer";
-import type { GradeComponent, GradeSheet, GradeSheetState, ScoreRow } from "@/modules/grades/grades.type";
+import type { GradeComponent, GradeSheet, GradeSheetState, GradingRules, ScoreRow } from "@/modules/grades/grades.type";
 import { assessmentMismatches } from "@/modules/teaching/teaching.rule";
 
 export type GradingStudent = {
@@ -35,7 +35,7 @@ export type GradeChangeRequestOptions = {
 };
 
 type GradingTableProps = {
-  sheet: GradeSheet & { state: GradeSheetState };
+  sheet: GradeSheet & { state: GradeSheetState; grading: GradingRules };
   students: GradingStudent[];
   classCode: string;
   classId: string;
@@ -262,12 +262,12 @@ export function GradingTable({ sheet, students, classCode, classId, returnReason
     );
   };
 
-  const totalOf = (row: GradingStudent) => weightedScore(components, scores[row.studentId] ?? {});
+  const totalOf = (row: GradingStudent) => weightedScore(components, scores[row.studentId] ?? {}, sheet.grading.roundingStep);
 
   const letterOf = (row: GradingStudent) => {
     const totalScore = totalOf(row);
     if (totalScore === null) return <span className="text-muted">–</span>;
-    const letter = toLetter(totalScore).letter;
+    const letter = gradeLetterOf(totalScore, sheet.grading.scale).letter;
     return <span className={`font-medium ${letterTextClass(letter)}`}>{letter}</span>;
   };
 
@@ -304,7 +304,7 @@ export function GradingTable({ sheet, students, classCode, classId, returnReason
       align: "right",
       render: (_, row) => {
         const rowTotal = totalOf(row);
-        return <span className={`font-medium tabular-nums ${rowTotal === null ? "" : letterTextClass(toLetter(rowTotal).letter)}`}>{formatPoint(rowTotal, 1) || <span className="text-muted">–</span>}</span>;
+        return <span className={`font-medium tabular-nums ${rowTotal === null ? "" : letterTextClass(gradeLetterOf(rowTotal, sheet.grading.scale).letter)}`}>{formatPoint(rowTotal, 1) || <span className="text-muted">–</span>}</span>;
       },
     },
     {

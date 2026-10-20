@@ -1,16 +1,20 @@
 import "server-only";
 import { cache } from "react";
 import { forbidden } from "next/navigation";
-import { and, asc, count, desc, eq, inArray, ne, type SQL } from "drizzle-orm";
+import { and, asc, count, desc, eq, ne, type SQL } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import { db } from "@/shared/libs/db.lib";
 import { isUuid } from "@/shared/libs/id.lib";
 import { formatStudentCode, normalizeStudentCode } from "@/shared/libs/student-code.lib";
 import { requireRole, requireSession } from "@/modules/authentication/authentication.query";
+import { user as users } from "@/modules/authentication/authentication.schema";
+import { parseRoles } from "@/shared/constants/role.constant";
+import { roleAssignments, roles } from "@/modules/access/access.schema";
 import { faculties, majors } from "@/modules/curriculum/curriculum.schema";
-import { administrativeClasses, lecturers, studentDecisions, students } from "@/modules/users/users.schema";
+import { administrativeClasses, lecturers, staffMembers, studentDecisions, students } from "@/modules/users/users.schema";
 import { readAccountStates } from "@/modules/users/users.account";
 import { STUDENT_STATUS } from "@/modules/users/users.constant";
-import type { AccountKind, AdvisorAssignment, Lecturer, Student, StudentDecision } from "@/modules/users/users.type";
+import type { AccountKind, AdvisorAssignment, Lecturer, StaffMember, Student, StudentDecision } from "@/modules/users/users.type";
 
 // Sinh viên kèm lớp sinh hoạt, ngành, khoa. MSSV trả ra theo dạng hiển thị "50.01.104.013".
 async function studentRows(where?: SQL): Promise<Student[]> {
@@ -30,6 +34,7 @@ async function studentRows(where?: SQL): Promise<Student[]> {
       className: administrativeClasses.code,
       status: students.status,
       hometown: students.hometown,
+      personalEmail: students.personalEmail,
     })
     .from(students)
     .innerJoin(administrativeClasses, eq(administrativeClasses.id, students.administrativeClassId))
@@ -69,12 +74,6 @@ export async function getStudentByCode(code: string) {
   return student ?? null;
 }
 
-export async function getStudentsByIds(ids: string[]) {
-  await requireSession();
-  const valid = ids.filter(isUuid);
-  return valid.length > 0 ? studentRows(inArray(students.id, valid)) : [];
-}
-
 export const getCurrentStudent = cache(async () => {
   const { user } = await requireRole("student");
   const [student] = await studentRows(eq(students.userId, user.id));
@@ -105,15 +104,19 @@ async function lecturerRows(where?: SQL): Promise<Lecturer[]> {
       officeHours: lecturers.officeHours,
       status: lecturers.status,
       advisedClasses: advisedClassCount.total,
+      accountRole: users.role,
     })
     .from(lecturers)
     .innerJoin(faculties, eq(faculties.id, lecturers.facultyId))
     .leftJoin(advisedClassCount, eq(advisedClassCount.advisorId, lecturers.id))
+    .leftJoin(users, eq(users.id, lecturers.userId))
     .where(where)
     .orderBy(asc(lecturers.code));
-  return rows.map(({ advisedClasses, ...row }) => {
+  // Vai trò hiện trên bảng giảng viên: cố vấn suy ra từ lớp được phân công, quản trị từ vai trò của tài khoản.
+  return rows.map(({ advisedClasses, accountRole, ...row }) => {
     const isAdvisor = (advisedClasses ?? 0) > 0;
-    return { ...row, displayName: `${row.title} ${row.fullName}`, isAdvisor, roles: isAdvisor ? ["lecturer", "advisor"] : ["lecturer"] };
+    const isAdmin = parseRoles(accountRole).includes("admin");
+    return { ...row, displayName: `${row.title} ${row.fullName}`, isAdvisor, roles: ["lecturer", ...(isAdvisor ? ["advisor"] : []), ...(isAdmin ? ["admin"] : [])] };
   });
 }
 
@@ -154,7 +157,7 @@ export async function requireActiveStudent() {
   return { student, message: null } as const;
 }
 
-// Trạng thái tài khoản đăng nhập theo id hồ sơ, cho bảng sinh viên, giảng viên của cổng quản trị.
+// Trạng thái tài khoản đăng nhập theo id hồ sơ, cho bảng sinh viên, giảng viên, cán bộ của cổng quản trị.
 export async function getAccountStates(kind: AccountKind) {
   await requireRole("admin");
   return readAccountStates(db, kind);
@@ -241,6 +244,9 @@ export async function getDecision(id: string): Promise<StudentDecision | null> {
   return row ?? null;
 }
 
+const targetClass = alias(administrativeClasses, "target_class");
+const targetMajor = alias(majors, "target_major");
+
 async function decisionRows(where?: SQL): Promise<StudentDecision[]> {
   const rows = await db
     .select({
@@ -258,13 +264,53 @@ async function decisionRows(where?: SQL): Promise<StudentDecision[]> {
       signedAt: studentDecisions.signedAt,
       status: studentDecisions.status,
       basis: studentDecisions.basis,
+      disciplineLevel: studentDecisions.disciplineLevel,
+      targetClassName: targetClass.code,
+      targetMajorName: targetMajor.name,
+      appliedAt: studentDecisions.appliedAt,
+      createdByUserId: studentDecisions.createdByUserId,
+      returnReason: studentDecisions.returnReason,
+      revokedAt: studentDecisions.revokedAt,
+      revokedBy: studentDecisions.revokedBy,
+      revokeReason: studentDecisions.revokeReason,
     })
     .from(studentDecisions)
     .innerJoin(students, eq(students.id, studentDecisions.studentId))
     .innerJoin(administrativeClasses, eq(administrativeClasses.id, students.administrativeClassId))
     .innerJoin(majors, eq(majors.id, administrativeClasses.majorId))
     .innerJoin(faculties, eq(faculties.id, majors.facultyId))
+    .leftJoin(targetClass, eq(targetClass.id, studentDecisions.targetClassId))
+    .leftJoin(targetMajor, eq(targetMajor.id, targetClass.majorId))
     .where(where)
     .orderBy(desc(studentDecisions.effectiveDate), asc(studentDecisions.id));
-  return rows.map((row) => ({ ...row, studentCode: formatStudentCode(row.studentCode), signedAt: row.signedAt?.toISOString() ?? null }));
+  return rows.map((row) => ({
+    ...row,
+    studentCode: formatStudentCode(row.studentCode),
+    signedAt: row.signedAt?.toISOString() ?? null,
+    appliedAt: row.appliedAt?.toISOString() ?? null,
+    revokedAt: row.revokedAt?.toISOString() ?? null,
+  }));
+}
+
+async function staffRows(where?: SQL): Promise<StaffMember[]> {
+  const [rows, held] = await Promise.all([
+    db.select().from(staffMembers).where(where).orderBy(asc(staffMembers.code)),
+    db.select({ userId: roleAssignments.userId, name: roles.name }).from(roleAssignments).innerJoin(roles, eq(roles.id, roleAssignments.roleId)).orderBy(asc(roles.name)),
+  ]);
+  const rolesOf = new Map<string, string[]>();
+  for (const entry of held) rolesOf.set(entry.userId, [...(rolesOf.get(entry.userId) ?? []), entry.name]);
+  return rows.map((row) => ({ id: row.id, code: row.code, fullName: row.fullName, unit: row.unit, email: row.email, userId: row.userId, roles: row.userId ? (rolesOf.get(row.userId) ?? []) : [] }));
+}
+
+// Cán bộ (không phải giảng viên) có hồ sơ ở staff_members: trang Cán bộ của cổng quản trị.
+export async function getStaffMembers() {
+  await requireRole("admin");
+  return staffRows();
+}
+
+export async function getStaffMember(id: string) {
+  await requireRole("admin");
+  if (!isUuid(id)) return null;
+  const [row] = await staffRows(eq(staffMembers.id, id));
+  return row ?? null;
 }

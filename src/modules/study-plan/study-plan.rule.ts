@@ -72,7 +72,37 @@ export function planEditMode(status: StudyPlanStatus | null): "create" | "update
   return "locked";
 }
 
+export type CreditLimits = { min: number; max: number };
+
+export type CreditRules = { minPerTerm: number; maxPerTerm: number; maxSummer: number; maxWhenWarned: number };
+
+// Hạn mức tín chỉ của một học kỳ trong kế hoạch theo quy chế: học kỳ hè tối đa maxSummer, không bắt tối thiểu; học kỳ chính từ
+// minPerTerm, tối đa maxPerTerm, sinh viên đang bị cảnh báo học vụ (chính thức) tối đa maxWhenWarned.
+export function termCreditLimits(term: PlanTerm, credits: CreditRules, warned: boolean): CreditLimits {
+  if (term.semester === 3) return { min: 0, max: credits.maxSummer };
+  return { min: Math.min(credits.minPerTerm, warned ? credits.maxWhenWarned : credits.maxPerTerm), max: warned ? credits.maxWhenWarned : credits.maxPerTerm };
+}
+
+// Hạn mức theo tên học kỳ hiển thị ("Học kỳ hè, năm học 2026-2027"); tên lạ coi như học kỳ chính.
+export function termCreditLimitsByName(termName: string, credits: CreditRules, warned: boolean): CreditLimits {
+  return termCreditLimits(parseTermName(termName) ?? { academicYear: 0, semester: 1 }, credits, warned);
+}
+
 // Học kỳ có tín chỉ ngoài hạn mức; kế hoạch chỉ được gửi duyệt khi không còn học kỳ nào như vậy.
-export function termsOutOfRange(terms: { termName: string; credits: number }[], limits: { min: number; max: number }) {
-  return terms.filter((term) => term.credits < limits.min || term.credits > limits.max);
+export function termsOutOfRange<T extends { termName: string; credits: number }>(terms: T[], limitsOf: (termName: string) => CreditLimits) {
+  return terms.filter((term) => {
+    const limits = limitsOf(term.termName);
+    return term.credits > limits.max || term.credits < limits.min;
+  });
+}
+
+// Các học kỳ kế hoạch xếp được, tính từ học kỳ hiện tại: các học kỳ sau đó cho tới đủ số học kỳ chính, gồm học kỳ hè xen giữa.
+export function upcomingPlanTerms(current: PlanTerm, mainTerms = 3): PlanTerm[] {
+  const result: PlanTerm[] = [];
+  let cursor = current;
+  while (result.filter((term) => term.semester !== 3).length < mainTerms) {
+    cursor = cursor.semester === 3 ? { academicYear: cursor.academicYear + 1, semester: 1 } : { academicYear: cursor.academicYear, semester: cursor.semester + 1 };
+    result.push(cursor);
+  }
+  return result;
 }

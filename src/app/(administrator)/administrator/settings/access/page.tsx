@@ -15,8 +15,12 @@ export default async function Page() {
     <>
       <PageHeader
         title="Phân quyền"
-        description="Mỗi vai trò là một tập quyền. Vai trò theo khoa chỉ thấy dữ liệu của khoa được chỉ định."
-        actions={viewer.faculty === null ? <StaffCreateButton /> : undefined}
+        description={
+          viewer.faculty === null
+            ? "Mỗi vai trò là một tập quyền. Vai trò theo khoa chỉ thấy dữ liệu của khoa được chỉ định."
+            : `Bạn quản lý phân quyền của ${viewer.faculty}: chỉ thấy, cấp và thu hồi vai trò theo khoa trong khoa mình.`
+        }
+        actions={viewer.faculty === null ? <StaffCreateButton roles={roles.map(({ id, name, scope }) => ({ id, name, scope }))} faculties={faculties} /> : undefined}
       />
       <AccessManager
         roles={roles}
@@ -24,6 +28,7 @@ export default async function Page() {
         faculties={faculties}
         candidates={candidates}
         currentUserId={viewer.id}
+        viewer={{ faculty: viewer.faculty, permissions: viewer.permissions }}
       />
     </>
   );

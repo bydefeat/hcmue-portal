@@ -30,7 +30,9 @@ type StudyPlanEditorProps = {
   pool: StudyPlanCourse[];
   passedGrades: Record<string, string>;
   prerequisites: Record<string, string[]>;
-  limits: { min: number; max: number };
+  // Hạn mức tín chỉ từng học kỳ theo quy chế (học kỳ hè, sinh viên đang bị cảnh báo có hạn mức riêng); server kiểm lại khi gửi.
+  limits: Record<string, { min: number; max: number }>;
+  limitNote: string;
   advisorName: string | null;
 };
 
@@ -150,7 +152,9 @@ function Column({
   );
 }
 
-export function StudyPlanEditor({ plan, termNames, pool, passedGrades, prerequisites, limits, advisorName }: StudyPlanEditorProps) {
+export function StudyPlanEditor({ plan, termNames, pool, passedGrades, prerequisites, limits, limitNote, advisorName }: StudyPlanEditorProps) {
+  const limitOf = (name: string) => limits[name] ?? { min: 0, max: 0 };
+  const rangeText = (name: string) => (limitOf(name).min > 0 ? `từ ${limitOf(name).min} đến ${limitOf(name).max}` : `tối đa ${limitOf(name).max}`);
   const [messageApi, contextHolder] = message.useMessage();
   const [isSaving, startSaving] = useTransition();
   const [saved, setSaved] = useState(plan);
@@ -206,7 +210,7 @@ export function StudyPlanEditor({ plan, termNames, pool, passedGrades, prerequis
   const creditsOf = (name: string) => (columns[name] ?? []).reduce((sum, code) => sum + (catalog.get(code)?.credits ?? 0), 0);
   const termProblems = termNames
     .map((name) => ({ name, credits: creditsOf(name) }))
-    .filter((entry) => entry.credits < limits.min || entry.credits > limits.max);
+    .filter((entry) => entry.credits < limitOf(entry.name).min || entry.credits > limitOf(entry.name).max);
 
   const payload = () => ({ terms: termNames.map((name) => ({ termName: name, courseCodes: columns[name] ?? [] })), studentNote: note });
 
@@ -234,7 +238,7 @@ export function StudyPlanEditor({ plan, termNames, pool, passedGrades, prerequis
   const submit = () => {
     if (termProblems.length > 0) {
       const first = termProblems[0];
-      messageApi.error(`${first.name} có ${first.credits} tín chỉ, cần từ ${limits.min} đến ${limits.max}. Điều chỉnh rồi gửi lại.`);
+      messageApi.error(`${first.name} có ${first.credits} tín chỉ, cần ${rangeText(first.name)}. Điều chỉnh rồi gửi lại.`);
       return;
     }
     persist(true);
@@ -281,14 +285,15 @@ export function StudyPlanEditor({ plan, termNames, pool, passedGrades, prerequis
       <p className="text-xs text-pretty text-muted">
         {isLocked
           ? "Kế hoạch đang chờ cố vấn duyệt nên chưa sửa được. Khi cố vấn duyệt hoặc trả lại, bạn sửa tiếp."
-          : `Kéo học phần giữa các cột, hoặc bấm nút ba chấm trên thẻ để chuyển. Mỗi học kỳ từ ${limits.min} đến ${limits.max} tín chỉ.`}
+          : `Kéo học phần giữa các cột, hoặc bấm nút ba chấm trên thẻ để chuyển. ${limitNote}`}
       </p>
 
       <DndContext id="study-plan-editor" sensors={sensors} onDragStart={(event) => setActiveCode(String(event.active.id))} onDragEnd={onDragEnd} onDragCancel={() => setActiveCode(null)}>
-        <div className="grid gap-3 lg:grid-cols-3">
+        <div className={`grid gap-3 ${termNames.length > 3 ? "md:grid-cols-2 xl:grid-cols-4" : "lg:grid-cols-3"}`}>
           {termNames.map((name, termIndex) => {
             const credits = creditsOf(name);
-            const outOfRange = credits < limits.min || credits > limits.max;
+            const { min, max } = limitOf(name);
+            const outOfRange = credits < min || credits > max;
             return (
               <Column
                 key={name}
@@ -297,9 +302,9 @@ export function StudyPlanEditor({ plan, termNames, pool, passedGrades, prerequis
                   <>
                     <h2 className="text-base font-semibold">{name}</h2>
                     <span className={`text-xs tabular-nums ${outOfRange ? "text-amber-700" : "text-muted"}`}>
-                      {credits} tín chỉ{credits < limits.min ? `, thiếu ${limits.min - credits}` : credits > limits.max ? `, vượt ${credits - limits.max}` : ""}
+                      {credits} tín chỉ{credits < min ? `, thiếu ${min - credits}` : credits > max ? `, vượt ${credits - max}` : ""} · {min > 0 ? `${min}-${max}` : `tối đa ${max}`} TC
                     </span>
-                    <MeterBar value={credits} max={limits.max} tone={outOfRange ? "warning" : "primary"} label={`Tín chỉ ${name}`} />
+                    <MeterBar value={credits} max={Math.max(max, 1)} tone={outOfRange ? "warning" : "primary"} label={`Tín chỉ ${name}`} />
                   </>
                 }
               >

@@ -101,7 +101,7 @@ export default async function Page() {
                 qua mục Thông báo nếu cần.
               </span>
             }
-            action={<Link href="/administrator/terms">Xem đợt</Link>}
+            action={can(viewer, "registration.manage") ? <Link href="/administrator/terms">Xem đợt</Link> : undefined}
           />
         ))}
 
@@ -115,13 +115,13 @@ export default async function Page() {
               href="/administrator/requests"
             />
           )}
-          <StatTile label="Sinh viên đang học" value={studying.toLocaleString("vi-VN")} hint={`Trên tổng ${students.length} hồ sơ`} href="/administrator/users/students" />
+          <StatTile label="Sinh viên đang học" value={studying.toLocaleString("vi-VN")} hint={`Trên tổng ${students.length} hồ sơ`} href={can(viewer, "students.view") ? "/administrator/users/students" : undefined} />
           <StatTile
             label={`Lớp mở ${targetTerm.shortName}`}
             value={openSections.length}
             hint={draftSections > 0 ? `${draftSections} lớp còn nháp` : "Không còn lớp nháp"}
             tone={draftSections > 0 ? "warning" : undefined}
-            href={`/administrator/class-sections?term=${targetTerm.id}`}
+            href={can(viewer, "class-sections.manage") ? `/administrator/class-sections?term=${targetTerm.id}` : undefined}
           />
           <StatTile label="Tỉ lệ lấp đầy chỗ" value={`${fillRate}%`} hint={`${enrolled.toLocaleString("vi-VN")}/${capacity.toLocaleString("vi-VN")} chỗ đã đăng ký`} />
           <StatTile
@@ -129,7 +129,7 @@ export default async function Page() {
             value={newWarnings}
             hint={`Trên ${warnings.length} sinh viên bị cảnh báo`}
             tone={newWarnings > 0 ? "warning" : undefined}
-            href="/administrator/reports/academic-warnings"
+            href={can(viewer, "reports.view") ? "/administrator/reports/academic-warnings" : undefined}
           />
         </div>
 
@@ -138,7 +138,7 @@ export default async function Page() {
             <SectionCard
               flush
               title="Lớp học phần cần xử lý"
-              extra={<Link href={`/administrator/class-sections?term=${targetTerm.id}`} className="text-sm">Tất cả lớp</Link>}
+              extra={can(viewer, "class-sections.manage") ? <Link href={`/administrator/class-sections?term=${targetTerm.id}`} className="text-sm">Tất cả lớp</Link> : undefined}
             >
               {issues.length === 0 ? (
                 <EmptyState illustration="done" title="Không có lớp cần xử lý" description="Mọi lớp đã có giảng viên, không trùng phòng hay trùng giờ." />
@@ -166,7 +166,7 @@ export default async function Page() {
           </div>
 
           <div className="flex min-w-0 flex-col gap-4 sm:gap-6">
-            <SectionCard flush title="Đợt đăng ký" extra={<Link href="/administrator/terms" className="text-sm">Cấu hình</Link>}>
+            <SectionCard flush title="Đợt đăng ký" extra={can(viewer, "registration.manage") ? <Link href="/administrator/terms" className="text-sm">Cấu hình</Link> : undefined}>
               <ul className="flex flex-col divide-y divide-border-strong">
                 {periods.map((period) => (
                   <li key={period.id} className="flex flex-col gap-2 px-4 py-3 sm:px-5">
@@ -188,7 +188,7 @@ export default async function Page() {
               </ul>
             </SectionCard>
 
-            <SectionCard flush title="Thông báo" extra={<Link href="/administrator/announcements" className="text-sm">Quản lý</Link>}>
+            <SectionCard flush title="Thông báo" extra={can(viewer, "announcements.manage") ? <Link href="/administrator/announcements" className="text-sm">Quản lý</Link> : undefined}>
               <ul className="flex flex-col divide-y divide-border-strong">
                 {recentAnnouncements.map((announcement) => (
                   <li key={announcement.id} className="flex flex-col gap-1 px-4 py-3 sm:px-5">

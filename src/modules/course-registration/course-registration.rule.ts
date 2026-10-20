@@ -2,6 +2,7 @@ import { z } from "zod";
 import { periodLabel, weekdayLabel } from "@/shared/constants/period.constant";
 import { audienceText, overlaps } from "@/modules/course-registration/course-registration.constant";
 import type { ClassMeeting, ClassSectionView, RegistrationHold, StudentEnrollment } from "@/modules/course-registration/course-registration.type";
+import { latestGrades } from "@/modules/grades/grades.rule";
 
 export type RegistrationIssueKind =
   | "hold"
@@ -252,19 +253,10 @@ export function pickTimetable(enrollments: StudentEnrollment[], _passedGrades?: 
   return [...enrollments].toSorted((a, b) => a.section.code.localeCompare(b.section.code));
 }
 
-const LETTER_ORDER = ["A", "B+", "B", "C+", "C", "D+", "D", "F"];
-
+// Điểm chữ của từng học phần theo LẦN HỌC CUỐI (quy chế: học lại, cải thiện tính lần cuối; lần cuối F là đang nợ), không phải
+// điểm cao nhất. Giữ tên cũ cho các trang đang gọi; nên gọi thẳng latestGrades của grades.rule.
 export function bestGrades(terms: { isInProgress: boolean; courses: { courseCode: string; letter: string | null }[] }[]) {
-  const best: Record<string, string> = {};
-  for (const term of terms) {
-    if (term.isInProgress) continue;
-    for (const course of term.courses) {
-      if (!course.letter) continue;
-      const current = best[course.courseCode];
-      if (!current || LETTER_ORDER.indexOf(course.letter) < LETTER_ORDER.indexOf(current)) best[course.courseCode] = course.letter;
-    }
-  }
-  return best;
+  return latestGrades(terms);
 }
 
 export const REGISTER_SCHEMA = z.object({

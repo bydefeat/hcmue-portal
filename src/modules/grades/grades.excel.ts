@@ -1,7 +1,7 @@
 import "server-only";
 import ExcelJS from "exceljs";
-import { LETTER_SCALE, toLetter, weightedScore } from "@/modules/grades/grades.constant";
-import type { GradeComponent, ScoreRow } from "@/modules/grades/grades.type";
+import { letterOf, roundingFormula, weightedScore } from "@/modules/grades/grades.rule";
+import type { GradeComponent, GradingRules, ScoreRow } from "@/modules/grades/grades.type";
 
 export const XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 
@@ -13,6 +13,8 @@ type WorkbookInput = {
   scores: Record<string, ScoreRow>;
   // Bảng điểm đã chốt thì khóa cả cột điểm.
   locked: boolean;
+  // Thang điểm chữ và bước làm tròn của quy chế đang áp dụng, để công thức trong tệp ra đúng điểm như trên cổng.
+  grading: GradingRules;
 };
 
 function columnLetter(index: number) {
@@ -26,10 +28,10 @@ function columnLetter(index: number) {
   return letters;
 }
 
-// Điểm chữ trong Excel tính lại theo đúng thang LETTER_SCALE khi giảng viên sửa điểm trong tệp.
-function letterFormula(cell: string) {
-  const steps = LETTER_SCALE.slice(0, -1);
-  const nested = steps.reduceRight((inner, step) => `IF(${cell}>=${step.min},"${step.letter}",${inner})`, `"${LETTER_SCALE.at(-1)!.letter}"`);
+// Điểm chữ trong Excel tính lại theo đúng thang điểm của quy chế khi giảng viên sửa điểm trong tệp.
+function letterFormula(cell: string, scale: GradingRules["scale"]) {
+  const steps = scale.slice(0, -1);
+  const nested = steps.reduceRight((inner, step) => `IF(${cell}>=${step.min},"${step.letter}",${inner})`, `"${scale.at(-1)!.letter}"`);
   return `IF(${cell}="","",${nested})`;
 }
 
@@ -56,7 +58,7 @@ export async function gradeSheetWorkbook(input: WorkbookInput) {
   input.students.forEach((student, index) => {
     const rowNumber = index + 2;
     const row = input.scores[student.studentId] ?? {};
-    const total = weightedScore(input.components, row);
+    const total = weightedScore(input.components, row, input.grading.roundingStep);
     const scoreCells = input.components.map((_, column) => `${columnLetter(scoreStart + column)}${rowNumber}`);
     const weighted = input.components.map((component, column) => `${scoreCells[column]}*${component.weight}`).join("+");
     const totalCell = `${columnLetter(totalColumn)}${rowNumber}`;
@@ -64,8 +66,8 @@ export async function gradeSheetWorkbook(input: WorkbookInput) {
       student.studentCode,
       student.fullName,
       ...input.components.map((component) => row[component.key] ?? null),
-      { formula: `IF(COUNT(${scoreCells[0]}:${scoreCells.at(-1)})<${input.components.length},"",ROUND((${weighted})/100,1))`, result: total ?? "" },
-      { formula: letterFormula(totalCell), result: total === null ? "" : toLetter(total).letter },
+      { formula: `IF(COUNT(${scoreCells[0]}:${scoreCells.at(-1)})<${input.components.length},"",${roundingFormula(`(${weighted})`, input.grading.roundingStep)})`, result: total ?? "" },
+      { formula: letterFormula(totalCell, input.grading.scale), result: total === null ? "" : letterOf(total, input.grading.scale).letter },
     ]);
   });
 

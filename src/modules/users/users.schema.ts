@@ -5,10 +5,12 @@ import { user } from "@/modules/authentication/authentication.schema";
 import { faculties, majors } from "@/modules/curriculum/curriculum.schema";
 
 export const genderEnum = pgEnum("gender", ["female", "male"]);
-export const studentStatusEnum = pgEnum("student_status", ["studying", "reserved", "suspended", "graduated"]);
+export const studentStatusEnum = pgEnum("student_status", ["studying", "reserved", "suspended", "graduated", "withdrawn"]);
 export const lecturerStatusEnum = pgEnum("lecturer_status", ["active", "on-leave"]);
 export const decisionKindEnum = pgEnum("decision_kind", ["reserve", "resume", "suspend", "expel", "major-change", "reward", "discipline", "graduate"]);
 export const decisionStatusEnum = pgEnum("decision_status", ["draft", "pending-signature", "signed", "revoked"]);
+// Hình thức kỷ luật sinh viên theo quy chế công tác sinh viên: khiển trách, cảnh cáo, đình chỉ học tập có thời hạn.
+export const disciplineLevelEnum = pgEnum("discipline_level", ["reprimand", "warning", "suspension"]);
 
 export const lecturers = pgTable(
   "lecturers",
@@ -102,14 +104,38 @@ export const studentDecisions = pgTable(
     basis: text().notNull(),
     effectiveDate: date({ mode: "string" }).notNull(),
     status: decisionStatusEnum().notNull().default("draft"),
+    // Mức kỷ luật (chỉ quyết định kỷ luật); module tốt nghiệp đọc quyết định kỷ luật đã ký để hạ hạng.
+    disciplineLevel: disciplineLevelEnum(),
+    // Chuyển ngành: lớp sinh hoạt mới (thuộc ngành đích); có hiệu lực thì sinh viên chuyển sang lớp này.
+    targetClassId: uuid().references(() => administrativeClasses.id, { onDelete: "restrict" }),
+    // Ghi lúc quyết định có hiệu lực, để thu hồi trả sinh viên về đúng tình trạng, lớp trước đó.
+    previousStatus: studentStatusEnum(),
+    previousClassId: uuid().references(() => administrativeClasses.id, { onDelete: "set null" }),
+    appliedAt: timestamp({ withTimezone: true }),
+    createdByUserId: uuid().references(() => user.id, { onDelete: "set null" }),
     signedBy: text(),
+    signedByUserId: uuid().references(() => user.id, { onDelete: "set null" }),
     signedAt: timestamp({ withTimezone: true }),
+    returnReason: text(),
+    revokedAt: timestamp({ withTimezone: true }),
+    revokedByUserId: uuid().references(() => user.id, { onDelete: "set null" }),
+    revokedBy: text(),
+    revokeReason: text(),
     ...timestamps(),
   },
   (table) => [
     uniqueIndex().on(table.number),
     index().on(table.studentId),
+    index().on(table.targetClassId),
+    index().on(table.previousClassId),
+    index().on(table.status, table.effectiveDate),
     check("student_decisions_signed_fields", sql`(${table.status} IN ('signed', 'revoked')) = (${table.number} IS NOT NULL AND ${table.signedAt} IS NOT NULL)`),
+    check("student_decisions_discipline_level", sql`(${table.kind} = 'discipline') = (${table.disciplineLevel} IS NOT NULL)`),
+    check("student_decisions_major_change_target", sql`(${table.kind} = 'major-change') = (${table.targetClassId} IS NOT NULL)`),
+    check("student_decisions_revoked_fields", sql`(${table.status} = 'revoked') = (${table.revokedAt} IS NOT NULL AND ${table.revokeReason} IS NOT NULL)`),
+    check("student_decisions_applied_signed", sql`${table.appliedAt} IS NULL OR ${table.status} IN ('signed', 'revoked')`),
+    // Tách nhiệm vụ: người lập dự thảo không tự ký quyết định của mình.
+    check("student_decisions_signer_not_creator", sql`${table.signedByUserId} IS NULL OR ${table.createdByUserId} IS NULL OR ${table.signedByUserId} <> ${table.createdByUserId}`),
   ],
 );
 

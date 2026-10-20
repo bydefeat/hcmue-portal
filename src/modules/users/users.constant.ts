@@ -1,11 +1,12 @@
 import type { StatusMeta } from "@/shared/constants/status.constant";
-import type { AccountState, AccountStatus, ClassRef, DecisionKind, DecisionStatus, LecturerStatus, MajorRef, StudentStatus } from "@/modules/users/users.type";
+import type { AccountState, AccountStatus, ClassRef, DecisionKind, DecisionStatus, DisciplineLevel, LecturerStatus, MajorRef, StudentDecision, StudentStatus } from "@/modules/users/users.type";
 
 export const STUDENT_STATUS: Record<StudentStatus, StatusMeta> = {
   studying: { label: "Đang học", tone: "neutral" },
   reserved: { label: "Bảo lưu", tone: "warning" },
   suspended: { label: "Tạm ngừng học", tone: "danger" },
   graduated: { label: "Đã tốt nghiệp", tone: "success" },
+  withdrawn: { label: "Thôi học", tone: "danger" },
 };
 
 export const LECTURER_STATUS: Record<LecturerStatus, StatusMeta> = {
@@ -26,10 +27,11 @@ export const ACCOUNT_STATUS_OPTIONS = Object.entries(ACCOUNT_STATUS).map(([value
 
 export const LECTURER_TITLES = ["ThS.", "TS.", "PGS.TS.", "GS.TS."];
 
-export const USER_ROLES = [
+// Vai trò trên cổng giảng viên; "Quản trị" là giảng viên được cấp vai trò quản trị ở trang Phân quyền.
+export const LECTURER_ROLES = [
   { value: "lecturer", label: "Giảng viên" },
   { value: "advisor", label: "Cố vấn học tập" },
-  { value: "admin", label: "Quản trị" },
+  { value: "admin", label: "Có vai trò quản trị" },
 ];
 
 // Các hàm dựng options cho Select: danh mục ngành, khoa, khóa đọc từ DB ở page rồi truyền xuống.
@@ -93,7 +95,22 @@ export const DECISION_STATUS: Record<DecisionStatus, StatusMeta> = {
   revoked: { label: "Đã thu hồi", tone: "danger" },
 };
 
-export const DECISION_KIND_OPTIONS = Object.entries(DECISION_KIND_LABEL).map(([value, label]) => ({ value, label }));
+export const DECISION_KIND_OPTIONS = Object.entries(DECISION_KIND_LABEL).map(([value, label]) => ({ value: value as DecisionKind, label }));
+
+export const DISCIPLINE_LEVEL_LABEL: Record<DisciplineLevel, string> = {
+  reprimand: "Khiển trách",
+  warning: "Cảnh cáo",
+  suspension: "Đình chỉ học tập có thời hạn",
+};
+
+// Câu bổ sung cho Điều 1 của quyết định (bản xem trước, PDF): hình thức kỷ luật, ngành và lớp mới khi chuyển ngành.
+export function decisionDetail(decision: Pick<StudentDecision, "disciplineLevel" | "targetClassName" | "targetMajorName">) {
+  if (decision.disciplineLevel) return ` Hình thức kỷ luật: ${DISCIPLINE_LEVEL_LABEL[decision.disciplineLevel].toLowerCase()}.`;
+  if (decision.targetClassName) return ` Sinh viên chuyển sang học ngành ${decision.targetMajorName ?? ""}, lớp ${decision.targetClassName}.`;
+  return "";
+}
+
+export const DISCIPLINE_LEVEL_OPTIONS = Object.entries(DISCIPLINE_LEVEL_LABEL).map(([value, label]) => ({ value: value as DisciplineLevel, label }));
 
 export const USERS_CONSTRAINT_MESSAGE: Partial<Record<string, string>> = {
   students_code_unique: "Mã sinh viên đã thuộc về sinh viên khác. Kiểm tra lại mã trên giấy báo nhập học.",
@@ -110,4 +127,9 @@ export const USERS_CONSTRAINT_MESSAGE: Partial<Record<string, string>> = {
   administrative_classes_code_unique: "Mã lớp sinh hoạt đã có.",
   student_decisions_number_index: "Số quyết định đã được dùng, thử lại.",
   student_decisions_signed_fields: "Quyết định đã ký phải có số và ngày ký.",
+  student_decisions_discipline_level: "Quyết định kỷ luật cần chọn hình thức kỷ luật.",
+  student_decisions_major_change_target: "Quyết định chuyển ngành cần chọn lớp sinh hoạt của ngành mới.",
+  student_decisions_revoked_fields: "Thu hồi quyết định cần ghi lý do.",
+  student_decisions_applied_signed: "Chỉ quyết định đã ký mới được áp dụng vào hồ sơ sinh viên.",
+  student_decisions_signer_not_creator: "Người lập dự thảo không tự ký quyết định của mình. Nhờ người có quyền ký khác ký.",
 };

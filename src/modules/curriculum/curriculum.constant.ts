@@ -38,4 +38,6 @@ export const CURRICULUM_CONSTRAINT_MESSAGE: Partial<Record<string, string>> = {
   program_courses_semester_range: "Học kỳ trong khung từ 1 đến 12.",
   program_courses_semester_within_duration: "Học kỳ vượt quá thời gian đào tạo của chương trình (mỗi năm hai học kỳ).",
   program_courses_program_archived: "Chương trình đã ngừng áp dụng, khung chỉ xem được.",
+  programs_archived_final: "Chương trình đã ngừng áp dụng, không mở lại được. Tạo chương trình mới nếu cần áp dụng lại.",
+  programs_single_active_cohort: "Mỗi ngành, khóa chỉ có một chương trình đang áp dụng. Chuyển chương trình cũ sang ngừng áp dụng trước.",
 };

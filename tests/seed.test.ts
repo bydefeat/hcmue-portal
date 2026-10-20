@@ -135,18 +135,22 @@ describe("seed khớp dữ liệu mẫu: lịch học, lịch thi, khảo sát",
     const [{ submissions }] = await db.select({ submissions: count() }).from(surveySubmissions);
     const [{ responses }] = await db.select({ responses: count() }).from(surveyResponses);
     assert.equal(submissions, responses);
-    const [{ answers }] = await db.select({ answers: count() }).from(surveyAnswers);
-    assert.equal(answers, responses * SURVEY.questions.length);
+    const [{ answers }] = await db.select({ answers: count() }).from(surveyAnswers).innerJoin(surveyResponses, eq(surveyResponses.id, surveyAnswers.responseId)).where(eq(surveyResponses.surveyId, SURVEY.id));
+    const [{ current }] = await db.select({ current: count() }).from(surveyResponses).where(eq(surveyResponses.surveyId, SURVEY.id));
+    assert.equal(answers, current * SURVEY.questions.length);
 
     const sample = SURVEY_RESULTS[0];
-    const [{ total }] = await db.select({ total: count() }).from(surveyResponses).where(eq(surveyResponses.classSectionId, sample.classSectionId));
+    const [{ total }] = await db
+      .select({ total: count() })
+      .from(surveyResponses)
+      .where(and(eq(surveyResponses.classSectionId, sample.classSectionId), eq(surveyResponses.surveyId, SURVEY.id)));
     const [section] = await db.select({ enrolled: classSections.enrolledCount }).from(classSections).where(eq(classSections.id, sample.classSectionId));
     assert.equal(total, Math.min(sample.responses, section.enrolled));
     const [{ average }] = await db
       .select({ average: sql<number>`avg(${surveyAnswers.score})::float` })
       .from(surveyAnswers)
       .innerJoin(surveyResponses, eq(surveyResponses.id, surveyAnswers.responseId))
-      .where(and(eq(surveyResponses.classSectionId, sample.classSectionId), eq(surveyAnswers.questionId, SURVEY.questions[0].id)));
+      .where(and(eq(surveyResponses.classSectionId, sample.classSectionId), eq(surveyResponses.surveyId, SURVEY.id), eq(surveyAnswers.questionId, SURVEY.questions[0].id)));
     assert.ok(Math.abs(average - sample.averages[SURVEY.questions[0].id]) <= 0.5 / total + 1e-9);
   });
 });

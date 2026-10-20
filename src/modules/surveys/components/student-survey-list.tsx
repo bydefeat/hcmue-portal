@@ -5,7 +5,7 @@ import { Button, Card, message } from "antd";
 import { CircleCheck } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { MeterBar } from "@/shared/components/ui/meter-bar";
-import { dayjs, formatDate, formatDateTime } from "@/shared/libs/date.lib";
+import { dayjs, formatDateTime } from "@/shared/libs/date.lib";
 import { submitSurvey } from "@/modules/surveys/surveys.action";
 import type { StudentSurveyTask, Survey } from "@/modules/surveys/surveys.type";
 import { SurveyForm, type SurveyFormValues } from "@/modules/surveys/components/survey-form";
@@ -15,8 +15,8 @@ export function StudentSurveyList({ survey, tasks }: { survey: Survey; tasks: St
   const [messageApi, contextHolder] = message.useMessage();
   const [rows, setRows] = useState(tasks);
   const [openId, setOpenId] = useState<string | null>(null);
-  const done = rows.filter((task) => task.submittedAt).length;
-  const isClosed = dayjs().isAfter(survey.closesAt);
+  const done = rows.filter((task) => task.isSubmitted).length;
+  const isClosed = survey.status === "closed" || dayjs().isAfter(survey.closesAt);
   const opened = rows.find((task) => task.classSectionId === openId) ?? null;
 
   return (
@@ -25,7 +25,9 @@ export function StudentSurveyList({ survey, tasks }: { survey: Survey; tasks: St
       <SectionCard>
         <div className="flex flex-col gap-2">
           <h2 className="font-medium text-pretty">{survey.title}</h2>
-          <p className="text-xs text-muted tabular-nums">Mở đến {formatDateTime(survey.closesAt)}</p>
+          <p className="text-xs text-muted tabular-nums">
+            {isClosed ? `Đã đóng lúc ${formatDateTime(survey.closesAt)}` : `Mở đến ${formatDateTime(survey.closesAt)}`}. Phiếu ẩn danh: không lưu thời điểm gửi, giảng viên chỉ xem kết quả tổng hợp sau khi đợt đóng.
+          </p>
           <div className="flex items-center gap-3">
             <MeterBar value={done} max={rows.length} tone={done === rows.length ? "success" : "primary"} label="Số lớp đã đánh giá" />
             <span className="shrink-0 text-sm tabular-nums">
@@ -49,10 +51,10 @@ export function StudentSurveyList({ survey, tasks }: { survey: Survey; tasks: St
                     {task.classCode} · {task.lecturerName ?? "Chưa phân công giảng viên"}
                   </span>
                 </span>
-                {task.submittedAt ? (
+                {task.isSubmitted ? (
                   <span className="flex items-center gap-1 text-sm text-green-700">
                     <CircleCheck size={16} aria-hidden />
-                    Đã gửi ngày {formatDate(task.submittedAt)}
+                    Đã gửi
                   </span>
                 ) : (
                   <Button onClick={() => setOpenId(task.classSectionId)} disabled={isClosed}>
@@ -81,8 +83,8 @@ export function StudentSurveyList({ survey, tasks }: { survey: Survey; tasks: St
             messageApi.error(result.message);
             return result.fieldErrors;
           }
-          const { classSectionId, submittedAt } = result.data;
-          setRows((current) => current.map((row) => (row.classSectionId === classSectionId ? { ...row, submittedAt } : row)));
+          const { classSectionId } = result.data;
+          setRows((current) => current.map((row) => (row.classSectionId === classSectionId ? { ...row, isSubmitted: true } : row)));
           setOpenId(null);
           messageApi.success(`Đã gửi đánh giá lớp ${task.classCode}. Cảm ơn bạn đã góp ý.`);
           return undefined;

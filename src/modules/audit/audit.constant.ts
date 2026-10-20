@@ -30,6 +30,9 @@ export const AUDIT_ENTITY_LABEL: Record<AuditEntityType, string> = {
   "calendar-event": "Lịch năm học",
   report: "Báo cáo",
   program: "Chương trình đào tạo",
+  survey: "Khảo sát giảng dạy",
+  syllabus: "Đề cương học phần",
+  advising: "Cố vấn học tập",
 };
 
 export const AUDIT_CONSTRAINT_MESSAGE: Partial<Record<string, string>> = {

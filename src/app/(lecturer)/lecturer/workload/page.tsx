@@ -8,7 +8,7 @@ import {
 } from "@/modules/course-registration/course-registration.query";
 import type { ClassSectionView, LecturerWorkload } from "@/modules/course-registration/course-registration.type";
 import { LecturerSurveyResults } from "@/modules/surveys/components/lecturer-survey-results";
-import { getFacultySurveyAverage, getSurvey, getSurveyResultsForLecturer } from "@/modules/surveys/surveys.query";
+import { getFacultySurveyAverage, getLecturerSurvey, getSurveyResultsForLecturer } from "@/modules/surveys/surveys.query";
 import { getCurrentLecturer } from "@/modules/users/users.query";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { MeterBar } from "@/shared/components/ui/meter-bar";
@@ -82,7 +82,7 @@ export default async function Page() {
     getLecturerWorkloads(targetTerm.id),
     getLecturerClassSections(lecturer.id, currentTerm.id),
     getLecturerClassSections(lecturer.id, targetTerm.id),
-    getSurvey(),
+    getLecturerSurvey(),
     getSurveyResultsForLecturer(),
     getFacultySurveyAverage(),
   ]);
@@ -122,7 +122,9 @@ export default async function Page() {
               Lớp học phần
             </Link>
           </div>
-          {survey && <p className="max-w-prose text-sm text-pretty text-muted">{survey.title}. Kết quả chỉ giảng viên, khoa và Phòng Đào tạo xem được.</p>}
+          <p className="max-w-prose text-sm text-pretty text-muted">
+            {survey ? `${survey.title}, ${survey.termName} (đã đóng). ` : ""}Kết quả hiện sau khi đợt khảo sát đóng, chỉ lớp có từ 5 phiếu; chỉ giảng viên, khoa và Phòng Đào tạo xem được.
+          </p>
           <LecturerSurveyResults results={mine} questions={survey?.questions ?? []} facultyAverage={facultyAverage} />
         </section>
       </div>

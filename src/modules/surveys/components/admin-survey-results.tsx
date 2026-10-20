@@ -82,20 +82,26 @@ export function AdminSurveyResults({ results, questions }: { results: SectionSur
       key: "responses",
       width: 130,
       responsive: ["md"],
-      sorter: (a, b) => a.responses / a.enrolled - b.responses / b.enrolled,
+      sorter: (a, b) => a.responses / Math.max(a.enrolled, 1) - b.responses / Math.max(b.enrolled, 1),
       render: (_, row) => (
         <span className="tabular-nums">
-          {row.responses}/{row.enrolled} <span className="text-xs text-muted">({Math.round((row.responses / row.enrolled) * 100)}%)</span>
+          {row.responses}/{row.enrolled} <span className="text-xs text-muted">({row.enrolled > 0 ? Math.round((row.responses / row.enrolled) * 100) : 0}%)</span>
         </span>
       ),
     },
-    { title: <span className="whitespace-nowrap">Điểm chung</span>, dataIndex: "overall", width: 150, sorter: (a, b) => a.overall - b.overall, render: (value: number) => <ScoreCell value={value} /> },
+    {
+      title: <span className="whitespace-nowrap">Điểm chung</span>,
+      key: "overall",
+      width: 150,
+      sorter: (a, b) => a.overall - b.overall,
+      render: (_, row) => (row.responses > 0 ? <ScoreCell value={row.overall} /> : <span className="text-xs text-muted">Chưa có phiếu</span>),
+    },
     {
       title: "",
       key: "flag",
       width: 150,
       responsive: ["md"],
-      render: (_, row) => (row.overall < LOW_SCORE ? <StatusTag status={{ label: "Dưới ngưỡng 3,5", tone: "danger" }} /> : null),
+      render: (_, row) => (row.responses > 0 && row.overall < LOW_SCORE ? <StatusTag status={{ label: "Dưới ngưỡng 3,5", tone: "danger" }} /> : null),
     },
   ];
 
@@ -112,7 +118,7 @@ export function AdminSurveyResults({ results, questions }: { results: SectionSur
       ),
     },
     { title: <span className="whitespace-nowrap">Số lớp</span>, dataIndex: "sections", width: 90, align: "right", responsive: ["md"], render: (value: number) => <span className="tabular-nums">{value}</span> },
-    { title: <span className="whitespace-nowrap">Tỉ lệ phản hồi</span>, key: "rate", width: 140, align: "right", responsive: ["md"], render: (_, row) => <span className="tabular-nums">{Math.round((row.responses / row.enrolled) * 100)}%</span> },
+    { title: <span className="whitespace-nowrap">Tỉ lệ phản hồi</span>, key: "rate", width: 140, align: "right", responsive: ["md"], render: (_, row) => <span className="tabular-nums">{row.enrolled > 0 ? Math.round((row.responses / row.enrolled) * 100) : 0}%</span> },
     { title: <span className="whitespace-nowrap">Điểm chung</span>, dataIndex: "overall", width: 150, sorter: (a, b) => a.overall - b.overall, defaultSortOrder: "ascend", render: (value: number) => <ScoreCell value={value} /> },
   ];
 

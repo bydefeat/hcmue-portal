@@ -7,6 +7,7 @@ import { runMailOutboxJob } from "@/modules/mail/mail.lib";
 import { publishDueClassAnnouncements } from "@/modules/teaching/teaching.lib";
 import { refreshExamStatuses, sweepOrphanExamFiles } from "@/modules/exams/exams.lib";
 import { sweepOrphanRequestFiles } from "@/modules/requests/requests.lib";
+import { sealClosedSurveys } from "@/modules/surveys/surveys.lib";
 
 // Tác vụ định kỳ, gọi từ bộ hẹn giờ ngoài (cron của máy chủ, Vercel Cron, ...): POST /api/cron/<tác vụ>
 // với header Authorization: Bearer <DEFEAT_CRON_SECRET>. Mỗi tác vụ phải chạy lặp lại được (gọi hai lần không sinh trùng).
@@ -25,6 +26,8 @@ const JOBS: Record<string, () => Promise<Record<string, number>>> = {
   "sign-in-failures": () => sweepSignInFailures(db),
   // Ca thi đã công bố mà đã thi xong chuyển "Đã thi". Nên chạy mỗi 15 phút (các chốt chặn đã tự kiểm theo giờ thi).
   "exam-sessions": () => refreshExamStatuses(),
+  // Xáo phiếu các đợt khảo sát vừa đóng để phiếu không ghép được với người nộp; giảng viên xem kết quả từ lúc này. Mỗi giờ.
+  surveys: sealClosedSurveys,
 };
 
 function authorized(request: Request) {

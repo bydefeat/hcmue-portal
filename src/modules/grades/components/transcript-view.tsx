@@ -3,13 +3,15 @@
 import { Collapse, Table, type TableColumnsType } from "antd";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { formatPoint, letterTextClass } from "@/modules/grades/grades.constant";
+import { resultMark, resultPoint4 } from "@/modules/grades/grades.rule";
 import type { TranscriptCourse, TranscriptTerm } from "@/modules/grades/grades.type";
 
 // Học lại, học cải thiện: điểm tính tích lũy là lần học cuối; lần trước đó vẫn hiện nhưng ghi đã được thay thế.
 function AttemptTags({ course }: { course: TranscriptCourse }) {
-  if (!course.retakeKind && !course.replaced) return null;
+  if (!course.retakeKind && !course.replaced && !course.isConditional) return null;
   return (
     <span className="flex flex-wrap gap-x-2 text-xs text-muted">
+      {course.isConditional && <span>Học phần điều kiện, không tính điểm trung bình</span>}
       {course.retakeKind && <span className="font-medium text-foreground">{course.retakeKind === "retake" ? `Học lại lần ${course.attempt}` : "Học cải thiện"}</span>}
       {course.replaced && <span>Đã học lại, không tính tích lũy</span>}
     </span>
@@ -41,8 +43,8 @@ const COLUMNS: TableColumnsType<TranscriptCourse> = [
     dataIndex: "letter",
     width: 88,
     align: "center",
-    render: (letter: string | null) => (
-      <span className={`font-medium tabular-nums ${letterTextClass(letter)}`}>{letter ?? ""}</span>
+    render: (letter: string | null, row) => (
+      <span className={`font-medium tabular-nums ${letterTextClass(letter)}`}>{resultMark(row)}</span>
     ),
   },
   {
@@ -50,7 +52,7 @@ const COLUMNS: TableColumnsType<TranscriptCourse> = [
     dataIndex: "point4",
     width: 80,
     align: "right",
-    render: (value: number | null, row) => <span className={`tabular-nums ${letterTextClass(row.letter)}`}>{formatPoint(value, 1)}</span>,
+    render: (_value: number | null, row) => <span className={`tabular-nums ${letterTextClass(row.letter)}`}>{formatPoint(resultPoint4(row), 1)}</span>,
   },
 ];
 
@@ -68,10 +70,11 @@ function CourseList({ courses }: { courses: TranscriptCourse[] }) {
             </span>
           </span>
           <span className="flex shrink-0 flex-col items-end">
-            <span className={`text-sm font-medium tabular-nums ${letterTextClass(course.letter)}`}>{course.letter ?? "Chưa có điểm"}</span>
+            <span className={`text-sm font-medium tabular-nums ${letterTextClass(course.letter)}`}>{course.letter ? resultMark(course) : "Chưa có điểm"}</span>
             {course.score10 !== null && (
               <span className={`text-xs tabular-nums ${letterTextClass(course.letter)}`}>
-                {formatPoint(course.score10, 1)} · {formatPoint(course.point4, 1)}
+                {formatPoint(course.score10, 1)}
+                {!course.isConditional && <> · {formatPoint(course.point4, 1)}</>}
               </span>
             )}
           </span>

@@ -10,14 +10,16 @@ import { requirePermission } from "@/modules/access/access.query";
 import { COURSE_TYPE_LABEL, CURRICULUM_CONSTRAINT_MESSAGE, KNOWLEDGE_BLOCK_LABEL, PROGRAM_STATUS } from "@/modules/curriculum/curriculum.constant";
 import { auditActorOf, recordAudit } from "@/modules/audit/audit.lib";
 import { auditChanges } from "@/modules/audit/audit.rule";
-import { applyProgramCourseChange, FrameworkError } from "@/modules/curriculum/curriculum.lib";
+import { applyProgramCourseChange, deleteElectiveGroup, FrameworkError, saveElectiveGroup } from "@/modules/curriculum/curriculum.lib";
 import { getCourseById, getProgram, getPrograms } from "@/modules/curriculum/curriculum.query";
 import {
   COURSE_SCHEMA,
+  ELECTIVE_GROUP_SCHEMA,
   PROGRAM_COURSE_CHANGE_SCHEMA,
   PROGRAM_SCHEMA,
   programStatusChangeError,
   type CourseInput,
+  type ElectiveGroupInput,
   type ProgramCourseChangeInput,
   type ProgramInput,
 } from "@/modules/curriculum/curriculum.rule";
@@ -107,6 +109,7 @@ export async function saveCourse(id: string | null, input: CourseInput): Promise
               ["Loại", COURSE_TYPE_LABEL[before.type], COURSE_TYPE_LABEL[values.type]],
               ["Khối kiến thức", KNOWLEDGE_BLOCK_LABEL[before.block], KNOWLEDGE_BLOCK_LABEL[values.block]],
               ["Đang mở", before.isActive ? "Có" : "Không", values.isActive ? "Có" : "Không"],
+              ["Học phần điều kiện", before.isConditional ? "Có" : "Không", values.isConditional ? "Có" : "Không"],
               ["Tiên quyết", relationText(before.prerequisiteCodes), relationText(prerequisiteCodes)],
               ["Song hành", relationText(before.corequisiteCodes), relationText(corequisiteCodes)],
               ["Tương đương", relationText(before.equivalentCodes), relationText(equivalentCodes)],
@@ -196,6 +199,37 @@ export async function changeProgramCourses(programId: string, input: ProgramCour
   if (!parsed.ok) return parsed;
   try {
     await db.transaction((tx) => applyProgramCourseChange(tx, { programId, change: parsed.data, actor: auditActorOf(viewer), faculty: viewer.faculty }));
+  } catch (error) {
+    return failure(error);
+  }
+  revalidateCurriculum();
+  revalidatePath("/application/curriculum");
+  const program = await getProgram(programId);
+  return program ? actionOk(program) : actionError("Đã lưu nhưng chưa đọc lại được, tải lại trang.");
+}
+
+// Thêm (groupId null) hoặc sửa nhóm tự chọn của khung; trả khung mới đọc lại từ DB.
+export async function saveProgramElectiveGroup(programId: string, groupId: string | null, input: ElectiveGroupInput): Promise<ActionResult<ProgramDetail>> {
+  const viewer = await requirePermission("curriculum.manage");
+  if (!isUuid(programId) || (groupId !== null && !isUuid(groupId))) return actionError("Chương trình hoặc nhóm không còn trong danh mục, tải lại trang.");
+  const parsed = parseInput(ELECTIVE_GROUP_SCHEMA, input);
+  if (!parsed.ok) return parsed;
+  try {
+    await db.transaction((tx) => saveElectiveGroup(tx, { programId, groupId, values: parsed.data, actor: auditActorOf(viewer), faculty: viewer.faculty }));
+  } catch (error) {
+    return failure(error);
+  }
+  revalidateCurriculum();
+  revalidatePath("/application/curriculum");
+  const program = await getProgram(programId);
+  return program ? actionOk(program) : actionError("Đã lưu nhưng chưa đọc lại được, tải lại trang.");
+}
+
+export async function deleteProgramElectiveGroup(programId: string, groupId: string): Promise<ActionResult<ProgramDetail>> {
+  const viewer = await requirePermission("curriculum.manage");
+  if (!isUuid(programId) || !isUuid(groupId)) return actionError("Chương trình hoặc nhóm không còn trong danh mục, tải lại trang.");
+  try {
+    await db.transaction((tx) => deleteElectiveGroup(tx, { programId, groupId, actor: auditActorOf(viewer), faculty: viewer.faculty }));
   } catch (error) {
     return failure(error);
   }

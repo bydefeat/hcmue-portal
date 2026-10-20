@@ -26,6 +26,7 @@ const EMPTY_VALUES: Partial<CourseFormValues> = {
   corequisiteCodes: [],
   equivalentCodes: [],
   isActive: true,
+  isConditional: false,
 };
 
 export function CourseFormDrawer({ open, course, courses, faculties, onClose, onSubmit }: CourseFormDrawerProps) {
@@ -138,9 +139,19 @@ export function CourseFormDrawer({ open, course, courses, faculties, onClose, on
         <Form.Item name="description" label="Mô tả tóm tắt">
           <Input.TextArea autoSize={{ minRows: 3, maxRows: 6 }} />
         </Form.Item>
-        <Form.Item name="isActive" label="Đang mở giảng dạy" valuePropName="checked">
-          <Switch />
-        </Form.Item>
+        <div className="grid gap-x-3 sm:grid-cols-2">
+          <Form.Item name="isActive" label="Đang mở giảng dạy" valuePropName="checked">
+            <Switch />
+          </Form.Item>
+          <Form.Item
+            name="isConditional"
+            label="Học phần điều kiện"
+            valuePropName="checked"
+            extra="Giáo dục thể chất, Giáo dục quốc phòng và an ninh: chấm Đạt/Không đạt, không tính điểm trung bình và tín chỉ tích lũy."
+          >
+            <Switch />
+          </Form.Item>
+        </div>
       </Form>
     </Drawer>
   );

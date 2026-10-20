@@ -2,11 +2,12 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { DndContext, DragOverlay, KeyboardSensor, PointerSensor, useDraggable, useDroppable, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
-import { Alert, Button, Card, Dropdown, message, Modal, Select, Table, type MenuProps, type TableColumnsType } from "antd";
+import { Alert, Button, Card, Dropdown, message, Modal, Select, Table, Tag, type MenuProps, type TableColumnsType } from "antd";
 import { DotsVertical, GripDotsVertical, Plus } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { MeterBar } from "@/shared/components/ui/meter-bar";
 import { SectionCard } from "@/shared/components/ui/section-card";
+import { ElectiveGroupsCard } from "@/modules/curriculum/components/elective-groups-card";
 import { changeProgramCourses } from "@/modules/curriculum/curriculum.action";
 import { COURSE_TYPE_LABEL, KNOWLEDGE_BLOCK_LABEL } from "@/modules/curriculum/curriculum.constant";
 import { frameworkIssues, programSemesterLimit } from "@/modules/curriculum/curriculum.rule";
@@ -18,9 +19,20 @@ type ProgramFrameworkProps = {
   catalog?: Course[];
 };
 
-const COLUMNS: TableColumnsType<Course> = [
+// Tên học phần kèm dấu học phần điều kiện, nhóm tự chọn (chỉ ngoại lệ mới có dấu).
+const courseColumns = (groupOf: Map<string, string>): TableColumnsType<Course> => [
   { title: "Mã HP", dataIndex: "code", width: 110, responsive: ["sm"], render: (code: string) => <span className="text-xs">{code}</span> },
-  { title: "Tên học phần", dataIndex: "name", render: (name: string) => <span className="text-pretty">{name}</span> },
+  {
+    title: "Tên học phần",
+    dataIndex: "name",
+    render: (name: string, row) => (
+      <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+        <span className="text-pretty">{name}</span>
+        {row.isConditional && <Tag className="me-0">Điều kiện</Tag>}
+        {groupOf.has(row.code) && <span className="text-xs text-muted">{groupOf.get(row.code)}</span>}
+      </span>
+    ),
+  },
   { title: <span className="whitespace-nowrap">TC</span>, dataIndex: "credits", width: 56, align: "right", render: (value: number) => <span className="tabular-nums">{value}</span> },
   {
     title: <span className="whitespace-nowrap">LT/TH</span>,
@@ -94,6 +106,8 @@ export function ProgramFramework({ program: initialProgram, catalog }: ProgramFr
   const issues = useMemo(() => frameworkIssues(program), [program]);
   const semesterOf = useMemo(() => new Map(program.semesters.flatMap((entry) => entry.courses.map((course) => [course.code, entry.semester] as const))), [program]);
   const limit = programSemesterLimit(program.durationYears);
+  const groupOf = useMemo(() => new Map(program.electiveGroups.flatMap((group) => group.courseCodes.map((code) => [code, group.name] as const))), [program]);
+  const COLUMNS = courseColumns(groupOf);
 
   const apply = (change: ProgramCourseChange, done?: () => void) =>
     startTransition(async () => {
@@ -218,6 +232,7 @@ export function ProgramFramework({ program: initialProgram, catalog }: ProgramFr
       {contextHolder}
       {modalContextHolder}
       <div className="flex min-w-0 flex-col gap-4">
+        <ElectiveGroupsCard program={program} editable={editable} onChange={setProgram} />
         {editable ? (
           <DndContext
             id="program-framework"
@@ -251,6 +266,12 @@ export function ProgramFramework({ program: initialProgram, catalog }: ProgramFr
             </span>
             <MeterBar value={program.plannedCredits} max={program.totalCredits} tone={program.plannedCredits === program.totalCredits ? "success" : "primary"} label="Tín chỉ đã xếp" />
           </div>
+          {program.conditionalCredits > 0 && (
+            <p className="text-xs text-pretty text-muted">
+              Thêm <span className="tabular-nums">{program.conditionalCredits}</span> tín chỉ học phần điều kiện (giáo dục thể chất, quốc phòng và an ninh), không tính vào tổng
+              tín chỉ của chương trình.
+            </p>
+          )}
           <ul className="flex flex-col gap-3">
             {program.creditsByBlock.map((entry) => (
               <li key={entry.block} className="flex flex-col gap-1">

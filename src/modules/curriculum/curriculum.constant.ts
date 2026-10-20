@@ -47,6 +47,3 @@ export const CURRICULUM_CONSTRAINT_MESSAGE: Partial<Record<string, string>> = {
   program_courses_elective_group_fk: "Nhóm tự chọn không thuộc chương trình này, tải lại trang.",
   program_courses_elective_group_course: "Chỉ học phần tự chọn (không phải học phần điều kiện) mới xếp vào nhóm tự chọn.",
 };
-
-// Ghi chú hiện cạnh điểm của học phần điều kiện ở mọi nơi (bảng điểm, PDF, tiến độ chương trình).
-export const CONDITIONAL_COURSE_NOTE = "Học phần điều kiện: Đạt/Không đạt, không tính điểm trung bình và tín chỉ tích lũy";

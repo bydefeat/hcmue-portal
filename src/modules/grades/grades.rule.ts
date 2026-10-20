@@ -71,6 +71,9 @@ export function countsTowardAverage(course: { isConditional?: boolean }) {
   return !course.isConditional;
 }
 
+// Ghi chú dưới bảng điểm (trang, bản in, PDF).
+export const CONDITIONAL_COURSE_NOTE = "Học phần điều kiện (giáo dục thể chất, quốc phòng và an ninh) ghi Đạt/Không đạt, không tính điểm trung bình và tín chỉ tích lũy";
+
 export const CONDITIONAL_PASS_LABEL = "Đạt";
 export const CONDITIONAL_FAIL_LABEL = "Không đạt";
 

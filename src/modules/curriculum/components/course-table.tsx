@@ -86,6 +86,7 @@ export function CourseTable({
           <span className="flex flex-wrap items-center gap-2">
             <span className="text-pretty">{name}</span>
             {!row.isActive && <Tag className="me-0">Ngừng giảng dạy</Tag>}
+            {row.isConditional && <Tag className="me-0">Học phần điều kiện</Tag>}
           </span>
           <span className="text-xs text-muted tabular-nums md:hidden">
             {row.code} · {row.credits} tín chỉ · {COURSE_TYPE_LABEL[row.type]}

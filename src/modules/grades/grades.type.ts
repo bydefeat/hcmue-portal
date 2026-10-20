@@ -58,6 +58,8 @@ export type TranscriptCourse = TranscriptCourseInput & {
 export type GradingRules = {
   scale: { letter: string; min: number; point4: number }[];
   roundingStep: number;
+  // Bảng điểm của học phần điều kiện: cột điểm chữ ghi Đạt/Không đạt.
+  isConditional?: boolean;
 };
 
 export type TranscriptTerm = {

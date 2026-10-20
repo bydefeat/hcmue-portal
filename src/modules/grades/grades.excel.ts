@@ -1,6 +1,6 @@
 import "server-only";
 import ExcelJS from "exceljs";
-import { letterOf, roundingFormula, weightedScore } from "@/modules/grades/grades.rule";
+import { CONDITIONAL_FAIL_LABEL, CONDITIONAL_PASS_LABEL, letterOf, resultMark, roundingFormula, weightedScore } from "@/modules/grades/grades.rule";
 import type { GradeComponent, GradingRules, ScoreRow } from "@/modules/grades/grades.type";
 
 export const XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
@@ -29,7 +29,9 @@ function columnLetter(index: number) {
 }
 
 // Điểm chữ trong Excel tính lại theo đúng thang điểm của quy chế khi giảng viên sửa điểm trong tệp.
-function letterFormula(cell: string, scale: GradingRules["scale"]) {
+// Học phần điều kiện: Đạt từ ngưỡng thấp nhất không phải F của thang điểm.
+function letterFormula(cell: string, scale: GradingRules["scale"], isConditional = false) {
+  if (isConditional) return `IF(${cell}="","",IF(${cell}>=${scale.at(-2)?.min ?? 0},"${CONDITIONAL_PASS_LABEL}","${CONDITIONAL_FAIL_LABEL}"))`;
   const steps = scale.slice(0, -1);
   const nested = steps.reduceRight((inner, step) => `IF(${cell}>=${step.min},"${step.letter}",${inner})`, `"${scale.at(-1)!.letter}"`);
   return `IF(${cell}="","",${nested})`;
@@ -67,7 +69,10 @@ export async function gradeSheetWorkbook(input: WorkbookInput) {
       student.fullName,
       ...input.components.map((component) => row[component.key] ?? null),
       { formula: `IF(COUNT(${scoreCells[0]}:${scoreCells.at(-1)})<${input.components.length},"",${roundingFormula(`(${weighted})`, input.grading.roundingStep)})`, result: total ?? "" },
-      { formula: letterFormula(totalCell, input.grading.scale), result: total === null ? "" : letterOf(total, input.grading.scale).letter },
+      {
+        formula: letterFormula(totalCell, input.grading.scale, input.grading.isConditional),
+        result: total === null ? "" : resultMark({ letter: letterOf(total, input.grading.scale).letter, isConditional: input.grading.isConditional }),
+      },
     ]);
   });
 

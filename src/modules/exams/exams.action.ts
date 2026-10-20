@@ -161,11 +161,11 @@ export async function deleteExamSession(input: { id: string; reason?: string | n
 // Sinh hàng loạt ca cuối kỳ (dự kiến) cho các lớp mở chưa có ca: xếp lớp đông trước vào ngày, giờ thi sớm nhất còn đủ phòng,
 // đủ 2 cán bộ coi thi mỗi phòng (cùng khoa, không dạy lớp đó, không trùng ca hay giờ dạy) và không trùng lịch thi của sinh viên.
 // Lớp không xếp được thì báo lại để xếp tay.
-export async function generateFinalExams(input: ExamGenerateInput): Promise<ActionResult<{ created: number; skipped: string[] }>> {
+export async function generateFinalExams(input: ExamGenerateInput): Promise<ActionResult<{ created: number; skipped: string[]; fromSyllabus: number }>> {
   const viewer = await requirePermission("exams.manage");
   const parsed = parseInput(EXAM_GENERATE_SCHEMA, input);
   if (!parsed.ok) return parsed;
-  let result: { created: number; skipped: string[] };
+  let result: { created: number; skipped: string[]; fromSyllabus: number };
   try {
     result = await db.transaction((tx) => generateFinals(tx, viewer, parsed.data));
   } catch (error) {

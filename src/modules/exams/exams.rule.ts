@@ -2,7 +2,8 @@ import { z } from "zod";
 import { dayjs, schoolTime } from "@/shared/libs/date.lib";
 import { checkUpload } from "@/shared/libs/upload.lib";
 import { EXAM_PAPER_LIMIT, EXAM_RETURN_REASON_MAX, EXAM_START_TIMES, MAX_PROCTORS_PER_ROOM, PROCTORS_PER_ROOM } from "@/modules/exams/exams.constant";
-import type { ExamConflict, ExamPaperFileKind, ExamPaperStatus, ExamSessionStatus } from "@/modules/exams/exams.type";
+import { normalizeSearch } from "@/shared/libs/search.lib";
+import type { ExamConflict, ExamFormat, ExamPaperFileKind, ExamPaperStatus, ExamSessionStatus } from "@/modules/exams/exams.type";
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const FORMATS = ["written", "multiple-choice", "practical", "oral", "project"] as const;
@@ -80,6 +81,23 @@ export type ExamSessionCreateInput = z.input<typeof EXAM_SESSION_CREATE_SCHEMA>;
 
 export const EXAM_SESSION_DELETE_SCHEMA = z.object({ id: z.uuid("Ca thi không hợp lệ"), reason: OPTIONAL_REASON });
 
+// Hình thức thi cuối kỳ theo đề cương: bài đánh giá cuối kỳ (khóa "final" hoặc tên có "cuối kỳ"), đọc hình thức từ ô "Hình thức"
+// tự nhập ("Tự luận 90 phút", "Trắc nghiệm trên máy"...). Không có bài cuối kỳ hay không nhận ra hình thức thì null (dùng mặc định).
+const FORMAT_WORDS: [ExamFormat, RegExp][] = [
+  ["multiple-choice", /trac nghiem/],
+  ["oral", /van dap/],
+  ["project", /do an|tieu luan|bao cao|du an/],
+  ["practical", /thuc hanh|tren may/],
+  ["written", /tu luan|viet/],
+];
+
+export function finalExamFormatOf(assessments: { key: string; label: string; method: string }[]): ExamFormat | null {
+  const final = assessments.find((item) => item.key === "final") ?? assessments.find((item) => normalizeSearch(item.label).includes("cuoi ky"));
+  if (!final) return null;
+  const method = normalizeSearch(final.method);
+  return FORMAT_WORDS.find(([, words]) => words.test(method))?.[0] ?? null;
+}
+
 // Sinh hàng loạt ca cuối kỳ cho các lớp mở chưa có ca: xếp vào các ngày trong khoảng, các giờ thi của trường.
 export const EXAM_GENERATE_SCHEMA = z
   .object({
@@ -88,6 +106,8 @@ export const EXAM_GENERATE_SCHEMA = z
     toDate: z.string("Chọn ngày kết thúc").regex(DATE, "Ngày không hợp lệ"),
     durationMinutes: z.int("Nhập thời lượng").min(15, "Ít nhất 15 phút").max(240, "Tối đa 240 phút"),
     paperDaysBefore: z.int().min(1, "Ít nhất 1 ngày").max(30, "Tối đa 30 ngày").default(7),
+    // Hình thức cho lớp chưa có đề cương đã công bố hoặc đề cương không ghi rõ hình thức thi cuối kỳ.
+    defaultFormat: z.enum(FORMATS, "Chưa chọn hình thức").default("written"),
   })
   .refine((value) => value.fromDate <= value.toDate, { path: ["toDate"], message: "Ngày kết thúc phải sau ngày bắt đầu" })
   .refine((value) => dayjs(value.toDate).diff(dayjs(value.fromDate), "day") <= 42, { path: ["toDate"], message: "Đợt thi tối đa 6 tuần" });

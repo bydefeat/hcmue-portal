@@ -20,6 +20,7 @@ import {
   EXAM_SESSION_CREATE_SCHEMA,
   EXAM_SESSION_UPDATE_SCHEMA,
   examConflicts,
+  finalExamFormatOf,
   isBannedFromExam,
   paperReviewBlockedReason,
   paperSubmitBlockedReason,
@@ -32,7 +33,9 @@ import {
   decidePaperReview,
   decideProctorSwap,
   ExamInputError,
+  generateFinals,
   publishDrafts,
+  sectionsWithoutFinal,
   recordPaperSubmission,
   refreshExamStatuses,
   replaceSessionRooms,
@@ -49,6 +52,7 @@ import { notifications } from "@/modules/notifications/notifications.schema";
 import { classSessions } from "@/modules/schedule/schedule.schema";
 import { examCandidates, examEligibilityOverrides, examProctors, examProctorSwapRequests, examSessions } from "@/modules/exams/exams.schema";
 import { rooms } from "@/modules/facilities/facilities.schema";
+import { syllabi, syllabusAssessments } from "@/modules/teaching/teaching.schema";
 import { lecturers } from "@/modules/users/users.schema";
 import { CURRENT_STUDENT_ID } from "@/modules/users/users.mock";
 
@@ -560,6 +564,43 @@ describe("exams: tạo, sửa, công bố ca thi", () => {
       const parsed = parseInput(EXAM_SESSION_UPDATE_SCHEMA, { ...update, id: published.id, rooms: [{ roomId: await roomId("A.201"), proctorIds: await freeLecturers(2, { dates: ["2027-01-05"] }) }] });
       assert.ok(parsed.ok);
       assert.match(await rejectedIn(tx, (sp) => updateSession(sp, viewerOf(admin), parsed.data)), /đã diễn ra/);
+    });
+  });
+});
+
+describe("exams: sinh hàng loạt ca cuối kỳ", () => {
+  test("hình thức thi đọc từ bài cuối kỳ của đề cương; không nhận ra thì null", () => {
+    assert.equal(finalExamFormatOf([{ key: "midterm", label: "Giữa kỳ", method: "Vấn đáp" }, { key: "final", label: "Cuối kỳ", method: "Trắc nghiệm trên máy 60 phút" }]), "multiple-choice");
+    assert.equal(finalExamFormatOf([{ key: "thi-cuoi-ky", label: "Thi cuối kỳ", method: "Vấn đáp" }]), "oral");
+    assert.equal(finalExamFormatOf([{ key: "final", label: "Cuối kỳ", method: "Báo cáo đồ án nhóm" }]), "project");
+    assert.equal(finalExamFormatOf([{ key: "final", label: "Cuối kỳ", method: "Thực hành" }]), "practical");
+    assert.equal(finalExamFormatOf([{ key: "final", label: "Cuối kỳ", method: "Tự luận 90 phút" }]), "written");
+    assert.equal(finalExamFormatOf([{ key: "final", label: "Cuối kỳ", method: "Theo quy định" }]), null);
+    assert.equal(finalExamFormatOf([{ key: "midterm", label: "Giữa kỳ", method: "Tự luận" }]), null);
+  });
+
+  test("lớp có đề cương đã công bố theo hình thức trong đề cương, lớp khác theo hình thức mặc định đã chọn", async () => {
+    const [{ termId }] = await db.select({ termId: classSections.termId }).from(classSections).where(eq(classSections.code, "COMP1020.01")).limit(1);
+    await inRollback(async (tx) => {
+      const pending = await sectionsWithoutFinal(tx, termId);
+      assert.ok(pending.length >= 2, "seed cần ít nhất 2 lớp mở chưa có ca cuối kỳ");
+      const withSyllabus = pending.find((section) => section.enrolled > 0)!;
+      await tx.delete(syllabi).where(eq(syllabi.classSectionId, withSyllabus.id));
+      const [created] = await tx.insert(syllabi).values({ classSectionId: withSyllabus.id, status: "published", publishedAt: new Date() }).returning({ id: syllabi.id });
+      await tx.insert(syllabusAssessments).values([
+        { syllabusId: created.id, key: "midterm", label: "Giữa kỳ", weight: 40, method: "Tự luận", position: 0 },
+        { syllabusId: created.id, key: "final", label: "Cuối kỳ", weight: 60, method: "Trắc nghiệm trên máy 60 phút", position: 1 },
+      ]);
+      const result = await generateFinals(tx, viewerOf(await adminId()), { termId, fromDate: "2027-02-01", toDate: "2027-02-27", durationMinutes: 90, paperDaysBefore: 7, defaultFormat: "oral" });
+      assert.ok(result.created >= 2, `chỉ sinh được ${result.created} ca, chưa xếp: ${result.skipped.join(", ")}`);
+      const sessions = await tx
+        .select({ sectionId: examSessions.classSectionId, format: examSessions.format })
+        .from(examSessions)
+        .where(and(eq(examSessions.termId, termId), eq(examSessions.kind, "final"), inArray(examSessions.classSectionId, pending.map((section) => section.id))));
+      const formatOf = new Map(sessions.map((row) => [row.sectionId, row.format]));
+      assert.equal(formatOf.get(withSyllabus.id), "multiple-choice");
+      assert.ok([...formatOf].filter(([id]) => id !== withSyllabus.id).every(([, format]) => format === "oral"));
+      assert.equal(result.fromSyllabus, 1);
     });
   });
 });

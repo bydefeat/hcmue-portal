@@ -22,7 +22,7 @@ import {
   returnExamPaper,
   unlockExamPaper,
 } from "@/modules/exams/exams.action";
-import { EXAM_FORMAT_LABEL, EXAM_KIND_LABEL, EXAM_PAPER_STATUS, EXAM_RETURN_REASON_MAX, EXAM_STATUS, PROCTORS_PER_ROOM } from "@/modules/exams/exams.constant";
+import { EXAM_FORMAT_LABEL, EXAM_FORMAT_OPTIONS, EXAM_KIND_LABEL, EXAM_PAPER_STATUS, EXAM_RETURN_REASON_MAX, EXAM_STATUS, PROCTORS_PER_ROOM } from "@/modules/exams/exams.constant";
 import { paperReviewBlockedReason } from "@/modules/exams/exams.rule";
 import type { ExamClassOption, ExamDeferralRow, ExamFormat, ExamKind, ExamPaperStatus, ExamRosterRow, ExamSession } from "@/modules/exams/exams.type";
 import { ExamPaperLinks } from "@/modules/exams/components/exam-paper-links";
@@ -42,7 +42,7 @@ type AdminExamScheduleProps = {
   header: { title: string; description?: React.ReactNode };
 };
 
-type GenerateValues = { range: [Dayjs, Dayjs]; durationMinutes: number; paperDaysBefore: number };
+type GenerateValues = { range: [Dayjs, Dayjs]; durationMinutes: number; paperDaysBefore: number; defaultFormat: ExamFormat };
 
 const capacityOf = (row: ExamSession) => row.rooms.reduce((sum, room) => sum + room.examCapacity, 0);
 
@@ -229,6 +229,7 @@ export function AdminExamSchedule({ termId, sessions, rooms, proctors, classes, 
         toDate: values.range[1].format("YYYY-MM-DD"),
         durationMinutes: values.durationMinutes,
         paperDaysBefore: values.paperDaysBefore,
+        defaultFormat: values.defaultFormat,
       }).catch(() => null);
       if (!result) {
         messageApi.error("Chưa sinh được lịch, kiểm tra kết nối rồi thử lại.");
@@ -241,7 +242,7 @@ export function AdminExamSchedule({ termId, sessions, rooms, proctors, classes, 
         return;
       }
       setIsGenerateOpen(false);
-      messageApi.success(`Đã sinh ${result.data.created} ca cuối kỳ dự kiến${result.data.skipped.length > 0 ? `; chưa xếp được ${result.data.skipped.join(", ")}` : ""}. Đang tải lại lịch.`, 6);
+      messageApi.success(`Đã sinh ${result.data.created} ca cuối kỳ dự kiến (${result.data.fromSyllabus} ca theo hình thức trong đề cương)${result.data.skipped.length > 0 ? `; chưa xếp được ${result.data.skipped.join(", ")}` : ""}. Đang tải lại lịch.`, 6);
       refreshAll();
     });
 
@@ -536,7 +537,7 @@ export function AdminExamSchedule({ termId, sessions, rooms, proctors, classes, 
         mask={{ closable: false }}
         destroyOnHidden
       >
-        <Form form={generateForm} layout="vertical" onFinish={generate} initialValues={{ durationMinutes: 90, paperDaysBefore: 7 }}>
+        <Form form={generateForm} layout="vertical" onFinish={generate} initialValues={{ durationMinutes: 90, paperDaysBefore: 7, defaultFormat: "written" }}>
           <p className="mb-3 text-sm text-pretty text-muted">
             Tạo ca dự kiến cho mọi lớp mở chưa có ca cuối kỳ: lớp đông xếp trước, đủ chỗ ngồi thi, 2 cán bộ cùng khoa mỗi phòng, không trùng lịch thi của sinh viên. Kiểm lại rồi công bố.
           </p>
@@ -551,6 +552,13 @@ export function AdminExamSchedule({ termId, sessions, rooms, proctors, classes, 
               <InputNumber min={1} max={30} className="w-full" />
             </Form.Item>
           </div>
+          <Form.Item
+            name="defaultFormat"
+            label="Hình thức thi mặc định"
+            extra="Lớp có đề cương đã công bố thì theo hình thức của bài cuối kỳ trong đề cương; lớp chưa có hoặc đề cương không ghi rõ thì theo hình thức này."
+          >
+            <Select options={EXAM_FORMAT_OPTIONS} />
+          </Form.Item>
         </Form>
       </Modal>
 

@@ -11,6 +11,7 @@ import {
   mockScoreRow,
   mockTranscriptTerms,
   mockWarningMeta,
+  PREVIOUS_WARNING_TERM_KEY,
   RETURN_REASON,
   SHEET_LOCKED_AT,
   SHEET_SAVED_AT,
@@ -64,8 +65,17 @@ export async function seedGrades(tx: Transaction, context: SeedContext) {
     }
     // Cùng cách tính với syncAcademicWarnings (grades.lib): sinh viên có kết quả trong học kỳ xét và chưa tốt nghiệp,
     // nên bấm "Sinh cảnh báo" cho học kỳ này trên dữ liệu mẫu không tạo thêm hay đổi cảnh báo nào.
+    const rules = standingRulesOf(REGULATION_RULES);
+    const previousTermId = context.termByKey.get(PREVIOUS_WARNING_TERM_KEY)!.id;
+    const previousPosition = catalogTerms.findIndex((term) => term.termId === previousTermId);
+    if (previousPosition >= 0 && student.status !== "graduated") {
+      const previous = academicWarningOf(computeStanding(student.id, buildTranscript(catalogTerms.slice(0, previousPosition + 1)), rules), REGULATION_RULES.warning);
+      if (previous) {
+        warnings.push({ ...previous, id: mockId(`warning:${PREVIOUS_WARNING_TERM_KEY}:${index}`), studentId: student.id, termId: previousTermId, status: "resolved", createdAt: new Date("2026-02-10T02:00:00Z") });
+      }
+    }
     const warningTermId = context.termByKey.get(WARNING_TERM_KEY)!.id;
-    const warning = academicWarningOf(computeStanding(student.id, buildTranscript(catalogTerms), standingRulesOf(REGULATION_RULES)), REGULATION_RULES.warning);
+    const warning = academicWarningOf(computeStanding(student.id, buildTranscript(catalogTerms), rules), REGULATION_RULES.warning);
     if (warning && student.status !== "graduated" && terms.some((term) => term.termId === warningTermId)) {
       const meta = mockWarningMeta(index);
       warnings.push({ ...warning, id: meta.id, studentId: student.id, termId: warningTermId, status: meta.status, createdAt: new Date(meta.createdAt) });

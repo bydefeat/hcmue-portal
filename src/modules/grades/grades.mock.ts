@@ -144,6 +144,10 @@ export function mockScoreRow(classSectionId: string, studentId: string, seed: Gr
 // Cảnh báo học vụ sau học kỳ 2, năm học 2025-2026: trạng thái xử lý và ngày lập của từng sinh viên.
 export const WARNING_TERM_KEY = "hk2-2025";
 
+// Cảnh báo của học kỳ chính trước đó đã xử lý xong (đã gặp sinh viên): sinh viên bị cảnh báo cả hai học kỳ vào danh sách đề xuất
+// xét buộc thôi học.
+export const PREVIOUS_WARNING_TERM_KEY = "hk1-2025";
+
 export function mockWarningMeta(index: number): { id: string; status: WarningStatus; createdAt: string } {
   const random = createRandom(index + 404);
   const roll = random();

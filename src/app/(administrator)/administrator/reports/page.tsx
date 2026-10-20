@@ -27,6 +27,7 @@ export default async function Page() {
   ]);
 
   const total = standings.reduce((sum, entry) => sum + entry.total, 0);
+  const unranked = standings.reduce((sum, entry) => sum + entry.unranked, 0);
   const averageCpa = total > 0 ? standings.reduce((sum, entry) => sum + entry.averageCpa * entry.total, 0) / total : 0;
   const topCount = standings.reduce((sum, entry) => sum + entry.counts.excellent + entry.counts["very-good"], 0);
   const warnings = standings.reduce((sum, entry) => sum + entry.warnings, 0);
@@ -37,17 +38,17 @@ export default async function Page() {
     <>
       <PageHeader
         title="Thống kê học vụ"
-        description="Xếp loại tính theo CPA thang 4 đến hết học kỳ 2, năm học 2025-2026, không gồm khóa 48 đã xét tốt nghiệp."
+        description="Xếp loại theo CPA thang 4 (lần học cuối của mỗi học phần) và ngưỡng của quy chế đang áp dụng, tính đến hết học kỳ đã kết thúc gần nhất; không gồm sinh viên đã nghỉ, bảo lưu và các khóa đang xét tốt nghiệp."
       />
       <div className="flex flex-col gap-4 sm:gap-6">
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          <StatTile label="Sinh viên được xếp loại" value={total.toLocaleString("vi-VN")} hint={`${standings.length} khoa`} />
+          <StatTile label="Sinh viên được xếp loại" value={total.toLocaleString("vi-VN")} hint={unranked > 0 ? `${standings.length} khoa, ${unranked} chưa có điểm` : `${standings.length} khoa`} />
           <StatTile label="CPA trung bình" value={formatPoint(averageCpa)} hint="Thang 4" />
           <StatTile label="Giỏi và xuất sắc" value={`${total > 0 ? Math.round((topCount / total) * 100) : 0}%`} hint={`${topCount} sinh viên`} />
           <StatTile
-            label="Bị cảnh báo học vụ"
+            label="Đang bị cảnh báo học vụ"
             value={warnings}
-            hint="Xem danh sách và xử lý"
+            hint="Cảnh báo đã gửi, học kỳ gần nhất"
             tone={warnings > 0 ? "warning" : undefined}
             href="/administrator/reports/academic-warnings"
           />

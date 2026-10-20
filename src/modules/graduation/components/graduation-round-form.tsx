@@ -60,12 +60,7 @@ export function GraduationRoundForm({ round, cohorts, canManage }: { round: Grad
       {modalContextHolder}
       {canManage && (
         <div className="flex flex-wrap gap-2">
-          <Button
-            onClick={() => {
-              form.setFieldsValue(round ? { name: round.name, cohorts: round.cohorts } : { name: "", cohorts: [] });
-              setIsEditing(true);
-            }}
-          >
+          <Button onClick={() => setIsEditing(true)}>
             {round ? "Sửa đợt xét" : "Mở đợt xét"}
           </Button>
           {round && (
@@ -84,10 +79,10 @@ export function GraduationRoundForm({ round, cohorts, canManage }: { round: Grad
         okButtonProps={{ loading: isSaving }}
         onOk={() => form.submit()}
         mask={{ closable: false }}
-        forceRender
+        destroyOnHidden
         width={480}
       >
-        <Form form={form} layout="vertical" onFinish={save}>
+        <Form form={form} layout="vertical" onFinish={save} initialValues={round ? { name: round.name, cohorts: round.cohorts } : { name: "", cohorts: [] }}>
           <Form.Item name="name" label="Tên đợt" rules={[{ required: true, whitespace: true, message: "Chưa nhập tên đợt" }]} extra="Ghi vào quyết định công nhận tốt nghiệp, ví dụ: đợt tháng 12 năm 2026.">
             <Input maxLength={120} />
           </Form.Item>

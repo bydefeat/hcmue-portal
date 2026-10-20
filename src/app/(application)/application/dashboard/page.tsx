@@ -9,15 +9,15 @@ import {
   getRegistrationTargetTerm,
   getStudentEnrollments,
 } from "@/modules/course-registration/course-registration.query";
-import { bestGrades, pickTimetable } from "@/modules/course-registration/course-registration.rule";
-import { getCourses, getProgramOf } from "@/modules/curriculum/curriculum.query";
+import { applicablePeriod, pickTimetable } from "@/modules/course-registration/course-registration.rule";
+import { getProgramOf } from "@/modules/curriculum/curriculum.query";
 import { EXAM_KIND_LABEL } from "@/modules/exams/exams.constant";
 import { getStudentExams } from "@/modules/exams/exams.query";
 import { formatPoint, standingLabel, WARNING_LEVEL } from "@/modules/grades/grades.constant";
-import { getCurrentWarnings, getStudentStandings, getTranscript } from "@/modules/grades/grades.query";
+import { getCurrentWarnings, getStudentStandings } from "@/modules/grades/grades.query";
 import { getRegulation } from "@/modules/settings/settings.query";
 import { NOTIFICATION_KIND_LABEL } from "@/modules/notifications/notifications.constant";
-import { getNotifications } from "@/modules/notifications/notifications.query";
+import { getNotifications, getUnreadNotificationCount } from "@/modules/notifications/notifications.query";
 import { REQUEST_KINDS, REQUEST_STATUS } from "@/modules/requests/requests.constant";
 import { getRequestsOf } from "@/modules/requests/requests.query";
 import { formatMoney } from "@/modules/tuition/tuition.constant";
@@ -34,24 +34,21 @@ import { dayjs, daysUntil, formatDate, formatDateTime, formatRelative, schoolTim
 export const metadata: Metadata = { title: "Tổng quan" };
 
 export default async function Page() {
-  const [student, term, targetTerm, courses] = await Promise.all([getCurrentStudent(), getCurrentTerm(), getRegistrationTargetTerm(), getCourses()]);
-  const [enrollments, transcript, [standing], periods, requests, notifications, warnings, program, regulation] = await Promise.all([
+  const [student, term, targetTerm] = await Promise.all([getCurrentStudent(), getCurrentTerm(), getRegistrationTargetTerm()]);
+  const [enrollments, [standing], periods, requests, notifications, unreadCount, warnings, program, regulation] = await Promise.all([
     getStudentEnrollments(student.id, term.id),
-    getTranscript(student.id),
     getStudentStandings([student.id]),
     getRegistrationPeriods(targetTerm.id),
     getRequestsOf(student.id),
     getNotifications("student"),
+    getUnreadNotificationCount("student"),
     getCurrentWarnings([student.id]),
     getProgramOf(student.majorCode, student.cohort),
     getRegulation(),
   ]);
   // Cảnh báo chính thức (đã gửi thông báo), không phải dự báo theo điểm hiện có.
   const warning = warnings[student.id];
-  const timetable = pickTimetable(enrollments, bestGrades(transcript), {
-    faculty: student.faculty,
-    prerequisites: Object.fromEntries(courses.map((course) => [course.code, course.prerequisiteCodes])),
-  });
+  const timetable = pickTimetable(enrollments);
   const [{ exams }, invoices] = await Promise.all([getStudentExams(term.id), getInvoices(student.id)]);
   const invoice = invoices.find((entry) => entry.termId === term.id);
 
@@ -61,9 +58,9 @@ export default async function Page() {
     .toSorted((a, b) => a.meeting.dayOfWeek - b.meeting.dayOfWeek || a.meeting.startPeriod - b.meeting.startPeriod);
   const todaySlots = slots.filter((slot) => slot.meeting.dayOfWeek === today);
   const nextSlot = slots.find((slot) => slot.meeting.dayOfWeek > today) ?? slots[0];
-  const period = periods.find((entry) => entry.cohorts.includes(student.cohort)) ?? null;
+  const period = applicablePeriod(periods, student.cohort);
   const upcomingExams = exams.filter((exam) => daysUntil(exam.date) >= 0).slice(0, 3);
-  const openRequests = requests.filter((request) => request.status === "pending" || request.status === "in-review");
+  const openRequests = requests.filter((request) => request.status === "pending" || request.status === "in-review" || request.status === "needs-info");
   const unread = notifications.filter((notification) => !notification.isRead);
   const totalCredits = program?.totalCredits ?? null;
   const showTuition = invoice && invoice.balance > 0 && invoice.daysToDue <= 14;
@@ -91,7 +88,7 @@ export default async function Page() {
                 ? `Học phí ${term.shortName} quá hạn ${-invoice.daysToDue} ngày`
                 : `Học phí ${term.shortName} còn ${invoice.daysToDue} ngày đến hạn`
             }
-            description={`Còn phải nộp ${formatMoney(invoice.balance)}, hạn ${formatDate(invoice.dueDate)}. Quá hạn sẽ bị khóa đăng ký học phần học kỳ sau.`}
+            description={`Còn phải nộp ${formatMoney(invoice.balance)}, hạn ${formatDate(invoice.dueDate)}. Quá hạn mà còn nợ thì bị khóa đăng ký học phần cho tới khi nộp đủ.`}
             action={<Link href="/application/tuition">Cách nộp</Link>}
           />
         )}
@@ -106,7 +103,7 @@ export default async function Page() {
             tone={openRequests.some((request) => request.isOverdue) ? "warning" : undefined}
             href="/application/requests"
           />
-          <StatTile label="Thông báo chưa đọc" value={unread.length} hint="Hạn chót, điểm, lịch thi" href="/application/notifications" />
+          <StatTile label="Thông báo chưa đọc" value={unreadCount} hint="Hạn chót, điểm, lịch thi" href="/application/notifications" />
         </div>
 
         <div className="grid gap-4 sm:gap-6 lg:grid-cols-3">

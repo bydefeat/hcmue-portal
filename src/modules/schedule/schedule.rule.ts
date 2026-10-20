@@ -23,14 +23,21 @@ export function datesOnWeekday(dayOfWeek: number, from: string, to: string) {
   return dates;
 }
 
-// Buổi học của một lớp sinh từ lịch tuần (lý thuyết cho cả lớp, thực hành theo nhóm) trong khoảng ngày học của lớp.
-export function planClassSessions(section: {
+export type Holiday = { title: string; startDate: string; endDate: string };
+
+function holidayOn(date: string, holidays: Holiday[]) {
+  return holidays.find((holiday) => holiday.startDate <= date && date <= holiday.endDate) ?? null;
+}
+
+type PlanSection = {
   id: string;
   startDate: string;
   endDate: string;
   meetings: WeeklySlot[];
   labGroups: (WeeklySlot & { id: string })[];
-}): SessionPlan[] {
+};
+
+function weeklyPlans(section: PlanSection): SessionPlan[] {
   const slots = [...section.meetings.map((meeting) => ({ ...meeting, labGroupId: null })), ...section.labGroups.map(({ id, ...slot }) => ({ ...slot, labGroupId: id }))];
   return slots
     .flatMap((slot) =>
@@ -44,6 +51,20 @@ export function planClassSessions(section: {
       })),
     )
     .toSorted((a, b) => a.date.localeCompare(b.date) || a.startPeriod - b.startPeriod);
+}
+
+// Buổi học của một lớp sinh từ lịch tuần (lý thuyết cho cả lớp, thực hành theo nhóm) trong khoảng ngày học của lớp, bỏ các buổi
+// rơi vào ngày nghỉ lễ của lịch năm học (calendar_events loại holiday).
+export function planClassSessions(section: PlanSection, holidays: Holiday[] = []): SessionPlan[] {
+  return weeklyPlans(section).filter((plan) => !holidayOn(plan.date, holidays));
+}
+
+// Buổi theo lịch tuần bị trừ vì nghỉ lễ: giảng viên cần xếp dạy bù (đơn dạy bù ở mục Đơn từ).
+export function holidaySessions(section: PlanSection, holidays: Holiday[]) {
+  return weeklyPlans(section).flatMap((plan) => {
+    const holiday = holidayOn(plan.date, holidays);
+    return holiday ? [{ ...plan, holiday: holiday.title }] : [];
+  });
 }
 
 export type ExistingSession = SessionPlan & { id: string; isTaken: boolean };

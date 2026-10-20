@@ -8,7 +8,16 @@ export const PERMISSION_GROUPS: { label: string; permissions: { key: Permission;
     permissions: [
       { key: "dashboard.view", label: "Xem trang tổng quan" },
       { key: "announcements.manage", label: "Đăng và gỡ thông báo" },
-      { key: "requests.process", label: "Xử lý đơn từ" },
+    ],
+  },
+  {
+    label: "Đơn từ",
+    permissions: [
+      { key: "requests.process", label: "Mở hộp đơn từ" },
+      { key: "requests.step.faculty", label: "Xử lý bước của khoa" },
+      { key: "requests.step.academic-office", label: "Xử lý bước của Phòng Đào tạo" },
+      { key: "requests.step.exam-office", label: "Xử lý bước của Phòng Khảo thí" },
+      { key: "requests.supervise", label: "Chuyển người xử lý, xử lý thay bước đơn" },
     ],
   },
   {

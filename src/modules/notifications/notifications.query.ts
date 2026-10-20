@@ -1,30 +1,25 @@
 import "server-only";
 import { cache } from "react";
-import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/shared/libs/db.lib";
 import { requireSession } from "@/modules/authentication/authentication.query";
-import { notifications } from "@/modules/notifications/notifications.schema";
-import type { AppNotification, NotificationAudience } from "@/modules/notifications/notifications.type";
+import { notificationPage, unreadNotificationCount, type NotificationQuery } from "@/modules/notifications/notifications.lib";
+import type { AppNotification, NotificationAudience, NotificationPage } from "@/modules/notifications/notifications.type";
 
-const LIMIT = 100;
+export type { NotificationQuery };
 
-// Thông báo của tài khoản đang đăng nhập ở một cổng; layout (chuông) và trang thông báo cùng gọi trong một request.
-export const getNotifications = cache(async (audience: NotificationAudience): Promise<AppNotification[]> => {
+// Thông báo của tài khoản đang đăng nhập ở một cổng, mới nhất trước, từng trang theo con trỏ (xem thêm).
+export async function getNotificationPage(audience: NotificationAudience, query: NotificationQuery = {}): Promise<NotificationPage> {
   const { user } = await requireSession();
-  const rows = await db
-    .select({
-      id: notifications.id,
-      audience: notifications.audience,
-      kind: notifications.kind,
-      title: notifications.title,
-      body: notifications.body,
-      href: notifications.href,
-      createdAt: notifications.createdAt,
-      readAt: notifications.readAt,
-    })
-    .from(notifications)
-    .where(and(eq(notifications.recipientUserId, user.id), eq(notifications.audience, audience)))
-    .orderBy(desc(notifications.createdAt), desc(notifications.id))
-    .limit(LIMIT);
-  return rows.map(({ createdAt, readAt, ...row }) => ({ ...row, createdAt: createdAt.toISOString(), isRead: readAt !== null }));
+  return notificationPage(db, user.id, audience, query);
+}
+
+// Chuông thông báo của layout: vài dòng mới nhất; layout và trang cùng gọi trong một request.
+export const getNotifications = cache(async (audience: NotificationAudience): Promise<AppNotification[]> => {
+  return (await getNotificationPage(audience, { limit: 20 })).items;
+});
+
+// Số chưa đọc đếm bằng SQL trên toàn bộ thông báo của cổng, không chỉ trong trang đang tải.
+export const getUnreadNotificationCount = cache(async (audience: NotificationAudience): Promise<number> => {
+  const { user } = await requireSession();
+  return unreadNotificationCount(db, user.id, audience);
 });

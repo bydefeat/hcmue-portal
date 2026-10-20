@@ -9,9 +9,9 @@ import { toFormFields } from "@/shared/libs/form.lib";
 import { acceptOf } from "@/shared/libs/upload.lib";
 import { ATTACHMENT_HINT, ATTACHMENT_LIMIT, LECTURER_REQUEST_KINDS, REQUEST_KINDS } from "@/modules/requests/requests.constant";
 import { createLecturerRequest } from "@/modules/requests/requests.action";
-import type { LecturerRequestInput } from "@/modules/requests/requests.rule";
+import { requestKindDescription, type LecturerRequestInput } from "@/modules/requests/requests.rule";
 import type { RequestKind, RequestView } from "@/modules/requests/requests.type";
-import { requestFormData, useAttachmentPicker } from "@/modules/requests/components/attachment-picker";
+import { formErrorsWithoutAttachments, requestFormData, useAttachmentPicker } from "@/modules/requests/components/attachment-picker";
 
 export type RequestMeeting = {
   dayOfWeek: number;
@@ -173,7 +173,7 @@ export function NewLecturerRequestDrawer({ open, onClose, onCreated, classes, bu
         return;
       }
       if (!result.ok) {
-        form.setFields(toFormFields(result.fieldErrors));
+        form.setFields(toFormFields(formErrorsWithoutAttachments(result.fieldErrors)));
         messageApi.error(result.fieldErrors?.attachments ?? result.message);
         return;
       }
@@ -211,7 +211,7 @@ export function NewLecturerRequestDrawer({ open, onClose, onCreated, classes, bu
           }}
           options={LECTURER_REQUEST_KINDS.map((value) => ({ value, label: REQUEST_KINDS[value].label }))}
         />
-        <p className="text-sm text-pretty text-muted">{REQUEST_KINDS[kind].description}</p>
+        <p className="text-sm text-pretty text-muted">{requestKindDescription(kind)}</p>
         <p className="text-xs text-muted">
           Quy trình: {REQUEST_KINDS[kind].steps.map((step) => step.label).join(", sau đó ")}.
         </p>
@@ -303,6 +303,7 @@ export function NewLecturerRequestDrawer({ open, onClose, onCreated, classes, bu
           </Form.Item>
           <Form.Item
             label="Minh chứng"
+            required={REQUEST_KINDS[kind].attachmentsRequired}
             extra={`${kind === "grade-change" ? "Biên bản chấm, bài thi đã scan hoặc ảnh bảng điểm gốc" : "Giấy mời, quyết định cử đi công tác"}. ${ATTACHMENT_HINT}`}
           >
             <Upload multiple fileList={picker.fileList} beforeUpload={picker.beforeUpload} onRemove={picker.onRemove} accept={acceptOf(ATTACHMENT_LIMIT.kinds)}>

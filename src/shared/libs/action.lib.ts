@@ -30,11 +30,22 @@ export function parseInput<S extends z.ZodType>(schema: S, input: unknown): { ok
   return actionError("Dữ liệu chưa hợp lệ, kiểm tra lại các ô được đánh dấu.", fieldErrors);
 }
 
+// Lỗi nghiệp vụ ném ra giữa transaction để rollback, kèm ô của form nếu có; actionFailure trả nguyên câu cho người dùng.
+export class InputError extends Error {
+  constructor(
+    message: string,
+    readonly field?: string,
+  ) {
+    super(message);
+  }
+}
+
 // Bắt lỗi DB trong action: lỗi Postgres đổi thành câu tiếng Việt, lỗi lạ ghi log. Chỉ bọc lệnh DB trong try,
 // kiểm quyền (forbidden, redirect) đặt trước try để Next xử lý. Tệp tải lên bị từ chối khi quét virus (withStoredFiles) thì
 // trả nguyên câu báo cho người dùng.
 export function actionFailure(error: unknown, constraintMessages: Partial<Record<string, string>> = {}): ActionFailure {
   if (error instanceof UploadRejectedError) return actionError(error.message);
+  if (error instanceof InputError) return actionError(error.message, error.field ? { [error.field]: error.message } : undefined);
   if (!getPgError(error)) console.error(error);
   return actionError(pgErrorMessage(error, constraintMessages));
 }

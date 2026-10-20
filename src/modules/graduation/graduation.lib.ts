@@ -31,12 +31,13 @@ export async function openGraduationRound(executor: Executor = db): Promise<Grad
   return round ? { ...round, updatedAt: round.updatedAt.toISOString() } : null;
 }
 
-// Học phí còn nợ của từng sinh viên trên mọi hóa đơn (tổng phải nộp trừ đã nộp còn hiệu lực, không âm).
+// Học phí còn nợ của từng sinh viên trên mọi hóa đơn đã chốt (tổng phải nộp trừ đã nộp còn hiệu lực, không âm). Hóa đơn tạm tính
+// (học kỳ đang đăng ký, chưa chốt học phí) chưa phải khoản nợ.
 async function outstandingTuitionOf(executor: Executor, studentIds: string[]) {
   const rows = await executor
     .select({ studentId: tuitionInvoices.studentId, total: INVOICE_TOTAL_SQL, paid: INVOICE_PAID_SQL })
     .from(tuitionInvoices)
-    .where(inArray(tuitionInvoices.studentId, studentIds));
+    .where(and(inArray(tuitionInvoices.studentId, studentIds), isNotNull(tuitionInvoices.finalizedAt)));
   const owed = new Map<string, number>();
   for (const row of rows) owed.set(row.studentId, (owed.get(row.studentId) ?? 0) + Math.max(0, row.total - row.paid));
   return owed;

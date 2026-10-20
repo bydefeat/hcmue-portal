@@ -11,6 +11,13 @@ export const CALENDAR_EVENT_LABEL: Record<CalendarEventKind, string> = {
 
 export const CALENDAR_EVENT_OPTIONS = Object.entries(CALENDAR_EVENT_LABEL).map(([value, label]) => ({ value, label }));
 
+export const MANUAL_CALENDAR_EVENT_KINDS = ["exam", "grading", "holiday", "event"] as const;
+
+export const MANUAL_CALENDAR_EVENT_OPTIONS = MANUAL_CALENDAR_EVENT_KINDS.map((value) => ({ value, label: CALENDAR_EVENT_LABEL[value] }));
+
+// Mốc tự nhập phải nằm trong học kỳ, cho phép trước và sau học kỳ ngần này ngày (nghỉ lễ, nhập và công bố điểm giáp học kỳ).
+export const CALENDAR_TERM_MARGIN_DAYS = 31;
+
 // Nhãn từng tham số quy chế, dùng để ghi nhật ký thay đổi theo đúng tên ô trên form.
 export const REGULATION_FIELD_LABEL = {
   "grading.roundingStep": "Làm tròn điểm học phần đến",
@@ -66,13 +73,69 @@ export const RANKED_STANDING_LABEL: Record<RankedStanding, string> = {
 };
 
 export const REPORT_DEFINITIONS: ReportDefinition[] = [
-  { id: "moet", name: "Báo cáo thống kê sinh viên theo ngành", description: "Số sinh viên đang học, bảo lưu, thôi học theo ngành và khóa, theo mẫu báo cáo định kỳ của Bộ Giáo dục và Đào tạo.", audience: "Bộ Giáo dục và Đào tạo" },
-  { id: "warnings", name: "Danh sách cảnh báo học vụ", description: "Sinh viên bị cảnh báo theo mức, kèm CPA, số tín chỉ nợ và trạng thái xử lý của cố vấn.", audience: "Khoa, cố vấn học tập" },
-  { id: "registration", name: "Tỉ lệ đăng ký học phần", description: "Số lớp mở, chỉ tiêu, số đã đăng ký và tỉ lệ lấp đầy theo khoa và học phần.", audience: "Ban Giám hiệu, khoa" },
-  { id: "surveys", name: "Kết quả khảo sát giảng dạy", description: "Điểm trung bình theo câu hỏi, theo giảng viên và tỉ lệ phản hồi của từng lớp.", audience: "Phòng Khảo thí và Đảm bảo chất lượng" },
-  { id: "standing", name: "Xếp loại học lực", description: "Phân bố xếp loại học lực theo khoa và khóa sau khi công bố điểm học kỳ.", audience: "Ban Giám hiệu" },
-  { id: "graduation", name: "Danh sách xét tốt nghiệp", description: "Sinh viên đủ và chưa đủ điều kiện tốt nghiệp, kèm lý do chưa đạt.", audience: "Hội đồng xét tốt nghiệp" },
+  {
+    id: "moet",
+    name: "Báo cáo thống kê sinh viên theo ngành",
+    description: "Số sinh viên đang học, bảo lưu, thôi học theo ngành và khóa tại thời điểm xuất, theo mẫu báo cáo định kỳ của Bộ Giáo dục và Đào tạo.",
+    audience: "Bộ Giáo dục và Đào tạo",
+    usesTerm: false,
+    facultyBasis: "student",
+    permission: "reports.view",
+  },
+  {
+    id: "warnings",
+    name: "Danh sách cảnh báo học vụ",
+    description: "Sinh viên bị cảnh báo theo mức trong học kỳ, kèm CPA, số tín chỉ nợ và trạng thái xử lý của cố vấn.",
+    audience: "Khoa, cố vấn học tập",
+    usesTerm: true,
+    facultyBasis: "student",
+    permission: "reports.view",
+  },
+  {
+    id: "registration",
+    name: "Tỉ lệ đăng ký học phần",
+    description: "Số lớp mở, chỉ tiêu, số đã đăng ký và tỉ lệ lấp đầy của từng lớp trong học kỳ.",
+    audience: "Ban Giám hiệu, khoa",
+    usesTerm: true,
+    facultyBasis: "course",
+    permission: "reports.view",
+  },
+  {
+    id: "surveys",
+    name: "Kết quả khảo sát giảng dạy",
+    description: "Điểm trung bình và tỉ lệ phản hồi khảo sát của từng lớp trong học kỳ, theo giảng viên.",
+    audience: "Phòng Khảo thí và Đảm bảo chất lượng",
+    usesTerm: true,
+    facultyBasis: "course",
+    permission: "surveys.view",
+  },
+  {
+    id: "standing",
+    name: "Xếp loại học lực",
+    description: "Tín chỉ tích lũy, CPA và xếp loại học lực của sinh viên đang học, tính đến hết học kỳ đã chọn.",
+    audience: "Ban Giám hiệu",
+    usesTerm: true,
+    facultyBasis: "student",
+    permission: "reports.view",
+  },
+  {
+    id: "graduation",
+    name: "Danh sách xét tốt nghiệp",
+    description: "Hồ sơ xét tốt nghiệp hiện có: chứng chỉ, học phí, kỷ luật và trạng thái xét tại thời điểm xuất.",
+    audience: "Hội đồng xét tốt nghiệp",
+    usesTerm: false,
+    facultyBasis: "student",
+    permission: "graduation.manage",
+  },
 ];
+
+export const REPORT_FACULTY_BASIS_LABEL: Record<ReportDefinition["facultyBasis"], string> = {
+  student: "Lọc theo khoa của sinh viên",
+  course: "Lọc theo khoa quản lý học phần",
+};
+
+// Lịch sử xuất giữ ngần này ngày; tác vụ report-exports xóa dòng và tệp cũ hơn.
+export const REPORT_EXPORT_RETENTION_DAYS = 30;
 
 // Excel (.xlsx: tiêu đề in đậm, cố định hàng tiêu đề, ô số là số), PDF (in, gửi kèm văn bản) hoặc CSV (UTF-8 có BOM) cho phần mềm khác nhập lại.
 export const REPORT_FORMATS = ["xlsx", "pdf", "csv"] as const;
@@ -89,6 +152,7 @@ export const SETTINGS_CONSTRAINT_MESSAGE: Partial<Record<string, string>> = {
   regulations_rules_object: "Quy chế thiếu nhóm tham số bắt buộc.",
   calendar_events_date_order: "Ngày kết thúc phải sau hoặc trùng ngày bắt đầu.",
   calendar_events_term_id_terms_id_fk: "Học kỳ không còn tồn tại, tải lại trang.",
-  report_exports_done_fields: "Báo cáo đã tạo xong phải có tệp và số dòng.",
+  report_exports_done_fields: "Báo cáo đã tạo xong phải có tệp (khóa lưu trữ, tên, kiểu, kích thước) và số dòng.",
+  report_exports_storage_key_unique: "Tệp báo cáo bị trùng khóa lưu trữ. Xuất lại.",
   report_exports_finished_fields: "Báo cáo chỉ có thời điểm hoàn tất khi đã xong hoặc lỗi.",
 };

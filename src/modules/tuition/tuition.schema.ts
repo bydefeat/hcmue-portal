@@ -21,10 +21,24 @@ export const tuitionInvoices = pgTable(
     issuedAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
     dueDate: date({ mode: "string" }).notNull(),
     discount: money().notNull().default(0),
+    discountReason: text().notNull().default(""),
+    // Hóa đơn tạm tính (null) cập nhật theo đăng ký; Phòng Kế hoạch - Tài chính chốt học phí học kỳ thì đổi thành chính thức,
+    // sau đó thay đổi đăng ký thêm dòng điều chỉnh thay vì sửa dòng đã chốt.
+    finalizedAt: timestamp({ withTimezone: true }),
+    finalizedByLabel: text(),
     ...timestamps(),
   },
-  (table) => [unique("tuition_invoices_student_id_term_id_unique").on(table.studentId, table.termId), index().on(table.termId, table.dueDate), check("tuition_invoices_discount_non_negative", sql`${table.discount} >= 0`)],
+  (table) => [
+    unique("tuition_invoices_student_id_term_id_unique").on(table.studentId, table.termId),
+    index().on(table.termId, table.dueDate),
+    check("tuition_invoices_discount_non_negative", sql`${table.discount} >= 0`),
+    check("tuition_invoices_discount_reason", sql`${table.discount} = 0 OR btrim(${table.discountReason}) <> ''`),
+    check("tuition_invoices_finalized_fields", sql`(${table.finalizedAt} IS NULL) = (${table.finalizedByLabel} IS NULL)`),
+  ],
 );
+
+// Học phí theo tín chỉ, khoản thu cố định, điều chỉnh sau chốt (đơn giá âm khi giảm tín chỉ).
+export const invoiceLineKindEnum = pgEnum("invoice_line_kind", ["tuition", "fee", "adjustment"]);
 
 export const invoiceLines = pgTable(
   "invoice_lines",
@@ -34,6 +48,7 @@ export const invoiceLines = pgTable(
       .notNull()
       .references(() => tuitionInvoices.id, { onDelete: "cascade" }),
     position: smallint().notNull(),
+    kind: invoiceLineKindEnum().notNull().default("tuition"),
     label: text().notNull(),
     quantity: smallint().notNull(),
     unitPrice: money().notNull(),
@@ -44,11 +59,11 @@ export const invoiceLines = pgTable(
   (table) => [
     unique("invoice_lines_invoice_id_position_unique").on(table.invoiceId, table.position),
     check("invoice_lines_quantity_positive", sql`${table.quantity} > 0`),
-    check("invoice_lines_unit_price_non_negative", sql`${table.unitPrice} >= 0`),
+    check("invoice_lines_unit_price_non_negative", sql`${table.unitPrice} >= 0 OR ${table.kind} = 'adjustment'`),
   ],
 );
 
-// Nguồn ghi nhận: ngân hàng tự gạch nợ, nhập sao kê, cán bộ ghi tay.
+// Nguồn ghi nhận: ngân hàng tự gạch nợ (chưa tích hợp), nhập sao kê, cán bộ ghi tay. Không có giá trị mặc định: nơi ghi phải nói rõ nguồn.
 export const paymentSourceEnum = pgEnum("payment_source", ["bank-sync", "statement", "manual"]);
 
 export const payments = pgTable(
@@ -62,11 +77,11 @@ export const payments = pgTable(
     amount: money().notNull(),
     method: text().notNull(),
     reference: text().notNull(),
-    source: paymentSourceEnum().notNull().default("bank-sync"),
+    source: paymentSourceEnum().notNull(),
     note: text().notNull().default(""),
     createdAt: createdAt(),
     recordedByUserId: uuid().references(() => user.id, { onDelete: "set null" }),
-    recordedByLabel: text().notNull().default("Đối soát ngân hàng"),
+    recordedByLabel: text().notNull(),
     // Ghi nhầm thì hủy kèm lý do, không xóa dòng: còn dấu vết để đối chiếu với sao kê.
     voidedAt: timestamp({ withTimezone: true }),
     voidedByUserId: uuid().references(() => user.id, { onDelete: "set null" }),
@@ -112,4 +127,29 @@ export const tuitionFees = pgTable(
     ...timestamps(),
   },
   (table) => [unique("tuition_fees_academic_year_code_unique").on(table.academicYear, table.code), check("tuition_fees_amount_non_negative", sql`${table.amount} >= 0`)],
+);
+
+// Hoàn học phí khi số đã nộp vượt số phải nộp (hủy lớp, rút học phần sau khi đã nộp). Chỉ ghi nhận đã hoàn, không chuyển tiền tự động.
+export const tuitionRefunds = pgTable(
+  "tuition_refunds",
+  {
+    id: primaryId(),
+    invoiceId: uuid()
+      .notNull()
+      .references(() => tuitionInvoices.id, { onDelete: "restrict" }),
+    amount: money().notNull(),
+    refundedAt: timestamp({ withTimezone: true }).notNull(),
+    method: text().notNull(),
+    reference: text().notNull(),
+    note: text().notNull().default(""),
+    createdAt: createdAt(),
+    recordedByUserId: uuid().references(() => user.id, { onDelete: "set null" }),
+    recordedByLabel: text().notNull(),
+  },
+  (table) => [
+    index().on(table.invoiceId),
+    index().on(table.recordedByUserId),
+    check("tuition_refunds_amount_positive", sql`${table.amount} > 0`),
+    check("tuition_refunds_reference_not_blank", sql`btrim(${table.reference}) <> ''`),
+  ],
 );

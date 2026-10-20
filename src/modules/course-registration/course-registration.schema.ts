@@ -59,15 +59,19 @@ export const registrationPeriods = pgTable(
     cohorts: smallint().array().notNull(),
     opensAt: timestamp({ withTimezone: true }).notNull(),
     closesAt: timestamp({ withTimezone: true }).notNull(),
-    minCredits: smallint().notNull(),
-    maxCredits: smallint().notNull(),
+    // Hạn mức riêng của đợt, bỏ trống thì theo quy chế; đặt thì giới hạn thêm trên hạn mức quy chế.
+    minCredits: smallint(),
+    maxCredits: smallint(),
     ...timestamps(),
   },
   (table) => [
     index().on(table.termId),
     check("registration_periods_has_cohorts", sql`cardinality(${table.cohorts}) > 0`),
     check("registration_periods_time_order", sql`${table.opensAt} < ${table.closesAt}`),
-    check("registration_periods_credit_range", sql`${table.minCredits} >= 0 AND ${table.minCredits} <= ${table.maxCredits}`),
+    check(
+      "registration_periods_credit_range",
+      sql`(${table.minCredits} IS NULL OR ${table.minCredits} >= 0) AND (${table.maxCredits} IS NULL OR ${table.maxCredits} > 0) AND (${table.minCredits} IS NULL OR ${table.maxCredits} IS NULL OR ${table.minCredits} <= ${table.maxCredits})`,
+    ),
   ],
 );
 
@@ -104,6 +108,8 @@ export const classSections = pgTable(
     check("class_sections_enrolled_within_capacity", sql`${table.enrolledCount} >= 0 AND ${table.enrolledCount} <= ${table.capacity}`),
     check("class_sections_min_enrollment_range", sql`${table.minEnrollment} >= 0 AND ${table.minEnrollment} <= ${table.capacity}`),
     check("class_sections_date_order", sql`${table.startDate} < ${table.endDate}`),
+    // Lớp nháp, lớp đã hủy không còn sinh viên: hủy lớp phải rút hết sinh viên trước, lớp có sinh viên không về nháp được.
+    check("class_sections_enrolled_only_when_open", sql`${table.status} = 'open' OR ${table.enrolledCount} = 0`),
   ],
 );
 

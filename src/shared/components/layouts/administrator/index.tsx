@@ -33,6 +33,7 @@ type AdministratorLayoutProps = {
   portalLinks?: NavItem[];
   searchEntries: SearchEntry[];
   notifications: BellItem[];
+  unreadNotifications?: number;
   onMarkNotificationsRead?: MarkNotificationsRead;
   switcher?: RoleSwitcher;
   children: React.ReactNode;
@@ -64,6 +65,7 @@ export function AdministratorLayout({
   portalLinks = [],
   searchEntries,
   notifications,
+  unreadNotifications,
   onMarkNotificationsRead,
   switcher,
   children,
@@ -90,7 +92,7 @@ export function AdministratorLayout({
           </div>
           <span className="hidden shrink-0 text-sm text-muted 2xl:block">{termLabel}</span>
           <div className="ml-auto flex shrink-0 items-center gap-1 leading-normal md:ml-0">
-            <NotificationBell items={notifications} viewAllHref={ADMINISTRATOR_NOTIFICATIONS_HREF} onMarkRead={onMarkNotificationsRead} />
+            <NotificationBell items={notifications} unreadCount={unreadNotifications} viewAllHref={ADMINISTRATOR_NOTIFICATIONS_HREF} onMarkRead={onMarkNotificationsRead} />
             <div className="lg:hidden">
               <UserMenu user={user} links={accountLinks} switcher={switcher} compact />
             </div>

@@ -27,9 +27,11 @@ type TeachingAssignmentBoardProps = {
   lecturers: AssignableLecturer[];
   terms: { id: string; name: string }[];
   termId: string;
+  // Định mức giờ chuẩn theo học hàm, học vị (bảng lecturer_load_norms).
+  norms: Record<string, number>;
 };
 
-export function TeachingAssignmentBoard({ sections, lecturers, terms, termId }: TeachingAssignmentBoardProps) {
+export function TeachingAssignmentBoard({ sections, lecturers, terms, termId, norms }: TeachingAssignmentBoardProps) {
   const router = useRouter();
   const [messageApi, contextHolder] = message.useMessage();
   const [rows, setRows] = useState(sections);
@@ -38,7 +40,7 @@ export function TeachingAssignmentBoard({ sections, lecturers, terms, termId }: 
   const [faculty, setFaculty] = useState<string>();
   const [load, setLoad] = useState<LoadState>();
   const [onlyUnassigned, setOnlyUnassigned] = useState(false);
-  const workloads = useMemo(() => computeWorkloads(rows, lecturers), [rows, lecturers]);
+  const workloads = useMemo(() => computeWorkloads(rows, lecturers, norms), [rows, lecturers, norms]);
   const faculties = useMemo(() => [...new Set(lecturers.map((lecturer) => lecturer.faculty))], [lecturers]);
   const unassigned = rows.filter((section) => !section.lecturerId && section.status !== "cancelled").length;
 

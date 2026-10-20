@@ -159,12 +159,17 @@ export function createAuth(database: typeof db | Transaction) {
         disableSignUp: true,
         async sendVerificationOTP({ email, otp, type }) {
           const purpose = OTP_PURPOSE[type] ?? "xác minh tài khoản";
-          // Không chờ gửi xong: thời gian phản hồi không được để lộ email có tài khoản hay không.
+          // Không chờ gửi xong: thời gian phản hồi không được để lộ email có tài khoản hay không. Mã OTP không qua hàng đợi thư
+          // (không lưu mã vào DB) nên lỗi gửi phải ghi log ở đây để quản trị biết; log không có mã, không có tiêu đề thư.
           void sendMail({
             to: email,
             subject: `Mã ${purpose} HCMUE Portal: ${otp}`,
             text: `Mã ${purpose} của bạn là ${otp}. Mã có hiệu lực 10 phút, chỉ dùng được một lần.\n\nNếu bạn không yêu cầu mã này, bỏ qua thư; mật khẩu của bạn không thay đổi.`,
-          });
+          })
+            .then((result) => {
+              if (!result.ok) console.error(`[auth] Không gửi được thư mã ${purpose} (loại ${type}): ${result.error}`);
+            })
+            .catch((error: unknown) => console.error(`[auth] Không gửi được thư mã ${purpose} (loại ${type}):`, error instanceof Error ? error.message : error));
         },
       }),
       // Phải đứng cuối để Set-Cookie từ server action đi được ra trình duyệt.

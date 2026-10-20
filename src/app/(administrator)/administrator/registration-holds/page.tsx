@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
-import { inScope } from "@/modules/access/access.constant";
-import { requirePermission } from "@/modules/access/access.query";
+import { forbidden } from "next/navigation";
+import { can, inScope } from "@/modules/access/access.constant";
+import { getViewer } from "@/modules/access/access.query";
+import { HOLD_KIND_OPTIONS } from "@/modules/course-registration/course-registration.constant";
 import { RegistrationHoldTable } from "@/modules/course-registration/components/registration-hold-table";
 import { getRegistrationHolds } from "@/modules/course-registration/course-registration.query";
 import { getStudents } from "@/modules/users/users.query";
@@ -8,7 +10,10 @@ import { getStudents } from "@/modules/users/users.query";
 export const metadata: Metadata = { title: "Khóa đăng ký" };
 
 export default async function Page() {
-  const viewer = await requirePermission("registration.manage");
+  // Phòng Đào tạo quản lý mọi loại khóa; Phòng Kế hoạch - Tài chính (tuition.manage) đặt, gỡ khóa học phí.
+  const viewer = await getViewer();
+  if (!can(viewer, "registration.manage") && !can(viewer, "tuition.manage")) forbidden();
+  const manageableKinds = can(viewer, "registration.manage") ? HOLD_KIND_OPTIONS.map((option) => option.value) : (["tuition"] as const).slice();
   const [holds, students] = await Promise.all([getRegistrationHolds(), getStudents()]);
   const scopedHolds = holds.filter((hold) => inScope(viewer, hold.faculty));
   const blocking = scopedHolds.filter((hold) => hold.blocking && !hold.releasedAt).length;
@@ -24,6 +29,7 @@ export default async function Page() {
         .filter((student) => inScope(viewer, student.faculty) && student.status !== "graduated")
         .map(({ id, code, fullName, className, faculty }) => ({ id, code, fullName, className, faculty }))}
       studentHrefBase="/administrator/users/students/"
+      manageableKinds={manageableKinds}
     />
   );
 }

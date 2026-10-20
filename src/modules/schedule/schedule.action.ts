@@ -3,15 +3,13 @@
 import { and, eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/shared/libs/db.lib";
-import { actionError, actionFailure, actionOk, parseInput, type ActionResult } from "@/shared/libs/action.lib";
+import { actionFailure, actionOk, InputError, parseInput, type ActionResult } from "@/shared/libs/action.lib";
 import { classSections, enrollments } from "@/modules/course-registration/course-registration.schema";
 import { SCHEDULE_CONSTRAINT_MESSAGE } from "@/modules/schedule/schedule.constant";
 import { ATTENDANCE_SAVE_SCHEMA, type AttendanceSaveInput } from "@/modules/schedule/schedule.rule";
 import { attendanceRecords, classSessions } from "@/modules/schedule/schedule.schema";
 import type { SavedAttendance } from "@/modules/schedule/schedule.type";
 import { getCurrentLecturer } from "@/modules/users/users.query";
-
-class InputError extends Error {}
 
 // Giảng viên lưu điểm danh một buổi của lớp mình dạy. Buổi chưa tới ngày học không điểm danh được; danh sách phải đủ đúng
 // các sinh viên đang học lớp (buổi thực hành: sinh viên của nhóm đó). DB chặn thêm bằng trigger attendance_records_same_section.
@@ -62,7 +60,6 @@ export async function saveAttendance(input: AttendanceSaveInput): Promise<Action
       return session.sectionId;
     });
   } catch (error) {
-    if (error instanceof InputError) return actionError(error.message);
     return actionFailure(error, SCHEDULE_CONSTRAINT_MESSAGE);
   }
   revalidatePath(`/lecturer/classes/${sectionId}/attendance`);

@@ -4,7 +4,7 @@ import { createdAt, primaryId } from "@/shared/libs/db-column.lib";
 import { user } from "@/modules/authentication/authentication.schema";
 import type { AuditChange } from "@/modules/audit/audit.type";
 
-export const auditActionEnum = pgEnum("audit_action", ["create", "update", "delete", "approve", "reject", "publish", "lock", "assign", "export", "sign-in", "permission", "submit", "sign", "revoke", "return"]);
+export const auditActionEnum = pgEnum("audit_action", ["create", "update", "delete", "approve", "reject", "publish", "lock", "assign", "export", "sign-in", "permission", "submit", "sign", "revoke", "return", "cancel", "download"]);
 export const auditEntityTypeEnum = pgEnum("audit_entity_type", [
   "student",
   "lecturer",
@@ -23,6 +23,9 @@ export const auditEntityTypeEnum = pgEnum("audit_entity_type", [
   "staff",
   "course",
   "graduation",
+  "term",
+  "tuition",
+  "mail",
   "survey",
   "syllabus",
   "advising",

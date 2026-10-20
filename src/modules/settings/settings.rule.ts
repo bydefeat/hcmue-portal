@@ -1,9 +1,12 @@
 import { z } from "zod";
 import type { AuditChange } from "@/modules/audit/audit.type";
+import { dayjs } from "@/shared/libs/date.lib";
 import {
+  CALENDAR_TERM_MARGIN_DAYS,
   CEFR_LEVELS,
   DISCIPLINE_LEVEL_LABEL,
   DISCIPLINE_LEVELS,
+  MANUAL_CALENDAR_EVENT_KINDS,
   RANKED_STANDING_LABEL,
   REGULATION_FIELD_LABEL,
   REPORT_DEFINITIONS,
@@ -137,7 +140,8 @@ export function regulationChanges(before: RegulationRules, after: RegulationRule
 export const CALENDAR_EVENT_SCHEMA = z
   .object({
     termId: z.uuid("Chưa chọn học kỳ"),
-    kind: z.enum(["teaching", "registration", "exam", "grading", "holiday", "event"], "Chưa chọn loại"),
+    // Thời gian học kỳ, đợt đăng ký lấy từ trang Học kỳ; ở đây chỉ nhập mốc khác.
+    kind: z.enum(MANUAL_CALENDAR_EVENT_KINDS, "Chưa chọn loại (thời gian học kỳ, đợt đăng ký sửa ở trang Học kỳ)"),
     title: z.string().trim().min(1, "Chưa nhập tên mốc").max(160, "Tối đa 160 ký tự"),
     startDate: z.iso.date("Chưa chọn thời gian"),
     endDate: z.iso.date("Chưa chọn thời gian"),
@@ -162,7 +166,18 @@ export function reportCellText(cell: ReportCell): string | number {
   return typeof cell === "object" ? cell.text : cell;
 }
 
-// Tên tệp theo định dạng đã chọn lúc xuất; job cũ không lưu định dạng thì là CSV.
-export function reportFileName(reportKey: string, termCode: string, format: string | undefined) {
-  return `${reportKey}-${termCode}.${format === "xlsx" || format === "pdf" ? format : "csv"}`;
+// Tên tệp theo định dạng đã chọn lúc xuất: báo cáo theo học kỳ ghi mã học kỳ, báo cáo số liệu hiện tại ghi ngày xuất.
+export function reportFileName(reportKey: string, termCode: string | null, format: string | undefined, exportedOn?: string) {
+  const suffix = termCode ?? exportedOn ?? "hien-tai";
+  return `${reportKey}-${suffix}.${format === "xlsx" || format === "pdf" ? format : "csv"}`;
+}
+
+// Mốc tự nhập nằm trong học kỳ (cho phép giáp trước, sau CALENDAR_TERM_MARGIN_DAYS ngày); trả câu báo hoặc null.
+export function calendarEventTermReason(event: { startDate: string; endDate: string }, term: { startDate: string; endDate: string; shortName: string }) {
+  const from = dayjs(term.startDate).subtract(CALENDAR_TERM_MARGIN_DAYS, "day");
+  const to = dayjs(term.endDate).add(CALENDAR_TERM_MARGIN_DAYS, "day");
+  if (dayjs(event.startDate).isBefore(from, "day") || dayjs(event.endDate).isAfter(to, "day")) {
+    return `Mốc phải nằm trong ${term.shortName} (${dayjs(term.startDate).format("DD/MM/YYYY")} - ${dayjs(term.endDate).format("DD/MM/YYYY")}, giáp trước sau tối đa ${CALENDAR_TERM_MARGIN_DAYS} ngày).`;
+  }
+  return null;
 }

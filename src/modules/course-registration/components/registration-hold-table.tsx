@@ -42,11 +42,13 @@ type RegistrationHoldTableProps = {
   students: HoldStudentOption[];
   studentHrefBase: string;
   header: { title: string; description?: React.ReactNode };
+  // Loại khóa người xem được đặt, gỡ (Phòng Kế hoạch - Tài chính chỉ khóa học phí); server kiểm lại.
+  manageableKinds: HoldKind[];
 };
 
 const NETWORK_ERROR = "Chưa thực hiện được, kiểm tra kết nối rồi thử lại.";
 
-export function RegistrationHoldTable({ holds, students, studentHrefBase, header }: RegistrationHoldTableProps) {
+export function RegistrationHoldTable({ holds, students, studentHrefBase, header, manageableKinds }: RegistrationHoldTableProps) {
   const [messageApi, contextHolder] = message.useMessage();
   const [rows, setRows] = useState(holds);
   const [view, setView] = useState<View>("active");
@@ -168,7 +170,7 @@ export function RegistrationHoldTable({ holds, students, studentHrefBase, header
       fixed: "right",
       align: "right",
       render: (_, row) =>
-        row.releasedAt ? null : (
+        row.releasedAt || !manageableKinds.includes(row.kind) ? null : (
           <Button size="small" type="text" icon={<LockOpen size={14} aria-hidden className="text-zinc-500" />} onClick={() => setReleasing(row)}>
             Gỡ khóa
           </Button>
@@ -251,7 +253,7 @@ export function RegistrationHoldTable({ holds, students, studentHrefBase, header
               />
             </Form.Item>
             <Form.Item name="kind" label="Loại" rules={[{ required: true, message: "Chưa chọn loại" }]}>
-              <Select options={HOLD_KIND_OPTIONS} placeholder="Chọn loại khóa" />
+              <Select options={HOLD_KIND_OPTIONS.filter((option) => manageableKinds.includes(option.value))} placeholder="Chọn loại khóa" />
             </Form.Item>
             <Form.Item name="blocking" label="Chặn đăng ký học phần" valuePropName="checked" extra="Tắt nếu chỉ muốn nhắc sinh viên mà vẫn cho đăng ký.">
               <Switch />

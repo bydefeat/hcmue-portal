@@ -83,13 +83,16 @@ src/
 │   │       ├── class-sections/      # mở lớp học phần
 │   │       ├── users/               # /users → /users/students
 │   │       │   ├── students/        # quản lý SV
-│   │       │   │   └── [studentId]/ # hồ sơ + bảng điểm
+│   │       │   │   └── [studentCode]/ # hồ sơ + bảng điểm (mã SV trên URL)
 │   │       │   ├── lecturers/       # GV + phân quyền
 │   │       │   └── advisors/        # phân công cố vấn theo lớp sinh hoạt
 │   │       └── reports/             # thống kê, xếp loại học lực
 │   │           └── academic-warnings/
 │   │
-│   └── api/auth/[...all]/route.ts   # handler của better-auth
+│   └── api/
+│       ├── auth/[...all]/route.ts   # handler của better-auth
+│       ├── cron/[job]/route.ts      # tác vụ định kỳ (GET, POST), xem mục "Tác vụ định kỳ"
+│       └── files/                   # tải minh chứng đơn từ, đề thi (kiểm quyền, luồng từ kho tệp)
 │
 ├── modules/                         # NGHIỆP VỤ theo domain, dùng chung giữa các portal
 │   ├── authentication/              # mỗi module, ví dụ grades/:
@@ -163,6 +166,7 @@ Ngoại lệ: file mà Next.js quy định tên (`proxy.ts`, `layout.tsx`, `page
 **Ngoại lệ khi đọc DB thật:** query và action của một module được import `*.schema.ts` của module khác để join, và được gọi hai hàm kiểm quyền dùng chung: `requireSession()` / `requireRole()` (`@/modules/authentication/authentication.query`) và `requirePermission()` (`@/modules/access/access.query`).
 
 **Ngoại lệ đọc dữ liệu nghiệp vụ dùng chung** (một nguồn cho mọi module, không tự viết lại):
+- Đơn từ (`requests.action.ts`) đọc CPA qua `getStudentStandings()` của `grades.query` để kiểm điều kiện học vượt: nguồn CPA duy nhất (lần học cuối), không tự tính lại trong module đơn từ.
 - Quy chế: `getRegulation()` / `getRegulationAt(date)` (`@/modules/settings/settings.query`, cache theo request, cần phiên đăng nhập) và `regulationAt(executor, date?)` (`@/modules/settings/settings.lib`, dùng trong transaction, cron, không kiểm quyền). Không đọc bảng `regulations` trực tiếp.
 - Kết quả học tập: `loadTranscripts(executor, studentIds, options)`, `cumulativeResults(executor, options)`, `currentWarnings(executor, studentIds?)`, `currentWarningLevel(executor, studentId)` (`@/modules/grades/grades.lib`); hàm thuần `latestGrades`, `latestAttempts`, `computeStanding`, `letterOf`, `weightedScore` (`@/modules/grades/grades.rule`).
 - Chương trình đào tạo của sinh viên: `programsOf(executor, students)` + `programFor(map, student)`, `requiredCoursesOf(executor, programIds)` (`@/modules/curriculum/curriculum.lib`); trang dùng `getProgramOf(majorCode, cohort)` (`curriculum.query`).
@@ -241,7 +245,7 @@ Mỗi folder chỉ export `index.tsx`; các file con là chi tiết nội bộ c
 | Phân quyền | 2 lớp: `src/proxies/authentication.proxy.ts` chỉ xem có cookie session hay không (thiếu thì về `/authentication/sign-in?next=…`); `layout.tsx` của mỗi portal gọi `requireRole()` để kiểm tra session thật trên server, sai vai trò thì `forbidden()`. Layout và page render song song nên **mỗi query/action đọc dữ liệu thật phải tự kiểm session**, không dựa vào layout | Proxy chỉ nên làm việc nhẹ như redirect |
 | `proxy.ts` | Bắt buộc nằm ở `src/proxy.ts` (Next yêu cầu); file này chỉ ghép các proxy trong `src/proxies/` | Giữ được cách chia folder theo mục đích |
 | Vai trò | Cột `user.role`, nhiều vai trò cách nhau bởi dấu phẩy (`student`, `lecturer`, `admin`), đọc bằng `parseRoles()`. Cố vấn không phải vai trò tài khoản mà suy ra từ lớp sinh hoạt được phân công | Cố vấn luôn là giảng viên, nên nằm trong `(lecturer)` dưới dạng mục `advising/` có kiểm tra riêng |
-| Xác thực | `modules/authentication/authentication.lib.ts` (`betterAuth`, chỉ server), `authentication.query.ts` (`getSession()`, `requireRole()`). Nằm trong module chứ không ở `shared/libs` vì cần schema của module `authentication` | Mọi tài khoản đăng nhập bằng mã số qua plugin `username` (`login-name.lib.ts`): sinh viên dùng MSSV (nhận cả `50.01.104.013` và `5001104013`, lưu 10 chữ số), giảng viên và cán bộ dùng `lecturers.code` / `staff_members.code` (không phân biệt hoa thường, lưu `username` chữ thường `gv104011`, `displayUsername` chữ hoa). Mã giảng viên, cán bộ không đổi sau khi tạo (ô mã khóa khi sửa) nên username không cần đồng bộ. Đăng nhập bằng email bị chặn cho mọi tài khoản (`USE_LOGIN_CODE`, cùng một câu, không lộ email nào có tài khoản); email trường chỉ để nhận mã kích hoạt và đặt lại mật khẩu. Không có đăng ký, không đăng nhập bằng OTP. Quên mật khẩu: plugin `emailOTP` (gửi mã → kiểm mã → đặt mật khẩu mới, thu hồi mọi phiên). Rate limit lưu ở bảng `rate_limit`, đăng nhập 5 lần/phút/IP, theo IP từ `x-forwarded-for` nên khi triển khai phải đứng sau reverse proxy ghi đè header này. Thêm giới hạn theo tên đăng nhập (`authentication.lockout.ts`, bảng `sign_in_failures`): hook `before` của `/sign-in/username` tính lần thử vào bộ đếm trước khi so mật khẩu (một câu `INSERT ... ON CONFLICT`, request song song không lọt quá), sai 10 lần trong 15 phút thì khóa tạm 15 phút (`SIGN_IN_LOCKED`, 429, áp cả với tên không tồn tại), đăng nhập đúng, đặt lại mật khẩu hoặc admin mở khóa thì xóa bộ đếm; lúc khóa ghi log `[auth] Tạm khóa đăng nhập`. Tác vụ cron `sign-in-failures` dọn dòng hết hạn |
+| Xác thực | `modules/authentication/authentication.lib.ts` (`betterAuth`, chỉ server), `authentication.query.ts` (`getSession()`, `requireRole()`). Nằm trong module chứ không ở `shared/libs` vì cần schema của module `authentication` | Mọi tài khoản đăng nhập bằng mã số qua plugin `username` (`login-name.lib.ts`): sinh viên dùng MSSV (nhận cả `50.01.104.013` và `5001104013`, lưu 10 chữ số), giảng viên và cán bộ dùng `lecturers.code` / `staff_members.code` (không phân biệt hoa thường, lưu `username` chữ thường `gv104011`, `displayUsername` chữ hoa). Mã giảng viên, cán bộ không đổi sau khi tạo (ô mã khóa khi sửa) nên username không cần đồng bộ. Đăng nhập bằng email bị chặn cho mọi tài khoản (`USE_LOGIN_CODE`, cùng một câu, không lộ email nào có tài khoản); email trường chỉ để nhận mã kích hoạt và đặt lại mật khẩu. Không có đăng ký, không đăng nhập bằng OTP. Quên mật khẩu: plugin `emailOTP` (gửi mã → kiểm mã → đặt mật khẩu mới, thu hồi mọi phiên). Rate limit lưu ở bảng `rate_limit`, đăng nhập 5 lần/phút/IP, theo IP từ `x-forwarded-for` nên khi triển khai phải đứng sau reverse proxy ghi đè header này. Thêm giới hạn theo tên đăng nhập (`authentication.lockout.ts`, bảng `sign_in_failures`): hook `before` của `/sign-in/username` tính lần thử vào bộ đếm trước khi so mật khẩu (một câu `INSERT ... ON CONFLICT`, request song song không lọt quá), sai 10 lần trong 15 phút thì khóa tạm 15 phút (`SIGN_IN_LOCKED`, 429, áp cả với tên không tồn tại), đăng nhập đúng, đặt lại mật khẩu hoặc admin mở khóa thì xóa bộ đếm; lúc khóa ghi log `[auth] Tạm khóa đăng nhập`. Tác vụ cron `sign-in-failures` dọn dòng hết hạn. Phiên đọc từ cookie cache 60 giây (`session.cookieCache`, JWE) nên khóa tài khoản, thu hồi phiên có hiệu lực trong tối đa 60 giây với request chỉ đọc cookie |
 | MSSV | Lưu 10 chữ số liền; dữ liệu đưa ra giao diện đã định dạng `NN.NN.NNN.NNN` như thẻ sinh viên (`formatStudentCode`); ô nhập nhận cả hai dạng. Email và nội dung chuyển khoản học phí dùng 10 chữ số | Tìm kiếm qua `normalizeSearch()` bỏ dấu chấm nên gõ dạng nào cũng ra |
 | Sau đăng nhập | Chuyển hướng theo role (khai báo trong `shared/constants/role.constant.ts`): admin → `/administrator`, lecturer → `/lecturer`, student → `/application/dashboard` | |
 | State | Dữ liệu từ server: server component + server action. `zustand` chỉ giữ state UI | Không phải đồng bộ dữ liệu server ở hai nơi |
@@ -267,9 +271,10 @@ Mỗi folder chỉ export `index.tsx`; các file con là chi tiết nội bộ c
 | Thành phần | Nơi đặt | Cách dùng |
 |---|---|---|
 | Phân quyền | `modules/access` | Mỗi vai trò là một tập quyền (`Permission`) và phạm vi `university` hoặc `faculty`. Trang admin gọi `requirePermission("...")` ở dòng đầu, thiếu quyền thì `forbidden()` hiện `app/forbidden.tsx` (cần `experimental.authInterrupts`). Dữ liệu có khoa thì lọc bằng `inScope(viewer, faculty)`. Menu admin lọc theo `permission` của từng mục trong `navigation.constant.ts` |
-| Xem thử vai trò | `access.action.ts` (`switchDemoViewer`) | Cookie `hcmue-demo-admin-role` chọn một bản ghi phân quyền mẫu; đổi trong menu tài khoản. Bỏ khi có đăng nhập thật |
-| Đơn từ, quy trình duyệt | `modules/requests` | Mỗi loại đơn khai báo chuỗi bước (`REQUEST_KINDS`) và hạn xử lý từng bước. `requestView()` suy ra trạng thái và quá hạn, `decideStep()` chuyển bước. `RequestInbox` dùng chung cho 3 cổng (`mode` = `process` hoặc `own`) |
-| Thông báo | `modules/notifications` + `shared/components/ui/notification-bell.tsx` | Layout của mỗi portal nhận danh sách đã ghép nhãn, trang `/…/notifications` dùng `NotificationList` |
+| Đổi vai trò đang dùng | `access.action.ts` (`switchActiveRole`) | Tài khoản có nhiều vai trò trong `role_assignments` chọn vai trò đang dùng ở menu tài khoản; lưu ở cookie `hcmue-active-role`, chỉ nhận vai trò của chính tài khoản đó |
+| Đơn từ, quy trình duyệt | `modules/requests` | Xem mục "Đơn từ" bên dưới |
+| Thông báo cá nhân | `modules/notifications` + `shared/components/ui/notification-bell.tsx` | Layout của mỗi cổng nhận 20 thông báo mới nhất cho chuông và số chưa đọc đếm bằng SQL (`getUnreadNotificationCount`); trang `/…/notifications` (`NotificationList`) tải từng trang theo con trỏ ("Xem thêm"), lọc loại, chưa đọc, xóa, đánh dấu đọc hết. Tác vụ `notifications-cleanup` xóa thông báo đã đọc quá 180 ngày, chưa đọc quá 365 ngày |
+| Thông báo chung | `modules/announcements` | Đối tượng có cấu trúc (`audience` jsonb: sinh viên theo khóa, ngành, khoa; giảng viên theo khoa). Trang công khai chỉ hiện thông báo có gửi sinh viên; cổng sinh viên, giảng viên (`/application/announcements`, `/lecturer/announcements`) hiện theo đúng đối tượng; quá hạn chót tự rời danh sách; lượt xem tăng sau khi trả trang chi tiết (`after()`). Đăng ngay có thể gửi kèm thông báo cá nhân, email (một lần, `notified_at`); bài hẹn giờ gửi bằng tác vụ `announcement-notifications`. Đã đăng thì không lưu nháp lại được, chỉ gỡ |
 | Nhật ký thao tác | `modules/audit` | Mỗi thao tác ghi ai, lúc nào, đối tượng, giá trị trước và sau |
 | Quy chế, lịch năm học | `modules/settings` | Nguồn duy nhất của mọi tham số quy chế (xem mục "Quy chế đào tạo" bên dưới); hằng số trong code chỉ là giá trị mặc định khi seed |
 | Khảo thí, phòng học, khảo sát | `modules/exams`, `modules/facilities`, `modules/surveys` | Dữ liệu dùng chung cho cả 3 cổng |
@@ -282,9 +287,9 @@ Sinh tự động từ `src/app/**/page.tsx` (đường dẫn redirect như `/ap
 |---|---|---|
 | Công khai | 4 | `/`, `/about`, `/announcements`, `/announcements/[slug]` |
 | Xác thực | 3 | `/authentication`, `/authentication/forgot-password`, `/authentication/sign-in` |
-| Sinh viên | 14 | `/application`, `/application/curriculum`, `/application/dashboard`, `/application/exams`, `/application/grades`, `/application/notifications`, `/application/profile`, `/application/registration`, `/application/registration/history`, `/application/requests`, `/application/schedule`, `/application/study-plan`, `/application/surveys`, `/application/tuition` |
-| Giảng viên | 19 | `/lecturer`, `/lecturer/advising`, `/lecturer/advising/academic-warnings`, `/lecturer/advising/appointments`, `/lecturer/advising/students`, `/lecturer/advising/students/[studentId]`, `/lecturer/advising/study-plans`, `/lecturer/classes`, `/lecturer/classes/[classId]`, `/lecturer/classes/[classId]/announcements`, `/lecturer/classes/[classId]/attendance`, `/lecturer/classes/[classId]/grading`, `/lecturer/classes/[classId]/syllabus`, `/lecturer/exams`, `/lecturer/notifications`, `/lecturer/profile`, `/lecturer/requests`, `/lecturer/schedule`, `/lecturer/workload` |
-| Phòng Đào tạo | 32 | `/administrator`, `/administrator/announcements`, `/administrator/class-sections`, `/administrator/courses`, `/administrator/decisions`, `/administrator/exams`, `/administrator/exams/eligibility`, `/administrator/grade-publishing`, `/administrator/graduation`, `/administrator/notifications`, `/administrator/profile`, `/administrator/programs`, `/administrator/programs/[programId]`, `/administrator/registration-holds`, `/administrator/registration-monitor`, `/administrator/reports`, `/administrator/reports/academic-warnings`, `/administrator/reports/exports`, `/administrator/reports/surveys`, `/administrator/requests`, `/administrator/rooms`, `/administrator/settings`, `/administrator/settings/access`, `/administrator/settings/audit-log`, `/administrator/settings/calendar`, `/administrator/teaching-assignments`, `/administrator/terms`, `/administrator/users`, `/administrator/users/advisors`, `/administrator/users/lecturers`, `/administrator/users/students`, `/administrator/users/students/[studentId]` |
+| Sinh viên | 19 | `/application`, `/application/advising`, `/application/announcements`, `/application/announcements/[slug]`, `/application/classes`, `/application/classes/[classId]`, `/application/curriculum`, `/application/dashboard`, `/application/exams`, `/application/grades`, `/application/notifications`, `/application/profile`, `/application/registration`, `/application/registration/history`, `/application/requests`, `/application/schedule`, `/application/study-plan`, `/application/surveys`, `/application/tuition` |
+| Giảng viên | 21 | `/lecturer`, `/lecturer/advising`, `/lecturer/advising/academic-warnings`, `/lecturer/advising/appointments`, `/lecturer/advising/students`, `/lecturer/advising/students/[studentId]`, `/lecturer/advising/study-plans`, `/lecturer/announcements`, `/lecturer/announcements/[slug]`, `/lecturer/classes`, `/lecturer/classes/[classId]`, `/lecturer/classes/[classId]/announcements`, `/lecturer/classes/[classId]/attendance`, `/lecturer/classes/[classId]/grading`, `/lecturer/classes/[classId]/syllabus`, `/lecturer/exams`, `/lecturer/notifications`, `/lecturer/profile`, `/lecturer/requests`, `/lecturer/schedule`, `/lecturer/workload` |
+| Phòng Đào tạo | 35 | `/administrator`, `/administrator/announcements`, `/administrator/class-sections`, `/administrator/courses`, `/administrator/decisions`, `/administrator/exams`, `/administrator/exams/eligibility`, `/administrator/grade-publishing`, `/administrator/graduation`, `/administrator/notifications`, `/administrator/profile`, `/administrator/programs`, `/administrator/programs/[programId]`, `/administrator/registration-holds`, `/administrator/registration-monitor`, `/administrator/reports`, `/administrator/reports/academic-warnings`, `/administrator/reports/exports`, `/administrator/reports/surveys`, `/administrator/requests`, `/administrator/rooms`, `/administrator/settings`, `/administrator/settings/access`, `/administrator/settings/audit-log`, `/administrator/settings/calendar`, `/administrator/teaching-assignments`, `/administrator/terms`, `/administrator/users`, `/administrator/users/advisors`, `/administrator/users/lecturers`, `/administrator/users/students`, `/administrator/users/students/[studentCode]`, `/administrator/settings/mail`, `/administrator/tuition` (danh sách này lập trước đợt 2; các trang thêm sau như quyết định, xét tốt nghiệp xem thẳng trong `src/app`) |
 
 ## 8. Quy tắc đăng ký học phần
 
@@ -322,13 +327,14 @@ Giờ tiết học ở `shared/constants/period.constant.ts`: 12 tiết, mỗi t
 
 | Trigger | Việc |
 |---|---|
-| `enrollments_sync_counts` | Thêm, hủy, đổi nhóm đăng ký thì tự cộng trừ `enrolled_count` của lớp, nhóm thực hành và `taken_count` của chỗ dành riêng. Vượt sức chứa thì `CHECK` chặn và hủy cả giao dịch; hai người tranh chỗ cuối thì `UPDATE` khóa dòng lớp nên chỉ một người được |
+| `enrollments_sync_counts` | Thêm, hủy, đổi nhóm đăng ký thì tự cộng trừ `enrolled_count` của lớp, nhóm thực hành và `taken_count` của chỗ dành riêng. Vượt sức chứa thì `CHECK` chặn và hủy cả giao dịch. Giữ chỗ: action đăng ký khóa dòng lớp bằng `SELECT ... FOR UPDATE` rồi mới ghi đăng ký, trigger cộng số đã đăng ký trong cùng giao dịch, nên hai người tranh chỗ cuối thì người sau chờ và thấy lớp đã đầy |
 | `grade_components_weights_total_100`, `syllabus_assessments_weights_total_100` | Tổng trọng số phải bằng 100, kiểm tra lúc commit (`DEFERRABLE INITIALLY DEFERRED`) để sửa nhiều thành phần trong một giao dịch |
 | `enrollments_guard` (`0004`) | Không đăng ký vào lớp đã hủy; lớp có nhóm thực hành thì phải chọn nhóm |
 | `grade_scores_same_section`, `attendance_records_same_section` | Điểm và điểm danh chỉ ghi cho sinh viên của chính lớp đó |
 | `survey_submissions_enrolled` | Chỉ sinh viên đang học lớp mới nộp khảo sát lớp đó |
 | `reserved_seats_within_capacity` | Tổng chỗ dành riêng không vượt sĩ số, kể cả khi giảm sĩ số lớp (kiểm tra lúc commit) |
 | `terms_no_overlap` (`EXCLUDE USING gist`) | Hai học kỳ không chồng khoảng ngày |
+| `exam_proctor_swap_requests` (bảng) | Đề nghị đổi ca coi thi giữa hai giảng viên, chờ Phòng Khảo thí duyệt |
 
 Trigger báo lỗi bằng `RAISE ... USING CONSTRAINT = '<tên>'` nên `pgErrorMessage()` tra được câu tiếng Việt như ràng buộc thường.
 
@@ -364,7 +370,7 @@ Chạy cục bộ:
 cp .env.example .env              # sửa DEFEAT_POSTGRES_PRIMARY_DATABASE_CONNECTION_URL nếu cần
 npm run db:migrate                # tạo bảng trên DB trắng
 npm run db:seed                   # dữ liệu mẫu + 3 tài khoản (mật khẩu mặc định Hcmue@2026)
-npm run test:db                   # 25 test: ràng buộc (tranh chỗ cuối, trùng đăng ký, trọng số 100) và pg-error.lib
+npm run test:db                   # test trên DB thật: ràng buộc, quy tắc nghiệp vụ, action gọi trong kho request của Next
 npm run db:check                  # migration nhất quán
 npm run db:studio                 # xem dữ liệu
 ```
@@ -400,20 +406,78 @@ Phân quyền cổng quản trị đọc từ DB: `getViewer()` lấy các vai t
 | Kho tệp | `shared/libs/storage.lib.ts` (server-only): `putFile`, `openFile` (luồng + kích thước), `readFile`, `deleteFile`, `deleteFiles`, `listFiles`, `withStoredFiles`, `sweepOrphanFiles`. Nơi gọi chỉ biết khóa. `DEFEAT_STORAGE_DRIVER=local` (mặc định) ghi đĩa dưới `DEFEAT_STORAGE_DIRECTORY` (mặc định `./storage`, đã gitignore); `=s3` ghi vào bucket S3-compatible (AWS S3, Cloudflare R2, MinIO), khóa đối tượng trùng khóa lưu trữ, cấu hình `DEFEAT_S3_*` (env.lib bắt buộc đủ khi chọn s3) |
 | Client S3 | `shared/libs/s3.lib.ts`: PutObject, GetObject (trả luồng, hết giờ chỉ tính tới lúc có header), DeleteObject, ListObjectsV2 (đi hết trang bằng continuation-token), ký AWS SigV4 bằng `node:crypto`. Không dùng `@aws-sdk/client-s3` (chỉ cần 4 lệnh, SDK kéo vài chục gói). Kiểm bằng 3 chữ ký mẫu của tài liệu AWS và S3 giả lập tự kiểm chữ ký trong `tests/storage-s3.test.ts`. Path-style (`DEFEAT_S3_FORCE_PATH_STYLE=true`) cho MinIO; virtual-hosted cho AWS, R2 |
 | Quét virus | `shared/libs/virus-scan.lib.ts`: clamd qua TCP (`DEFEAT_CLAMAV_HOST`, `DEFEAT_CLAMAV_PORT`, lệnh `zINSTREAM`, khúc 64 KB). `withStoredFiles` quét mọi tệp trước khi ghi kho; có mã độc hoặc clamd không trả lời (đã cấu hình) thì ném `UploadRejectedError`, `actionFailure` trả nguyên câu báo tiếng Việt, không tệp nào được ghi. Bỏ trống host thì không quét (máy phát triển); production nên bật. `putFile` không quét (dùng cho seed) |
-| Khóa | Luôn do server sinh: `requests/<uuid v7>`, `exams/<uuid v7>` (`newStorageKey`). Tên tệp người dùng chỉ lưu ở cột `file_name` để hiện và đặt tên khi tải; khóa sai mẫu (`../x`, đường dẫn tuyệt đối) bị từ chối |
+| Khóa | Luôn do server sinh: `requests/<uuid v7>` (minh chứng đơn từ), `exams/<uuid v7>` (đề thi, đáp án), `reports/<uuid v7>` (tệp báo cáo đã xuất) (`newStorageKey`; regex khóa trong `storage.lib.ts` chỉ nhận ba thư mục này). Tên tệp người dùng chỉ lưu ở cột `file_name` để hiện và đặt tên khi tải; khóa sai mẫu (`../x`, đường dẫn tuyệt đối) bị từ chối |
 | Kiểm tệp | `shared/libs/upload.lib.ts` (hàm thuần, dùng cả client lẫn server): đuôi thuộc danh sách cho phép **và** chữ ký đầu tệp khớp (PDF `%PDF-`, PNG, JPG, docx là zip), kích thước. Kiểu tệp lưu xuống lấy theo danh sách, không theo kiểu trình duyệt gửi. Minh chứng đơn từ: PDF, ảnh, docx, 10 MB/tệp, 25 MB/đơn, 5 tệp (DB chặn 10 MB). Đề thi, đáp án: PDF, 20 MB/tệp (DB chặn 20 MB) |
 | Tải lên | Server action nhận `FormData` (dữ liệu form là JSON ở ô `input`, tệp ở ô riêng). `serverActions.bodySizeLimit` và `proxyClientMaxBodySize` đặt 41 MB trong `next.config.ts` (proxy đệm thân request của trang cổng, quá giới hạn thì thân bị cắt im lặng) |
 | Duyệt đề | Phòng Khảo thí (`exams.manage`, đúng phạm vi khoa) **Duyệt** (`approved`, khóa đề) hoặc **Trả lại** kèm lý do (`returned`, giảng viên thấy lý do và nộp lại, nộp lại thì về `submitted`). Cột `paper_reviewed_by_user_id`, `paper_reviewed_at`, `paper_return_reason`; check `exam_sessions_paper_review_fields`, `exam_sessions_paper_return_reason` (so `paper_status::text` vì giá trị enum mới chưa dùng được trong cùng giao dịch migration); trigger `exam_sessions_paper_locked` chặn đổi tệp, trạng thái đề đã duyệt. Logic trong `exams.lib.ts` (`recordPaperSubmission`, `decidePaperReview`: ghi nhật ký, báo giảng viên) để test được không cần request |
 | Giao dịch | `withStoredFiles(files, work)`: quét virus, ghi tệp trước, chạy giao dịch; giao dịch hỏng thì xóa tệp vừa ghi. Nộp lại đề thì xóa tệp cũ sau commit. Tiến trình chết giữa chừng hoặc xóa không được thì tác vụ `POST /api/cron/orphan-files` xóa tệp không còn dòng DB nào trỏ tới (chỉ tệp cũ hơn 1 giờ) |
-| Tải xuống | Route handler `/api/files/requests/[attachmentId]` (người xem được đơn: người gửi, cố vấn khi đơn có bước cố vấn, giảng viên được giao bước, cán bộ có bước thuộc vai trò mình trong phạm vi khoa) và `/api/files/exams/[sessionId]/[paper|answer-key]` (giảng viên dạy lớp, cán bộ có `exams.manage` trong phạm vi khoa). Không quyền trả 404. Nội dung đi thành luồng từ `openFile` (cả với S3: app đọc bucket rồi chuyển cho trình duyệt, không lộ URL hay URL ký sẵn của bucket). Header: `Content-Disposition` RFC 6266/5987 giữ tên tiếng Việt, `Content-Type` đã lưu, `Cache-Control: private, no-store`, `X-Content-Type-Options: nosniff` |
+| Tải xuống | Route handler `/api/files/requests/[attachmentId]` (cùng hàm quyền xem đơn với danh sách, chi tiết: người gửi, giảng viên có bước cố vấn, giảng viên đang giao cho mình, cán bộ có quyền bước `requests.step.*` trong phạm vi khoa, Phòng Đào tạo có `requests.supervise`, người đã xử lý một bước của đơn) và `/api/files/exams/[sessionId]/[paper|answer-key]` (giảng viên dạy lớp, cán bộ có `exams.manage` trong phạm vi khoa). Không quyền trả 404. Nội dung đi thành luồng từ `openFile` (cả với S3: app đọc bucket rồi chuyển cho trình duyệt, không lộ URL hay URL ký sẵn của bucket). Header: `Content-Disposition` RFC 6266/5987 giữ tên tiếng Việt, `Content-Type` đã lưu, `Cache-Control: private, no-store`, `X-Content-Type-Options: nosniff` |
 | Seed | Mỗi minh chứng, đề mẫu có một tệp PDF nhỏ "Tệp mẫu" (`scripts/seed/sample-file.ts`), khóa tất định theo id mock; seed xóa tệp cũ trong kho vì DB vừa bị xóa sạch |
+
+### Đơn từ
+
+| Việc | Cách làm |
+|---|---|
+| Quy trình | Mỗi loại đơn khai báo chuỗi bước (`REQUEST_KINDS`: vai trò bước, nhãn, số ngày làm việc). `initialSteps`, `planDecision` (rule) tính bước đến lượt và hạn: cộng ngày làm việc, bỏ thứ 7, chủ nhật và ngày nghỉ lễ (mốc "Nghỉ lễ" của lịch năm học). `requestView()` suy ra trạng thái (chờ tiếp nhận, đang xử lý, cần bổ sung, đã duyệt, từ chối, đã hủy) |
+| Ai xử lý bước nào | Bước cố vấn, giảng viên: người chịu trách nhiệm tính lúc đọc (`effectiveAssignee`): bước đã xử lý hoặc đã được chuyển giữ người đã lưu; còn lại đi theo cố vấn hiện tại của lớp sinh hoạt, giảng viên hiện tại của lớp học phần (`academic_requests.class_section_id`), nên đổi cố vấn, đổi giảng viên lớp thì bước đang chờ tự sang người mới. Bước của khoa, Phòng Đào tạo, Phòng Khảo thí: theo quyền `requests.step.faculty`, `requests.step.academic-office`, `requests.step.exam-office` của vai trò đang dùng (cùng `requests.process`), trong phạm vi khoa của vai trò; không theo khóa vai trò, vai trò tự tạo được cấp quyền bước thì xử lý được |
+| Một hàm quyền | `requestRows` + `visibleTo` (`requests.lib.ts`) dùng cho danh sách ở 3 cổng, chi tiết, tải minh chứng: người gửi; giảng viên có bước giao cho mình; cán bộ có quyền bước và đơn có bước đó trong phạm vi khoa; `requests.supervise` thấy mọi đơn trong phạm vi; ai đã xử lý một bước vẫn xem lại được. Cờ `request.can` (xử lý, yêu cầu bổ sung, xử lý thay, chuyển người, hủy, bổ sung, gửi lại) tính bằng cùng `stepDeniedReason`, `superviseDeniedReason` với action |
+| Bước kẹt | Phòng Đào tạo (`requests.supervise`) chuyển bước cố vấn, giảng viên chưa xử lý cho giảng viên khác (`reassigned_at`, người chuyển, lý do) hoặc xử lý thay bất kỳ bước đang chờ: đồng ý, không đồng ý, bỏ qua (`skipped`), luôn ghi lý do (`on_behalf`). Khóa ngoại `request_steps.assignee_lecturer_id` giữ `ON DELETE restrict`: bước đã xử lý là dấu vết; muốn xóa giảng viên thì chuyển các bước đang chờ trước |
+| Thông báo | Gửi đơn, chuyển bước, bổ sung: báo người có bước kế tiếp (giảng viên qua `notifyLecturers`, cán bộ có quyền bước trong phạm vi khoa qua `notifyUsers(..., "administrator", ...)`, đường dẫn `?open=<id>` mở sẵn đơn) và báo người gửi. Tác vụ `request-sla` nhắc bước còn dưới 24 giờ và bước quá hạn, mỗi loại một lần cho mỗi lượt (`due_soon_notified_at`, `overdue_notified_at`) |
+| Bổ sung, gửi lại | Người xử lý yêu cầu bổ sung (`request_supplements`, mỗi đơn tối đa một yêu cầu mở): đơn "cần bổ sung", bước dừng tính hạn; người gửi thêm tệp, ghi chú thì bước tính hạn lại từ lúc bổ sung. Đơn bị từ chối gửi lại được một lần (`resubmitted_from_id` unique): đơn mới cùng loại, nội dung, lớp, chép minh chứng đã chọn sang khóa mới, kiểm lại điều kiện |
+| Điều kiện gửi | Kiểm ở server theo quy chế đang áp dụng: phúc khảo khi bảng điểm lớp đã công bố và trong `workflow.regradeWindowDays` ngày; sửa điểm khi bảng điểm đã chốt, duyệt hoặc công bố; học vượt khi CPA từ `credits.overloadMinCpa`, số tín chỉ trên `credits.maxPerTerm` (tối đa thêm `OVERLOAD_EXTRA_CREDITS`); hoãn thi, bảo lưu, công nhận điểm, sửa điểm bắt buộc có minh chứng. Cột điểm cuối kỳ cho đơn phúc khảo tìm theo khóa `final` hoặc nhãn "cuối kỳ" (`pickFinalComponent`), không phân định được thì ghi "không xác định" |
+| Kết quả đơn | `onRequestApproved(kind, request, tx)` chạy khi đơn duyệt xong bước cuối, trong cùng transaction (`REQUEST_APPROVED_HANDLERS`, hiện chưa có handler: kết quả đơn chưa tự đổi điểm, hạn mức, W, quyết định) |
+| Nhật ký | Gửi, đồng ý, từ chối, xử lý thay, chuyển người, yêu cầu bổ sung, bổ sung, hủy đơn đều ghi `recordAudit` (đối tượng `request`) |
+
+### Báo cáo
+
+Xuất báo cáo (`requestReportExport`): đọc bảng dữ liệu, dựng tệp đúng định dạng một lần (`buildReportFile`: Excel, PDF, CSV có BOM), lưu vào kho (`reports/<uuid>`), ghi lịch sử với số dòng, tên tệp, kiểu, kích thước của chính tệp đó; tải về (`downloadReportExport`) đọc lại đúng tệp đã lưu. Quyền: `reports.view` và quyền riêng của báo cáo (khảo sát `surveys.view`, xét tốt nghiệp `graduation.manage`); cán bộ theo khoa chỉ xuất, tải báo cáo khoa mình. Mỗi báo cáo ghi rõ lọc theo khoa của sinh viên hay khoa quản lý học phần; báo cáo số liệu hiện tại (thống kê sinh viên, xét tốt nghiệp) không theo học kỳ, tên tệp ghi ngày xuất. Xuất, tải đều ghi nhật ký (`export`, `download`). Lịch sử giữ 30 ngày (tác vụ `report-exports`).
+
+### Nhật ký thao tác
+
+Trang `/administrator/settings/audit-log` (`audit.view`) lọc ở DB theo thời gian (ngày giờ Việt Nam), người thực hiện (tên lưu lúc ghi), thao tác, loại đối tượng, một đối tượng, nội dung; phân trang 50 dòng. Lịch sử của một đối tượng (hồ sơ sinh viên) cần quyền xem đối tượng đó trong phạm vi khoa; lịch sử của chính mình ai cũng xem được. Tác vụ `audit-cleanup` xóa bản ghi cũ hơn `DEFEAT_AUDIT_RETENTION_DAYS` (mặc định 1095 ngày).
+
+### Tác vụ định kỳ
+
+Route `/api/cron/<tác vụ>` nhận GET (Vercel Cron) và POST, header `Authorization: Bearer <khóa>` với khóa là `DEFEAT_CRON_SECRET` hoặc `CRON_SECRET` (từ 32 ký tự; chưa đặt khóa nào thì mọi lời gọi 401). Tác vụ lỗi trả 500 với tên tác vụ, chi tiết chỉ ghi log máy chủ. Mọi tác vụ chạy lặp lại không sinh trùng.
+
+| Tác vụ | Việc | Tần suất đề nghị |
+|---|---|---|
+| `mail-outbox` | Gửi thư đến hạn, gửi lại thư lỗi, xóa thư đã gửi quá 30 ngày | 1 đến 5 phút |
+| `class-announcements` | Báo sinh viên thông báo lớp hẹn giờ đã tới giờ | 5 phút |
+| `announcement-notifications` | Gửi thông báo cá nhân, email của thông báo chung hẹn giờ đã tới giờ | 5 phút |
+| `request-sla` | Nhắc bước đơn sắp hết hạn, quá hạn | Mỗi giờ |
+| `academic-warnings` | Sinh cảnh báo học vụ học kỳ chính vừa kết thúc | Mỗi ngày |
+| `decision-effects` | Quyết định đã ký tới ngày hiệu lực thì đổi tình trạng sinh viên | Mỗi ngày, sau 0 giờ |
+| `sign-in-failures` | Dọn bộ đếm đăng nhập sai đã hết hạn | Mỗi ngày |
+| `orphan-files` | Xóa tệp minh chứng, đề thi không còn dòng DB trỏ tới | Mỗi ngày |
+| `notifications-cleanup` | Xóa thông báo đã đọc quá 180 ngày, chưa đọc quá 365 ngày | Mỗi ngày |
+| `report-exports` | Xóa lịch sử xuất báo cáo quá 30 ngày và tệp, tệp báo cáo mồ côi | Mỗi ngày |
+| `audit-cleanup` | Xóa nhật ký cũ hơn số ngày giữ | Mỗi tuần |
+
+Crontab trên máy chủ (giờ Việt Nam):
+
+```cron
+*/5 * * * *  curl -fsS -X POST -H "Authorization: Bearer $CRON_SECRET" https://portal.example/api/cron/mail-outbox
+*/5 * * * *  curl -fsS -X POST -H "Authorization: Bearer $CRON_SECRET" https://portal.example/api/cron/class-announcements
+*/5 * * * *  curl -fsS -X POST -H "Authorization: Bearer $CRON_SECRET" https://portal.example/api/cron/announcement-notifications
+7 * * * *    curl -fsS -X POST -H "Authorization: Bearer $CRON_SECRET" https://portal.example/api/cron/request-sla
+10 0 * * *   curl -fsS -X POST -H "Authorization: Bearer $CRON_SECRET" https://portal.example/api/cron/decision-effects
+20 1 * * *   curl -fsS -X POST -H "Authorization: Bearer $CRON_SECRET" https://portal.example/api/cron/academic-warnings
+30 2 * * *   curl -fsS -X POST -H "Authorization: Bearer $CRON_SECRET" https://portal.example/api/cron/sign-in-failures
+40 2 * * *   curl -fsS -X POST -H "Authorization: Bearer $CRON_SECRET" https://portal.example/api/cron/orphan-files
+50 2 * * *   curl -fsS -X POST -H "Authorization: Bearer $CRON_SECRET" https://portal.example/api/cron/notifications-cleanup
+55 2 * * *   curl -fsS -X POST -H "Authorization: Bearer $CRON_SECRET" https://portal.example/api/cron/report-exports
+15 3 * * 0   curl -fsS -X POST -H "Authorization: Bearer $CRON_SECRET" https://portal.example/api/cron/audit-cleanup
+```
+
+Trên Vercel: `vercel.json` ở gốc repo khai báo cùng lịch (giờ UTC); Vercel Cron gọi GET và tự gửi `Authorization: Bearer <CRON_SECRET>` nên đặt biến `CRON_SECRET` trong dự án. Gói Hobby chỉ chạy mỗi ngày một lần: tác vụ 5 phút, mỗi giờ cần gói Pro hoặc bộ hẹn giờ ngoài.
 
 ### Hàng đợi thư
 
 | Việc | Cách làm |
 |---|---|
-| Module | `mail` (không đặt trong `notifications`: thông báo trên cổng và thư là hai kênh khác nhau, hàng đợi chỉ lo gửi thư): bảng `mail_outbox` (người nhận, tiêu đề, nội dung chữ + HTML tùy chọn, loại `account-activation` / `registration-reminder` / `class-announcement`, trạng thái `pending` / `sending` / `sent` / `failed`, số lần thử, lỗi cuối, `next_attempt_at`, id thư Resend) |
-| Ghi | `enqueueMail(tx, ...)` trong transaction của thao tác: rollback thì không có thư, commit thì thư chắc chắn được gửi. Thư kích hoạt tài khoản, nhắc đăng ký học phần, email thông báo lớp đi qua hàng đợi. Riêng mã OTP của better-auth vẫn gửi thẳng `sendMail` (không lưu mã vào DB) |
+| Module | `mail` (không đặt trong `notifications`: thông báo trên cổng và thư là hai kênh khác nhau, hàng đợi chỉ lo gửi thư): bảng `mail_outbox` (người nhận, tiêu đề, nội dung chữ + HTML tùy chọn, loại `account-activation` / `registration-reminder` / `class-announcement` / `announcement`, trạng thái `pending` / `sending` / `sent` / `failed`, số lần thử, lỗi cuối, `next_attempt_at`, id thư Resend) |
+| Ghi | `enqueueMail(tx, ...)` trong transaction của thao tác: rollback thì không có thư, commit thì thư chắc chắn được gửi. Thư kích hoạt tài khoản, nhắc đăng ký học phần, email thông báo lớp, email thông báo chung đi qua hàng đợi. Riêng mã OTP của better-auth gửi thẳng `sendMail` qua Resend (không lưu mã vào DB); gửi lỗi thì ghi log `[auth] Không gửi được thư mã ...` (không kèm mã, không kèm tiêu đề thư) |
 | Gửi | `deliverDueMail()` lấy thư đến hạn bằng một câu `UPDATE ... WHERE id IN (SELECT ... FOR UPDATE SKIP LOCKED)`, đổi sang `sending`, tăng số lần thử và giữ chỗ 10 phút (`next_attempt_at`): hai lần chạy song song không gửi trùng; tiến trình chết giữa lúc gửi thì hết hạn giữ chỗ là được lấy lại. Lỗi thì lùi lịch 1, 5, 30 phút, 2 giờ, 8 giờ; lỗi lần thứ 6 thì `failed` |
 | Kích gửi | Action gọi `deliverMailSoon(ids)` sau commit (thư đi ngay khi mọi thứ bình thường); tác vụ `POST /api/cron/mail-outbox` (mỗi 1–5 phút) gửi phần còn lại, gửi lại thư lỗi và xóa thư đã gửi quá 30 ngày |
 | Chưa có khóa Resend | `sendMail` in thư ra log và coi như gửi được, thư thành `sent` |

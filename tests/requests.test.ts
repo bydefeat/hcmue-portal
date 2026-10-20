@@ -10,6 +10,7 @@ import { faculties } from "@/modules/curriculum/curriculum.schema";
 import { examSessions } from "@/modules/exams/exams.schema";
 import { gradeComponents, gradeScores, gradeSheets } from "@/modules/grades/grades.schema";
 import { notifications } from "@/modules/notifications/notifications.schema";
+import { auditLogs } from "@/modules/audit/audit.schema";
 import { students } from "@/modules/users/users.schema";
 import { officeStepRoles, REQUESTS_CONSTRAINT_MESSAGE } from "@/modules/requests/requests.constant";
 import { allocateRequestCode, currentComponentScore, decideStep, insertRequest, RequestError, studentRequestFacts, withAttachments } from "@/modules/requests/requests.lib";
@@ -47,8 +48,11 @@ after(async () => {
   await deleteFiles(createdKeys);
   if (createdIds.length > 0) await db.delete(academicRequests).where(inArray(academicRequests.id, createdIds));
   await db.delete(requestCodeCounters).where(inArray(requestCodeCounters.year, [TEST_YEAR, FILE_TEST_YEAR]));
-  // decideStep báo người gửi: xóa thông báo của các đơn thử mã năm 2099.
-  await db.delete(notifications).where(like(notifications.title, `Đơn DT-${TEST_YEAR}-%`));
+  // decideStep báo người gửi, người xử lý bước sau và ghi nhật ký: xóa thông báo, nhật ký của các đơn thử mã năm 2099, 2098.
+  for (const year of [TEST_YEAR, FILE_TEST_YEAR]) {
+    await db.delete(notifications).where(like(notifications.title, `Đơn DT-${year}-%`));
+    await db.delete(auditLogs).where(like(auditLogs.entityLabel, `DT-${year}-%`));
+  }
   await db.$client.end();
 });
 
@@ -70,7 +74,7 @@ async function statuses(requestId: string) {
 }
 
 const anyone = () => null;
-const actor = { userId: null, name: "Người duyệt kiểm thử" };
+const actor = { userId: null, name: "Người duyệt kiểm thử", role: "Kiểm thử" };
 
 describe("requests: kiểm dữ liệu gửi đơn", () => {
   test("đơn sinh viên: lấy đúng các ô của loại đơn, cắt khoảng trắng lý do", () => {
@@ -168,11 +172,14 @@ describe("requests: kiểm dữ liệu gửi đơn", () => {
       { label: "Lớp học phần", value: "COMP1020.02 Cấu trúc dữ liệu" },
       { label: "Ngày thi (sinh viên khai)", value: "04/11/2026" },
     ]);
-    const regrade = studentRequestContent({ kind: "regrade", fields: { section: "x", score: 4.5 } }, "COMP1070.01 Web", { examScore: 3.75 });
+    const regrade = studentRequestContent({ kind: "regrade", fields: { section: "x", score: 4.5 } }, "COMP1070.01 Web", { finalExam: { label: "Cuối kỳ", score: 3.75 } });
     assert.deepEqual(regrade.details.slice(1), [
       { label: "Điểm thi hiện tại (sinh viên khai)", value: "4,5" },
-      { label: "Điểm thi cuối kỳ trên hệ thống", value: "3,75" },
+      { label: "Điểm cuối kỳ trên hệ thống", value: "3,75" },
     ]);
+    // Bảng điểm không có cột cuối kỳ rõ ràng thì ghi "không xác định", không đoán cột.
+    const unknown = studentRequestContent({ kind: "regrade", fields: { section: "x", score: 4.5 } }, "COMP1070.01 Web", { finalExam: null });
+    assert.match(unknown.details.at(-1)?.value ?? "", /^Không xác định/);
     const postponeWithExams = studentRequestContent({ kind: "exam-postpone", fields: { section: "x", examDate: "2026-11-04" } }, "COMP1020.02", {
       examDates: [{ kind: "final", date: "2027-01-05" }],
     });
@@ -213,14 +220,17 @@ describe("requests: quy tắc chuyển bước", () => {
     assert.match(cancelBlockedReason(true, ["waiting", "waiting"]) ?? "", /đã hủy/);
   });
 
-  test("vai trò quản trị xử lý bước nào", () => {
-    assert.deepEqual(officeStepRoles("faculty-secretary"), ["faculty"]);
-    assert.deepEqual(officeStepRoles("exam-office"), ["exam-office"]);
-    assert.deepEqual(officeStepRoles("academic-head").toSorted(), ["academic-office", "exam-office", "faculty"]);
-    assert.deepEqual(officeStepRoles("system-admin").toSorted(), ["academic-office", "exam-office", "faculty"]);
-    // Vai trò tự tạo (không có khóa) hoặc khóa lạ không xử lý bước nào dù có quyền requests.process.
-    assert.deepEqual(officeStepRoles(null), []);
-    assert.deepEqual(officeStepRoles("vai-tro-tu-tao"), []);
+  test("bước của đơn vị xử lý theo quyền requests.step.* của vai trò, không theo khóa vai trò", () => {
+    assert.deepEqual(officeStepRoles(["requests.process", "requests.step.faculty"]), ["faculty"]);
+    assert.deepEqual(officeStepRoles(["requests.process", "requests.step.exam-office"]), ["exam-office"]);
+    assert.deepEqual(officeStepRoles(["requests.process", "requests.step.faculty", "requests.step.academic-office", "requests.step.exam-office"]).toSorted(), [
+      "academic-office",
+      "exam-office",
+      "faculty",
+    ]);
+    // Chỉ có requests.process (vai trò tự tạo chưa được giao bước) thì không xử lý bước nào; có quyền bước mà không mở được hộp đơn cũng không.
+    assert.deepEqual(officeStepRoles(["requests.process"]), []);
+    assert.deepEqual(officeStepRoles(["requests.step.faculty"]), []);
   });
 });
 
@@ -320,7 +330,7 @@ describe("requests: đồng thời", () => {
         .where(and(eq(notifications.recipientUserId, studentUserId), like(notifications.title, `Đơn DT-${TEST_YEAR}-00012 %`)))
         .orderBy(asc(notifications.createdAt), asc(notifications.id));
       assert.equal(sent.length, 3);
-      assert.ok(sent.every((row) => row.audience === "student" && row.href === "/application/requests"));
+      assert.ok(sent.every((row) => row.audience === "student" && row.href.startsWith("/application/requests?open=")));
       assert.ok(sent.some((row) => row.title.endsWith("đã được duyệt")));
     }
   });

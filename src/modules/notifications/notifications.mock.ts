@@ -1,11 +1,11 @@
-import { mockDate, mockId, mockSectionId } from "@/shared/libs/mock.lib";
+import { mockDate, mockId, mockSectionId, mockTermId } from "@/shared/libs/mock.lib";
 import type { AppNotification } from "@/modules/notifications/notifications.type";
 
 export const NOTIFICATIONS: AppNotification[] = [
   { id: mockId("notification:nt-a01"), audience: "administrator", kind: "deadline", title: "Đợt 1 đăng ký học kỳ 2 đóng sau 24 giờ", body: "Còn 81 sinh viên khóa 48, 49 chưa đăng ký học phần nào.", href: "/administrator/registration-monitor", createdAt: mockDate(-1, "17:30"), isRead: false },
   { id: mockId("notification:nt-a02"), audience: "administrator", kind: "request", title: "12 đơn xin mở lớp đang chờ Phòng Đào tạo", body: "Có 4 đơn đã quá hạn xử lý 3 ngày làm việc.", href: "/administrator/requests?status=in-review", createdAt: mockDate(-1, "16:05"), isRead: false },
   { id: mockId("notification:nt-a03"), audience: "administrator", kind: "grade", title: "Khoa Công nghệ Thông tin đã duyệt 3 bảng điểm", body: "Các bảng điểm chờ Phòng Đào tạo công bố.", href: "/administrator/grade-publishing", createdAt: mockDate(-1, "10:12"), isRead: false },
-  { id: mockId("notification:nt-a04"), audience: "administrator", kind: "system", title: "Lớp COMP1100.01 và COMP1100.02 trùng phòng", body: "Cùng phòng C.302 thứ 6, tiết 1-4 ở học kỳ 2.", href: "/administrator/class-sections?term=hk2-2026&q=COMP1100", createdAt: mockDate(-2, "09:40"), isRead: true },
+  { id: mockId("notification:nt-a04"), audience: "administrator", kind: "system", title: "Lớp COMP1100.01 và COMP1100.02 trùng phòng", body: "Cùng phòng C.302 thứ 6, tiết 1-4 ở học kỳ 2.", href: `/administrator/class-sections?term=${mockTermId("hk2-2026")}&q=COMP1100`, createdAt: mockDate(-2, "09:40"), isRead: true },
   { id: mockId("notification:nt-a05"), audience: "administrator", kind: "exam", title: "6 giảng viên chưa nộp đề thi cuối kỳ", body: "Hạn nộp đề cho Phòng Khảo thí còn 5 ngày.", href: "/administrator/exams", createdAt: mockDate(-3, "08:00"), isRead: true },
   { id: mockId("notification:nt-a06"), audience: "administrator", kind: "system", title: "Võ Thanh Trang được cấp quyền Giáo vụ khoa", body: "Người cấp: Trần Minh Khoa.", href: "/administrator/settings/access", createdAt: mockDate(-3, "10:20"), isRead: true },
 

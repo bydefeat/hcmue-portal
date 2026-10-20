@@ -18,8 +18,12 @@ const schema = z.object({
   // Gửi email qua Resend. Bỏ trống khóa thì không gửi, chỉ in nội dung thư ra log server (môi trường phát triển).
   DEFEAT_RESEND_API_KEY: blankAsUnset(z.string().startsWith("re_").optional()),
   DEFEAT_MAIL_FROM: blankAsUnset(z.string().default("HCMUE Portal <onboarding@resend.dev>")),
-  // Khóa bí mật của bộ hẹn giờ gọi /api/cron/<tác vụ>. Bỏ trống thì endpoint tắt.
+  // Khóa bí mật của bộ hẹn giờ gọi /api/cron/<tác vụ>. Bỏ trống cả hai thì endpoint tắt. CRON_SECRET là tên Vercel Cron tự gửi
+  // trong header Authorization: Bearer <CRON_SECRET>; đặt tên nào cũng được, đặt cả hai thì khớp một trong hai là đủ.
   DEFEAT_CRON_SECRET: blankAsUnset(z.string().min(32).optional()),
+  CRON_SECRET: blankAsUnset(z.string().min(32).optional()),
+  // Số ngày giữ nhật ký thao tác; tác vụ audit-cleanup xóa bản ghi cũ hơn. Mặc định 3 năm.
+  DEFEAT_AUDIT_RETENTION_DAYS: blankAsUnset(z.coerce.number().int().min(30).default(1095)),
   // Thư mục lưu tệp tải lên (minh chứng đơn từ, đề thi), tương đối thì tính từ thư mục chạy app.
   DEFEAT_STORAGE_DIRECTORY: blankAsUnset(z.string().trim().min(1).default("./storage")),
   // Nơi lưu tệp: "local" (thư mục trên) hoặc "s3" (AWS S3, Cloudflare R2, MinIO; cần đủ vùng, bucket, khóa truy cập).

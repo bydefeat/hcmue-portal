@@ -7,14 +7,11 @@ import { lecturerRequestOptions } from "@/app/(lecturer)/lecturer/_data/request-
 
 export const metadata: Metadata = { title: "Đơn từ" };
 
-export default async function Page({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
-  const [{ tab }, lecturer] = await Promise.all([searchParams, getCurrentLecturer()]);
-  const [assigned, own, options] = await Promise.all([
-    getRequestsForAssignee(lecturer.id, ["advisor", "lecturer"]),
-    getRequestsOf(lecturer.id),
-    lecturerRequestOptions(lecturer),
-  ]);
-  const overdue = assigned.filter((request) => request.isOverdue).length;
+export default async function Page({ searchParams }: { searchParams: Promise<{ tab?: string; open?: string }> }) {
+  const [{ tab, open }, lecturer] = await Promise.all([searchParams, getCurrentLecturer()]);
+  const [assigned, own, options] = await Promise.all([getRequestsForAssignee(), getRequestsOf(lecturer.id), lecturerRequestOptions(lecturer)]);
+  // Quá hạn ở bước của chính giảng viên, không tính bước của đơn vị khác trong cùng đơn.
+  const overdue = assigned.filter((request) => request.can.decide && request.isOverdue).length;
 
   return (
     <>
@@ -26,7 +23,13 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ t
             : "Duyệt đơn của sinh viên cố vấn, chấm phúc khảo, gửi đơn sửa điểm hoặc nghỉ dạy, dạy bù."
         }
       />
-      <LecturerRequestBoard assigned={assigned} own={own} initialTab={tab === "own" ? "own" : undefined} {...options} />
+      <LecturerRequestBoard
+        assigned={assigned}
+        own={own}
+        initialTab={tab === "own" ? "own" : tab === "assigned" ? "assigned" : undefined}
+        initialOpenId={open}
+        {...options}
+      />
     </>
   );
 }

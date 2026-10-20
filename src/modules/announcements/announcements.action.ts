@@ -2,14 +2,17 @@
 
 import { and, eq, like, or } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { db } from "@/shared/libs/db.lib";
+import { db, type Transaction } from "@/shared/libs/db.lib";
 import { actionError, actionFailure, actionOk, parseInput, type ActionResult } from "@/shared/libs/action.lib";
 import { formatDateTime } from "@/shared/libs/date.lib";
 import { isUuid } from "@/shared/libs/id.lib";
 import { requireSchoolWidePermission } from "@/modules/access/access.query";
 import { ANNOUNCEMENT_CATEGORY_LABEL, ANNOUNCEMENT_STATUS, ANNOUNCEMENTS_CONSTRAINT_MESSAGE } from "@/modules/announcements/announcements.constant";
 import { getAnnouncements } from "@/modules/announcements/announcements.query";
-import { ANNOUNCEMENT_SCHEMA, slugify, statusOfPublishMode, uniqueSlug, type AnnouncementInput } from "@/modules/announcements/announcements.rule";
+import { announceToAudience } from "@/modules/announcements/announcements.lib";
+import { ANNOUNCEMENT_SCHEMA, audienceLabel, draftBlockedReason, slugify, statusOfPublishMode, uniqueSlug, type AnnouncementInput } from "@/modules/announcements/announcements.rule";
+import { faculties, majors } from "@/modules/curriculum/curriculum.schema";
+import { deliverMailSoon } from "@/modules/mail/mail.lib";
 import { announcements } from "@/modules/announcements/announcements.schema";
 import type { Announcement, AnnouncementStatus } from "@/modules/announcements/announcements.type";
 import { auditActorOf, recordAudit } from "@/modules/audit/audit.lib";
@@ -22,6 +25,13 @@ function revalidateAnnouncements() {
   revalidatePath("/administrator");
   revalidatePath("/");
   revalidatePath("/announcements", "layout");
+  revalidatePath("/application/announcements", "layout");
+  revalidatePath("/lecturer/announcements", "layout");
+}
+
+async function audienceNames(tx: Transaction) {
+  const [facultyRows, majorRows] = await Promise.all([tx.select({ id: faculties.id, name: faculties.name }).from(faculties), tx.select({ id: majors.id, name: majors.name }).from(majors)]);
+  return { faculties: new Map(facultyRows.map((row) => [row.id, row.name])), majors: new Map(majorRows.map((row) => [row.id, row.name])) };
 }
 
 async function reload(id: string) {
@@ -47,10 +57,21 @@ export async function saveAnnouncement(id: string | null, input: AnnouncementInp
     return actionError("Thời điểm đăng phải sau hiện tại.", { publishedAt: "Thời điểm đăng phải sau hiện tại" });
   }
   let savedId: string | null;
+  let mailIds: string[] = [];
+  let blocked: string | null = null;
   try {
     savedId = await db.transaction(async (tx) => {
       const [existing] = id ? await tx.select().from(announcements).where(eq(announcements.id, id)).for("update") : [];
       if (id && !existing) return null;
+      blocked = draftBlockedReason(existing ? liveStatus(existing) : null, status);
+      if (blocked) return null;
+      const names = await audienceNames(tx);
+      // Đăng ngay mà chọn gửi thông báo cá nhân, email: gửi một lần (notified_at); bài hẹn giờ do tác vụ announcement-notifications gửi.
+      const sendNow = async (announcementId: string, slug: string, alreadyNotified: boolean) => {
+        if (status !== "published" || alreadyNotified) return;
+        const sent = await announceToAudience(tx, { id: announcementId, slug, ...values });
+        mailIds = sent.mailIds;
+      };
       // Đăng ngay một thông báo đã đăng thì giữ ngày đăng cũ để thứ tự trên trang chủ không đổi khi sửa lỗi chính tả.
       const publishedAt =
         status === "draft" ? null : status === "scheduled" ? new Date(scheduledAt!) : existing && liveStatus(existing) === "published" && existing.publishedAt ? existing.publishedAt : new Date();
@@ -65,7 +86,8 @@ export async function saveAnnouncement(id: string | null, input: AnnouncementInp
         const [created] = await tx
           .insert(announcements)
           .values({ ...row, slug: uniqueSlug(base, taken.map((entry) => entry.slug)), authorUserId: viewer.id, authorLabel: viewer.unit ?? "Phòng Đào tạo" })
-          .returning({ id: announcements.id });
+          .returning({ id: announcements.id, slug: announcements.slug });
+        await sendNow(created.id, created.slug, false);
         const summary = { draft: "Lưu nháp thông báo", scheduled: `Hẹn giờ đăng lúc ${dateText(publishedAt)}`, published: "Đăng thông báo", archived: "" }[status];
         await recordAudit(tx, {
           actor,
@@ -73,11 +95,13 @@ export async function saveAnnouncement(id: string | null, input: AnnouncementInp
           entityType: "announcement",
           entityId: created.id,
           entityLabel: values.title,
-          summary: values.isPinned ? `${summary}, ghim đầu trang` : summary,
+          summary: `${summary}${values.isPinned ? ", ghim đầu trang" : ""}${values.notifyPortal ? ", gửi thông báo cá nhân" : ""}${values.notifyEmail ? ", gửi email" : ""} (${audienceLabel(values.audience, names)})`,
         });
         return created.id;
       }
-      await tx.update(announcements).set(row).where(eq(announcements.id, existing.id));
+      // Đổi về hẹn giờ hoặc nháp (chưa đăng) thì cho gửi lại khi đăng.
+      await tx.update(announcements).set({ ...row, ...(status !== "published" ? { notifiedAt: null } : {}) }).where(eq(announcements.id, existing.id));
+      await sendNow(existing.id, existing.slug, existing.notifiedAt !== null);
       const before = liveStatus(existing);
       await recordAudit(tx, {
         actor,
@@ -89,7 +113,9 @@ export async function saveAnnouncement(id: string | null, input: AnnouncementInp
         changes: auditChanges([
           ["Tiêu đề", existing.title, values.title],
           ["Loại", ANNOUNCEMENT_CATEGORY_LABEL[existing.category], ANNOUNCEMENT_CATEGORY_LABEL[values.category]],
-          ["Đối tượng", existing.audiences.join(", "), values.audiences.join(", ")],
+          ["Đối tượng", audienceLabel(existing.audience, names), audienceLabel(values.audience, names)],
+          ["Gửi thông báo cá nhân", existing.notifyPortal, values.notifyPortal],
+          ["Gửi email", existing.notifyEmail, values.notifyEmail],
           ["Trạng thái", ANNOUNCEMENT_STATUS[before].label, ANNOUNCEMENT_STATUS[status].label],
           ["Ghim", existing.isPinned, values.isPinned],
           ["Thời điểm đăng", dateText(existing.publishedAt), dateText(publishedAt)],
@@ -103,7 +129,9 @@ export async function saveAnnouncement(id: string | null, input: AnnouncementInp
   } catch (error) {
     return actionFailure(error, ANNOUNCEMENTS_CONSTRAINT_MESSAGE);
   }
+  if (blocked) return actionError(blocked, { publishMode: blocked });
   if (!savedId) return actionError(MISSING);
+  deliverMailSoon(mailIds);
   revalidateAnnouncements();
   return reload(savedId);
 }

@@ -5,7 +5,7 @@ import { Alert, Button, Card, message, Radio, Select, Table, type TableColumnsTy
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { SectionCard } from "@/shared/components/ui/section-card";
 import { periodLabel, weekdayLabel } from "@/shared/constants/period.constant";
-import { dayjs, formatDate, weekdayOf } from "@/shared/libs/date.lib";
+import { formatDate, weekdayOf } from "@/shared/libs/date.lib";
 import { saveAttendance } from "@/modules/schedule/schedule.action";
 import { ABSENCE_LIMIT_RATIO, ATTENDANCE_STATUS } from "@/modules/schedule/schedule.constant";
 import { isAbsence, isNearAbsenceLimit, isOverAbsenceLimit } from "@/modules/schedule/schedule.rule";
@@ -26,14 +26,15 @@ type AttendanceSheetProps = {
 
 const STATUS_KEYS = Object.keys(ATTENDANCE_STATUS) as AttendanceStatus[];
 
-function isEditable(session: AttendanceSession) {
-  return !dayjs(session.date).isAfter(dayjs(), "day");
+// So theo ngày học (chuỗi YYYY-MM-DD) với hôm nay theo giờ Việt Nam do server tính, không theo giờ máy người dùng.
+function isEditable(session: AttendanceSession, today: string) {
+  return session.date <= today;
 }
 
-function defaultSessionId(sessions: AttendanceSession[]) {
-  const today = sessions.find((session) => dayjs(session.date).isSame(dayjs(), "day"));
-  if (today) return today.id;
-  const past = sessions.filter(isEditable);
+function defaultSessionId(sessions: AttendanceSession[], today: string) {
+  const current = sessions.find((session) => session.date === today);
+  if (current) return current.id;
+  const past = sessions.filter((session) => isEditable(session, today));
   return (past.at(-1) ?? sessions[0])?.id;
 }
 
@@ -45,13 +46,13 @@ function sessionLabel(session: AttendanceSession, index: number) {
 export function AttendanceSheet({ book, students, absenceLimitPercent = ABSENCE_LIMIT_RATIO * 100 }: AttendanceSheetProps) {
   const [messageApi, contextHolder] = message.useMessage();
   const [records, setRecords] = useState(book.records);
-  const [sessionId, setSessionId] = useState(() => defaultSessionId(book.sessions));
+  const [sessionId, setSessionId] = useState(() => defaultSessionId(book.sessions, book.today));
   const [takenIds, setTakenIds] = useState(() => book.sessions.filter((entry) => entry.isTaken).map((entry) => entry.id));
   const [savedIds, setSavedIds] = useState<string[]>([]);
   const [isSaving, startSaving] = useTransition();
 
   const session = book.sessions.find((entry) => entry.id === sessionId);
-  const editable = session ? isEditable(session) : false;
+  const editable = session ? isEditable(session, book.today) : false;
   const current = (sessionId && records[sessionId]) || {};
   // Buổi thực hành chỉ gồm sinh viên của nhóm; buổi đã học là buổi đã lưu điểm danh.
   const attends = (entry: AttendanceSession, studentId: string) => entry.labGroupId === null || book.labGroupOf[studentId] === entry.labGroupId;
@@ -184,6 +185,24 @@ export function AttendanceSheet({ book, students, absenceLimitPercent = ABSENCE_
         />
         <span className="text-sm text-muted">Phòng {session.room}</span>
       </div>
+
+      {book.holidaySessions.length > 0 && (
+        <Alert
+          type="warning"
+          showIcon
+          title={`${book.holidaySessions.length} buổi theo lịch rơi vào ngày nghỉ lễ, cần xếp dạy bù`}
+          description={
+            <ul className="flex flex-col gap-0.5">
+              {book.holidaySessions.map((entry) => (
+                <li key={`${entry.date}-${entry.startPeriod}-${entry.labGroupCode ?? ""}`}>
+                  {weekdayLabel(weekdayOf(entry.date))}, {formatDate(entry.date)} · {periodLabel(entry.startPeriod, entry.endPeriod)}
+                  {entry.labGroupCode ? ` · Thực hành ${entry.labGroupCode}` : ""} ({entry.holiday})
+                </li>
+              ))}
+            </ul>
+          }
+        />
+      )}
 
       {!editable ? (
         <Alert

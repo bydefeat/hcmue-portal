@@ -12,7 +12,7 @@ import { normalizeSearch } from "@/shared/libs/search.lib";
 
 type Filter = AnnouncementCategory | "all";
 
-export function PublicAnnouncementBrowser({ announcements }: { announcements: Announcement[] }) {
+export function PublicAnnouncementBrowser({ announcements, basePath }: { announcements: Announcement[]; basePath?: string }) {
   const [category, setCategory] = useState<Filter>("all");
   const [query, setQuery] = useState("");
   const categories = [...new Set(announcements.map((announcement) => announcement.category))];
@@ -56,7 +56,7 @@ export function PublicAnnouncementBrowser({ announcements }: { announcements: An
           <ul className="flex flex-col divide-y divide-border-strong">
             {visible.map((announcement) => (
               <li key={announcement.id}>
-                <PublicAnnouncementItem announcement={announcement} />
+                <PublicAnnouncementItem announcement={announcement} basePath={basePath} />
               </li>
             ))}
           </ul>

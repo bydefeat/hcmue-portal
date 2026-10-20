@@ -61,15 +61,21 @@ describe("tuition: tính hóa đơn", () => {
       dueDate: dayjs().add(5, "day").toISOString(),
       lines: [],
       discount: 0,
+      discountReason: "",
       total: 1_000_000,
       paid: 0,
+      refunded: 0,
       payments: [],
+      isFinal: true,
     };
     assert.equal(invoiceView(base).status, "unpaid");
     assert.equal(invoiceView({ ...base, paid: 400_000 }).status, "partial");
     assert.equal(invoiceView({ ...base, paid: 400_000 }).balance, 600_000);
     assert.equal(invoiceView({ ...base, dueDate: dayjs().subtract(1, "day").toISOString() }).status, "overdue");
     assert.equal(invoiceView({ ...base, paid: 1_000_000, dueDate: dayjs().subtract(1, "day").toISOString() }).status, "paid");
+    // Hóa đơn tạm tính không quá hạn; nộp thừa (sau khi giảm tín chỉ) là số cần hoàn.
+    assert.equal(invoiceView({ ...base, isFinal: false, dueDate: dayjs().subtract(1, "day").toISOString() }).status, "unpaid");
+    assert.equal(invoiceView({ ...base, paid: 1_300_000 }).refundDue, 300_000);
   });
 });
 
@@ -100,7 +106,7 @@ describe("tuition: ràng buộc ở DB", () => {
     assert.equal(pgErrorMessage(zero, TUITION_CONSTRAINT_MESSAGE), TUITION_CONSTRAINT_MESSAGE.payments_amount_positive);
     const duplicate = await db
       .insert(payments)
-      .values({ invoiceId: payment.invoiceId, paidAt: new Date(), amount: 1000, method: "Thử", reference: payment.reference })
+      .values({ invoiceId: payment.invoiceId, paidAt: new Date(), amount: 1000, method: "Thử", reference: payment.reference, source: "manual", recordedByLabel: "Thử" })
       .then(() => null)
       .catch((caught: unknown) => caught);
     assert.equal(pgErrorMessage(duplicate, TUITION_CONSTRAINT_MESSAGE), TUITION_CONSTRAINT_MESSAGE.payments_reference_unique);

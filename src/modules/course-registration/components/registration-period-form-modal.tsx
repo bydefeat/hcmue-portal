@@ -12,16 +12,16 @@ export type PeriodFormResult = {
   cohorts: number[];
   opensAt: string;
   closesAt: string;
-  minCredits: number;
-  maxCredits: number;
+  minCredits: number | null;
+  maxCredits: number | null;
 };
 
 type FormShape = {
   name: string;
   cohorts: number[];
   range: [Dayjs, Dayjs];
-  minCredits: number;
-  maxCredits: number;
+  minCredits?: number | null;
+  maxCredits?: number | null;
 };
 
 type RegistrationPeriodFormModalProps = {
@@ -30,12 +30,14 @@ type RegistrationPeriodFormModalProps = {
   termName: string;
   // Các khóa đang có lớp sinh hoạt, đọc từ DB.
   cohorts: number[];
+  // Hạn mức của quy chế đang áp dụng, gợi ý khi để trống.
+  regulationCredits: { minPerTerm: number; maxPerTerm: number };
   onClose: () => void;
   // Trả lỗi theo ô khi server từ chối, để modal gắn vào đúng ô.
   onSubmit: (values: PeriodFormResult) => Promise<Record<string, string> | undefined>;
 };
 
-export function RegistrationPeriodFormModal({ open, period, termName, cohorts, onClose, onSubmit }: RegistrationPeriodFormModalProps) {
+export function RegistrationPeriodFormModal({ open, period, termName, cohorts, regulationCredits, onClose, onSubmit }: RegistrationPeriodFormModalProps) {
   // Giữ cả khóa đợt đang lưu để ô chọn vẫn hiện nhãn khi khóa đó không còn lớp.
   const cohortOptions = [...new Set([...cohorts, ...(period?.cohorts ?? [])])]
     .toSorted((a, b) => a - b)
@@ -49,7 +51,7 @@ export function RegistrationPeriodFormModal({ open, period, termName, cohorts, o
     form.setFieldsValue(
       period
         ? { ...period, range: [dayjs(period.opensAt), dayjs(period.closesAt)] }
-        : { minCredits: 14, maxCredits: 25, cohorts: [] },
+        : { minCredits: null, maxCredits: null, cohorts: [] },
     );
   }, [open, period, form]);
 
@@ -77,8 +79,8 @@ export function RegistrationPeriodFormModal({ open, period, termName, cohorts, o
               cohorts: values.cohorts,
               opensAt: values.range[0].toISOString(),
               closesAt: values.range[1].toISOString(),
-              minCredits: values.minCredits,
-              maxCredits: values.maxCredits,
+              minCredits: values.minCredits ?? null,
+              maxCredits: values.maxCredits ?? null,
             });
             if (fieldErrors) form.setFields(toFormFields(fieldErrors));
           })
@@ -105,25 +107,28 @@ export function RegistrationPeriodFormModal({ open, period, termName, cohorts, o
         >
           <DatePicker.RangePicker showTime={{ format: "HH:mm" }} format="HH:mm DD/MM/YYYY" placeholder={["Mở lúc", "Đóng lúc"]} className="w-full" />
         </Form.Item>
+        <p className="mb-2 text-xs text-pretty text-muted">
+          Để trống là theo quy chế đang áp dụng ({regulationCredits.minPerTerm} đến {regulationCredits.maxPerTerm} tín chỉ; học kỳ hè, cảnh báo học vụ theo mức riêng của quy chế). Nhập
+          số thì đợt này giới hạn thêm trên hạn mức quy chế.
+        </p>
         <div className="grid grid-cols-2 gap-x-3">
-          <Form.Item name="minCredits" label="Tín chỉ tối thiểu" rules={[{ required: true, message: "Chưa nhập" }]}>
-            <InputNumber min={0} max={30} className="w-full" />
+          <Form.Item name="minCredits" label="Tín chỉ tối thiểu của đợt">
+            <InputNumber min={0} max={30} placeholder={`Theo quy chế: ${regulationCredits.minPerTerm}`} className="w-full" />
           </Form.Item>
           <Form.Item
             name="maxCredits"
-            label="Tín chỉ tối đa"
+            label="Tín chỉ tối đa của đợt"
             dependencies={["minCredits"]}
             rules={[
-              { required: true, message: "Chưa nhập" },
               ({ getFieldValue }) => ({
-                validator: (_, value: number) =>
-                  value >= getFieldValue("minCredits")
+                validator: (_, value: number | null | undefined) =>
+                  value === null || value === undefined || getFieldValue("minCredits") === null || getFieldValue("minCredits") === undefined || value >= getFieldValue("minCredits")
                     ? Promise.resolve()
                     : Promise.reject(new Error("Tối đa phải lớn hơn hoặc bằng tối thiểu")),
               }),
             ]}
           >
-            <InputNumber min={1} max={40} className="w-full" />
+            <InputNumber min={1} max={40} placeholder={`Theo quy chế: ${regulationCredits.maxPerTerm}`} className="w-full" />
           </Form.Item>
         </div>
       </Form>

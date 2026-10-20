@@ -149,7 +149,14 @@ describe("schedule: sinh lại buổi học khi đổi lịch tuần", () => {
         const [section] = await tx
           .select({ id: classSections.id, code: classSections.code })
           .from(classSections)
-          .where(and(eq(classSections.status, "open"), sql`${classSections.endDate} > ${today}::date + 21`, sql`${classSections.enrolledCount} > 0`))
+          .where(
+            and(
+              eq(classSections.status, "open"),
+              sql`${classSections.endDate} > ${today}::date + 21`,
+              // Lớp có sinh viên đã có tài khoản cổng để kiểm thông báo đổi lịch.
+              sql`EXISTS (SELECT 1 FROM enrollments e JOIN students s ON s.id = e.student_id WHERE e.class_section_id = ${classSections.id} AND e.status = 'enrolled' AND s.user_id IS NOT NULL)`,
+            ),
+          )
           .orderBy(asc(classSections.code))
           .limit(1);
         const meetings = await tx.select().from(sectionMeetings).where(eq(sectionMeetings.classSectionId, section.id));

@@ -8,17 +8,104 @@ export function termKeyOf(term: { academicYear: number; semester: number }) {
 }
 
 // Học phí tính theo tín chỉ đăng ký nhân đơn giá ngành; khoản thu cố định (bảo hiểm y tế) thu một lần vào học kỳ 1 của năm học.
+// Dùng cả khi seed lẫn lúc chạy (hóa đơn tạm tính cập nhật sau mỗi lần đăng ký, hủy).
 export function buildInvoiceLines(params: { credits: number; pricePerCredit: number; semester: number; fees: { label: string; amount: number }[] }): InvoiceLine[] {
   const { credits, pricePerCredit } = params;
   const tuition: InvoiceLine = {
+    kind: "tuition",
     label: pricePerCredit === 0 ? "Học phí (sinh viên sư phạm được miễn theo Nghị định 116)" : `Học phí ${credits} tín chỉ`,
     quantity: credits,
     unitPrice: pricePerCredit,
     amount: credits * pricePerCredit,
   };
-  const fees = params.semester === 1 ? params.fees.map((fee) => ({ label: fee.label, quantity: 1, unitPrice: fee.amount, amount: fee.amount })) : [];
+  const fees = params.semester === 1 ? params.fees.map((fee): InvoiceLine => ({ kind: "fee", label: fee.label, quantity: 1, unitPrice: fee.amount, amount: fee.amount })) : [];
   return [...(credits > 0 ? [tuition] : []), ...fees];
 }
+
+// Số tín chỉ đã tính tiền trên hóa đơn: dòng học phí cộng các dòng điều chỉnh (đơn giá âm là giảm tín chỉ).
+export function billedCredits(lines: Pick<InvoiceLine, "kind" | "quantity" | "unitPrice">[]) {
+  return lines.reduce((sum, line) => {
+    if (line.kind === "tuition") return sum + line.quantity;
+    if (line.kind === "adjustment") return sum + (line.unitPrice < 0 ? -line.quantity : line.quantity);
+    return sum;
+  }, 0);
+}
+
+// Hóa đơn đã chốt: đăng ký đổi thì thêm một dòng điều chỉnh bằng phần chênh tín chỉ, giữ nguyên các dòng đã chốt.
+export function adjustmentLine(params: { creditDelta: number; pricePerCredit: number; note: string }): InvoiceLine | null {
+  const { creditDelta, pricePerCredit, note } = params;
+  if (creditDelta === 0 || pricePerCredit === 0) return null;
+  const quantity = Math.abs(creditDelta);
+  const unitPrice = creditDelta > 0 ? pricePerCredit : -pricePerCredit;
+  return {
+    kind: "adjustment",
+    label: `Điều chỉnh sau chốt: ${creditDelta > 0 ? "thêm" : "giảm"} ${quantity} tín chỉ${note ? ` (${note})` : ""}`.slice(0, 300),
+    quantity,
+    unitPrice,
+    amount: quantity * unitPrice,
+  };
+}
+
+// Khóa đăng ký do học phí tính từ hóa đơn của học kỳ hiện tại: chỉ hóa đơn đã chốt, còn nợ và qua hết ngày hạn nộp mới chặn;
+// nộp đủ (ghi nhận khoản nộp hoặc sao kê) là hết chặn ngay. Còn nợ nhưng chưa tới hạn thì chỉ nhắc.
+export function tuitionBlockOf(invoice: { balance: number; dueDate: string; isFinal: boolean; daysToDue: number } | null | undefined, termShortName: string) {
+  if (!invoice || invoice.balance <= 0) return null;
+  const amount = `${invoice.balance.toLocaleString("vi-VN")}\u00a0đ`;
+  if (invoice.isFinal && invoice.daysToDue < 0) {
+    return {
+      blocking: true,
+      reason: `Học phí ${termShortName} quá hạn, còn nợ ${amount}`,
+      resolveHint: "Nộp đủ học phí học kỳ này. Khóa đăng ký tự gỡ ngay khi Phòng Kế hoạch - Tài chính ghi nhận khoản nộp.",
+    };
+  }
+  return {
+    blocking: false,
+    reason: `Học phí ${termShortName} còn ${amount}${invoice.isFinal ? "" : " (tạm tính)"}`,
+    resolveHint: invoice.isFinal ? "Nộp trước hạn. Quá hạn mà còn nợ thì bị khóa đăng ký học phần cho tới khi nộp đủ." : "Số tiền cập nhật theo đăng ký, chính thức sau khi chốt học phí học kỳ.",
+  };
+}
+
+export const DISCOUNT_SCHEMA = z.object({
+  invoiceId: z.uuid(),
+  amount: z.int("Số tiền là số nguyên đồng").min(0, "Không âm").max(1_000_000_000),
+  reason: z.string().trim().max(300, "Tối đa 300 ký tự"),
+}).refine((input) => input.amount === 0 || input.reason.length >= 5, { path: ["reason"], message: "Ghi lý do, căn cứ miễn giảm (tối thiểu 5 ký tự)" });
+
+export type DiscountInput = z.input<typeof DISCOUNT_SCHEMA>;
+
+export const REFUND_SCHEMA = z.object({
+  invoiceId: z.uuid(),
+  amount: z.int("Số tiền là số nguyên đồng").min(1000, "Số tiền tối thiểu 1.000 đ").max(1_000_000_000),
+  refundedAt: z.iso.datetime({ offset: true, message: "Chưa chọn ngày hoàn" }),
+  method: z.string().trim().min(1, "Chưa ghi hình thức").max(80),
+  reference: z.string().trim().min(3, "Nhập số chứng từ hoặc mã giao dịch").max(64),
+  note: z.string().trim().max(300).default(""),
+});
+
+export type RefundInput = z.input<typeof REFUND_SCHEMA>;
+
+export const RATE_SCHEMA = z.object({
+  academicYear: z.int().min(2000).max(2100),
+  majorCode: z.string().trim().min(1, "Chưa chọn ngành"),
+  pricePerCredit: z.int("Đơn giá là số nguyên đồng").min(0).max(100_000_000),
+  note: z.string().trim().max(300).default(""),
+});
+
+export type RateInput = z.input<typeof RATE_SCHEMA>;
+
+export const FEE_SCHEMA = z.object({
+  academicYear: z.int().min(2000).max(2100),
+  code: z.string().trim().regex(/^[a-z0-9-]{2,30}$/, "Mã dạng chữ thường, số, gạch ngang"),
+  label: z.string().trim().min(1, "Chưa nhập tên khoản thu").max(120),
+  amount: z.int("Số tiền là số nguyên đồng").min(0).max(100_000_000),
+  isMandatory: z.boolean().default(true),
+});
+
+export type FeeInput = z.input<typeof FEE_SCHEMA>;
+
+export const FINALIZE_SCHEMA = z.object({ termId: z.uuid(), dueDate: z.iso.date("Chưa chọn hạn nộp") });
+
+export type FinalizeInput = z.input<typeof FINALIZE_SCHEMA>;
 
 export function invoiceTotal(lines: InvoiceLine[], discount: number) {
   return Math.max(0, lines.reduce((sum, line) => sum + line.amount, 0) - discount);

@@ -1,24 +1,32 @@
 import "server-only";
 import { cache } from "react";
-import { and, desc, eq, lte, or, sql, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, gt, isNull, lte, or, sql, type SQL } from "drizzle-orm";
 import { db } from "@/shared/libs/db.lib";
 import { isUuid } from "@/shared/libs/id.lib";
-import { requireRole } from "@/modules/authentication/authentication.query";
-import { SLUG_PATTERN } from "@/modules/announcements/announcements.rule";
+import { requireRole, requireSession } from "@/modules/authentication/authentication.query";
+import { faculties, majors } from "@/modules/curriculum/curriculum.schema";
+import { administrativeClasses, lecturers, students } from "@/modules/users/users.schema";
+import { announcementVisibleTo, audienceLabel, SLUG_PATTERN } from "@/modules/announcements/announcements.rule";
 import { announcements } from "@/modules/announcements/announcements.schema";
-import type { Announcement, AnnouncementStatus } from "@/modules/announcements/announcements.type";
+import type { Announcement, AnnouncementAudienceOptions, AnnouncementStatus, AnnouncementViewer } from "@/modules/announcements/announcements.type";
 
 // Thông báo hẹn giờ tự thành "đã đăng" khi tới giờ, không cần tác vụ nền đổi trạng thái.
 const effectiveStatus = sql<AnnouncementStatus>`CASE WHEN ${announcements.status} = 'scheduled' AND ${announcements.publishedAt} <= now() THEN 'published' ELSE ${announcements.status}::text END`;
 
 export const isLive: SQL = or(eq(announcements.status, "published"), and(eq(announcements.status, "scheduled"), lte(announcements.publishedAt, sql`now()`)))!;
 
+// Danh sách chỉ hiện thông báo còn hạn; quá hạn chót thì tự rời danh sách (trang chi tiết vẫn mở được từ đường dẫn cũ).
+const notExpired: SQL = or(isNull(announcements.deadline), gt(announcements.deadline, sql`now()`))!;
+
+// Thông báo có gửi sinh viên mới công khai cho khách.
+const isPublic: SQL = sql`(${announcements.audience}->>'students')::boolean`;
+
 const ANNOUNCEMENT_COLUMNS = {
   id: announcements.id,
   slug: announcements.slug,
   title: announcements.title,
   category: announcements.category,
-  audiences: announcements.audiences,
+  audience: announcements.audience,
   status: effectiveStatus,
   isPinned: announcements.isPinned,
   publishedAt: announcements.publishedAt,
@@ -27,12 +35,30 @@ const ANNOUNCEMENT_COLUMNS = {
   summary: announcements.summary,
   content: announcements.content,
   views: announcements.viewCount,
+  notifyPortal: announcements.notifyPortal,
+  notifyEmail: announcements.notifyEmail,
+  notifiedAt: announcements.notifiedAt,
 };
 
-type Row = { publishedAt: Date | null; deadline: Date | null } & Omit<Announcement, "publishedAt" | "deadline">;
+type Row = { publishedAt: Date | null; deadline: Date | null; notifiedAt: Date | null } & Omit<Announcement, "publishedAt" | "deadline" | "notifiedAt" | "audienceLabel" | "isExpired">;
 
-function toAnnouncement({ publishedAt, deadline, ...row }: Row): Announcement {
-  return { ...row, publishedAt: publishedAt?.toISOString() ?? null, deadline: deadline?.toISOString() ?? null };
+// Tên khoa, ngành để ghép nhãn đối tượng (bảng nhỏ, đọc một lần mỗi request).
+const audienceNames = cache(async () => {
+  const [facultyRows, majorRows] = await Promise.all([db.select({ id: faculties.id, name: faculties.name }).from(faculties), db.select({ id: majors.id, name: majors.name }).from(majors)]);
+  return { faculties: new Map(facultyRows.map((row) => [row.id, row.name])), majors: new Map(majorRows.map((row) => [row.id, row.name])) };
+});
+
+async function toAnnouncements(rows: Row[]): Promise<Announcement[]> {
+  const names = await audienceNames();
+  const now = Date.now();
+  return rows.map(({ publishedAt, deadline, notifiedAt, ...row }) => ({
+    ...row,
+    audienceLabel: audienceLabel(row.audience, names),
+    publishedAt: publishedAt?.toISOString() ?? null,
+    deadline: deadline?.toISOString() ?? null,
+    isExpired: deadline !== null && deadline.getTime() <= now,
+    notifiedAt: notifiedAt?.toISOString() ?? null,
+  }));
 }
 
 // Ghim lên đầu, rồi mới nhất trước; bản nháp (chưa có ngày đăng) đứng đầu danh sách quản trị.
@@ -47,14 +73,29 @@ export async function getAnnouncements(id?: string): Promise<Announcement[]> {
     .from(announcements)
     .where(id ? eq(announcements.id, id) : undefined)
     .orderBy(...ORDER);
-  return rows.map(toAnnouncement);
+  return toAnnouncements(rows);
 }
 
-// Trang công khai, không cần đăng nhập: chỉ thông báo đã đăng (gồm hẹn giờ đã tới giờ).
+// Danh mục khoa, ngành, khóa để chọn đối tượng trên form soạn thông báo.
+export async function getAnnouncementAudienceOptions(): Promise<AnnouncementAudienceOptions> {
+  await requireRole("admin");
+  const [facultyRows, majorRows, cohortRows] = await Promise.all([
+    db.select({ id: faculties.id, name: faculties.name }).from(faculties).orderBy(asc(faculties.name)),
+    db.select({ id: majors.id, name: majors.name, facultyId: majors.facultyId }).from(majors).orderBy(asc(majors.name)),
+    db.selectDistinct({ cohort: administrativeClasses.cohort }).from(administrativeClasses).orderBy(asc(administrativeClasses.cohort)),
+  ]);
+  return { faculties: facultyRows, majors: majorRows, cohorts: cohortRows.map((row) => row.cohort) };
+}
+
+// Trang công khai, không cần đăng nhập: thông báo đã đăng (gồm hẹn giờ đã tới giờ), còn hạn, có gửi sinh viên.
 export const getPublishedAnnouncements = cache(async (limit?: number): Promise<Announcement[]> => {
-  const query = db.select(ANNOUNCEMENT_COLUMNS).from(announcements).where(isLive).orderBy(...ORDER).$dynamic();
-  const rows = await (limit ? query.limit(limit) : query);
-  return rows.map(toAnnouncement);
+  const query = db
+    .select(ANNOUNCEMENT_COLUMNS)
+    .from(announcements)
+    .where(and(isLive, isPublic, notExpired))
+    .orderBy(...ORDER)
+    .$dynamic();
+  return toAnnouncements(await (limit ? query.limit(limit) : query));
 });
 
 export const getPublishedAnnouncement = cache(async (slug: string): Promise<Announcement | null> => {
@@ -62,7 +103,48 @@ export const getPublishedAnnouncement = cache(async (slug: string): Promise<Anno
   const [row] = await db
     .select(ANNOUNCEMENT_COLUMNS)
     .from(announcements)
+    .where(and(eq(announcements.slug, slug), isLive, isPublic))
+    .limit(1);
+  return row ? (await toAnnouncements([row]))[0] : null;
+});
+
+// Người đang xem ở cổng sinh viên (khóa, ngành, khoa của lớp sinh hoạt) hoặc cổng giảng viên (khoa).
+const portalViewer = cache(async (portal: "student" | "lecturer"): Promise<AnnouncementViewer | null> => {
+  const { user } = await requireSession();
+  if (portal === "student") {
+    const [row] = await db
+      .select({ cohort: administrativeClasses.cohort, majorId: majors.id, facultyId: majors.facultyId })
+      .from(students)
+      .innerJoin(administrativeClasses, eq(administrativeClasses.id, students.administrativeClassId))
+      .innerJoin(majors, eq(majors.id, administrativeClasses.majorId))
+      .where(eq(students.userId, user.id));
+    return row ? { kind: "student", ...row } : null;
+  }
+  const [row] = await db.select({ facultyId: lecturers.facultyId }).from(lecturers).where(eq(lecturers.userId, user.id));
+  return row ? { kind: "lecturer", facultyId: row.facultyId } : null;
+});
+
+// Cổng sinh viên, giảng viên: thông báo chung đã đăng, còn hạn, đúng đối tượng của người xem.
+export const getPortalAnnouncements = cache(async (portal: "student" | "lecturer", limit?: number): Promise<Announcement[]> => {
+  const viewer = await portalViewer(portal);
+  if (!viewer) return [];
+  const rows = await db
+    .select(ANNOUNCEMENT_COLUMNS)
+    .from(announcements)
+    .where(and(isLive, notExpired))
+    .orderBy(...ORDER);
+  const visible = rows.filter((row) => announcementVisibleTo(row.audience, viewer));
+  return toAnnouncements(limit ? visible.slice(0, limit) : visible);
+});
+
+export async function getPortalAnnouncement(portal: "student" | "lecturer", slug: string): Promise<Announcement | null> {
+  if (!SLUG_PATTERN.test(slug)) return null;
+  const viewer = await portalViewer(portal);
+  if (!viewer) return null;
+  const [row] = await db
+    .select(ANNOUNCEMENT_COLUMNS)
+    .from(announcements)
     .where(and(eq(announcements.slug, slug), isLive))
     .limit(1);
-  return row ? toAnnouncement(row) : null;
-});
+  return row && announcementVisibleTo(row.audience, viewer) ? (await toAnnouncements([row]))[0] : null;
+}

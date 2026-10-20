@@ -18,6 +18,7 @@ type ClassSectionFormDrawerProps = {
   courses: SectionCourseOption[];
   lecturers: SectionLecturerOption[];
   rooms: string[];
+  roomLabels?: Record<string, string>;
   majors: { code: string; name: string }[];
   // Các khóa đang có lớp sinh hoạt, đọc từ DB.
   cohorts: number[];
@@ -65,10 +66,10 @@ function toValues(section: ClassSectionView): ClassSectionFormValues {
   };
 }
 
-export function ClassSectionFormDrawer({ open, section, termName, courses, lecturers, rooms, majors, cohorts, onClose, onSubmit }: ClassSectionFormDrawerProps) {
+export function ClassSectionFormDrawer({ open, section, termName, courses, lecturers, rooms, roomLabels = {}, majors, cohorts, onClose, onSubmit }: ClassSectionFormDrawerProps) {
   const [form] = Form.useForm<ClassSectionFormValues>();
   const [isPending, startTransition] = useTransition();
-  const roomOptions = rooms.map((room) => ({ value: room, label: room }));
+  const roomOptions = rooms.map((room) => ({ value: room, label: roomLabels[room] ?? room }));
   const majorOptions = majors.map((major) => ({ value: major.code, label: major.name }));
   // Giữ cả khóa lớp đang lưu (có thể khóa đó không còn lớp sinh hoạt) để ô chọn vẫn hiện nhãn.
   const savedCohorts = section ? [...(section.audience?.cohorts ?? []), ...section.reservedSeats.flatMap((seat) => seat.cohorts)] : [];
@@ -142,8 +143,22 @@ export function ClassSectionFormDrawer({ open, section, termName, courses, lectu
           >
             <InputNumber min={1} max={100} className="w-full" />
           </Form.Item>
-          <Form.Item name="status" label="Trạng thái" rules={[{ required: true, message: "Chưa chọn trạng thái" }]}>
-            <Select options={CLASS_SECTION_STATUS_OPTIONS} />
+          <Form.Item
+            name="status"
+            label="Trạng thái"
+            rules={[{ required: true, message: "Chưa chọn trạng thái" }]}
+            extra={section && section.enrolled > 0 ? `Lớp có ${section.enrolled} sinh viên: không về nháp được; chọn Đã hủy là rút hết sinh viên, hủy danh sách chờ và báo sinh viên.` : undefined}
+          >
+            <Select
+              options={CLASS_SECTION_STATUS_OPTIONS.map((option) => ({
+                ...option,
+                // Lớp có sinh viên không về nháp; lớp mới không tạo ở trạng thái đã hủy; lớp đã hủy không mở lại.
+                disabled:
+                  (option.value === "draft" && (section?.enrolled ?? 0) > 0) ||
+                  (option.value === "cancelled" && !section) ||
+                  (section?.status === "cancelled" && option.value !== "cancelled"),
+              }))}
+            />
           </Form.Item>
         </div>
         <Divider titlePlacement="start" className="my-2 text-sm">

@@ -13,7 +13,6 @@ import {
   CLASS_SECTION_STATUS,
   CLASS_SECTION_STATUS_OPTIONS,
   audienceText,
-  conflictsOf,
   meetingText,
   reservedText,
 } from "@/modules/course-registration/course-registration.constant";
@@ -31,18 +30,12 @@ type ClassSectionTableProps = {
   courses: SectionCourseOption[];
   lecturers: SectionLecturerOption[];
   rooms: string[];
+  // Nhãn phòng kèm sức chứa, cơ sở để chọn đúng phòng.
+  roomLabels: Record<string, string>;
   majors: { code: string; name: string }[];
   cohorts: number[];
   header: { title: string; description?: React.ReactNode };
 };
-
-function withConflicts(sections: ClassSectionView[]) {
-  return sections.map((section) => ({
-    ...section,
-    isFull: section.enrolled >= section.capacity,
-    conflicts: conflictsOf(section, sections),
-  }));
-}
 
 const statusOf = (row: ClassSectionView) =>
   row.status === "open" && row.isFull ? (
@@ -53,7 +46,7 @@ const statusOf = (row: ClassSectionView) =>
     <StatusTag status={CLASS_SECTION_STATUS[row.status]} />
   );
 
-export function ClassSectionTable({ sections, terms, termId, initialQuery = "", courses, lecturers, rooms, majors, cohorts, header }: ClassSectionTableProps) {
+export function ClassSectionTable({ sections, terms, termId, initialQuery = "", courses, lecturers, rooms, roomLabels, majors, cohorts, header }: ClassSectionTableProps) {
   const router = useRouter();
   const [messageApi, contextHolder] = message.useMessage();
   const [rows, setRows] = useState(sections);
@@ -93,15 +86,11 @@ export function ClassSectionTable({ sections, terms, termId, initialQuery = "", 
       messageApi.error(result.message);
       return result.fieldErrors;
     }
-    const recomputed = withConflicts(editing ? rows.map((row) => (row.id === result.data.id ? result.data : row)) : [result.data, ...rows]);
-    setRows(recomputed);
+    // Xung đột do server tính lại trên cả học kỳ (mọi khoa), không tự tính trên danh sách đã lọc theo khoa.
+    setRows(result.data.sections);
     setIsOpen(false);
-    const saved = recomputed.find((row) => row.id === result.data.id);
-    if (saved && saved.conflicts.length > 0) {
-      messageApi.warning(`Đã lưu lớp ${saved.code} nhưng còn ${saved.conflicts.length} xung đột lịch. Xem cột Xung đột để xử lý.`);
-    } else {
-      messageApi.success(editing ? `Đã lưu lớp ${result.data.code}` : `Đã mở lớp ${result.data.code}`);
-    }
+    const saved = result.data.saved;
+    messageApi.success(saved.status === "cancelled" ? `Đã hủy lớp ${saved.code}` : editing ? `Đã lưu lớp ${saved.code}` : `Đã mở lớp ${saved.code}`);
     return undefined;
   };
 
@@ -305,6 +294,7 @@ export function ClassSectionTable({ sections, terms, termId, initialQuery = "", 
           courses={courses}
           lecturers={lecturers}
           rooms={rooms}
+          roomLabels={roomLabels}
           majors={majors}
           cohorts={cohorts}
           onClose={() => setIsOpen(false)}

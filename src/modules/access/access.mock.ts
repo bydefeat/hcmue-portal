@@ -26,7 +26,20 @@ export const ROLES: Role[] = [
     name: "Chuyên viên Phòng Đào tạo",
     description: "Vận hành đăng ký học phần, lớp học phần, hồ sơ sinh viên, đơn từ; lập và trình ký quyết định (không ký).",
     scope: "university",
-    permissions: without("access.manage", "settings.manage", "grades.publish", "graduation.manage", "audit.view", "tuition.manage", "decisions.sign", "exams.review", "surveys.manage"),
+    permissions: without(
+      "access.manage",
+      "settings.manage",
+      "grades.publish",
+      "graduation.manage",
+      "audit.view",
+      "tuition.manage",
+      "decisions.sign",
+      "requests.step.faculty",
+      "requests.step.exam-office",
+      "requests.supervise",
+      "exams.review",
+      "surveys.manage",
+    ),
     isSystem: true,
   },
   {
@@ -37,6 +50,7 @@ export const ROLES: Role[] = [
     permissions: [
       "dashboard.view",
       "requests.process",
+      "requests.step.faculty",
       "class-sections.manage",
       "teaching.assign",
       "grades.approve",
@@ -53,7 +67,7 @@ export const ROLES: Role[] = [
     name: "Phòng Khảo thí",
     description: "Xếp lịch thi, phòng thi, cán bộ coi thi, xử lý phúc khảo.",
     scope: "university",
-    permissions: ["dashboard.view", "exams.manage", "exams.review", "requests.process", "students.view", "facilities.manage"],
+    permissions: ["dashboard.view", "exams.manage", "exams.review", "requests.process", "requests.step.exam-office", "students.view", "facilities.manage"],
     isSystem: false,
   },
   {

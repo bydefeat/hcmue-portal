@@ -13,6 +13,8 @@ export const AUDIT_ACTION: Record<AuditAction, StatusMeta> = {
   export: { label: "Xuất dữ liệu", tone: "neutral" },
   "sign-in": { label: "Đăng nhập", tone: "neutral" },
   permission: { label: "Đổi quyền", tone: "warning" },
+  cancel: { label: "Hủy", tone: "neutral" },
+  download: { label: "Tải xuống", tone: "neutral" },
   submit: { label: "Trình ký", tone: "neutral" },
   sign: { label: "Ký", tone: "success" },
   revoke: { label: "Thu hồi", tone: "danger" },
@@ -34,18 +36,23 @@ export const AUDIT_ENTITY_LABEL: Record<AuditEntityType, string> = {
   "calendar-event": "Lịch năm học",
   report: "Báo cáo",
   program: "Chương trình đào tạo",
+  mail: "Thư gửi đi",
   staff: "Cán bộ",
   course: "Học phần",
   graduation: "Xét tốt nghiệp",
+  term: "Học kỳ",
+  tuition: "Học phí",
   survey: "Khảo sát giảng dạy",
   syllabus: "Đề cương học phần",
   advising: "Cố vấn học tập",
 };
 
+export const AUDIT_PAGE_SIZE = 50;
+
 export const AUDIT_CONSTRAINT_MESSAGE: Partial<Record<string, string>> = {
   audit_logs_changes_array: "Danh sách thay đổi trong nhật ký phải là một mảng.",
 };
 
-export const AUDIT_ACTION_OPTIONS =Object.entries(AUDIT_ACTION).map(([value, meta]) => ({ value, label: meta.label }));
+export const AUDIT_ACTION_OPTIONS = Object.entries(AUDIT_ACTION).map(([value, meta]) => ({ value, label: meta.label }));
 
 export const AUDIT_ENTITY_OPTIONS = Object.entries(AUDIT_ENTITY_LABEL).map(([value, label]) => ({ value, label }));

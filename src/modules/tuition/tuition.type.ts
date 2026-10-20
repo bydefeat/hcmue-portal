@@ -1,6 +1,9 @@
 export type InvoiceStatus = "paid" | "unpaid" | "overdue" | "partial";
 
+export type InvoiceLineKind = "tuition" | "fee" | "adjustment";
+
 export type InvoiceLine = {
+  kind: InvoiceLineKind;
   label: string;
   quantity: number;
   unitPrice: number;
@@ -25,14 +28,21 @@ export type TuitionInvoice = {
   dueDate: string;
   lines: InvoiceLine[];
   discount: number;
+  discountReason: string;
   total: number;
+  // Đã nộp sau khi trừ phần đã hoàn.
   paid: number;
+  refunded: number;
   payments: Payment[];
+  // Tạm tính (false): cập nhật theo đăng ký, chưa quá hạn được; chính thức sau khi Phòng Kế hoạch - Tài chính chốt học phí.
+  isFinal: boolean;
 };
 
 export type TuitionInvoiceView = TuitionInvoice & {
   status: InvoiceStatus;
   balance: number;
+  // Số đã nộp vượt số phải nộp (hủy lớp, giảm tín chỉ sau khi nộp): cần hoàn cho sinh viên.
+  refundDue: number;
   daysToDue: number;
 };
 
@@ -56,6 +66,16 @@ export type PaymentRecord = Payment & {
   voidReason: string | null;
 };
 
+export type Refund = {
+  id: string;
+  amount: number;
+  refundedAt: string;
+  method: string;
+  reference: string;
+  note: string;
+  recordedBy: string;
+};
+
 export type AdminInvoiceRow = {
   id: string;
   studentId: string;
@@ -70,14 +90,45 @@ export type AdminInvoiceRow = {
   total: number;
   paid: number;
   balance: number;
+  refundDue: number;
   status: InvoiceStatus;
   daysToDue: number;
+  isFinal: boolean;
 };
 
 export type AdminInvoiceDetail = AdminInvoiceRow & {
   lines: InvoiceLine[];
   discount: number;
+  discountReason: string;
   payments: PaymentRecord[];
+  refunds: Refund[];
+};
+
+export type TuitionRateRow = {
+  id: string;
+  academicYear: number;
+  majorCode: string;
+  majorName: string;
+  pricePerCredit: number;
+  note: string;
+};
+
+export type TuitionFeeRow = {
+  id: string;
+  academicYear: number;
+  code: string;
+  label: string;
+  amount: number;
+  isMandatory: boolean;
+};
+
+// Tình trạng chốt học phí của một học kỳ cho trang quản trị.
+export type TermTuitionStatus = {
+  termId: string;
+  termName: string;
+  invoices: number;
+  provisional: number;
+  finalizedAt: string | null;
 };
 
 export type StatementLine = {

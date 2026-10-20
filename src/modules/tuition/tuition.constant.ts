@@ -41,13 +41,17 @@ export function formatMoney(value: number) {
   return `${value.toLocaleString("vi-VN")} đ`;
 }
 
+// Hóa đơn tạm tính chưa có hạn chính thức nên không bao giờ quá hạn; quá hạn là qua hết ngày hạn nộp (giờ Việt Nam).
 export function invoiceView(invoice: TuitionInvoice): TuitionInvoiceView {
   const balance = Math.max(0, invoice.total - invoice.paid);
+  const refundDue = Math.max(0, invoice.paid - invoice.total);
   const daysToDue = daysUntil(invoice.dueDate);
   let status: InvoiceStatus = "paid";
-  if (balance > 0) status = daysToDue < 0 ? "overdue" : invoice.paid > 0 ? "partial" : "unpaid";
-  return { ...invoice, balance, daysToDue, status };
+  if (balance > 0) status = invoice.isFinal && daysToDue < 0 ? "overdue" : invoice.paid > 0 ? "partial" : "unpaid";
+  return { ...invoice, balance, refundDue, daysToDue, status };
 }
+
+export const PROVISIONAL_INVOICE: StatusMeta = { label: "Tạm tính", tone: "neutral" };
 
 // "HP 5001104009 HK1-2026": MSSV 10 chữ số liền và khóa học kỳ, để ngân hàng tự gạch nợ.
 export function transferContent(studentCode: string, termKey: string) {
@@ -65,6 +69,11 @@ export const TUITION_CONSTRAINT_MESSAGE: Partial<Record<string, string>> = {
   payments_reference_not_blank: "Chưa nhập mã giao dịch hoặc số biên lai.",
   payments_void_fields: "Hủy thanh toán phải có lý do và người hủy.",
   payments_within_invoice_total: "Số tiền vượt số còn nợ của hóa đơn. Ghi đúng số còn nợ, phần thừa làm thủ tục hoàn trả.",
+  tuition_refunds_within_overpaid: "Số hoàn vượt số sinh viên đã nộp thừa.",
+  tuition_refunds_amount_positive: "Số tiền hoàn phải lớn hơn 0.",
+  tuition_refunds_reference_not_blank: "Chưa nhập số chứng từ hoàn tiền.",
+  tuition_invoices_discount_reason: "Miễn giảm phải ghi lý do, căn cứ.",
+  tuition_invoices_finalized_fields: "Hóa đơn chốt phải ghi người chốt.",
   tuition_rates_academic_year_major_id_unique: "Ngành đã có đơn giá trong năm học này.",
   tuition_rates_price_non_negative: "Đơn giá tín chỉ không được âm.",
   tuition_fees_academic_year_code_unique: "Năm học đã có khoản thu cùng mã.",

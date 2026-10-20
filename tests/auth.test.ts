@@ -196,6 +196,9 @@ describe("đăng nhập", () => {
     assert.notEqual(signUp.status, 200);
     const otpSignIn = await call("/sign-in/email-otp", { email: "khoatm@hcmue.edu.vn", otp: "000000" });
     assert.equal(otpSignIn.status, 404);
+    // Kích hoạt tài khoản đi qua luồng quên mật khẩu: endpoint gửi mã xác minh email tới địa chỉ bất kỳ đã đóng.
+    assert.equal((await call("/email-otp/send-verification-otp", { email: "khoatm@hcmue.edu.vn", type: "email-verification" })).status, 404);
+    assert.equal((await call("/email-otp/verify-email", { email: "khoatm@hcmue.edu.vn", otp: "000000" })).status, 404);
     const [created] = await db.select().from(user).where(eq(user.email, "moi@hcmue.edu.vn"));
     assert.equal(created, undefined);
   });

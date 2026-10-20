@@ -14,11 +14,13 @@ import type { Permission } from "@/modules/access/access.type";
 import { auditLogs } from "@/modules/audit/audit.schema";
 import { AUTH_COOKIE_PREFIX } from "@/modules/authentication/authentication.constant";
 import { session, user } from "@/modules/authentication/authentication.schema";
-import { faculties } from "@/modules/curriculum/curriculum.schema";
-import { staffMembers } from "@/modules/users/users.schema";
+import { faculties, majors } from "@/modules/curriculum/curriculum.schema";
+import { mailOutbox } from "@/modules/mail/mail.schema";
+import { administrativeClasses, lecturers, staffMembers, students } from "@/modules/users/users.schema";
 // Chỉ lấy kiểu: action, query nạp động sau khi dựng môi trường request của Next (installNextRuntime).
 import type * as AccessAction from "@/modules/access/access.action";
 import type * as AccessQuery from "@/modules/access/access.query";
+import type * as UsersAction from "@/modules/users/users.action";
 
 // ---------- Môi trường request của Next cho test gọi thẳng server action (cùng cách tests/pdf.test.ts dựng):
 // AsyncLocalStorage toàn cục, cờ authInterrupts, bản react-server của next/navigation. Gọi installNextRuntime() trước khi import() action.
@@ -58,8 +60,8 @@ async function requestRunner() {
   ]);
   return <T>(cookie: string, run: () => Promise<T>): Promise<T> => {
     const headers = new Headers({ cookie });
-    // Pha "action" và incrementalCache giả để revalidatePath trong action chạy được (chỉ ghi vào pendingRevalidatedTags).
-    const workStore = { route: "/test", forceStatic: false, dynamicShouldError: false, isStaticGeneration: false, incrementalCache: {} } as never;
+    // Pha "action", incrementalCache giả để revalidatePath chạy được; after() (gửi thư ngay) bị bỏ qua, thư vẫn nằm trong hàng đợi.
+    const workStore = { route: "/test", forceStatic: false, dynamicShouldError: false, isStaticGeneration: false, incrementalCache: {}, afterContext: { after: () => {} } } as never;
     const requestStore = {
       type: "request",
       phase: "action",
@@ -83,6 +85,8 @@ async function expectForbidden(run: () => Promise<unknown>) {
 }
 
 installNextRuntime();
+
+after(() => db.$client.end());
 
 const facultyRole = { scope: "faculty" as const, isSystem: false, permissions: ["dashboard.view", "students.view"] as Permission[] };
 const universityRole = { scope: "university" as const, isSystem: false, permissions: ["dashboard.view"] as Permission[] };
@@ -197,7 +201,6 @@ describe("access.action: phân quyền trên DB qua server action", () => {
     await deleteTestSessions();
     await db.delete(user).where(inArray(user.id, ids.users));
     await db.delete(roles).where(inArray(roles.id, ids.roles));
-    await db.$client.end();
   });
 
   test("người theo khoa: trang Phân quyền chỉ thấy vai trò theo khoa và phân quyền trong khoa mình", async () => {
@@ -278,5 +281,132 @@ describe("access.action: phân quyền trên DB qua server action", () => {
     const headCookie = await cookieOf(adminId, head.id);
     await expectForbidden(() => run(headCookie, () => access.grantRole({ userId: sameFacultyUser, roleId: editableRoleId, faculty: faculty.name })));
     await expectForbidden(() => run(headCookie, () => access.saveRolePermissions(editableRoleId, ["dashboard.view"])));
+  });
+});
+
+describe("users.action: tài khoản cán bộ, khóa tài khoản quản trị, sửa tình trạng học tập", () => {
+  const stamp = Date.now();
+  const created = { users: [] as string[], staff: [] as string[], lecturers: [] as string[], students: [] as string[], classes: [] as string[], emails: [] as string[] };
+  let run: Awaited<ReturnType<typeof requestRunner>>;
+  let users: typeof UsersAction;
+  let systemCookie = "";
+  let headCookie = "";
+  let examRoleId = "";
+  let systemRoleId = "";
+
+  before(async () => {
+    [run, users] = await Promise.all([requestRunner(), import("@/modules/users/users.action")]);
+    const [admin] = await db.select({ id: user.id }).from(user).where(eq(user.email, "khoatm@hcmue.edu.vn"));
+    const held = await db
+      .select({ id: roleAssignments.id, key: roles.key })
+      .from(roleAssignments)
+      .innerJoin(roles, eq(roles.id, roleAssignments.roleId))
+      .where(eq(roleAssignments.userId, admin.id));
+    systemCookie = await cookieOf(admin.id, held.find((entry) => entry.key === "system-admin")!.id);
+    headCookie = await cookieOf(admin.id, held.find((entry) => entry.key === "academic-head")!.id);
+    [{ id: examRoleId }] = await db.select({ id: roles.id }).from(roles).where(eq(roles.key, "exam-office"));
+    [{ id: systemRoleId }] = await db.select({ id: roles.id }).from(roles).where(eq(roles.key, "system-admin"));
+  });
+
+  after(async () => {
+    const staffUsers =
+      created.staff.length > 0
+        ? (await db.select({ userId: staffMembers.userId }).from(staffMembers).where(inArray(staffMembers.id, created.staff))).flatMap((row) => (row.userId ? [row.userId] : []))
+        : [];
+    const userIds = [...created.users, ...staffUsers];
+    const entityIds = [...created.staff, ...created.lecturers, ...created.students];
+    if (userIds.length > 0) {
+      entityIds.push(...(await db.select({ id: roleAssignments.id }).from(roleAssignments).where(inArray(roleAssignments.userId, userIds))).map((row) => row.id));
+      await db.delete(roleAssignments).where(inArray(roleAssignments.userId, userIds));
+    }
+    if (entityIds.length > 0) await db.delete(auditLogs).where(inArray(auditLogs.entityId, entityIds));
+    if (created.emails.length > 0) await db.delete(mailOutbox).where(inArray(mailOutbox.recipient, created.emails));
+    if (created.staff.length > 0) await db.delete(staffMembers).where(inArray(staffMembers.id, created.staff));
+    if (created.lecturers.length > 0) await db.delete(lecturers).where(inArray(lecturers.id, created.lecturers));
+    if (created.students.length > 0) await db.delete(students).where(inArray(students.id, created.students));
+    if (created.classes.length > 0) await db.delete(administrativeClasses).where(inArray(administrativeClasses.id, created.classes));
+    await deleteTestSessions();
+    if (userIds.length > 0) await db.delete(user).where(inArray(user.id, userIds));
+  });
+
+  function staffInput(suffix: string, extra: Record<string, unknown> = {}) {
+    const email = `cbthu${stamp}${suffix}@hcmue.edu.vn`;
+    created.emails.push(email);
+    return { code: `CT${String(stamp).slice(-6)}${suffix}`, fullName: `Cán bộ thử ${suffix}`, unit: "Phòng Đào tạo", email, provisionAccount: true, ...extra };
+  }
+
+  test("tạo cán bộ không chọn vai trò: tài khoản không mang vai trò admin (không vòng lặp 403); chọn vai trò thì cấp luôn", async () => {
+    const plain = await run(systemCookie, () => users.createStaffMember(staffInput("1")));
+    assert.ok(plain.ok, plain.ok ? "" : plain.message);
+    created.staff.push(plain.data.id);
+    const [plainRow] = await db.select({ role: user.role, userId: user.id }).from(staffMembers).innerJoin(user, eq(user.id, staffMembers.userId)).where(eq(staffMembers.id, plain.data.id));
+    assert.equal(plainRow.role, null);
+    assert.equal((await db.select().from(roleAssignments).where(eq(roleAssignments.userId, plainRow.userId))).length, 0);
+    const [staffAudit] = await db.select().from(auditLogs).where(and(eq(auditLogs.entityId, plain.data.id), eq(auditLogs.entityType, "staff")));
+    assert.ok(staffAudit, "nhật ký tạo cán bộ dùng entityType staff");
+
+    const withRole = await run(systemCookie, () => users.createStaffMember(staffInput("2", { roleId: examRoleId })));
+    assert.ok(withRole.ok, withRole.ok ? "" : withRole.message);
+    created.staff.push(withRole.data.id);
+    assert.equal(withRole.data.roleName, "Phòng Khảo thí");
+    const [roleRow] = await db.select({ role: user.role, userId: user.id }).from(staffMembers).innerJoin(user, eq(user.id, staffMembers.userId)).where(eq(staffMembers.id, withRole.data.id));
+    assert.equal(roleRow.role, "admin");
+    assert.equal((await db.select().from(roleAssignments).where(eq(roleAssignments.userId, roleRow.userId))).length, 1);
+
+    await expectForbidden(() => run(headCookie, () => users.createStaffMember(staffInput("3"))));
+  });
+
+  test("tài khoản cán bộ: khóa, mở khóa, gửi lại thư, sửa đơn vị; chỉ người phân quyền toàn trường làm được", async () => {
+    const [staff] = created.staff;
+    const locked = await run(systemCookie, () => users.setAccountLock({ kind: "staff", ids: [staff], locked: true }));
+    assert.ok(locked.ok, locked.ok ? "" : locked.message);
+    assert.equal(locked.data.accounts[staff].status, "locked");
+    const unlocked = await run(systemCookie, () => users.setAccountLock({ kind: "staff", ids: [staff], locked: false }));
+    assert.ok(unlocked.ok && unlocked.data.accounts[staff].status === "pending");
+    const resent = await run(systemCookie, () => users.resendActivation({ kind: "staff", ids: [staff] }));
+    assert.ok(resent.ok && resent.data.mailed === 1);
+    const updated = await run(systemCookie, () => users.updateStaffMember(staff, { fullName: "Cán bộ thử đã sửa", unit: "Phòng Khảo thí", email: created.emails[0] }));
+    assert.ok(updated.ok && updated.data.unit === "Phòng Khảo thí");
+    await expectForbidden(() => run(headCookie, () => users.setAccountLock({ kind: "staff", ids: [staff], locked: true })));
+  });
+
+  test("giảng viên đang giữ vai trò quản trị hệ thống: người chỉ có quyền quản lý giảng viên không khóa được", async () => {
+    const [faculty] = await db.select({ id: faculties.id }).from(faculties).where(eq(faculties.name, "Khoa Công nghệ Thông tin"));
+    const email = `gvthu${stamp}@hcmue.edu.vn`;
+    const [account] = await db.insert(user).values({ name: "ThS. Giảng viên thử", email, role: "lecturer,admin" }).returning({ id: user.id });
+    created.users.push(account.id);
+    const [lecturer] = await db
+      .insert(lecturers)
+      .values({ userId: account.id, code: `GT${String(stamp).slice(-6)}`, fullName: "Giảng viên thử", title: "ThS.", gender: "male", facultyId: faculty.id, email })
+      .returning({ id: lecturers.id });
+    created.lecturers.push(lecturer.id);
+    await db.insert(roleAssignments).values({ userId: account.id, roleId: systemRoleId });
+    const blocked = await run(headCookie, () => users.setAccountLock({ kind: "lecturer", ids: [lecturer.id], locked: true }));
+    assert.ok(!blocked.ok && /chỉ quản trị hệ thống khóa được/.test(blocked.message));
+    const [stillOpen] = await db.select({ banned: user.banned }).from(user).where(eq(user.id, account.id));
+    assert.ok(!stillOpen.banned);
+    const locked = await run(systemCookie, () => users.setAccountLock({ kind: "lecturer", ids: [lecturer.id], locked: true }));
+    assert.ok(locked.ok, locked.ok ? "" : locked.message);
+  });
+
+  test("tình trạng học tập: chỉ quản trị hệ thống sửa tay, phải có lý do, có nhật ký", async () => {
+    const [major] = await db.select({ id: majors.id }).from(majors).where(eq(majors.code, "104"));
+    const [homeClass] = await db.insert(administrativeClasses).values({ code: `TEST-ST-${stamp}`, majorId: major.id, cohort: 95 }).returning({ id: administrativeClasses.id });
+    created.classes.push(homeClass.id);
+    const [student] = await db
+      .insert(students)
+      .values({ code: `TEST-ST-${stamp}`, fullName: "Sinh viên thử tình trạng", gender: "female", dateOfBirth: "2008-01-01", email: `test-st-${stamp}@student.hcmue.edu.vn`, administrativeClassId: homeClass.id, status: "reserved" })
+      .returning({ id: students.id });
+    created.students.push(student.id);
+    const reason = "Sửa dữ liệu nhập sai từ hệ thống cũ";
+    const byHead = await run(headCookie, () => users.overrideStudentsStatus({ ids: [student.id], status: "studying", reason }));
+    assert.ok(!byHead.ok && /Chỉ quản trị hệ thống/.test(byHead.message));
+    const noReason = await run(systemCookie, () => users.overrideStudentsStatus({ ids: [student.id], status: "studying", reason: "sai" }));
+    assert.ok(!noReason.ok && noReason.fieldErrors?.reason);
+    const done = await run(systemCookie, () => users.overrideStudentsStatus({ ids: [student.id], status: "studying", reason }));
+    assert.ok(done.ok && done.data.updated === 1);
+    const [audit] = await db.select().from(auditLogs).where(and(eq(auditLogs.entityType, "student"), eq(auditLogs.entityId, student.id)));
+    assert.match(audit.summary, /Sửa dữ liệu nhập sai/);
+    assert.deepEqual(audit.changes[0], { field: "Tình trạng", before: "Bảo lưu", after: "Đang học" });
   });
 });

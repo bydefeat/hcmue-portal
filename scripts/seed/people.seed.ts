@@ -1,5 +1,6 @@
 import type { Transaction } from "@/shared/libs/db.lib";
 import { mockId } from "@/shared/libs/mock.lib";
+import { staffAccountIdentity } from "@/shared/libs/login-name.lib";
 import { formatStudentCode, normalizeStudentCode } from "@/shared/libs/student-code.lib";
 import { ROLES } from "@/modules/access/access.mock";
 import { roleAssignments, rolePermissions, roles } from "@/modules/access/access.schema";
@@ -17,6 +18,9 @@ export async function seedPeople(tx: Transaction, context: SeedContext) {
   const currentStudent = STUDENTS.find((student) => student.id === CURRENT_STUDENT_ID)!;
   const currentLecturer = LECTURERS.find((lecturer) => lecturer.id === CURRENT_LECTURER_ID)!;
   const studentCode = normalizeStudentCode(currentStudent.code);
+  // Giảng viên, cán bộ đăng nhập bằng mã hồ sơ như sinh viên dùng MSSV.
+  const lecturerLogin = staffAccountIdentity(currentLecturer.code);
+  const adminLogin = staffAccountIdentity(ADMIN.code);
 
   // Tài khoản seed coi như đã kích hoạt (đã đăng nhập) để bảng tài khoản hiện "Đang dùng"; hồ sơ khác để "Chưa cấp".
   const lastSignInAt = new Date();
@@ -32,8 +36,8 @@ export async function seedPeople(tx: Transaction, context: SeedContext) {
         role: "student",
         lastSignInAt,
       },
-      { name: currentLecturer.displayName, email: currentLecturer.email, emailVerified: true, role: "lecturer", lastSignInAt },
-      { name: ADMIN.name, email: ADMIN.email, emailVerified: true, role: "admin", lastSignInAt },
+      { name: currentLecturer.displayName, email: currentLecturer.email, ...lecturerLogin, emailVerified: true, role: "lecturer", lastSignInAt },
+      { name: ADMIN.name, email: ADMIN.email, ...adminLogin, emailVerified: true, role: "admin", lastSignInAt },
     ])
     .returning();
   const [studentUser, lecturerUser, adminUser] = userRows;
@@ -125,8 +129,8 @@ export async function seedPeople(tx: Transaction, context: SeedContext) {
     lecturers: LECTURERS.length,
     accounts: [
       `Sinh viên ${formatStudentCode(studentCode)} (${currentStudent.fullName})`,
-      `Giảng viên ${currentLecturer.email} (${currentLecturer.displayName})`,
-      `Phòng Đào tạo ${ADMIN.email} (${ADMIN.name})`,
+      `Giảng viên ${lecturerLogin.displayUsername} (${currentLecturer.displayName})`,
+      `Phòng Đào tạo ${adminLogin.displayUsername} (${ADMIN.name})`,
     ],
   };
 }

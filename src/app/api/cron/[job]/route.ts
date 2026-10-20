@@ -1,5 +1,7 @@
 import { timingSafeEqual } from "node:crypto";
+import { db } from "@/shared/libs/db.lib";
 import { env } from "@/shared/libs/env.lib";
+import { sweepSignInFailures } from "@/modules/authentication/authentication.lockout";
 import { runAcademicWarningsJob } from "@/modules/grades/grades.lib";
 import { runMailOutboxJob } from "@/modules/mail/mail.lib";
 import { publishDueClassAnnouncements } from "@/modules/teaching/teaching.lib";
@@ -19,6 +21,8 @@ const JOBS: Record<string, () => Promise<Record<string, number>>> = {
   // Gửi thư trong hàng đợi chưa đi được (lỗi Resend, tiến trình chết giữa chừng), lùi lịch thư lỗi, xóa thư đã gửi quá 30 ngày.
   // Nên chạy mỗi 1 đến 5 phút: lịch gửi lại ngắn nhất là 1 phút.
   "mail-outbox": runMailOutboxJob,
+  // Dọn bộ đếm đăng nhập sai đã hết hạn (tên dò bừa không tồn tại để lại dòng). Nên chạy mỗi ngày.
+  "sign-in-failures": () => sweepSignInFailures(db),
 };
 
 function authorized(request: Request) {

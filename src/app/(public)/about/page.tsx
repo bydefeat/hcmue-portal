@@ -20,8 +20,8 @@ const MODULES = [
 ];
 
 const FAQ = [
-  { q: "Tài khoản đăng nhập lấy ở đâu?", a: "Tài khoản do Trường cấp: sinh viên dùng mã số sinh viên, giảng viên và cán bộ dùng mã cán bộ hoặc email công vụ. Cổng không có chức năng tự đăng ký." },
-  { q: "Quên mật khẩu thì làm gì?", a: "Chọn Quên mật khẩu ở trang đăng nhập, nhập email đã đăng ký để nhận mã đặt lại gồm 6 số." },
+  { q: "Tài khoản đăng nhập lấy ở đâu?", a: "Tài khoản do Trường cấp: sinh viên đăng nhập bằng mã số sinh viên (ví dụ 50.01.104.013), giảng viên và cán bộ đăng nhập bằng mã số cán bộ, giảng viên (ví dụ GV104011), không dùng email. Lần đầu dùng cổng, chọn Kích hoạt tài khoản ở trang đăng nhập để tự đặt mật khẩu. Cổng không có chức năng tự đăng ký." },
+  { q: "Quên mật khẩu thì làm gì?", a: "Chọn Quên mật khẩu ở trang đăng nhập, nhập email trường cấp (sinh viên dạng 5001104013@student.hcmue.edu.vn, cán bộ và giảng viên dùng email công vụ) để nhận mã đặt lại gồm 6 số. Đăng nhập sai quá 10 lần trong 15 phút thì tài khoản bị tạm khóa đăng nhập 15 phút; đặt lại mật khẩu thành công sẽ gỡ khóa ngay." },
   { q: "Vì sao tôi không đăng ký được một lớp?", a: "Lý do hiện ngay trên dòng của lớp đó: chưa đạt học phần tiên quyết, trùng lịch với lớp đã chọn, lớp đã đủ chỗ, vượt hạn mức tín chỉ hoặc chưa đến đợt đăng ký của khóa." },
   { q: "Muốn học quá 25 tín chỉ trong một học kỳ?", a: "Gửi đơn Học vượt tín chỉ ở mục Đơn từ. Đơn qua cố vấn học tập, khoa và Phòng Đào tạo; chỉ xét cho sinh viên có điểm trung bình tích lũy từ 2,5." },
   { q: "Điểm của tôi khi nào hiện trên cổng?", a: "Sau khi giảng viên chốt điểm, khoa duyệt và Phòng Đào tạo công bố. Có thể nộp đơn phúc khảo trong 7 ngày kể từ ngày công bố." },

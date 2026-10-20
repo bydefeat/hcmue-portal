@@ -6,8 +6,8 @@ import { useRouter } from "@bprogress/next/app";
 import { Alert, Button, Divider, Form, Input } from "antd";
 import { landingAfterSignIn, parseRoles } from "@/shared/constants/role.constant";
 import { authClient } from "@/shared/libs/auth-client.lib";
-import { isStudentCode, isStudentEmail, studentEmailOf } from "@/shared/libs/student-code.lib";
-import { AUTH_ERROR, authErrorMessage } from "@/modules/authentication/authentication.constant";
+import { isStudentCode, studentEmailOf } from "@/shared/libs/student-code.lib";
+import { AUTH_ERROR, LOGIN_NAME_HINT, authErrorMessage } from "@/modules/authentication/authentication.constant";
 import { AuthHeading } from "@/modules/authentication/components/auth-heading";
 
 type SignInValues = {
@@ -15,12 +15,9 @@ type SignInValues = {
   password: string;
 };
 
-// Sinh viên đăng nhập bằng MSSV. Giảng viên, cán bộ tạm dùng email cho tới khi chốt cách đăng nhập.
-async function signIn({ username, password }: SignInValues) {
-  const value = username.trim();
-  return value.includes("@")
-    ? authClient.signIn.email({ email: value.toLowerCase(), password })
-    : authClient.signIn.username({ username: value, password });
+// Mọi tài khoản đăng nhập bằng mã số: sinh viên dùng MSSV, giảng viên và cán bộ dùng mã số cán bộ (GV104011, CB0021).
+function signIn({ username, password }: SignInValues) {
+  return authClient.signIn.username({ username: username.trim(), password });
 }
 
 export function SignInForm({ defaultUsername, next }: { defaultUsername?: string; next?: string | null }) {
@@ -29,6 +26,7 @@ export function SignInForm({ defaultUsername, next }: { defaultUsername?: string
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const username = Form.useWatch("username", form)?.trim();
+  // Email trường của sinh viên suy ra được từ MSSV; mã cán bộ thì không tra email ở đây để trang không lộ email của ai.
   const recoveryEmail = username && isStudentCode(username) ? studentEmailOf(username) : username?.includes("@") ? username : undefined;
   const forgotHref = recoveryEmail
     ? `/authentication/forgot-password?email=${encodeURIComponent(recoveryEmail)}`
@@ -63,16 +61,21 @@ export function SignInForm({ defaultUsername, next }: { defaultUsername?: string
         <Form.Item
           name="username"
           label="Tên đăng nhập"
-          extra="Sinh viên nhập mã số sinh viên, ví dụ 50.01.104.013"
+          extra={LOGIN_NAME_HINT}
           rules={[
             { required: true, whitespace: true, message: "Chưa nhập tên đăng nhập" },
             {
-              validator: (_, value?: string) =>
-                value && isStudentEmail(value) ? Promise.reject(new Error(AUTH_ERROR.STUDENT_USE_CODE)) : Promise.resolve(),
+              validator: (_, value?: string) => (value?.includes("@") ? Promise.reject(new Error(AUTH_ERROR.USE_LOGIN_CODE)) : Promise.resolve()),
             },
           ]}
         >
-          <Input autoFocus={!defaultUsername} autoComplete="username" autoCapitalize="none" spellCheck={false} placeholder="Mã số sinh viên" />
+          <Input
+            autoFocus={!defaultUsername}
+            autoComplete="username"
+            autoCapitalize="none"
+            spellCheck={false}
+            placeholder="MSSV hoặc mã số cán bộ, giảng viên"
+          />
         </Form.Item>
         <Form.Item name="password" label="Mật khẩu" rules={[{ required: true, message: "Chưa nhập mật khẩu" }]}>
           <Input.Password autoFocus={Boolean(defaultUsername)} autoComplete="current-password" placeholder="Nhập mật khẩu" />

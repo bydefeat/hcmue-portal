@@ -5,7 +5,8 @@ export const user = pgTable("user", {
   id: primaryId(),
   name: text().notNull(),
   email: text().notNull().unique("user_email_unique"),
-  // Plugin username của better-auth: sinh viên đăng nhập bằng MSSV 10 chữ số, displayUsername giữ dạng có dấu chấm
+  // Plugin username của better-auth: tên đăng nhập là mã số. Sinh viên lưu MSSV 10 chữ số (hiển thị có dấu chấm),
+  // giảng viên và cán bộ lưu mã hồ sơ chữ thường (hiển thị chữ hoa, ví dụ GV104011).
   username: text().unique("user_username_unique"),
   displayUsername: text(),
   emailVerified: boolean().notNull().default(false),
@@ -75,3 +76,16 @@ export const rateLimit = pgTable("rate_limit", {
   count: integer().notNull(),
   lastRequest: bigint({ mode: "number" }).notNull(),
 });
+
+// Đếm lần đăng nhập theo tên đăng nhập đã chuẩn hoá, vì rate limit của better-auth chỉ theo IP. Không nối khóa ngoài tới user:
+// tên không tồn tại cũng được đếm và khóa tạm như thường để câu báo không lộ tài khoản nào có thật.
+export const signInFailures = pgTable(
+  "sign_in_failures",
+  {
+    username: text().primaryKey(),
+    failures: integer().notNull(),
+    windowStartedAt: timestamp({ withTimezone: true }).notNull(),
+    lockedUntil: timestamp({ withTimezone: true }),
+  },
+  (table) => [index().on(table.windowStartedAt)],
+);

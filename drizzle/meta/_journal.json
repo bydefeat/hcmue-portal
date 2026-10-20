@@ -204,6 +204,20 @@
       "when": 1792496697655,
       "tag": "0028_programs_status_guards",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1792499181017,
+      "tag": "0029_registration_tuition",
+      "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1792499183997,
+      "tag": "0030_tuition_refund_guards",
+      "breakpoints": true
     }
   ]
 }

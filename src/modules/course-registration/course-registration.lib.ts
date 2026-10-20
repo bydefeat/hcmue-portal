@@ -122,7 +122,7 @@ export async function loadSections(executor: Executor, where: SQL): Promise<Clas
   const sectionIds = rows.map((row) => row.id);
   const [meetings, labs, seats, seatMajors, audienceMajors] = await Promise.all([
     executor
-      .select({ sectionId: sectionMeetings.classSectionId, dayOfWeek: sectionMeetings.dayOfWeek, startPeriod: sectionMeetings.startPeriod, endPeriod: sectionMeetings.endPeriod, room: rooms.code })
+      .select({ sectionId: sectionMeetings.classSectionId, dayOfWeek: sectionMeetings.dayOfWeek, startPeriod: sectionMeetings.startPeriod, endPeriod: sectionMeetings.endPeriod, room: rooms.code, roomId: rooms.id })
       .from(sectionMeetings)
       .innerJoin(rooms, eq(rooms.id, sectionMeetings.roomId))
       .where(inArray(sectionMeetings.classSectionId, sectionIds))
@@ -136,6 +136,7 @@ export async function loadSections(executor: Executor, where: SQL): Promise<Clas
         startPeriod: labGroups.startPeriod,
         endPeriod: labGroups.endPeriod,
         room: rooms.code,
+        roomId: rooms.id,
         capacity: labGroups.capacity,
         enrolled: labGroups.enrolledCount,
       })
@@ -180,7 +181,7 @@ export async function loadSections(executor: Executor, where: SQL): Promise<Clas
         .map((lab) => ({
           id: lab.id,
           code: lab.code,
-          meeting: { dayOfWeek: lab.dayOfWeek, startPeriod: lab.startPeriod, endPeriod: lab.endPeriod, room: lab.room },
+          meeting: { dayOfWeek: lab.dayOfWeek, startPeriod: lab.startPeriod, endPeriod: lab.endPeriod, room: lab.room, roomId: lab.roomId },
           capacity: lab.capacity,
           enrolled: lab.enrolled,
         })),
@@ -970,19 +971,19 @@ export async function scheduleProblemOf(
     termId: string;
     lecturerId: string | null;
     capacity: number;
-    meetings: { dayOfWeek: number; startPeriod: number; endPeriod: number; room: string }[];
-    labGroups: { code: string; dayOfWeek: number; startPeriod: number; endPeriod: number; room: string; capacity: number }[];
+    meetings: { dayOfWeek: number; startPeriod: number; endPeriod: number; roomId: string }[];
+    labGroups: { code: string; dayOfWeek: number; startPeriod: number; endPeriod: number; roomId: string; capacity: number }[];
   },
   roomRows: RoomFacts[],
 ) {
-  const roomOf = new Map(roomRows.map((room) => [room.code, room]));
+  const roomOf = new Map(roomRows.map((room) => [room.id, room]));
   for (const meeting of candidate.meetings) {
-    const room = roomOf.get(meeting.room)!;
+    const room = roomOf.get(meeting.roomId)!;
     if (room.status === "maintenance") return { field: "meetings", message: `Phòng ${room.code} đang bảo trì${room.note ? ` (${room.note})` : ""}, chọn phòng khác.` };
     if (room.capacity < candidate.capacity) return { field: "capacity", message: `Phòng ${room.code} chỉ có ${room.capacity} chỗ, ít hơn sĩ số tối đa ${candidate.capacity}. Giảm sĩ số hoặc chọn phòng lớn hơn.` };
   }
   for (const group of candidate.labGroups) {
-    const room = roomOf.get(group.room)!;
+    const room = roomOf.get(group.roomId)!;
     if (room.status === "maintenance") return { field: "labGroups", message: `Phòng ${room.code} đang bảo trì${room.note ? ` (${room.note})` : ""}, chọn phòng khác cho nhóm ${group.code}.` };
     if (room.capacity < group.capacity) return { field: "labGroups", message: `Phòng ${room.code} chỉ có ${room.capacity} chỗ, ít hơn sĩ số nhóm ${group.code} (${group.capacity}).` };
   }
@@ -992,8 +993,8 @@ export async function scheduleProblemOf(
       id: candidate.id ?? "",
       status: "open",
       lecturerId: candidate.lecturerId,
-      meetings: candidate.meetings,
-      labGroups: candidate.labGroups.map((group) => ({ id: group.code, code: group.code, capacity: group.capacity, enrolled: 0, meeting: group })),
+      meetings: candidate.meetings.map((meeting) => ({ ...meeting, room: roomOf.get(meeting.roomId)!.code })),
+      labGroups: candidate.labGroups.map((group) => ({ id: group.code, code: group.code, capacity: group.capacity, enrolled: 0, meeting: { ...group, room: roomOf.get(group.roomId)!.code } })),
     },
     others,
   );

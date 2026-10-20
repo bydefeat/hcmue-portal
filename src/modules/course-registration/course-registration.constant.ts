@@ -60,7 +60,7 @@ export function conflictsOf(section: Pick<ClassSection, "id" | "status" | "lectu
       for (const theirs of allMeetings(other)) {
         if (!overlaps(mine, theirs)) continue;
         const when = `${weekdayLabel(mine.dayOfWeek)}, ${periodLabel(theirs.startPeriod, theirs.endPeriod)}`;
-        if (!room && mine.room === theirs.room) {
+        if (!room && (mine.roomId && theirs.roomId ? mine.roomId === theirs.roomId : mine.room === theirs.room)) {
           room = true;
           conflicts.push({ kind: "room", withCode: other.code, message: `Trùng phòng ${mine.room} với ${other.code} (${when})` });
         }

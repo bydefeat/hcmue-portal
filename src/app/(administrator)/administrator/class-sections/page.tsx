@@ -23,8 +23,10 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ t
   ]);
   const campuses = await getCampuses();
   const campusOf = new Map(campuses.map((campus) => [campus.id, campus.name]));
-  // Phòng bảo trì không xếp lớp được (server cũng chặn).
-  const activeRooms = rooms.filter((room) => room.status === "active");
+  // Phòng bảo trì không xếp lớp được (server cũng chặn): để cuối danh sách, không chọn được.
+  const roomOptions = rooms
+    .toSorted((a, b) => Number(a.status !== "active") - Number(b.status !== "active"))
+    .map((room) => ({ id: room.id, code: room.code, campus: campusOf.get(room.campusId) ?? "", capacity: room.capacity, isLab: room.type === "lab", inMaintenance: room.status !== "active" }));
   const termId = terms.some((entry) => entry.id === term) ? term! : targetTerm.id;
   const sections = (await getClassSections(termId)).filter((section) => inScope(viewer, section.faculty));
   const openTerms = terms.filter((entry) => entry.isCurrent || entry.isRegistrationTarget);
@@ -41,8 +43,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ t
       termId={termId}
       initialQuery={q}
       courses={courses.filter((course) => course.isActive).map(({ code, name, credits, faculty }) => ({ code, name, credits, faculty }))}
-      rooms={activeRooms.map((room) => room.code)}
-      roomLabels={Object.fromEntries(activeRooms.map((room) => [room.code, `${room.code} · ${room.capacity} chỗ · ${campusOf.get(room.campusId) ?? ""}`]))}
+      rooms={roomOptions}
       majors={majors.map(({ code, name }) => ({ code, name }))}
       cohorts={cohorts}
       lecturers={lecturers

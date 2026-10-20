@@ -12,6 +12,8 @@ import { administrativeClasses, lecturerLoadNorms, lecturers, staffMembers, stud
 import { by, type SeedContext } from "./context";
 
 export const ADMIN = { code: "CB0021", name: "Trần Minh Khoa", unit: "Phòng Đào tạo", email: "khoatm@hcmue.edu.vn" };
+// Cán bộ Phòng Kế hoạch - Tài chính: chỉ có vai trò finance-office (học phí, khóa đăng ký học phí), để thử menu và quyền tuition.manage.
+export const FINANCE = { code: "CB0034", name: "Nguyễn Thị Thu Hà", unit: "Phòng Kế hoạch - Tài chính", email: "hantt@hcmue.edu.vn" };
 
 export const classIdOf = (className: string) => mockId(`class:${className}`);
 
@@ -23,6 +25,7 @@ export async function seedPeople(tx: Transaction, context: SeedContext) {
   // Giảng viên, cán bộ đăng nhập bằng mã hồ sơ như sinh viên dùng MSSV.
   const lecturerLogin = staffAccountIdentity(currentLecturer.code);
   const adminLogin = staffAccountIdentity(ADMIN.code);
+  const financeLogin = staffAccountIdentity(FINANCE.code);
 
   // Tài khoản seed coi như đã kích hoạt (đã đăng nhập) để bảng tài khoản hiện "Đang dùng"; hồ sơ khác để "Chưa cấp".
   const lastSignInAt = new Date();
@@ -40,9 +43,10 @@ export async function seedPeople(tx: Transaction, context: SeedContext) {
       },
       { name: currentLecturer.displayName, email: currentLecturer.email, ...lecturerLogin, emailVerified: true, role: "lecturer", lastSignInAt },
       { name: ADMIN.name, email: ADMIN.email, ...adminLogin, emailVerified: true, role: "admin", lastSignInAt },
+      { name: FINANCE.name, email: FINANCE.email, ...financeLogin, emailVerified: true, role: "admin", lastSignInAt },
     ])
     .returning();
-  const [studentUser, lecturerUser, adminUser] = userRows;
+  const [studentUser, lecturerUser, adminUser, financeUser] = userRows;
   await tx.insert(account).values(userRows.map((row) => ({ userId: row.id, accountId: row.id, providerId: "credential", password: context.passwordHash })));
   Object.assign(context, { studentUserId: studentUser.id, lecturerUserId: lecturerUser.id, adminUserId: adminUser.id });
 
@@ -69,7 +73,10 @@ export async function seedPeople(tx: Transaction, context: SeedContext) {
     { title: "PGS.TS.", normHours: 120 },
     { title: "GS.TS.", normHours: 120 },
   ]);
-  await tx.insert(staffMembers).values({ userId: adminUser.id, code: ADMIN.code, fullName: ADMIN.name, unit: ADMIN.unit, email: ADMIN.email });
+  await tx.insert(staffMembers).values([
+    { userId: adminUser.id, code: ADMIN.code, fullName: ADMIN.name, unit: ADMIN.unit, email: ADMIN.email },
+    { userId: financeUser.id, code: FINANCE.code, fullName: FINANCE.name, unit: FINANCE.unit, email: FINANCE.email },
+  ]);
 
   const firstStudentOf = by(STUDENTS.toReversed(), (student) => student.className);
   await tx.insert(administrativeClasses).values(
@@ -112,6 +119,7 @@ export async function seedPeople(tx: Transaction, context: SeedContext) {
   // Tài khoản admin seed có 2 vai trò để thử đổi vai trò: Trưởng phòng Đào tạo (mặc định) và Quản trị hệ thống (có quyền Phân quyền).
   await tx.insert(roleAssignments).values({ userId: adminUser.id, roleId: roleByKey.get("academic-head")!.id, grantedByUserId: adminUser.id });
   await tx.insert(roleAssignments).values({ userId: adminUser.id, roleId: roleByKey.get("system-admin")!.id, grantedByUserId: adminUser.id });
+  await tx.insert(roleAssignments).values({ userId: financeUser.id, roleId: roleByKey.get("finance-office")!.id, grantedByUserId: adminUser.id });
 
   return {
     students: STUDENTS.length,
@@ -120,6 +128,7 @@ export async function seedPeople(tx: Transaction, context: SeedContext) {
       `Sinh viên ${formatStudentCode(studentCode)} (${currentStudent.fullName})`,
       `Giảng viên ${lecturerLogin.displayUsername} (${currentLecturer.displayName})`,
       `Phòng Đào tạo ${adminLogin.displayUsername} (${ADMIN.name})`,
+      `Phòng Kế hoạch - Tài chính ${financeLogin.displayUsername} (${FINANCE.name})`,
     ],
   };
 }

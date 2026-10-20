@@ -353,7 +353,7 @@ const meetingSchema = z
     dayOfWeek: z.int().min(2).max(8),
     startPeriod: z.int().min(1).max(12),
     endPeriod: z.int().min(1).max(12),
-    room: z.string().trim().min(1, "Chưa chọn phòng"),
+    roomId: z.uuid("Chưa chọn phòng"),
   })
   .refine((meeting) => meeting.startPeriod <= meeting.endPeriod, { path: ["endPeriod"], message: "Tiết kết thúc không trước tiết bắt đầu" });
 
@@ -388,7 +388,7 @@ export const CLASS_SECTION_SCHEMA = z
             dayOfWeek: z.int().min(2).max(8),
             startPeriod: z.int().min(1).max(12),
             endPeriod: z.int().min(1).max(12),
-            room: z.string().trim().min(1, "Chưa chọn phòng"),
+            roomId: z.uuid("Chưa chọn phòng"),
             capacity: z.int().min(1),
           })
           .refine((group) => group.startPeriod <= group.endPeriod, { path: ["endPeriod"], message: "Tiết kết thúc không trước tiết bắt đầu" }),

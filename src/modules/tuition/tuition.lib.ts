@@ -4,7 +4,7 @@ import { dayjs } from "@/shared/libs/date.lib";
 import type { db, Transaction } from "@/shared/libs/db.lib";
 import { classSections, enrollments, registrationHolds, terms } from "@/modules/course-registration/course-registration.schema";
 import { courses } from "@/modules/curriculum/curriculum.schema";
-import { adjustmentLine, billedCredits, buildInvoiceLines } from "@/modules/tuition/tuition.rule";
+import { adjustmentLine, billedCredits, buildInvoiceLines, finalizedPricePerCredit } from "@/modules/tuition/tuition.rule";
 import { invoiceLines, payments, tuitionFees, tuitionInvoices, tuitionRates, tuitionRefunds } from "@/modules/tuition/tuition.schema";
 import type { InvoiceLine } from "@/modules/tuition/tuition.type";
 import { administrativeClasses, students } from "@/modules/users/users.schema";
@@ -52,22 +52,41 @@ export type InvoiceSync = { invoiceId: string | null; change: "created" | "updat
 // Hóa đơn học kỳ theo tín chỉ đang đăng ký, gọi trong cùng transaction với mọi thao tác đổi đăng ký (đăng ký, hủy, đổi lớp, hủy lớp,
 // đăng ký hộ, xếp từ danh sách chờ). Hóa đơn tạm tính được tính lại cả dòng; hóa đơn đã chốt thì thêm dòng điều chỉnh phần chênh.
 // Ngành chưa có đơn giá năm học thì chưa lập hóa đơn (chốt học phí sẽ báo thiếu đơn giá).
+// Hóa đơn đã chốt tính phần điều chỉnh theo đơn giá đã chốt trên hóa đơn (dòng học phí), không theo đơn giá hiện hành: đổi bảng
+// đơn giá sau khi chốt không làm lệch tiền của tín chỉ thêm, bớt. Ngành chưa có đơn giá vẫn điều chỉnh được nếu hóa đơn đã có giá.
 export async function syncTermInvoice(tx: Transaction, studentId: string, termId: string, note = ""): Promise<InvoiceSync> {
-  const price = await priceOf(tx, studentId, termId);
-  if (!price || price.pricePerCredit === null) return { invoiceId: null, change: "unpriced" };
-  const [[invoice], credits, fees] = await Promise.all([
+  const [price, [invoice], credits] = await Promise.all([
+    priceOf(tx, studentId, termId),
     tx
       .select({ id: tuitionInvoices.id, finalizedAt: tuitionInvoices.finalizedAt })
       .from(tuitionInvoices)
       .where(and(eq(tuitionInvoices.studentId, studentId), eq(tuitionInvoices.termId, termId)))
       .for("update"),
     enrolledCredits(tx, studentId, termId),
-    tx
-      .select({ label: tuitionFees.label, amount: tuitionFees.amount })
-      .from(tuitionFees)
-      .where(and(eq(tuitionFees.academicYear, price.academicYear), eq(tuitionFees.isMandatory, true)))
-      .orderBy(asc(tuitionFees.code)),
   ]);
+  const current = invoice
+    ? await tx
+        .select({ position: invoiceLines.position, kind: invoiceLines.kind, label: invoiceLines.label, quantity: invoiceLines.quantity, unitPrice: invoiceLines.unitPrice })
+        .from(invoiceLines)
+        .where(eq(invoiceLines.invoiceId, invoice.id))
+        .orderBy(asc(invoiceLines.position))
+    : [];
+
+  if (invoice?.finalizedAt) {
+    const pricePerCredit = finalizedPricePerCredit(current) ?? price?.pricePerCredit ?? null;
+    if (pricePerCredit === null) return { invoiceId: invoice.id, change: "unpriced" };
+    const line = adjustmentLine({ creditDelta: credits - billedCredits(current), pricePerCredit, note });
+    if (!line) return { invoiceId: invoice.id, change: "unchanged" };
+    await tx.insert(invoiceLines).values(lineRows(invoice.id, [line], (current.at(-1)?.position ?? 0) + 1));
+    return { invoiceId: invoice.id, change: "adjusted" };
+  }
+
+  if (!price || price.pricePerCredit === null) return { invoiceId: null, change: "unpriced" };
+  const fees = await tx
+    .select({ label: tuitionFees.label, amount: tuitionFees.amount })
+    .from(tuitionFees)
+    .where(and(eq(tuitionFees.academicYear, price.academicYear), eq(tuitionFees.isMandatory, true)))
+    .orderBy(asc(tuitionFees.code));
   const expected = credits > 0 ? buildInvoiceLines({ credits, pricePerCredit: price.pricePerCredit, semester: price.semester, fees }) : [];
 
   if (!invoice) {
@@ -78,19 +97,6 @@ export async function syncTermInvoice(tx: Transaction, studentId: string, termId
       .returning({ id: tuitionInvoices.id });
     await tx.insert(invoiceLines).values(lineRows(created.id, expected, 1));
     return { invoiceId: created.id, change: "created" };
-  }
-
-  const current = await tx
-    .select({ position: invoiceLines.position, kind: invoiceLines.kind, label: invoiceLines.label, quantity: invoiceLines.quantity, unitPrice: invoiceLines.unitPrice })
-    .from(invoiceLines)
-    .where(eq(invoiceLines.invoiceId, invoice.id))
-    .orderBy(asc(invoiceLines.position));
-
-  if (invoice.finalizedAt) {
-    const line = adjustmentLine({ creditDelta: credits - billedCredits(current), pricePerCredit: price.pricePerCredit, note });
-    if (!line) return { invoiceId: invoice.id, change: "unchanged" };
-    await tx.insert(invoiceLines).values(lineRows(invoice.id, [line], (current.at(-1)?.position ?? 0) + 1));
-    return { invoiceId: invoice.id, change: "adjusted" };
   }
 
   const same =

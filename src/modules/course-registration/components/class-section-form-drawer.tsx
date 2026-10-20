@@ -10,6 +10,9 @@ import type { ClassSectionFormValues, ClassSectionView } from "@/modules/course-
 
 export type SectionCourseOption = { code: string; name: string; credits: number; faculty: string };
 export type SectionLecturerOption = { id: string; displayName: string; faculty: string };
+// Phòng chọn theo id: mã phòng có thể trùng giữa các cơ sở nên nhãn kèm cơ sở và sức chứa. Phòng bảo trì vẫn có trong danh sách
+// (để lớp đang xếp ở đó hiện đúng nhãn) nhưng không chọn được.
+export type SectionRoomOption = { id: string; code: string; campus: string; capacity: number; isLab: boolean; inMaintenance: boolean };
 
 type ClassSectionFormDrawerProps = {
   open: boolean;
@@ -17,8 +20,7 @@ type ClassSectionFormDrawerProps = {
   termName: string;
   courses: SectionCourseOption[];
   lecturers: SectionLecturerOption[];
-  rooms: string[];
-  roomLabels?: Record<string, string>;
+  rooms: SectionRoomOption[];
   majors: { code: string; name: string }[];
   // Các khóa đang có lớp sinh hoạt, đọc từ DB.
   cohorts: number[];
@@ -34,7 +36,7 @@ const EMPTY_VALUES: Partial<ClassSectionFormValues> = {
   sectionNumber: 1,
   capacity: 45,
   status: "draft",
-  meetings: [{ dayOfWeek: 2, startPeriod: 1, endPeriod: 3, room: "" }],
+  meetings: [{ dayOfWeek: 2, startPeriod: 1, endPeriod: 3, roomId: "" }],
   minEnrollment: 15,
   audienceMajors: [],
   audienceCohorts: [],
@@ -49,7 +51,7 @@ function toValues(section: ClassSectionView): ClassSectionFormValues {
     lecturerId: section.lecturerId ?? undefined,
     capacity: section.capacity,
     status: section.status,
-    meetings: section.meetings,
+    meetings: section.meetings.map(({ dayOfWeek, startPeriod, endPeriod, roomId }) => ({ dayOfWeek, startPeriod, endPeriod, roomId: roomId ?? "" })),
     minEnrollment: section.minEnrollment,
     audienceMajors: section.audience?.majorCodes ?? [],
     audienceCohorts: section.audience?.cohorts ?? [],
@@ -60,16 +62,21 @@ function toValues(section: ClassSectionView): ClassSectionFormValues {
       dayOfWeek: group.meeting.dayOfWeek,
       startPeriod: group.meeting.startPeriod,
       endPeriod: group.meeting.endPeriod,
-      room: group.meeting.room,
+      roomId: group.meeting.roomId ?? "",
       capacity: group.capacity,
     })),
   };
 }
 
-export function ClassSectionFormDrawer({ open, section, termName, courses, lecturers, rooms, roomLabels = {}, majors, cohorts, onClose, onSubmit }: ClassSectionFormDrawerProps) {
+export function ClassSectionFormDrawer({ open, section, termName, courses, lecturers, rooms, majors, cohorts, onClose, onSubmit }: ClassSectionFormDrawerProps) {
   const [form] = Form.useForm<ClassSectionFormValues>();
   const [isPending, startTransition] = useTransition();
-  const roomOptions = rooms.map((room) => ({ value: room, label: roomLabels[room] ?? room }));
+  const roomOptions = rooms.map((room) => ({
+    value: room.id,
+    label: `${room.code} · ${room.campus} · ${room.capacity} chỗ${room.inMaintenance ? " · đang bảo trì" : ""}`,
+    disabled: room.inMaintenance,
+  }));
+  const firstRoom = rooms.find((room) => !room.inMaintenance);
   const majorOptions = majors.map((major) => ({ value: major.code, label: major.name }));
   // Giữ cả khóa lớp đang lưu (có thể khóa đó không còn lớp sinh hoạt) để ô chọn vẫn hiện nhãn.
   const savedCohorts = section ? [...(section.audience?.cohorts ?? []), ...section.reservedSeats.flatMap((seat) => seat.cohorts)] : [];
@@ -222,8 +229,8 @@ export function ClassSectionFormDrawer({ open, section, termName, courses, lectu
                   <Form.Item name={[field.name, "dayOfWeek"]} label="Thứ" rules={[{ required: true, message: "Chưa chọn" }]}>
                     <Select options={DAY_OPTIONS} />
                   </Form.Item>
-                  <Form.Item name={[field.name, "room"]} label="Phòng" rules={[{ required: true, message: "Chưa chọn" }]}>
-                    <Select options={roomOptions} />
+                  <Form.Item name={[field.name, "roomId"]} label="Phòng" rules={[{ required: true, message: "Chưa chọn" }]}>
+                    <Select showSearch={{ optionFilterProp: "label" }} options={roomOptions} popupMatchSelectWidth={false} />
                   </Form.Item>
                   <Form.Item name={[field.name, "startPeriod"]} label="Từ tiết" rules={[{ required: true, message: "Chưa chọn" }]}>
                     <Select options={PERIOD_OPTIONS} />
@@ -250,7 +257,7 @@ export function ClassSectionFormDrawer({ open, section, termName, courses, lectu
                 </Card>
               ))}
               <Form.ErrorList errors={errors} />
-              <Button icon={<Plus size={16} aria-hidden className="text-zinc-500" />} onClick={() => add({ dayOfWeek: 2, startPeriod: 1, endPeriod: 3, room: rooms[0] ?? "" })} className="self-start">
+              <Button icon={<Plus size={16} aria-hidden className="text-zinc-500" />} onClick={() => add({ dayOfWeek: 2, startPeriod: 1, endPeriod: 3, roomId: firstRoom?.id ?? "" })} className="self-start">
                 Thêm buổi học
               </Button>
             </div>
@@ -271,8 +278,8 @@ export function ClassSectionFormDrawer({ open, section, termName, courses, lectu
                   <Form.Item name={[field.name, "dayOfWeek"]} label="Thứ" rules={[{ required: true, message: "Chưa chọn" }]}>
                     <Select options={DAY_OPTIONS} />
                   </Form.Item>
-                  <Form.Item name={[field.name, "room"]} label="Phòng" rules={[{ required: true, message: "Chưa chọn" }]}>
-                    <Select options={roomOptions} />
+                  <Form.Item name={[field.name, "roomId"]} label="Phòng" rules={[{ required: true, message: "Chưa chọn" }]}>
+                    <Select showSearch={{ optionFilterProp: "label" }} options={roomOptions} popupMatchSelectWidth={false} />
                   </Form.Item>
                   <Form.Item name={[field.name, "capacity"]} label="Sĩ số" rules={[{ required: true, message: "Chưa nhập" }]}>
                     <InputNumber min={5} max={60} className="w-full" />
@@ -290,7 +297,7 @@ export function ClassSectionFormDrawer({ open, section, termName, courses, lectu
               ))}
               <Button
                 icon={<Plus size={16} aria-hidden className="text-zinc-500" />}
-                onClick={() => add({ code: `TH${fields.length + 1}`, dayOfWeek: 7, startPeriod: 1, endPeriod: 3, room: rooms.find((room) => room.includes("máy")) ?? rooms[0] ?? "", capacity: 20 })}
+                onClick={() => add({ code: `TH${fields.length + 1}`, dayOfWeek: 7, startPeriod: 1, endPeriod: 3, roomId: (rooms.find((room) => room.isLab && !room.inMaintenance) ?? firstRoom)?.id ?? "", capacity: 20 })}
                 className="self-start"
               >
                 Thêm nhóm thực hành

@@ -18,7 +18,7 @@ import {
 } from "@/modules/course-registration/course-registration.constant";
 import { saveClassSection } from "@/modules/course-registration/course-registration.action";
 import type { ClassSectionFormValues, ClassSectionStatus, ClassSectionView, Term } from "@/modules/course-registration/course-registration.type";
-import { ClassSectionFormDrawer, type SectionCourseOption, type SectionLecturerOption } from "@/modules/course-registration/components/class-section-form-drawer";
+import { ClassSectionFormDrawer, type SectionCourseOption, type SectionLecturerOption, type SectionRoomOption } from "@/modules/course-registration/components/class-section-form-drawer";
 import { paginationItemRender } from "@/shared/constants/antd.constant";
 import { normalizeSearch } from "@/shared/libs/search.lib";
 
@@ -29,9 +29,7 @@ type ClassSectionTableProps = {
   initialQuery?: string;
   courses: SectionCourseOption[];
   lecturers: SectionLecturerOption[];
-  rooms: string[];
-  // Nhãn phòng kèm sức chứa, cơ sở để chọn đúng phòng.
-  roomLabels: Record<string, string>;
+  rooms: SectionRoomOption[];
   majors: { code: string; name: string }[];
   cohorts: number[];
   header: { title: string; description?: React.ReactNode };
@@ -46,7 +44,7 @@ const statusOf = (row: ClassSectionView) =>
     <StatusTag status={CLASS_SECTION_STATUS[row.status]} />
   );
 
-export function ClassSectionTable({ sections, terms, termId, initialQuery = "", courses, lecturers, rooms, roomLabels, majors, cohorts, header }: ClassSectionTableProps) {
+export function ClassSectionTable({ sections, terms, termId, initialQuery = "", courses, lecturers, rooms, majors, cohorts, header }: ClassSectionTableProps) {
   const router = useRouter();
   const [messageApi, contextHolder] = message.useMessage();
   const [rows, setRows] = useState(sections);
@@ -294,7 +292,6 @@ export function ClassSectionTable({ sections, terms, termId, initialQuery = "", 
           courses={courses}
           lecturers={lecturers}
           rooms={rooms}
-          roomLabels={roomLabels}
           majors={majors}
           cohorts={cohorts}
           onClose={() => setIsOpen(false)}

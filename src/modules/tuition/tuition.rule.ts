@@ -31,6 +31,14 @@ export function billedCredits(lines: Pick<InvoiceLine, "kind" | "quantity" | "un
   }, 0);
 }
 
+// Đơn giá tín chỉ đã chốt của hóa đơn: dòng học phí, không có (chốt lúc chưa đăng ký tín chỉ nào) thì dòng điều chỉnh đầu tiên.
+export function finalizedPricePerCredit(lines: Pick<InvoiceLine, "kind" | "unitPrice">[]) {
+  const tuition = lines.find((line) => line.kind === "tuition");
+  if (tuition) return tuition.unitPrice;
+  const adjustment = lines.find((line) => line.kind === "adjustment");
+  return adjustment ? Math.abs(adjustment.unitPrice) : null;
+}
+
 // Hóa đơn đã chốt: đăng ký đổi thì thêm một dòng điều chỉnh bằng phần chênh tín chỉ, giữ nguyên các dòng đã chốt.
 export function adjustmentLine(params: { creditDelta: number; pricePerCredit: number; note: string }): InvoiceLine | null {
   const { creditDelta, pricePerCredit, note } = params;

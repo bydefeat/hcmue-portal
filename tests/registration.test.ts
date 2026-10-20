@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { after, describe, test } from "node:test";
-import { and, asc, eq, sql, TransactionRollbackError } from "drizzle-orm";
+import { and, asc, eq, ne, sql, TransactionRollbackError } from "drizzle-orm";
 import { db, type Transaction } from "@/shared/libs/db.lib";
 import { InputError } from "@/shared/libs/action.lib";
 import { mockTermId } from "@/shared/libs/mock.lib";
@@ -25,13 +25,14 @@ import {
 import { addsSeats, applicablePeriod, corequisiteDependents, creditLimitsOf, dropCreditProblem, inProgressCodesFor, lastAttemptGrades } from "@/modules/course-registration/course-registration.rule";
 import { classSections, enrollments, labGroups, registrationEvents, registrationPeriods, terms, waitlistEntries } from "@/modules/course-registration/course-registration.schema";
 import { notifications } from "@/modules/notifications/notifications.schema";
-import { students } from "@/modules/users/users.schema";
+import { administrativeClasses, students } from "@/modules/users/users.schema";
 import { campuses, rooms } from "@/modules/facilities/facilities.schema";
 import { academicWarnings } from "@/modules/grades/grades.schema";
 import { holidaySessions, planClassSessions } from "@/modules/schedule/schedule.rule";
 import { TUITION_CONSTRAINT_MESSAGE } from "@/modules/tuition/tuition.constant";
 import { INVOICE_PAID_SQL, INVOICE_TOTAL_SQL, syncTermInvoice } from "@/modules/tuition/tuition.lib";
-import { invoiceLines, payments, tuitionInvoices, tuitionRefunds } from "@/modules/tuition/tuition.schema";
+import { finalizedPricePerCredit } from "@/modules/tuition/tuition.rule";
+import { invoiceLines, payments, tuitionInvoices, tuitionRates, tuitionRefunds } from "@/modules/tuition/tuition.schema";
 import { CURRENT_STUDENT_ID } from "@/modules/users/users.mock";
 
 after(() => db.$client.end());
@@ -80,7 +81,7 @@ const now = () => new Date();
 
 const periodOf = (name: string, opens: string, closes: string, cohorts = [50]) => ({ name, cohorts, opensAt: opens, closesAt: closes });
 
-const roomCandidate = (room: string, capacity: number, day = 8) => ({ id: null, termId: CURRENT, lecturerId: null, capacity, meetings: [{ dayOfWeek: day, startPeriod: 10, endPeriod: 12, room }], labGroups: [] });
+const roomCandidate = (roomId: string, capacity: number, day = 8) => ({ id: null, termId: CURRENT, lecturerId: null, capacity, meetings: [{ dayOfWeek: day, startPeriod: 10, endPeriod: 12, roomId }], labGroups: [] });
 
 describe("registration: đợt áp dụng, hạn mức (hàm thuần)", () => {
   test("đang mở > sắp mở gần nhất > vừa đóng; đợt điều chỉnh mở thì lấy đợt điều chỉnh", () => {
@@ -330,6 +331,47 @@ describe("registration: học phí theo đăng ký", () => {
   });
 });
 
+describe("registration: điều chỉnh học phí theo đơn giá đã chốt", () => {
+  test("đơn giá đã chốt lấy từ dòng học phí, không có thì từ dòng điều chỉnh", () => {
+    assert.equal(finalizedPricePerCredit([{ kind: "fee", unitPrice: 50_000 }, { kind: "tuition", unitPrice: 420_000 }]), 420_000);
+    assert.equal(finalizedPricePerCredit([{ kind: "fee", unitPrice: 50_000 }, { kind: "adjustment", unitPrice: -390_000 }]), 390_000);
+    assert.equal(finalizedPricePerCredit([{ kind: "fee", unitPrice: 50_000 }]), null);
+  });
+
+  test("đổi bảng đơn giá sau khi chốt: dòng điều chỉnh vẫn theo đơn giá trên hóa đơn", async () => {
+    await rolledBack(async (tx) => {
+      const [invoice] = await tx.select({ id: tuitionInvoices.id }).from(tuitionInvoices).where(and(eq(tuitionInvoices.studentId, CURRENT_STUDENT_ID), eq(tuitionInvoices.termId, TARGET)));
+      const [tuitionLine] = await tx.select({ unitPrice: invoiceLines.unitPrice }).from(invoiceLines).where(and(eq(invoiceLines.invoiceId, invoice.id), eq(invoiceLines.kind, "tuition")));
+      assert.ok(tuitionLine.unitPrice > 0);
+      await tx.update(tuitionInvoices).set({ finalizedAt: new Date(), finalizedByLabel: "Thử" }).where(eq(tuitionInvoices.id, invoice.id));
+      // Năm học, ngành của sinh viên: tăng đơn giá sau khi chốt.
+      const [{ academicYear }] = await tx.select({ academicYear: terms.academicYear }).from(terms).where(eq(terms.id, TARGET));
+      const [{ majorId }] = await tx
+        .select({ majorId: administrativeClasses.majorId })
+        .from(students)
+        .innerJoin(administrativeClasses, eq(administrativeClasses.id, students.administrativeClassId))
+        .where(eq(students.id, CURRENT_STUDENT_ID));
+      const raised = await tx
+        .update(tuitionRates)
+        .set({ pricePerCredit: tuitionLine.unitPrice + 100_000 })
+        .where(and(eq(tuitionRates.academicYear, academicYear), eq(tuitionRates.majorId, majorId)))
+        .returning({ id: tuitionRates.id });
+      assert.equal(raised.length, 1);
+      const testing = await sectionId(tx, "COMP1150.01");
+      await tx.update(enrollments).set({ status: "dropped", droppedAt: new Date() }).where(and(eq(enrollments.studentId, CURRENT_STUDENT_ID), eq(enrollments.classSectionId, testing)));
+      assert.equal((await syncTermInvoice(tx, CURRENT_STUDENT_ID, TARGET, "thử")).change, "adjusted");
+      const [adjustment] = await tx.select({ unitPrice: invoiceLines.unitPrice, quantity: invoiceLines.quantity }).from(invoiceLines).where(and(eq(invoiceLines.invoiceId, invoice.id), eq(invoiceLines.kind, "adjustment")));
+      assert.equal(adjustment.unitPrice, -tuitionLine.unitPrice);
+      // Ngành mất đơn giá năm học: hóa đơn đã chốt vẫn điều chỉnh được theo giá đã chốt.
+      await tx.delete(tuitionRates).where(eq(tuitionRates.id, raised[0].id));
+      await tx.update(enrollments).set({ status: "enrolled", droppedAt: null }).where(and(eq(enrollments.studentId, CURRENT_STUDENT_ID), eq(enrollments.classSectionId, testing)));
+      assert.equal((await syncTermInvoice(tx, CURRENT_STUDENT_ID, TARGET, "thử")).change, "adjusted");
+      const lines = await tx.select({ unitPrice: invoiceLines.unitPrice }).from(invoiceLines).where(and(eq(invoiceLines.invoiceId, invoice.id), eq(invoiceLines.kind, "adjustment")));
+      assert.deepEqual(lines.map((line) => line.unitPrice).toSorted((a, b) => a - b), [-tuitionLine.unitPrice, tuitionLine.unitPrice]);
+    });
+  });
+});
+
 describe("registration: học kỳ, lớp học phần", () => {
   test("đặt học kỳ hiện tại, học kỳ nhận đăng ký: mỗi loại một học kỳ, đặt lại cùng học kỳ thì báo", async () => {
     await rolledBack(async (tx) => {
@@ -347,12 +389,21 @@ describe("registration: học kỳ, lớp học phần", () => {
   test("lưu lớp: chặn phòng bảo trì, phòng thiếu chỗ, trùng phòng với lớp khoa khác trong học kỳ", async () => {
     await rolledBack(async (tx) => {
       const roomRows = await tx.select({ id: rooms.id, code: rooms.code, capacity: rooms.capacity, status: rooms.status, note: rooms.note, campus: campuses.name }).from(rooms).innerJoin(campuses, eq(campuses.id, rooms.campusId));
-      assert.match((await scheduleProblemOf(tx, roomCandidate("B.408", 30), roomRows))!.message, /bảo trì/);
-      assert.match((await scheduleProblemOf(tx, roomCandidate("C.301 (Phòng máy)", 50), roomRows))!.message, /chỉ có 40 chỗ/);
-      assert.equal(await scheduleProblemOf(tx, roomCandidate("A.201", 40), roomRows), null);
+      const idOf = (code: string) => roomRows.find((room) => room.code === code)!.id;
+      assert.match((await scheduleProblemOf(tx, roomCandidate(idOf("B.408"), 30), roomRows))!.message, /bảo trì/);
+      assert.match((await scheduleProblemOf(tx, roomCandidate(idOf("C.301 (Phòng máy)"), 50), roomRows))!.message, /chỉ có 40 chỗ/);
+      assert.equal(await scheduleProblemOf(tx, roomCandidate(idOf("A.201"), 40), roomRows), null);
       // MATH1011.01 (Khoa Toán - Tin học) học A.201 thứ 2 tiết 1-3: lớp khoa khác cùng phòng, cùng giờ bị chặn.
-      const clash = await scheduleProblemOf(tx, { ...roomCandidate("A.201", 40), meetings: [{ dayOfWeek: 2, startPeriod: 2, endPeriod: 3, room: "A.201" }] }, roomRows);
+      const clash = await scheduleProblemOf(tx, { ...roomCandidate(idOf("A.201"), 40), meetings: [{ dayOfWeek: 2, startPeriod: 2, endPeriod: 3, roomId: idOf("A.201") }] }, roomRows);
       assert.match(clash!.message, /Trùng phòng A\.201 với MATH1011\.01/);
+      // Cùng mã A.201 ở cơ sở khác là phòng khác: không trùng phòng.
+      const [{ campusId: home }] = await tx.select({ campusId: rooms.campusId }).from(rooms).where(eq(rooms.id, idOf("A.201")));
+      const [other] = await tx.select({ id: campuses.id, name: campuses.name }).from(campuses).where(ne(campuses.id, home)).limit(1);
+      const [twin] = await tx
+        .insert(rooms)
+        .values({ campusId: other.id, code: "A.201", building: "A", floor: 2, capacity: 60, examCapacity: 30, type: "lecture" }).returning({ id: rooms.id, code: rooms.code, capacity: rooms.capacity, status: rooms.status, note: rooms.note });
+      const withTwin = [...roomRows, { ...twin, campus: other.name }];
+      assert.equal(await scheduleProblemOf(tx, { ...roomCandidate(twin.id, 40), meetings: [{ dayOfWeek: 2, startPeriod: 2, endPeriod: 3, roomId: twin.id }] }, withTwin), null);
     });
   });
 });

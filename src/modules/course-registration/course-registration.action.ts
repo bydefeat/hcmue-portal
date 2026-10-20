@@ -194,12 +194,10 @@ export async function leaveWaitlist(sectionId: string): Promise<ActionResult> {
 
 // ---- Lớp học phần ----
 
-// Tra id theo mã (phòng, ngành); mã không có trong danh mục, hoặc mã phòng trùng ở nhiều cơ sở, thì báo lỗi vào ô tương ứng.
+// Tra id ngành theo mã; mã không có trong danh mục thì báo lỗi vào ô tương ứng.
 function idsByCode(rows: { id: string; code: string }[], wanted: string[], field: string, label: string) {
   const missing = wanted.filter((code) => !rows.some((row) => row.code === code));
   if (missing.length > 0) throw new InputError(`${label} ${missing.join(", ")} không có trong danh mục`, field);
-  const ambiguous = wanted.filter((code) => rows.filter((row) => row.code === code).length > 1);
-  if (ambiguous.length > 0) throw new InputError(`${label} ${ambiguous.join(", ")} có ở nhiều cơ sở, đổi mã phòng để phân biệt`, field);
   return new Map(rows.map((row) => [row.code, row.id]));
 }
 
@@ -231,17 +229,18 @@ export async function saveClassSection(termId: string, id: string | null, input:
         .where(eq(courses.code, values.courseCode));
       if (!course) throw new InputError("Học phần không có trong danh mục", "courseCode");
       if (!inScope(viewer, course.faculty)) throw new InputError("Học phần thuộc khoa khác, bạn không mở lớp được", "courseCode");
-      const roomCodes = [...new Set([...values.meetings.map((meeting) => meeting.room), ...values.labGroups.map((group) => group.room)])];
+      // Phòng chọn theo id: mã phòng có thể trùng giữa các cơ sở.
+      const roomIds = [...new Set([...values.meetings.map((meeting) => meeting.roomId), ...values.labGroups.map((group) => group.roomId)])];
       const majorCodes = [...new Set([...values.audienceMajors, ...values.reservedSeats.flatMap((seat) => seat.majorCodes)])];
       const [roomRows, majorRows] = await Promise.all([
         tx
           .select({ id: rooms.id, code: rooms.code, capacity: rooms.capacity, status: rooms.status, note: rooms.note, campus: campuses.name })
           .from(rooms)
           .innerJoin(campuses, eq(campuses.id, rooms.campusId))
-          .where(inArray(rooms.code, roomCodes)),
+          .where(inArray(rooms.id, roomIds)),
         majorCodes.length > 0 ? tx.select({ id: majors.id, code: majors.code }).from(majors).where(inArray(majors.code, majorCodes)) : [],
       ]);
-      const roomIds = idsByCode(roomRows, roomCodes, "meetings", "Phòng");
+      if (roomRows.length < roomIds.length) throw new InputError("Có phòng không còn trong danh mục, tải lại trang rồi chọn lại phòng", "meetings");
       const majorIds = idsByCode(majorRows, majorCodes, "audienceMajors", "Ngành");
       const code = `${values.courseCode}.${String(values.sectionNumber).padStart(2, "0")}`;
       const columns = {
@@ -291,7 +290,7 @@ export async function saveClassSection(termId: string, id: string | null, input:
       if (problem) throw new InputError(problem.message, problem.field);
 
       await tx.delete(sectionMeetings).where(eq(sectionMeetings.classSectionId, rowId));
-      await tx.insert(sectionMeetings).values(values.meetings.map((meeting) => ({ classSectionId: rowId, dayOfWeek: meeting.dayOfWeek, startPeriod: meeting.startPeriod, endPeriod: meeting.endPeriod, roomId: roomIds.get(meeting.room)! })));
+      await tx.insert(sectionMeetings).values(values.meetings.map((meeting) => ({ classSectionId: rowId, dayOfWeek: meeting.dayOfWeek, startPeriod: meeting.startPeriod, endPeriod: meeting.endPeriod, roomId: meeting.roomId })));
 
       await tx.delete(classSectionAudienceMajors).where(eq(classSectionAudienceMajors.classSectionId, rowId));
       if (values.audienceMajors.length > 0) {
@@ -304,7 +303,7 @@ export async function saveClassSection(termId: string, id: string | null, input:
       const seatsAdded = addsSeats({ capacity: previousCapacity, labGroups: previousLabs }, { capacity: values.capacity, labGroups: values.labGroups.map((group, index) => ({ code: labCodes[index], capacity: group.capacity })) });
       await tx.delete(labGroups).where(and(eq(labGroups.classSectionId, rowId), labCodes.length > 0 ? notInArray(labGroups.code, labCodes) : undefined));
       for (const group of values.labGroups) {
-        const labValues = { dayOfWeek: group.dayOfWeek, startPeriod: group.startPeriod, endPeriod: group.endPeriod, roomId: roomIds.get(group.room)!, capacity: group.capacity };
+        const labValues = { dayOfWeek: group.dayOfWeek, startPeriod: group.startPeriod, endPeriod: group.endPeriod, roomId: group.roomId, capacity: group.capacity };
         await tx
           .insert(labGroups)
           .values({ ...labValues, classSectionId: rowId, code: `${code}.${group.code}` })

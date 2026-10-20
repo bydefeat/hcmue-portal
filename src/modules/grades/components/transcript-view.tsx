@@ -2,16 +2,23 @@
 
 import { Collapse, Table, type TableColumnsType } from "antd";
 import { EmptyState } from "@/shared/components/ui/empty-state";
-import { formatPoint, letterTextClass } from "@/modules/grades/grades.constant";
+import { formatPoint, isResultMark, letterTextClass, RESULT_MARKS } from "@/modules/grades/grades.constant";
 import type { TranscriptCourse, TranscriptTerm } from "@/modules/grades/grades.type";
 
 // Học lại, học cải thiện: điểm tính tích lũy là lần học cuối; lần trước đó vẫn hiện nhưng ghi đã được thay thế.
+// W, I, M: ký hiệu kèm giải thích ngắn (không tính điểm, chờ thi bù, miễn).
 function AttemptTags({ course }: { course: TranscriptCourse }) {
-  if (!course.retakeKind && !course.replaced) return null;
+  const mark = isResultMark(course.letter) ? RESULT_MARKS[course.letter] : null;
+  if (!course.retakeKind && !course.replaced && !mark) return null;
   return (
     <span className="flex flex-wrap gap-x-2 text-xs text-muted">
       {course.retakeKind && <span className="font-medium text-foreground">{course.retakeKind === "retake" ? `Học lại lần ${course.attempt}` : "Học cải thiện"}</span>}
       {course.replaced && <span>Đã học lại, không tính tích lũy</span>}
+      {mark && (
+        <span>
+          {mark.label}: {mark.note}
+        </span>
+      )}
     </span>
   );
 }

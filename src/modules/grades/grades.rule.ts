@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { dayjs, schoolTime } from "@/shared/libs/date.lib";
-import { formatPoint, STANDINGS } from "@/modules/grades/grades.constant";
+import { formatPoint, RESULT_MARK_NOTE, STANDINGS } from "@/modules/grades/grades.constant";
 import type {
   AcademicStanding,
   FacultyStandingSummary,
@@ -11,6 +11,7 @@ import type {
   GradeSheetStatus,
   GradingRules,
   LetterGrade,
+  ResultMark,
   StudentStanding,
   TranscriptCourse,
   TranscriptCourseInput,
@@ -59,7 +60,22 @@ export function courseGrade(score10: number, scale: GradingRules["scale"]) {
   return { score10, ...letterOf(score10, scale) };
 }
 
+// ---------- Ký hiệu W, I, M ----------
+
+// Lần học có kết quả: có điểm số, hoặc được miễn (M). W, I không phải kết quả: không tính điểm, không tính tín chỉ tích lũy và không
+// thay lần học trước đã có điểm.
+export function hasResult(course: { letter: string | null; point4: number | null }) {
+  return course.point4 !== null || course.letter === "M";
+}
+
+// Rút học phần: không tính vào khối lượng đăng ký của học kỳ (tín chỉ tối thiểu, tín chỉ đã học). Miễn không học trên lớp.
+export function countsAsAttempted(course: { letter: string | null }) {
+  return course.letter !== "W" && course.letter !== "M";
+}
+
+// Đạt: có điểm số khác F, hoặc được miễn (M tính tín chỉ tích lũy, không tính CPA).
 export function isPassing(course: { letter: string | null; point4: number | null }) {
+  if (course.letter === "M") return true;
   return course.point4 !== null && course.letter !== null && course.letter !== "F";
 }
 
@@ -77,9 +93,9 @@ export function creditAverage(courses: Pick<TranscriptCourseInput, "credits" | "
 
 // Lần học cuối (đã có điểm) của từng học phần trong danh sách các lần học đã xếp theo thời gian (học kỳ, rồi thời điểm ghi điểm).
 // Dùng cho mọi nơi cần "đã học đạt" hay điểm đang tính: CPA, tín chỉ tích lũy, nợ, tiên quyết khi đăng ký.
-export function latestAttempts<T extends { courseCode: string; point4: number | null }>(attempts: T[]): Map<string, T> {
+export function latestAttempts<T extends { courseCode: string; point4: number | null; letter?: string | null }>(attempts: T[]): Map<string, T> {
   const latest = new Map<string, T>();
-  for (const attempt of attempts) if (attempt.point4 !== null) latest.set(attempt.courseCode, attempt);
+  for (const attempt of attempts) if (hasResult({ letter: attempt.letter ?? null, point4: attempt.point4 })) latest.set(attempt.courseCode, attempt);
   return latest;
 }
 
@@ -88,7 +104,7 @@ export function latestGrades(terms: { isInProgress: boolean; courses: { courseCo
   const latest: Record<string, string> = {};
   for (const term of terms) {
     if (term.isInProgress) continue;
-    for (const course of term.courses) if (course.letter) latest[course.courseCode] = course.letter;
+    for (const course of term.courses) if (course.letter && course.letter !== "W" && course.letter !== "I") latest[course.courseCode] = course.letter;
   }
   return latest;
 }
@@ -103,12 +119,12 @@ export function buildTranscript(terms: TranscriptTermInput[]): TranscriptTerm[] 
     const courses = term.courses.map((course) => {
       const previous = previousLetters.get(course.courseCode) ?? [];
       const last = previous.at(-1);
-      if (course.point4 !== null) previousLetters.set(course.courseCode, [...previous, course.letter]);
+      if (hasResult(course)) previousLetters.set(course.courseCode, [...previous, course.letter]);
       return { ...course, attempt: previous.length + 1, retakeKind: previous.length === 0 ? null : last === "F" ? ("retake" as const) : ("improve" as const) };
     });
     if (!term.isInProgress) {
       for (const course of term.courses) {
-        if (course.point4 === null) continue;
+        if (!hasResult(course)) continue;
         const earlier = latest.get(course.courseCode);
         if (earlier) replaced.add(`${earlier.termIndex}:${course.courseCode}`);
         latest.set(course.courseCode, { ...course, termIndex });
@@ -117,7 +133,7 @@ export function buildTranscript(terms: TranscriptTermInput[]): TranscriptTerm[] 
     return {
       ...term,
       courses,
-      attemptedCredits: term.courses.reduce((sum, course) => sum + course.credits, 0),
+      attemptedCredits: term.courses.filter(countsAsAttempted).reduce((sum, course) => sum + course.credits, 0),
       earnedCredits: term.isInProgress ? 0 : term.courses.filter(isPassing).reduce((sum, course) => sum + course.credits, 0),
       gpa4: creditAverage(term.courses, "point4"),
       gpa10: creditAverage(term.courses, "score10"),
@@ -131,8 +147,12 @@ export function buildTranscript(terms: TranscriptTermInput[]): TranscriptTerm[] 
 }
 
 // Ghi chú lần học trên bảng điểm: học lại, học cải thiện, lần đã bị lần sau thay thế (không tính tích lũy).
-export function attemptNote(course: Pick<TranscriptCourse, "retakeKind" | "replaced">) {
-  const notes = [course.retakeKind === "retake" ? "học lại" : course.retakeKind === "improve" ? "học cải thiện" : null, course.replaced ? "không tính tích lũy" : null].filter(Boolean);
+export function attemptNote(course: Pick<TranscriptCourse, "retakeKind" | "replaced" | "letter">) {
+  const notes = [
+    course.retakeKind === "retake" ? "học lại" : course.retakeKind === "improve" ? "học cải thiện" : null,
+    course.replaced ? "không tính tích lũy" : null,
+    course.letter && course.letter in RESULT_MARK_NOTE ? RESULT_MARK_NOTE[course.letter as ResultMark] : null,
+  ].filter(Boolean);
   return notes.length > 0 ? ` (${notes.join(", ")})` : "";
 }
 
@@ -157,7 +177,7 @@ export function warningLevelOf(input: { hasCourses: boolean; cpa4: number; faile
 // (lần cuối F). Chưa có điểm thì Chưa xếp loại (standing null), không bị coi là Kém.
 export function computeStanding(studentId: string, transcript: TranscriptTerm[], rules: StandingRules): StudentStanding {
   const completed = transcript.filter((term) => !term.isInProgress);
-  const attempts = completed.flatMap((term) => term.courses.filter((course) => course.point4 !== null));
+  const attempts = completed.flatMap((term) => term.courses.filter(hasResult));
   const latest = attempts.filter((course) => !course.replaced);
   const cpa4 = creditAverage(latest, "point4");
   const cpa10 = creditAverage(latest, "score10");

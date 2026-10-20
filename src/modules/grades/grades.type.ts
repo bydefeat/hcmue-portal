@@ -32,12 +32,18 @@ export type GradeSheetSummary = {
 
 export type LetterGrade = "A" | "B+" | "B" | "C+" | "C" | "D+" | "D" | "F";
 
+// Ký hiệu kết quả không có điểm số: W rút học phần, I chưa hoàn thiện (hoãn thi), M miễn học phần. W, I không tính GPA/CPA, không
+// tính tín chỉ tích lũy và không thay lần học trước đã có điểm; M tính tín chỉ tích lũy, không tính CPA.
+export type ResultMark = "W" | "I" | "M";
+
+export type ResultLetter = LetterGrade | ResultMark;
+
 export type TranscriptCourseInput = {
   courseCode: string;
   courseName: string;
   credits: number;
   score10: number | null;
-  letter: LetterGrade | null;
+  letter: ResultLetter | null;
   point4: number | null;
 };
 
@@ -131,4 +137,37 @@ export type FacultyStandingSummary = {
   averageCpa: number;
   counts: Record<AcademicStanding, number>;
   warnings: number;
+};
+
+export type GradeAmendmentSource = "regrade" | "grade-change" | "manual";
+
+export type GradeAmendmentStatus = "pending" | "approved" | "rejected";
+
+// Một đề nghị sửa điểm sau khi bảng điểm đã chốt hoặc công bố (một cột điểm của một sinh viên).
+export type GradeAmendment = {
+  id: string;
+  classSectionId: string;
+  classCode: string;
+  courseName: string;
+  termName: string;
+  faculty: string;
+  studentId: string;
+  studentCode: string;
+  fullName: string;
+  componentLabel: string;
+  oldScore: number | null;
+  newScore: number;
+  reason: string;
+  source: GradeAmendmentSource;
+  requestCode: string | null;
+  status: GradeAmendmentStatus;
+  requestedByName: string;
+  requestedAt: string;
+  decidedByName: string | null;
+  decidedAt: string | null;
+  decisionNote: string | null;
+  resultBefore: string | null;
+  resultAfter: string | null;
+  // Người đang xem là người đề nghị: không tự duyệt được (server cũng chặn).
+  isOwn: boolean;
 };

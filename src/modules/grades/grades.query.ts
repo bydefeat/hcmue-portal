@@ -153,7 +153,7 @@ export async function getStandingSummary(): Promise<FacultyStandingSummary[]> {
         const result = results.get(row.id);
         return {
           faculty: row.faculty,
-          standing: { cpa4: result?.cpa4 ?? null, standing: result ? toStanding(result.cpa4, regulation.grading.standing) : null },
+          standing: { cpa4: result?.cpa4 ?? null, standing: result && result.cpa4 !== null ? toStanding(result.cpa4, regulation.grading.standing) : null },
           warned: warnings.has(row.id),
         };
       }),

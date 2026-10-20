@@ -4,14 +4,19 @@ import { createdAt, primaryId, timestamps, updatedAt } from "@/shared/libs/db-co
 import { user } from "@/modules/authentication/authentication.schema";
 import { classSections, enrollments, terms } from "@/modules/course-registration/course-registration.schema";
 import { courses } from "@/modules/curriculum/curriculum.schema";
+import { academicRequests } from "@/modules/requests/requests.schema";
 import { students } from "@/modules/users/users.schema";
 
 export const gradeSheetStatusEnum = pgEnum("grade_sheet_status", ["draft", "locked", "approved", "published", "returned"]);
 // legacy: kết quả chuyển từ hệ thống cũ, không gắn với lớp học phần hay đăng ký trên cổng.
 export const courseResultSourceEnum = pgEnum("course_result_source", ["class", "transfer", "exemption", "legacy"]);
 export const warningStatusEnum = pgEnum("warning_status", ["new", "notified", "resolved"]);
+export const gradeAmendmentSourceEnum = pgEnum("grade_amendment_source", ["regrade", "grade-change", "manual"]);
+export const gradeAmendmentStatusEnum = pgEnum("grade_amendment_status", ["pending", "approved", "rejected"]);
 
-const LETTERS = sql.raw(`'A', 'B+', 'B', 'C+', 'C', 'D+', 'D', 'F'`);
+// Ký hiệu không có điểm số: W rút học phần, I chưa hoàn thiện (hoãn thi), M miễn học phần. Lưu ở cột letter, điểm số để trống.
+const LETTERS = sql.raw(`'A', 'B+', 'B', 'C+', 'C', 'D+', 'D', 'F', 'W', 'I', 'M'`);
+const MARKS = sql.raw(`'W', 'I', 'M'`);
 
 export const gradeSheets = pgTable(
   "grade_sheets",
@@ -99,6 +104,8 @@ export const courseResults = pgTable(
     letter: text(),
     point4: numeric({ precision: 3, scale: 2, mode: "number" }),
     note: text().notNull().default(""),
+    // Đơn đã sinh ra kết quả này (rút học phần, công nhận, miễn); kết quả từ bảng điểm để trống.
+    requestId: uuid().references(() => academicRequests.id, { onDelete: "set null" }),
     recordedAt: createdAt(),
   },
   (table) => [
@@ -114,7 +121,15 @@ export const courseResults = pgTable(
     check("course_results_point_range", sql`${table.point4} IS NULL OR ${table.point4} BETWEEN 0 AND 4`),
     check("course_results_letter", sql`${table.letter} IS NULL OR ${table.letter} IN (${LETTERS})`),
     check("course_results_class_has_enrollment", sql`${table.source} <> 'class' OR ${table.enrollmentId} IS NOT NULL`),
-    check("course_results_graded_together", sql`(${table.score10} IS NULL) = (${table.letter} IS NULL) AND (${table.letter} IS NULL) = (${table.point4} IS NULL)`),
+    // Có điểm số thì có đủ điểm chữ, thang 4; ký hiệu W, I, M thì không có điểm số.
+    check(
+      "course_results_graded_together",
+      sql`(${table.score10} IS NULL) = (${table.point4} IS NULL) AND (${table.score10} IS NULL) = (${table.letter} IS NULL OR ${table.letter} IN (${MARKS}))`,
+    ),
+    // M chỉ cho kết quả miễn, miễn luôn là M; W, I chỉ cho kết quả học trên lớp.
+    check("course_results_exemption_mark", sql`(${table.source} = 'exemption') = (${table.letter} IS NOT DISTINCT FROM 'M')`),
+    check("course_results_class_marks", sql`${table.letter} IS NULL OR ${table.letter} NOT IN ('W', 'I') OR ${table.source} = 'class'`),
+    index().on(table.requestId),
   ],
 );
 
@@ -141,5 +156,67 @@ export const academicWarnings = pgTable(
     index().on(table.termId, table.level),
     check("academic_warnings_level_range", sql`${table.level} BETWEEN 1 AND 3`),
     check("academic_warnings_has_reason", sql`cardinality(${table.reasons}) > 0`),
+  ],
+);
+
+// Sửa điểm sau khi bảng điểm đã chốt hoặc công bố: không sửa thẳng grade_scores mà đề nghị một dòng ở đây (một cột điểm của một
+// sinh viên), người khác người đề nghị duyệt thì mới áp vào điểm và tính lại kết quả học phần. Nguồn: phúc khảo, sửa điểm của
+// giảng viên (trực tiếp hoặc qua đơn), Phòng Đào tạo nhập (thi bù thay điểm I...). Trigger grade_amendments_guard giữ bảng điểm,
+// cột điểm, sinh viên khớp nhau và chặn sửa dòng đã xử lý; grade_sheet_editable chỉ cho ghi điểm của bảng điểm đã chốt khi có
+// dòng vừa duyệt trong cùng giao dịch.
+export const gradeAmendments = pgTable(
+  "grade_amendments",
+  {
+    id: primaryId(),
+    gradeSheetId: uuid()
+      .notNull()
+      .references(() => gradeSheets.id, { onDelete: "cascade" }),
+    gradeComponentId: uuid()
+      .notNull()
+      .references(() => gradeComponents.id, { onDelete: "cascade" }),
+    enrollmentId: uuid()
+      .notNull()
+      .references(() => enrollments.id, { onDelete: "cascade" }),
+    studentId: uuid()
+      .notNull()
+      .references(() => students.id, { onDelete: "cascade" }),
+    // Nhãn cột lúc đề nghị, giữ lại để lịch sử đọc được kể cả khi cột đổi tên.
+    componentLabel: text().notNull(),
+    oldScore: numeric({ precision: 4, scale: 2, mode: "number" }),
+    newScore: numeric({ precision: 4, scale: 2, mode: "number" }).notNull(),
+    reason: text().notNull(),
+    source: gradeAmendmentSourceEnum().notNull(),
+    requestId: uuid().references(() => academicRequests.id, { onDelete: "set null" }),
+    status: gradeAmendmentStatusEnum().notNull().default("pending"),
+    requestedByUserId: uuid().references(() => user.id, { onDelete: "set null" }),
+    requestedByName: text().notNull(),
+    requestedAt: createdAt(),
+    decidedByUserId: uuid().references(() => user.id, { onDelete: "set null" }),
+    decidedByName: text(),
+    decidedAt: timestamp({ withTimezone: true }),
+    decisionNote: text(),
+    // Kết quả học phần trước và sau khi áp (điểm tổng kết, điểm chữ hoặc ký hiệu), ghi lúc duyệt.
+    resultBefore: text(),
+    resultAfter: text(),
+  },
+  (table) => [
+    index().on(table.gradeSheetId, table.status),
+    index().on(table.enrollmentId),
+    index().on(table.studentId),
+    index().on(table.gradeComponentId),
+    index().on(table.status, table.requestedAt),
+    index().on(table.requestedByUserId),
+    index().on(table.decidedByUserId),
+    uniqueIndex("grade_amendments_single_pending").on(table.enrollmentId, table.gradeComponentId).where(sql`${table.status} = 'pending'`),
+    uniqueIndex("grade_amendments_request_unique").on(table.requestId).where(sql`${table.requestId} IS NOT NULL`),
+    check("grade_amendments_score_range", sql`${table.newScore} BETWEEN 0 AND 10 AND (${table.oldScore} IS NULL OR ${table.oldScore} BETWEEN 0 AND 10)`),
+    check("grade_amendments_changes_score", sql`${table.oldScore} IS DISTINCT FROM ${table.newScore}`),
+    check("grade_amendments_reason_present", sql`length(btrim(${table.reason})) BETWEEN 1 AND 500`),
+    check(
+      "grade_amendments_decided_fields",
+      sql`(${table.status} = 'pending') = (${table.decidedAt} IS NULL) AND (${table.decidedAt} IS NULL) = (${table.decidedByName} IS NULL) AND (${table.status} = 'approved') = (${table.resultAfter} IS NOT NULL)`,
+    ),
+    check("grade_amendments_reject_note", sql`${table.status} <> 'rejected' OR length(btrim(coalesce(${table.decisionNote}, ''))) > 0`),
+    check("grade_amendments_not_self_approved", sql`${table.decidedByUserId} IS NULL OR ${table.requestedByUserId} IS NULL OR ${table.decidedByUserId} <> ${table.requestedByUserId}`),
   ],
 );

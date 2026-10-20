@@ -1,5 +1,14 @@
 import type { StatusMeta } from "@/shared/constants/status.constant";
-import type { AcademicStanding, GradeComponent, GradeSheetState, LetterGrade, WarningStatus } from "@/modules/grades/grades.type";
+import type {
+  AcademicStanding,
+  GradeAmendmentSource,
+  GradeAmendmentStatus,
+  GradeComponent,
+  GradeSheetState,
+  LetterGrade,
+  ResultMark,
+  WarningStatus,
+} from "@/modules/grades/grades.type";
 
 // Màu theo điểm chữ; ngưỡng và điểm thang 4 của từng điểm chữ lấy theo quy chế (grading.scale).
 export const LETTER_COLOR: Record<LetterGrade, { text: string; fill: string }> = {
@@ -13,7 +22,23 @@ export const LETTER_COLOR: Record<LetterGrade, { text: string; fill: string }> =
   F: { text: "text-red-600", fill: "#dc2626" },
 };
 
+// Ký hiệu không có điểm số, hiện cùng chỗ với điểm chữ ở mọi nơi (bảng điểm, PDF, Excel, cổng quản trị, báo cáo).
+export const RESULT_MARKS: Record<ResultMark, { label: string; note: string; text: string }> = {
+  W: { label: "Rút học phần", note: "rút học phần, không tính điểm", text: "text-zinc-500" },
+  I: { label: "Chưa hoàn thiện", note: "chờ thi bù, chưa tính điểm", text: "text-amber-700" },
+  M: { label: "Miễn học phần", note: "miễn, tính tín chỉ, không tính điểm", text: "text-sky-700" },
+};
+
+export const RESULT_MARK_LEGEND = "Ký hiệu: W rút học phần, I chưa hoàn thiện (chờ thi bù), M miễn học phần; W, I, M không tính vào điểm trung bình, M được tính tín chỉ tích lũy.";
+
+export const RESULT_MARK_NOTE = Object.fromEntries(Object.entries(RESULT_MARKS).map(([mark, meta]) => [mark, meta.note])) as Record<ResultMark, string>;
+
+export function isResultMark(letter: string | null | undefined): letter is ResultMark {
+  return letter === "W" || letter === "I" || letter === "M";
+}
+
 export function letterTextClass(letter: string | null | undefined) {
+  if (isResultMark(letter)) return RESULT_MARKS[letter].text;
   return letter && letter in LETTER_COLOR ? LETTER_COLOR[letter as LetterGrade].text : "";
 }
 
@@ -64,6 +89,18 @@ export const WARNING_STATUS: Record<WarningStatus, StatusMeta> = {
   resolved: { label: "Đã gặp sinh viên", tone: "success" },
 };
 
+export const GRADE_AMENDMENT_SOURCE: Record<GradeAmendmentSource, string> = {
+  regrade: "Phúc khảo",
+  "grade-change": "Giảng viên đề nghị",
+  manual: "Phòng Đào tạo nhập",
+};
+
+export const GRADE_AMENDMENT_STATUS: Record<GradeAmendmentStatus, StatusMeta> = {
+  pending: { label: "Chờ duyệt", tone: "warning" },
+  approved: { label: "Đã áp điểm", tone: "success" },
+  rejected: { label: "Từ chối", tone: "danger" },
+};
+
 export function formatPoint(value: number | null, digits = 2) {
   return value === null ? "" : value.toFixed(digits).replace(".", ",");
 }
@@ -94,4 +131,18 @@ export const GRADES_CONSTRAINT_MESSAGE: Partial<Record<string, string>> = {
   academic_warnings_has_reason: "Cảnh báo học vụ phải ghi lý do.",
   academic_warnings_handled_locked: "Cảnh báo đã gửi thông báo hoặc đã xử lý, không đổi được mức và lý do.",
   grade_components_grade_sheet_id_position_unique: "Thứ tự cột điểm bị trùng, tải lại trang rồi sửa lại.",
+  course_results_exemption_mark: "Kết quả miễn học phần ghi ký hiệu M, không có điểm số.",
+  course_results_class_marks: "Ký hiệu W, I chỉ dùng cho học phần học trên lớp.",
+  grade_amendments_single_pending: "Cột điểm này của sinh viên đang có đề nghị sửa điểm chờ duyệt.",
+  grade_amendments_request_unique: "Đơn này đã có đề nghị sửa điểm.",
+  grade_amendments_score_range: "Điểm phải từ 0 đến 10.",
+  grade_amendments_changes_score: "Điểm mới trùng điểm hiện tại.",
+  grade_amendments_reason_present: "Ghi lý do sửa điểm (tối đa 500 ký tự).",
+  grade_amendments_decided_fields: "Đề nghị đã xử lý phải ghi người xử lý và thời điểm.",
+  grade_amendments_reject_note: "Ghi lý do từ chối đề nghị sửa điểm.",
+  grade_amendments_not_self_approved: "Người đề nghị sửa điểm không tự duyệt được, cần một cán bộ khác duyệt.",
+  grade_amendments_decided_locked: "Đề nghị sửa điểm đã xử lý, không đổi được nữa.",
+  grade_amendments_sheet_locked: "Bảng điểm chưa chốt, giảng viên sửa trực tiếp trên trang nhập điểm.",
+  grade_amendments_same_sheet: "Sinh viên hoặc cột điểm không thuộc bảng điểm của lớp.",
+  enrollments_withdrawn_at_matches_status: "Đăng ký đã rút phải có thời điểm rút.",
 };

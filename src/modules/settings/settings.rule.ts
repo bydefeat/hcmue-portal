@@ -47,6 +47,7 @@ export const REGULATION_RULES_SCHEMA = z.object({
       .refine((scale) => scale.every((step) => Number.isInteger(Math.round(step.min * 1000) / 100)), "Ngưỡng điểm chữ lấy tối đa một chữ số thập phân"),
     roundingStep: z.literal([...ROUNDING_STEPS], "Chọn 0,1, 0,5 hoặc 1"),
     standing: STANDING,
+    incompleteTerms: whole(1, 4),
   }),
   credits: z
     .object({
@@ -76,6 +77,7 @@ export const REGULATION_RULES_SCHEMA = z.object({
     studyPlanReviewDays: whole(1, 14),
     regradeWindowDays: whole(1, 30),
     registrationClosingSoonHours: whole(1, 168),
+    withdrawDeadlineWeeks: whole(1, 20),
   }),
   graduation: z.object({
     retakeLimitPercent: decimal(0, 100),

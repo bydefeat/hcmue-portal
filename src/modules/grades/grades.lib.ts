@@ -1,5 +1,5 @@
 import "server-only";
-import { and, asc, desc, eq, inArray, isNotNull, lte, ne, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNotNull, lte, ne, or, sql } from "drizzle-orm";
 import { db, type Transaction } from "@/shared/libs/db.lib";
 import { schoolToday } from "@/shared/libs/date.lib";
 import { isUuid } from "@/shared/libs/id.lib";
@@ -21,7 +21,7 @@ import {
   type TranscriptTermInput,
 } from "@/modules/grades/grades.rule";
 import { academicWarnings, courseResults, gradeComponents, gradeScores } from "@/modules/grades/grades.schema";
-import type { CurrentWarning, LetterGrade, TranscriptTerm } from "@/modules/grades/grades.type";
+import type { CurrentWarning, ResultLetter, TranscriptTerm } from "@/modules/grades/grades.type";
 import { administrativeClasses, students } from "@/modules/users/users.schema";
 
 // Lỗi nghiệp vụ phát hiện trong giao dịch: hủy giao dịch và trả câu báo cho người dùng.
@@ -111,7 +111,7 @@ const transcriptCourse = (row: { courseCode: string; courseName: string; credits
   courseName: row.courseName,
   credits: row.credits,
   score10: row.score10,
-  letter: row.letter as LetterGrade | null,
+  letter: row.letter as ResultLetter | null,
   point4: row.point4,
 });
 
@@ -180,8 +180,10 @@ export async function loadTranscripts(executor: Executor, studentIds: string[], 
     const result = resultByEnrollment.get(row.enrollmentId);
     termOf(row.studentId, current!, row.termName, row.termStart).courses.push(transcriptCourse({ ...row, score10: result?.score10 ?? null, letter: result?.letter ?? null, point4: result?.point4 ?? null }));
   }
+  // Kết quả của đăng ký đang học đã ghép vào dòng đăng ký ở trên; kết quả W của đăng ký đã rút vẫn hiện riêng.
+  const ongoingIds = new Set(ongoing.map((row) => row.enrollmentId));
   for (const row of results) {
-    if (row.termId === current && row.enrollmentId && options.withOngoing) continue;
+    if (row.termId === current && row.enrollmentId && options.withOngoing && ongoingIds.has(row.enrollmentId)) continue;
     termOf(row.studentId, row.termId, row.termName, row.termStart).courses.push(transcriptCourse(row));
   }
   for (const [studentId, byTerm] of raw) {
@@ -192,7 +194,8 @@ export async function loadTranscripts(executor: Executor, studentIds: string[], 
 }
 
 // Kết quả tích lũy (lần học cuối của mỗi học phần) tính trong SQL cho báo cáo toàn trường, không nạp từng dòng điểm:
-// CPA làm tròn 2 chữ số như creditAverage, tín chỉ tích lũy (lần cuối đạt), tín chỉ nợ (lần cuối F).
+// CPA làm tròn 2 chữ số như creditAverage, tín chỉ tích lũy (lần cuối đạt), tín chỉ nợ (lần cuối F). Cùng quy tắc ký hiệu với
+// hasResult: W, I không phải lần học có kết quả; M là lần cuối, tính tín chỉ, không tính CPA (cpa null nếu chỉ có M).
 export async function cumulativeResults(executor: Executor, options: { upToTermStart?: string; excludeCurrent?: boolean } = {}) {
   const latest = executor
     .selectDistinctOn([courseResults.studentId, courseResults.courseId], {
@@ -207,7 +210,7 @@ export async function cumulativeResults(executor: Executor, options: { upToTermS
     .innerJoin(courses, eq(courses.id, courseResults.courseId))
     .where(
       and(
-        isNotNull(courseResults.point4),
+        or(isNotNull(courseResults.point4), eq(courseResults.letter, "M")),
         options.upToTermStart ? lte(terms.startDate, options.upToTermStart) : undefined,
         options.excludeCurrent ? eq(terms.isCurrent, false) : undefined,
       ),
@@ -217,8 +220,8 @@ export async function cumulativeResults(executor: Executor, options: { upToTermS
   const rows = await executor
     .select({
       studentId: latest.studentId,
-      cpa4: sql<number>`round(sum(${latest.point4} * ${latest.credits}) / sum(${latest.credits}), 2)`.mapWith(Number),
-      cpa10: sql<number>`round(sum(${latest.score10} * ${latest.credits}) / sum(${latest.credits}), 2)`.mapWith(Number),
+      cpa4: sql<number | null>`round(sum(${latest.point4} * ${latest.credits}) / sum(${latest.credits}) FILTER (WHERE ${latest.point4} IS NOT NULL), 2)`.mapWith((value) => (value === null ? null : Number(value))),
+      cpa10: sql<number | null>`round(sum(${latest.score10} * ${latest.credits}) / sum(${latest.credits}) FILTER (WHERE ${latest.score10} IS NOT NULL), 2)`.mapWith((value) => (value === null ? null : Number(value))),
       earnedCredits: sql<number>`coalesce(sum(${latest.credits}) FILTER (WHERE ${latest.letter} <> 'F'), 0)::int`.mapWith(Number),
       failedCredits: sql<number>`coalesce(sum(${latest.credits}) FILTER (WHERE ${latest.letter} = 'F'), 0)::int`.mapWith(Number),
     })

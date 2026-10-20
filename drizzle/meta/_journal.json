@@ -176,6 +176,55 @@
       "when": 1792479899616,
       "tag": "0024_exam_paper_lock",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1792493245992,
+      "tag": "0025_exam_rooms_candidates",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1792493281821,
+      "tag": "0026_exam_guards",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1792495351260,
+      "tag": "0027_survey_rounds_anonymity",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1792495372102,
+      "tag": "0028_survey_guards",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1792495522320,
+      "tag": "0029_audit_entities_survey_syllabus_advising",
+      "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1792496443774,
+      "tag": "0030_syllabus_versions",
+      "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1792497235008,
+      "tag": "0031_advising_attendance_notes",
+      "breakpoints": true
     }
   ]
 }

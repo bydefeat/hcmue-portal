@@ -42,6 +42,9 @@ export const AUDIT_ENTITY_LABEL: Record<AuditEntityType, string> = {
   graduation: "Xét tốt nghiệp",
   term: "Học kỳ",
   tuition: "Học phí",
+  survey: "Khảo sát giảng dạy",
+  syllabus: "Đề cương học phần",
+  advising: "Cố vấn học tập",
 };
 
 export const AUDIT_PAGE_SIZE = 50;

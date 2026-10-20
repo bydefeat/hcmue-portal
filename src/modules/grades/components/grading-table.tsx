@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
-import { Alert, Button, Card, InputNumber, message, Modal, Table, Upload as FilePicker, type TableColumnsType } from "antd";
+import { Alert, Button, Card, Input, InputNumber, message, Modal, Table, Upload as FilePicker, type TableColumnsType } from "antd";
 import { Download, FilePen, LockKey, Pen, Upload } from "defeat-icons-react";
 import { DownloadPdfButton } from "@/shared/components/ui/download-pdf-button";
 import { EmptyState } from "@/shared/components/ui/empty-state";
@@ -19,6 +19,7 @@ import {
   type RequestClassOption,
 } from "@/modules/requests/components/new-lecturer-request-drawer";
 import type { GradeComponent, GradeSheet, GradeSheetState, GradingRules, ScoreRow } from "@/modules/grades/grades.type";
+import { assessmentMismatches } from "@/modules/teaching/teaching.rule";
 
 export type GradingStudent = {
   studentId: string;
@@ -67,6 +68,9 @@ export function GradingTable({ sheet, students, classCode, classId, returnReason
   const [savedAt, setSavedAt] = useState(sheet.savedAt);
   const [version, setVersion] = useState(0);
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
+  // Bảng điểm khác đề cương đã công bố: chốt phải ghi lý do (server cũng chặn).
+  const [syllabusReason, setSyllabusReason] = useState("");
+  const [needsSyllabusReason, setNeedsSyllabusReason] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isLocking, startLocking] = useTransition();
   const inputs = useRef(new Map<string, HTMLInputElement>());
@@ -204,8 +208,9 @@ export function GradingTable({ sheet, students, classCode, classId, returnReason
   const lock = () =>
     startLocking(async () => {
       if (!(await flush())) return;
-      const result = await lockGradeSheet(sheet.classSectionId);
+      const result = await lockGradeSheet(sheet.classSectionId, { syllabusReason: syllabusReason.trim() || null });
       if (!result.ok) {
+        if (result.fieldErrors?.syllabusReason) setNeedsSyllabusReason(true);
         messageApi.error(result.message);
         return;
       }
@@ -372,6 +377,14 @@ export function GradingTable({ sheet, students, classCode, classId, returnReason
         </div>
       </Card>
 
+      {!isLocked && suggestedComponents && assessmentMismatches(suggestedComponents, components, false).length > 0 && (
+        <Alert
+          type="warning"
+          showIcon
+          title="Cột điểm khác đề cương đã công bố"
+          description={`${assessmentMismatches(suggestedComponents, components, false).join(" ")} Sửa cột điểm theo đề cương, hoặc ghi lý do khi chốt điểm.`}
+        />
+      )}
       {sheet.status === "returned" && !isLocked && (
         <Alert
           type="warning"
@@ -486,6 +499,12 @@ export function GradingTable({ sheet, students, classCode, classId, returnReason
           Sau khi chốt, bảng điểm của {students.length} sinh viên được gửi khoa duyệt rồi Phòng Đào tạo công bố. Bạn không sửa được nữa, trừ
           khi khoa trả lại hoặc qua đơn đề nghị sửa điểm.
         </p>
+        {(needsSyllabusReason || (suggestedComponents && assessmentMismatches(suggestedComponents, components, false).length > 0)) && (
+          <div className="mt-3 flex flex-col gap-1 text-sm">
+            <span id="syllabus-reason-label">Lý do chốt dù khác đề cương đã công bố</span>
+            <Input.TextArea aria-labelledby="syllabus-reason-label" value={syllabusReason} onChange={(event) => setSyllabusReason(event.target.value)} autoSize={{ minRows: 2, maxRows: 4 }} maxLength={300} showCount />
+          </div>
+        )}
       </Modal>
 
       {!isLocked && (

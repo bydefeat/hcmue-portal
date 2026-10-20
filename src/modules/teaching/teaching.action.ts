@@ -9,11 +9,12 @@ import { classSections } from "@/modules/course-registration/course-registration
 import { courses } from "@/modules/curriculum/curriculum.schema";
 import { deliverMailSoon } from "@/modules/mail/mail.lib";
 import { TEACHING_CONSTRAINT_MESSAGE } from "@/modules/teaching/teaching.constant";
-import { announceToClass, classPageHref, recordAnnouncementRead } from "@/modules/teaching/teaching.lib";
+import { announceToClass, classPageHref, recordAnnouncementRead, writeSyllabus, SyllabusRevisionError } from "@/modules/teaching/teaching.lib";
 import { getClassAnnouncement, getSyllabus } from "@/modules/teaching/teaching.query";
 import { assessmentTotal, CLASS_ANNOUNCEMENT_SCHEMA, SYLLABUS_SCHEMA, type ClassAnnouncementInput, type SyllabusInput } from "@/modules/teaching/teaching.rule";
-import { classAnnouncements, syllabi, syllabusAssessments, syllabusOutcomes, syllabusWeeks } from "@/modules/teaching/teaching.schema";
+import { classAnnouncements, syllabi, syllabusAssessments } from "@/modules/teaching/teaching.schema";
 import type { ClassAnnouncement, Syllabus } from "@/modules/teaching/teaching.type";
+import { requireSession } from "@/modules/authentication/authentication.query";
 import { getCurrentLecturer, getCurrentStudent } from "@/modules/users/users.query";
 
 const NOT_YOUR_CLASS = "Bạn không phải giảng viên dạy lớp này nên không sửa được.";
@@ -37,32 +38,18 @@ function revalidateClass(classSectionId: string) {
   revalidatePath(classPageHref(classSectionId));
 }
 
+// Lưu đề cương. Đề cương đã công bố mà đổi cách tính điểm (hình thức, trọng số) phải ghi lý do: lưu thành phiên bản mới, bản cũ
+// giữ lại, sinh viên của lớp nhận thông báo.
 export async function saveSyllabus(input: SyllabusInput): Promise<ActionResult<Syllabus>> {
   const section = await sectionOfLecturer(typeof input?.classSectionId === "string" ? input.classSectionId : "");
   if (!section) return actionError(NOT_YOUR_CLASS);
   const parsed = parseInput(SYLLABUS_SCHEMA, input);
   if (!parsed.ok) return parsed;
-  const { description, references, outcomes, weeks, assessments } = parsed.data;
+  const [lecturer, { user }] = await Promise.all([getCurrentLecturer(), requireSession()]);
   try {
-    await db.transaction(async (tx) => {
-      const [syllabus] = await tx
-        .insert(syllabi)
-        .values({ classSectionId: section.id, description, references })
-        .onConflictDoUpdate({ target: syllabi.classSectionId, set: { description, references, updatedAt: new Date() } })
-        .returning({ id: syllabi.id });
-      // Ghi lại toàn bộ phần con: trigger kiểm tổng trọng số chạy lúc commit nên xóa rồi chèn trong cùng giao dịch được.
-      await tx.delete(syllabusOutcomes).where(eq(syllabusOutcomes.syllabusId, syllabus.id));
-      await tx.delete(syllabusWeeks).where(eq(syllabusWeeks.syllabusId, syllabus.id));
-      await tx.delete(syllabusAssessments).where(eq(syllabusAssessments.syllabusId, syllabus.id));
-      if (outcomes.length > 0) await tx.insert(syllabusOutcomes).values(outcomes.map((outcome, position) => ({ syllabusId: syllabus.id, ...outcome, position })));
-      if (weeks.length > 0) await tx.insert(syllabusWeeks).values(weeks.map((week) => ({ syllabusId: syllabus.id, ...week })));
-      if (assessments.length > 0) {
-        await tx
-          .insert(syllabusAssessments)
-          .values(assessments.map(({ outcomes: outcomeCodes, ...item }, position) => ({ syllabusId: syllabus.id, ...item, outcomeCodes, position })));
-      }
-    });
+    await db.transaction((tx) => writeSyllabus(tx, section, { userId: user.id, name: lecturer.displayName, role: "Giảng viên" }, parsed.data));
   } catch (error) {
+    if (error instanceof SyllabusRevisionError) return actionError(error.message, { revisionNote: error.message });
     return actionFailure(error, TEACHING_CONSTRAINT_MESSAGE);
   }
   revalidateClass(section.id);
@@ -124,9 +111,11 @@ export async function saveClassAnnouncement(id: string | null, input: ClassAnnou
         .where(and(eq(classAnnouncements.id, id), eq(classAnnouncements.classSectionId, section.id)))
         .for("update");
       if (!current) return null;
-      if (schedule && current.notifiedAt) throw new AlreadyAnnouncedError();
-      // Sửa bài đã đăng thì giữ thời điểm đăng cũ; bỏ hẹn giờ thì đăng ngay.
+      // Bài đã tới giờ đăng thì sinh viên đã thấy (kể cả khi tác vụ nền chưa kịp báo): không hẹn giờ lại về tương lai, để bài
+      // không biến mất khỏi trang lớp của sinh viên.
       const isDue = current.publishAt.getTime() <= Date.now();
+      if (schedule && (current.notifiedAt || isDue)) throw new AlreadyAnnouncedError();
+      // Sửa bài đã đăng thì giữ thời điểm đăng cũ; bỏ hẹn giờ thì đăng ngay.
       await tx
         .update(classAnnouncements)
         .set({
@@ -140,7 +129,7 @@ export async function saveClassAnnouncement(id: string | null, input: ClassAnnou
       return { id, mailIds: announced?.mailIds ?? [] };
     });
   } catch (error) {
-    if (error instanceof AlreadyAnnouncedError) return actionError("Thông báo đã đăng và đã báo tới sinh viên nên không hẹn giờ lại được. Tắt Hẹn giờ đăng để lưu nội dung sửa.", { schedule: "Bài đã đăng không hẹn giờ lại được" });
+    if (error instanceof AlreadyAnnouncedError) return actionError("Thông báo đã tới giờ đăng, sinh viên đã thấy nên không hẹn giờ lại được. Tắt Hẹn giờ đăng để lưu nội dung sửa.", { schedule: "Bài đã đăng không hẹn giờ lại được" });
     return actionFailure(error, TEACHING_CONSTRAINT_MESSAGE);
   }
   if (!saved) return actionError("Thông báo không còn tồn tại, tải lại trang.");

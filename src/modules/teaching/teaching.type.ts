@@ -32,6 +32,16 @@ export type Syllabus = {
   weeks: SyllabusWeek[];
   assessments: SyllabusAssessment[];
   references: string[];
+  version: number;
+  // Các bản cách tính điểm cũ (mới nhất trước), chỉ có khi đề cương đã công bố rồi đổi đánh giá.
+  revisions: SyllabusRevision[];
+};
+
+export type SyllabusRevision = {
+  version: number;
+  revisedAt: string;
+  note: string;
+  assessments: { key: string; label: string; weight: number }[];
 };
 
 export type ClassAnnouncementStatus = "published" | "scheduled";

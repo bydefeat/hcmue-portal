@@ -8,11 +8,12 @@ import { runAcademicWarningsJob } from "@/modules/grades/grades.lib";
 import { runMailOutboxJob } from "@/modules/mail/mail.lib";
 import { purgeOldNotifications } from "@/modules/notifications/notifications.lib";
 import { publishDueClassAnnouncements } from "@/modules/teaching/teaching.lib";
-import { sweepOrphanExamFiles } from "@/modules/exams/exams.lib";
+import { refreshExamStatuses, sweepOrphanExamFiles } from "@/modules/exams/exams.lib";
 import { runRequestSlaJob, sweepOrphanRequestFiles } from "@/modules/requests/requests.lib";
 import { purgeReportExports } from "@/modules/settings/settings.lib";
 import { runDecisionEffectsJob } from "@/modules/users/users.decision";
 import { resyncOpenClassSessions } from "@/modules/schedule/schedule.lib";
+import { sealClosedSurveys } from "@/modules/surveys/surveys.lib";
 
 // Tác vụ định kỳ, gọi từ bộ hẹn giờ ngoài (crontab của máy chủ, Vercel Cron...): GET hoặc POST /api/cron/<tác vụ> với header
 // Authorization: Bearer <khóa>, khóa là DEFEAT_CRON_SECRET hoặc CRON_SECRET (Vercel Cron tự gửi CRON_SECRET bằng GET).
@@ -44,6 +45,10 @@ const JOBS: Record<string, () => Promise<Record<string, number>>> = {
   "decision-effects": runDecisionEffectsJob,
   // Sinh lại buổi học của các lớp đang mở theo ngày nghỉ lễ mới nhất của lịch năm học. Nên chạy mỗi ngày.
   "class-sessions": () => resyncOpenClassSessions(db),
+  // Ca thi đã công bố mà đã thi xong chuyển "Đã thi". Nên chạy mỗi 15 phút (các chốt chặn đã tự kiểm theo giờ thi).
+  "exam-sessions": () => refreshExamStatuses(),
+  // Xáo phiếu các đợt khảo sát vừa đóng để phiếu không ghép được với người nộp; giảng viên xem kết quả từ lúc này. Mỗi giờ.
+  surveys: sealClosedSurveys,
 };
 
 function matches(given: Buffer, secret: string | undefined) {

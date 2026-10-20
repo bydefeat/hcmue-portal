@@ -1,5 +1,5 @@
 import "server-only";
-import { and, asc, count, desc, eq, isNull, lte, type SQL } from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray, isNull, lte, sql, type SQL } from "drizzle-orm";
 import { db, type Transaction } from "@/shared/libs/db.lib";
 import { env } from "@/shared/libs/env.lib";
 import { isUuid } from "@/shared/libs/id.lib";
@@ -7,9 +7,11 @@ import { classSections, enrollments, terms } from "@/modules/course-registration
 import { courses } from "@/modules/curriculum/curriculum.schema";
 import { deliverQueuedMail, enqueueMail } from "@/modules/mail/mail.lib";
 import { notifyStudents } from "@/modules/notifications/notifications.lib";
+import type { z } from "zod";
+import { recordAudit, type AuditActor } from "@/modules/audit/audit.lib";
 import { SYLLABUS_WEEKS } from "@/modules/teaching/teaching.constant";
-import { effectiveAnnouncementStatus } from "@/modules/teaching/teaching.rule";
-import { classAnnouncementReads, classAnnouncements, syllabi, syllabusAssessments, syllabusOutcomes, syllabusWeeks } from "@/modules/teaching/teaching.schema";
+import { effectiveAnnouncementStatus, gradingChanged, type SYLLABUS_SCHEMA } from "@/modules/teaching/teaching.rule";
+import { classAnnouncementReads, classAnnouncements, syllabi, syllabusAssessments, syllabusOutcomes, syllabusRevisions, syllabusWeeks } from "@/modules/teaching/teaching.schema";
 import type { ClassAnnouncement, ClassLecturer, StudentClass, StudentClassAnnouncement, Syllabus, SyllabusWeek } from "@/modules/teaching/teaching.type";
 import { lecturers, students } from "@/modules/users/users.schema";
 
@@ -38,6 +40,7 @@ export async function readSyllabus(classSectionId: string): Promise<Syllabus | n
       status: syllabi.status,
       publishedAt: syllabi.publishedAt,
       updatedAt: syllabi.updatedAt,
+      version: syllabi.version,
       description: syllabi.description,
       references: syllabi.references,
     })
@@ -46,7 +49,7 @@ export async function readSyllabus(classSectionId: string): Promise<Syllabus | n
     .innerJoin(courses, eq(courses.id, classSections.courseId))
     .where(eq(syllabi.classSectionId, classSectionId));
   if (!row) return null;
-  const [outcomes, weeks, assessments] = await Promise.all([
+  const [outcomes, weeks, assessments, revisions] = await Promise.all([
     db
       .select({ code: syllabusOutcomes.code, text: syllabusOutcomes.text })
       .from(syllabusOutcomes)
@@ -68,6 +71,11 @@ export async function readSyllabus(classSectionId: string): Promise<Syllabus | n
       .from(syllabusAssessments)
       .where(eq(syllabusAssessments.syllabusId, row.id))
       .orderBy(asc(syllabusAssessments.position)),
+    db
+      .select({ version: syllabusRevisions.version, revisedAt: syllabusRevisions.revisedAt, note: syllabusRevisions.note, assessments: syllabusRevisions.assessments })
+      .from(syllabusRevisions)
+      .where(eq(syllabusRevisions.syllabusId, row.id))
+      .orderBy(desc(syllabusRevisions.version)),
   ]);
   const { id: _id, publishedAt, updatedAt, ...rest } = row;
   return {
@@ -77,14 +85,12 @@ export async function readSyllabus(classSectionId: string): Promise<Syllabus | n
     outcomes,
     weeks: fillWeeks(weeks),
     assessments,
+    revisions: revisions.map((revision) => ({ ...revision, revisedAt: revision.revisedAt.toISOString() })),
   };
 }
 
-const readCount = db
-  .select({ announcementId: classAnnouncementReads.classAnnouncementId, total: count().as("total") })
-  .from(classAnnouncementReads)
-  .groupBy(classAnnouncementReads.classAnnouncementId)
-  .as("read_count");
+// Số lượt đọc của từng bài: đếm theo khóa chính (class_announcement_id, student_id), không gom cả bảng lượt đọc mỗi lần đọc.
+const readCount = sql<number>`(SELECT count(*) FROM class_announcement_reads r WHERE r.class_announcement_id = ${classAnnouncements.id})::int`;
 
 const CLASS_ANNOUNCEMENT_COLUMNS = {
   id: classAnnouncements.id,
@@ -98,7 +104,7 @@ const CLASS_ANNOUNCEMENT_COLUMNS = {
   notifiedAt: classAnnouncements.notifiedAt,
   authorTitle: lecturers.title,
   authorName: lecturers.fullName,
-  readCount: readCount.total,
+  readCount,
 };
 
 export async function announcementRows(where: SQL): Promise<ClassAnnouncement[]> {
@@ -106,17 +112,15 @@ export async function announcementRows(where: SQL): Promise<ClassAnnouncement[]>
     .select(CLASS_ANNOUNCEMENT_COLUMNS)
     .from(classAnnouncements)
     .innerJoin(lecturers, eq(lecturers.id, classAnnouncements.authorId))
-    .leftJoin(readCount, eq(readCount.announcementId, classAnnouncements.id))
     .where(where)
     .orderBy(desc(classAnnouncements.isPinned), desc(classAnnouncements.publishAt));
   const now = new Date();
-  return rows.map(({ authorTitle, authorName, publishAt, notifiedAt, status, readCount: reads, ...row }) => ({
+  return rows.map(({ authorTitle, authorName, publishAt, notifiedAt, status, ...row }) => ({
     ...row,
     status: effectiveAnnouncementStatus(status, publishAt, now),
     publishAt: publishAt.toISOString(),
     notifiedAt: notifiedAt?.toISOString() ?? null,
     author: `${authorTitle} ${authorName}`,
-    readCount: reads ?? 0,
   }));
 }
 
@@ -134,17 +138,15 @@ export async function studentAnnouncements(studentId: string, classSectionId?: s
     .innerJoin(enrollments, enrolledIn(studentId))
     .innerJoin(courses, eq(courses.id, classSections.courseId))
     .innerJoin(lecturers, eq(lecturers.id, classAnnouncements.authorId))
-    .leftJoin(readCount, eq(readCount.announcementId, classAnnouncements.id))
     .leftJoin(classAnnouncementReads, and(eq(classAnnouncementReads.classAnnouncementId, classAnnouncements.id), eq(classAnnouncementReads.studentId, studentId)))
     .where(and(lte(classAnnouncements.publishAt, new Date()), classSectionId ? eq(classAnnouncements.classSectionId, classSectionId) : undefined))
     .orderBy(desc(classAnnouncements.isPinned), desc(classAnnouncements.publishAt));
-  return rows.map(({ authorTitle, authorName, publishAt, notifiedAt, readAt, readCount: reads, ...row }) => ({
+  return rows.map(({ authorTitle, authorName, publishAt, notifiedAt, readAt, ...row }) => ({
     ...row,
     status: "published",
     publishAt: publishAt.toISOString(),
     notifiedAt: notifiedAt?.toISOString() ?? null,
     author: `${authorTitle} ${authorName}`,
-    readCount: reads ?? 0,
     isRead: readAt !== null,
   }));
 }
@@ -174,12 +176,30 @@ async function studentClassRows(studentId: string, where: SQL | undefined, execu
     .where(where)
     .orderBy(asc(classSections.code));
   if (rows.length === 0) return [];
-  const announcements = await studentAnnouncements(studentId, undefined, executor);
+  // Chỉ đếm số bài đã đăng và chưa đọc của đúng các lớp cần hiện, không đọc toàn bộ nội dung thông báo.
+  const counts = await executor
+    .select({
+      classSectionId: classAnnouncements.classSectionId,
+      total: count(),
+      unread: sql<number>`count(*) FILTER (WHERE ${classAnnouncementReads.studentId} IS NULL)::int`,
+    })
+    .from(classAnnouncements)
+    .leftJoin(classAnnouncementReads, and(eq(classAnnouncementReads.classAnnouncementId, classAnnouncements.id), eq(classAnnouncementReads.studentId, studentId)))
+    .where(
+      and(
+        lte(classAnnouncements.publishAt, new Date()),
+        inArray(
+          classAnnouncements.classSectionId,
+          rows.map((row) => row.id),
+        ),
+      ),
+    )
+    .groupBy(classAnnouncements.classSectionId);
+  const countOf = new Map(counts.map((row) => [row.classSectionId, row]));
   return rows.map(({ lecturerTitle, lecturerName, lecturerEmail, lecturerOffice, lecturerOfficeHours, ...row }) => {
-    const own = announcements.filter((announcement) => announcement.classSectionId === row.id);
     const lecturer: ClassLecturer | null =
       lecturerName === null ? null : { displayName: `${lecturerTitle} ${lecturerName}`, email: lecturerEmail ?? "", office: lecturerOffice ?? "", officeHours: lecturerOfficeHours ?? "" };
-    return { ...row, lecturer, announcementCount: own.length, unreadCount: own.filter((announcement) => !announcement.isRead).length };
+    return { ...row, lecturer, announcementCount: countOf.get(row.id)?.total ?? 0, unreadCount: countOf.get(row.id)?.unread ?? 0 };
   });
 }
 
@@ -280,34 +300,42 @@ export async function announceToClass(tx: Transaction, announcement: Announcemen
 // Mỗi lần chạy báo tối đa ngần này bài; còn thì lần chạy sau báo tiếp.
 const DUE_BATCH = 50;
 
-// Báo các bài đã tới giờ đăng mà chưa báo. Khóa dòng FOR UPDATE SKIP LOCKED: hai lần chạy song song (cron và trang lớp gọi bù)
-// không lấy trùng bài, bài đang bị lần chạy kia hoặc giảng viên đang sửa giữ khóa thì bỏ qua cho lần sau.
+// Báo các bài đã tới giờ đăng mà chưa báo. Mỗi bài một giao dịch: một bài lỗi (lớp vừa xóa, dữ liệu hỏng) không chặn các bài
+// khác, lần chạy sau thử lại bài đó. Khóa dòng FOR UPDATE SKIP LOCKED: hai lần chạy song song (cron và trang lớp gọi bù) không
+// báo trùng, bài đang bị lần chạy kia hoặc giảng viên đang sửa giữ khóa thì bỏ qua cho lần sau.
 export async function publishDueClassAnnouncements(options: { classSectionId?: string } = {}) {
-  if (options.classSectionId !== undefined && !isUuid(options.classSectionId)) return { announcements: 0, notified: 0, emailed: 0, emailRetrying: 0 };
-  const results = await db.transaction(async (tx) => {
-    const due = await tx
-      .select({
-        id: classAnnouncements.id,
-        classSectionId: classAnnouncements.classSectionId,
-        title: classAnnouncements.title,
-        body: classAnnouncements.body,
-        sendEmail: classAnnouncements.sendEmail,
-      })
-      .from(classAnnouncements)
-      .where(
-        and(
-          isNull(classAnnouncements.notifiedAt),
-          lte(classAnnouncements.publishAt, new Date()),
-          options.classSectionId ? eq(classAnnouncements.classSectionId, options.classSectionId) : undefined,
-        ),
-      )
-      .orderBy(asc(classAnnouncements.publishAt))
-      .limit(DUE_BATCH)
-      .for("update", { skipLocked: true });
-    const done = [];
-    for (const announcement of due) done.push(await announceToClass(tx, announcement));
-    return done;
-  });
+  const empty = { announcements: 0, notified: 0, emailed: 0, emailRetrying: 0, failed: 0 };
+  if (options.classSectionId !== undefined && !isUuid(options.classSectionId)) return empty;
+  const due = await db
+    .select({ id: classAnnouncements.id })
+    .from(classAnnouncements)
+    .where(and(isNull(classAnnouncements.notifiedAt), lte(classAnnouncements.publishAt, new Date()), options.classSectionId ? eq(classAnnouncements.classSectionId, options.classSectionId) : undefined))
+    .orderBy(asc(classAnnouncements.publishAt))
+    .limit(DUE_BATCH);
+  const results: Awaited<ReturnType<typeof announceToClass>>[] = [];
+  let failed = 0;
+  for (const { id } of due) {
+    try {
+      const result = await db.transaction(async (tx) => {
+        const [announcement] = await tx
+          .select({
+            id: classAnnouncements.id,
+            classSectionId: classAnnouncements.classSectionId,
+            title: classAnnouncements.title,
+            body: classAnnouncements.body,
+            sendEmail: classAnnouncements.sendEmail,
+          })
+          .from(classAnnouncements)
+          .where(and(eq(classAnnouncements.id, id), isNull(classAnnouncements.notifiedAt), lte(classAnnouncements.publishAt, new Date())))
+          .for("update", { skipLocked: true });
+        return announcement ? announceToClass(tx, announcement) : null;
+      });
+      if (result) results.push(result);
+    } catch (error) {
+      failed += 1;
+      console.error(`Không báo được thông báo lớp ${id}`, error);
+    }
+  }
   // Tác vụ nền nên chờ gửi luôn; thư lỗi nằm lại hàng đợi cho tác vụ mail-outbox gửi lại.
   const mail = await deliverQueuedMail(results.flatMap((result) => result.mailIds));
   return {
@@ -315,5 +343,77 @@ export async function publishDueClassAnnouncements(options: { classSectionId?: s
     notified: results.reduce((sum, result) => sum + result.notified, 0),
     emailed: mail.sent,
     emailRetrying: mail.retrying + mail.failed,
+    failed,
   };
+}
+
+const describeGrading = (items: { label: string; weight: number }[]) => items.map((item) => `${item.label} ${item.weight}%`).join(", ");
+
+// Đề cương đã công bố đổi cách tính điểm mà chưa ghi lý do.
+export class SyllabusRevisionError extends Error {}
+
+// Ghi đề cương (đã kiểm dữ liệu vào) của lớp. Đề cương đã công bố: đổi cách tính điểm thì bắt buộc có lý do, lưu bản cũ vào
+// syllabus_revisions, tăng phiên bản, báo sinh viên đang học lớp và ghi nhật ký; sửa phần khác thì lưu như thường.
+export async function writeSyllabus(
+  tx: Transaction,
+  section: { id: string; code: string; courseName: string },
+  actor: AuditActor,
+  data: z.output<typeof SYLLABUS_SCHEMA>,
+) {
+  const { description, references, outcomes, weeks, assessments, revisionNote } = data;
+  const [current] = await tx.select({ id: syllabi.id, status: syllabi.status, version: syllabi.version }).from(syllabi).where(eq(syllabi.classSectionId, section.id)).for("update");
+  const before = current
+    ? await tx
+        .select({ key: syllabusAssessments.key, label: syllabusAssessments.label, weight: syllabusAssessments.weight })
+        .from(syllabusAssessments)
+        .where(eq(syllabusAssessments.syllabusId, current.id))
+        .orderBy(asc(syllabusAssessments.position))
+    : [];
+  const isRevision = current?.status === "published" && gradingChanged(before, assessments);
+  if (isRevision && !revisionNote) {
+    throw new SyllabusRevisionError("Đề cương đã công bố: đổi cách tính điểm phải ghi lý do. Bản mới thành phiên bản tiếp theo và sinh viên được thông báo.");
+  }
+  const [syllabus] = await tx
+    .insert(syllabi)
+    .values({ classSectionId: section.id, description, references })
+    .onConflictDoUpdate({ target: syllabi.classSectionId, set: { description, references, updatedAt: new Date(), ...(isRevision ? { version: sql`${syllabi.version} + 1` } : {}) } })
+    .returning({ id: syllabi.id, version: syllabi.version });
+  if (isRevision && current) {
+    await tx.insert(syllabusRevisions).values({ syllabusId: syllabus.id, version: current.version, assessments: before, note: revisionNote! });
+  }
+  // Ghi lại toàn bộ phần con: trigger kiểm tổng trọng số chạy lúc commit nên xóa rồi chèn trong cùng giao dịch được.
+  await tx.delete(syllabusOutcomes).where(eq(syllabusOutcomes.syllabusId, syllabus.id));
+  await tx.delete(syllabusWeeks).where(eq(syllabusWeeks.syllabusId, syllabus.id));
+  await tx.delete(syllabusAssessments).where(eq(syllabusAssessments.syllabusId, syllabus.id));
+  if (outcomes.length > 0) await tx.insert(syllabusOutcomes).values(outcomes.map((outcome, position) => ({ syllabusId: syllabus.id, ...outcome, position })));
+  if (weeks.length > 0) await tx.insert(syllabusWeeks).values(weeks.map((week) => ({ syllabusId: syllabus.id, ...week })));
+  if (assessments.length > 0) {
+    await tx.insert(syllabusAssessments).values(assessments.map(({ outcomes: outcomeCodes, ...item }, position) => ({ syllabusId: syllabus.id, ...item, outcomeCodes, position })));
+  }
+  if (isRevision) {
+    await recordAudit(tx, {
+      actor,
+      action: "update",
+      entityType: "syllabus",
+      entityId: syllabus.id,
+      entityLabel: `${section.code} ${section.courseName}`,
+      summary: `Đổi cách tính điểm đề cương ${section.code} lên phiên bản ${syllabus.version}: ${revisionNote}`,
+      changes: [{ field: "Cách tính điểm", before: describeGrading(before), after: describeGrading(assessments) }],
+    });
+    const roster = await tx
+      .select({ id: enrollments.studentId })
+      .from(enrollments)
+      .where(and(eq(enrollments.classSectionId, section.id), eq(enrollments.status, "enrolled")));
+    await notifyStudents(
+      tx,
+      roster.map((row) => row.id),
+      {
+        kind: "announcement",
+        title: `${section.code}: đề cương đổi cách tính điểm (phiên bản ${syllabus.version})`,
+        body: `${describeGrading(assessments)}. Lý do: ${revisionNote}`,
+        href: classPageHref(section.id),
+      },
+    );
+  }
+  return { id: syllabus.id, version: syllabus.version, isRevision };
 }

@@ -89,6 +89,8 @@ export const SYLLABI: Syllabus[] = [
     weeks: weeksOf("COMP1020"),
     assessments: DEFAULT_ASSESSMENTS,
     references: ["Cormen và cộng sự, Introduction to Algorithms, MIT Press, 2022", "Đỗ Xuân Lôi, Cấu trúc dữ liệu và giải thuật, NXB ĐHQG Hà Nội"],
+    version: 1,
+    revisions: [],
   },
   {
     classSectionId: mockSectionId("hk1-2026", "COMP1020.02"),
@@ -107,6 +109,8 @@ export const SYLLABI: Syllabus[] = [
     weeks: weeksOf("COMP1020"),
     assessments: DEFAULT_ASSESSMENTS,
     references: ["Cormen và cộng sự, Introduction to Algorithms, MIT Press, 2022"],
+    version: 1,
+    revisions: [],
   },
   {
     classSectionId: mockSectionId("hk1-2026", "COMP1070.01"),
@@ -129,6 +133,20 @@ export const SYLLABI: Syllabus[] = [
       { key: "final", label: "Cuối kỳ", weight: 50, method: "Bảo vệ đồ án trước hội đồng", outcomes: ["CLO2", "CLO3"] },
     ],
     references: ["MDN Web Docs, developer.mozilla.org", "Tài liệu React, react.dev"],
+    // Đã đổi cách tính điểm một lần sau khi công bố: bản 1 đồ án 30%, cuối kỳ 60%.
+    version: 2,
+    revisions: [
+      {
+        version: 1,
+        revisedAt: mockDate(-10, "20:30"),
+        note: "Tăng trọng số đồ án theo góp ý của bộ môn, giảm điểm bảo vệ cuối kỳ",
+        assessments: [
+          { key: "attendance", label: "Chuyên cần", weight: 10 },
+          { key: "project", label: "Đồ án", weight: 30 },
+          { key: "final", label: "Cuối kỳ", weight: 60 },
+        ],
+      },
+    ],
   },
   {
     classSectionId: mockSectionId("hk1-2026", "COMP1080.01"),
@@ -150,18 +168,20 @@ export const SYLLABI: Syllabus[] = [
       { key: "final", label: "Cuối kỳ", weight: 60, method: "Tự luận 90 phút", outcomes: ["CLO1", "CLO2", "CLO3"] },
     ],
     references: ["Russell và Norvig, Artificial Intelligence: A Modern Approach, 4th edition"],
+    version: 1,
+    revisions: [],
   },
 ];
 
 const ME = mockLecturerIdentity(0).displayName;
 
 export const CLASS_ANNOUNCEMENTS: ClassAnnouncement[] = [
-  { id: mockId("class-announcement:tbl-01"), classSectionId: mockSectionId("hk1-2026", "COMP1020.01"), title: "Đề cương và lịch kiểm tra giữa kỳ", body: "Kiểm tra giữa kỳ vào tuần 8, nội dung từ chương 1 đến chương 6. Được mang một tờ A4 ghi chú viết tay.", isPinned: true, sendEmail: true, status: "published", publishAt: mockDate(-30, "09:00"), notifiedAt: mockDate(-30, "09:00"), author: ME, readCount: 39 },
+  { id: mockId("class-announcement:tbl-01"), classSectionId: mockSectionId("hk1-2026", "COMP1020.01"), title: "Đề cương và lịch thi giữa kỳ", body: "Thi giữa kỳ (tự luận 60 phút, 30% điểm học phần) theo lịch Phòng Khảo thí công bố ở trang Lịch thi, nội dung từ chương 1 đến chương 6. Được mang một tờ A4 ghi chú viết tay.", isPinned: true, sendEmail: true, status: "published", publishAt: mockDate(-30, "09:00"), notifiedAt: mockDate(-30, "09:00"), author: ME, readCount: 39 },
   { id: mockId("class-announcement:tbl-02"), classSectionId: mockSectionId("hk1-2026", "COMP1020.01"), title: "Bài tập tuần 6: sắp xếp trộn", body: "Nộp bài trên hệ thống trước 23:59 chủ nhật. Bài nộp trễ trừ 20% điểm.", isPinned: false, sendEmail: false, status: "published", publishAt: mockDate(-6, "19:30"), notifiedAt: mockDate(-6, "19:30"), author: ME, readCount: 31 },
   { id: mockId("class-announcement:tbl-03"), classSectionId: mockSectionId("hk1-2026", "COMP1020.01"), title: "Nghỉ buổi thứ 2 tuần sau, dạy bù thứ 7", body: "Giảng viên đi hội thảo. Buổi dạy bù thứ 7, tiết 1-3, phòng B.405.", isPinned: false, sendEmail: true, status: "scheduled", publishAt: mockDate(1, "07:00"), notifiedAt: null, author: ME, readCount: 0 },
   { id: mockId("class-announcement:tbl-04"), classSectionId: mockSectionId("hk1-2026", "COMP1070.01"), title: "Chia nhóm đồ án", body: "Mỗi nhóm 4 bạn, đăng ký tên nhóm và đề tài trong biểu mẫu trước thứ 6.", isPinned: true, sendEmail: true, status: "published", publishAt: mockDate(-35, "10:00"), notifiedAt: mockDate(-35, "10:00"), author: ME, readCount: 40 },
   { id: mockId("class-announcement:tbl-05"), classSectionId: mockSectionId("hk1-2026", "COMP1080.01"), title: "Tài liệu chương 4 đã cập nhật", body: "Slide tìm kiếm A* có thêm ví dụ bản đồ TP.HCM.", isPinned: false, sendEmail: false, status: "published", publishAt: mockDate(-2, "21:00"), notifiedAt: mockDate(-2, "21:00"), author: ME, readCount: 22 },
-  { id: mockId("class-announcement:tbl-06"), classSectionId: mockSectionId("hk1-2026", "COMP1020.02"), title: "Đề cương và cách tính điểm", body: "Đề cương đã công bố trên trang lớp. Điểm quá trình 40% gồm bài tập hằng tuần và kiểm tra giữa kỳ, thi cuối kỳ 60%.", isPinned: true, sendEmail: true, status: "published", publishAt: mockDate(-28, "08:00"), notifiedAt: mockDate(-28, "08:00"), author: ME, readCount: 12 },
+  { id: mockId("class-announcement:tbl-06"), classSectionId: mockSectionId("hk1-2026", "COMP1020.02"), title: "Đề cương và cách tính điểm", body: "Đề cương đã công bố trên trang lớp. Điểm quá trình 40% gồm chuyên cần 10% và thi giữa kỳ 30%, thi cuối kỳ 60% (tự luận 90 phút).", isPinned: true, sendEmail: true, status: "published", publishAt: mockDate(-28, "08:00"), notifiedAt: mockDate(-28, "08:00"), author: ME, readCount: 12 },
   { id: mockId("class-announcement:tbl-07"), classSectionId: mockSectionId("hk1-2026", "COMP1020.02"), title: "Bài tập tuần 7: cây nhị phân tìm kiếm", body: "Cài đặt thêm, xóa, tìm kiếm trên cây nhị phân tìm kiếm. Nộp mã nguồn trên hệ thống trước 23:59 chủ nhật.", isPinned: false, sendEmail: false, status: "published", publishAt: mockDate(-1, "20:00"), notifiedAt: mockDate(-1, "20:00"), author: ME, readCount: 0 },
-  { id: mockId("class-announcement:tbl-08"), classSectionId: mockSectionId("hk1-2026", "COMP1020.02"), title: "Nhắc lịch kiểm tra giữa kỳ", body: "Kiểm tra giữa kỳ vào buổi học tuần 8, 60 phút, nội dung từ chương 1 đến chương 6. Mang thẻ sinh viên.", isPinned: false, sendEmail: true, status: "scheduled", publishAt: mockDate(2, "07:00"), notifiedAt: null, author: ME, readCount: 0 },
+  { id: mockId("class-announcement:tbl-08"), classSectionId: mockSectionId("hk1-2026", "COMP1020.02"), title: "Nhắc lịch thi cuối kỳ", body: "Thi cuối kỳ ngày 05/01/2027 lúc 09:30, tự luận 90 phút, 60% điểm học phần. Xem phòng và số báo danh ở trang Lịch thi, mang thẻ sinh viên.", isPinned: false, sendEmail: true, status: "scheduled", publishAt: mockDate(2, "07:00"), notifiedAt: null, author: ME, readCount: 0 },
 ];

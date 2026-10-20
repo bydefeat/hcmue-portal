@@ -20,7 +20,10 @@ export type AuditEntityType =
   | "graduation"
   | "term"
   | "tuition"
-  | "mail";
+  | "mail"
+  | "survey"
+  | "syllabus"
+  | "advising";
 
 export type AuditChange = {
   field: string;

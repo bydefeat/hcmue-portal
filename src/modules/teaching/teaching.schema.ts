@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { boolean, check, foreignKey, index, pgEnum, pgTable, primaryKey, smallint, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
+import { boolean, check, foreignKey, index, jsonb, pgEnum, pgTable, primaryKey, smallint, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
 import { createdAt, primaryId, timestamps } from "@/shared/libs/db-column.lib";
 import { classSections } from "@/modules/course-registration/course-registration.schema";
 import { lecturers, students } from "@/modules/users/users.schema";
@@ -19,9 +19,33 @@ export const syllabi = pgTable(
     description: text().notNull().default(""),
     references: text().array().notNull().default(sql`'{}'::text[]`),
     publishedAt: timestamp({ withTimezone: true }),
+    // Phiên bản cách tính điểm: đề cương đã công bố mà đổi đánh giá thì tăng phiên bản, bản cũ lưu ở syllabus_revisions.
+    version: smallint().notNull().default(1),
     ...timestamps(),
   },
-  (table) => [check("syllabi_published_fields", sql`(${table.status} = 'published') = (${table.publishedAt} IS NOT NULL)`)],
+  (table) => [
+    check("syllabi_published_fields", sql`(${table.status} = 'published') = (${table.publishedAt} IS NOT NULL)`),
+    check("syllabi_version_positive", sql`${table.version} >= 1`),
+  ],
+);
+
+// Bản cách tính điểm cũ của đề cương đã công bố (trước mỗi lần đổi), kèm lý do đổi.
+export const syllabusRevisions = pgTable(
+  "syllabus_revisions",
+  {
+    id: primaryId(),
+    syllabusId: uuid()
+      .notNull()
+      .references(() => syllabi.id, { onDelete: "cascade" }),
+    version: smallint().notNull(),
+    assessments: jsonb().$type<{ key: string; label: string; weight: number }[]>().notNull(),
+    note: text().notNull(),
+    revisedAt: createdAt(),
+  },
+  (table) => [
+    unique("syllabus_revisions_syllabus_id_version_unique").on(table.syllabusId, table.version),
+    check("syllabus_revisions_note_present", sql`length(btrim(${table.note})) BETWEEN 1 AND 300`),
+  ],
 );
 
 export const syllabusOutcomes = pgTable(

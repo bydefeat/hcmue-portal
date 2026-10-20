@@ -45,6 +45,8 @@ import { examSessions } from "@/modules/exams/exams.schema";
 import { regulationAt } from "@/modules/settings/settings.lib";
 import { getCurrentLecturer, getCurrentStudent, getStudent } from "@/modules/users/users.query";
 import { administrativeClasses, lecturers, students } from "@/modules/users/users.schema";
+import { assessmentMismatches } from "@/modules/teaching/teaching.rule";
+import { syllabi, syllabusAssessments } from "@/modules/teaching/teaching.schema";
 
 function failure(error: unknown) {
   if (error instanceof GradeActionError) return actionError(error.message);
@@ -147,16 +149,43 @@ export async function saveGradeScores(input: GradeScoresSaveInput): Promise<Acti
   }
 }
 
-export async function lockGradeSheet(classSectionId: string): Promise<ActionResult<{ status: GradeSheetStatus; lockedAt: string }>> {
+// Bảng điểm khác đề cương đã công bố mà chưa ghi lý do khi chốt.
+class SyllabusMismatchError extends Error {}
+
+// Chốt điểm. Bảng điểm phải khớp cách tính điểm của đề cương đã công bố (cột, trọng số); khác thì chặn, trừ khi giảng viên ghi lý
+// do (lý do vào nhật ký thao tác để khoa thấy khi duyệt).
+export async function lockGradeSheet(classSectionId: string, options: { syllabusReason?: string | null } = {}): Promise<ActionResult<{ status: GradeSheetStatus; lockedAt: string }>> {
   const lecturer = await getCurrentLecturer();
   const session = await requireSession();
   const parsed = parseInput(GRADE_SHEET_SCHEMA, { classSectionId });
   if (!parsed.ok) return parsed;
   const section = await requireOwnSection(lecturer.id, parsed.data.classSectionId);
+  const syllabusReason = typeof options.syllabusReason === "string" ? options.syllabusReason.trim().slice(0, 300) : "";
   try {
     const result = await db.transaction(async (tx) => {
       const sheet = await lockSheet(tx, section);
       if (!EDITABLE.includes(sheet.status)) throw new GradeActionError("Bảng điểm đã chốt trước đó.");
+      const [published, sheetColumns] = await Promise.all([
+        tx
+          .select({ key: syllabusAssessments.key, label: syllabusAssessments.label, weight: syllabusAssessments.weight })
+          .from(syllabusAssessments)
+          .innerJoin(syllabi, eq(syllabi.id, syllabusAssessments.syllabusId))
+          .where(and(eq(syllabi.classSectionId, section.id), eq(syllabi.status, "published"))),
+        tx.select({ key: gradeComponents.key, label: gradeComponents.label, weight: gradeComponents.weight }).from(gradeComponents).where(eq(gradeComponents.gradeSheetId, sheet.id)),
+      ]);
+      const mismatches = published.length > 0 ? assessmentMismatches(published, sheetColumns, false) : [];
+      if (mismatches.length > 0 && !syllabusReason) throw new SyllabusMismatchError(`Bảng điểm khác đề cương đã công bố: ${mismatches.join(" ")} Sửa cột điểm theo đề cương hoặc ghi lý do khi chốt.`);
+      if (mismatches.length > 0) {
+        const { user } = await requireSession();
+        await recordAudit(tx, {
+          actor: { userId: user.id, name: lecturer.displayName, role: "Giảng viên" },
+          action: "lock",
+          entityType: "grade-sheet",
+          entityId: sheet.id,
+          entityLabel: `${section.code} ${section.courseName}`,
+          summary: `Chốt điểm ${section.code} dù khác đề cương đã công bố (${mismatches.join(" ")}). Lý do: ${syllabusReason}`,
+        });
+      }
       const [[{ columns }], [{ students: enrolled }], [{ filled }]] = await Promise.all([
         tx.select({ columns: sql<number>`count(*)::int` }).from(gradeComponents).where(eq(gradeComponents.gradeSheetId, sheet.id)),
         tx
@@ -191,6 +220,7 @@ export async function lockGradeSheet(classSectionId: string): Promise<ActionResu
     revalidateGrades();
     return actionOk(result);
   } catch (error) {
+    if (error instanceof SyllabusMismatchError) return actionError(error.message, { syllabusReason: error.message });
     return failure(error);
   }
 }

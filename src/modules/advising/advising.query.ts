@@ -36,6 +36,7 @@ async function appointmentRows(where: SQL): Promise<Appointment[]> {
       code: students.code,
       fullName: students.fullName,
       className: administrativeClasses.code,
+      attendance: appointmentStudents.attendance,
     })
     .from(appointmentStudents)
     .innerJoin(students, eq(students.id, appointmentStudents.studentId))
@@ -73,6 +74,7 @@ async function noteRows(where: SQL): Promise<MeetingNote[]> {
     .select({
       id: advisingNotes.id,
       studentId: advisingNotes.studentId,
+      appointmentId: advisingNotes.appointmentId,
       at: advisingNotes.at,
       authorTitle: lecturers.title,
       authorName: lecturers.fullName,

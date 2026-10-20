@@ -6,6 +6,7 @@ import { mockId, mockSectionId, mockTermId } from "@/shared/libs/mock.lib";
 import { user } from "@/modules/authentication/authentication.schema";
 import { classSections, enrollments, terms } from "@/modules/course-registration/course-registration.schema";
 import { CLASS_SECTIONS } from "@/modules/course-registration/course-registration.mock";
+import { EXAM_START_TIMES } from "@/modules/exams/exams.constant";
 import { EXAM_SESSIONS } from "@/modules/exams/exams.mock";
 import { examProctors, examSessions } from "@/modules/exams/exams.schema";
 import { attendanceRecords, classSessions } from "@/modules/schedule/schedule.schema";
@@ -120,8 +121,18 @@ describe("seed khớp dữ liệu mẫu: lịch học, lịch thi, khảo sát",
     const [exam] = await db.select().from(examSessions).where(eq(examSessions.id, first.id));
     assert.equal(exam?.classSectionId, first.classSectionId);
     assert.equal(exam?.kind, first.kind);
+    // Mỗi phòng thi đủ 2 cán bộ coi thi, không phòng nào vượt sức chứa thi, không thi chủ nhật, giờ thi trong các ca của trường.
+    const rooms = await db.execute<{ proctors: number; candidates: number; capacity: number }>(sql`
+      SELECT (SELECT count(*) FROM exam_proctors p WHERE p.exam_room_id = r.id)::int AS proctors,
+        (SELECT count(*) FROM exam_candidates c WHERE c.exam_room_id = r.id)::int AS candidates, ro.exam_capacity AS capacity
+      FROM exam_session_rooms r JOIN rooms ro ON ro.id = r.room_id`);
+    assert.ok(rooms.length >= EXAM_SESSIONS.length);
+    assert.ok(rooms.every((room) => room.proctors >= 2 && room.candidates <= room.capacity));
+    const sessions = await db.select({ date: examSessions.date, startTime: examSessions.startTime }).from(examSessions);
+    assert.ok(sessions.every((session) => new Date(`${session.date}T00:00:00Z`).getUTCDay() !== 0));
+    assert.ok(sessions.every((session) => (EXAM_START_TIMES as readonly string[]).includes(session.startTime.slice(0, 5))));
     const [{ proctors }] = await db.select({ proctors: count() }).from(examProctors);
-    assert.equal(proctors, EXAM_SESSIONS.reduce((acc, entry) => acc + entry.proctors.length, 0));
+    assert.ok(proctors >= EXAM_SESSIONS.length * 2);
   });
 
   test("khảo sát: đúng id phiếu và câu hỏi, số phiếu bằng số người nộp, điểm trung bình khớp mẫu", async () => {
@@ -132,18 +143,22 @@ describe("seed khớp dữ liệu mẫu: lịch học, lịch thi, khảo sát",
     const [{ submissions }] = await db.select({ submissions: count() }).from(surveySubmissions);
     const [{ responses }] = await db.select({ responses: count() }).from(surveyResponses);
     assert.equal(submissions, responses);
-    const [{ answers }] = await db.select({ answers: count() }).from(surveyAnswers);
-    assert.equal(answers, responses * SURVEY.questions.length);
+    const [{ answers }] = await db.select({ answers: count() }).from(surveyAnswers).innerJoin(surveyResponses, eq(surveyResponses.id, surveyAnswers.responseId)).where(eq(surveyResponses.surveyId, SURVEY.id));
+    const [{ current }] = await db.select({ current: count() }).from(surveyResponses).where(eq(surveyResponses.surveyId, SURVEY.id));
+    assert.equal(answers, current * SURVEY.questions.length);
 
     const sample = SURVEY_RESULTS[0];
-    const [{ total }] = await db.select({ total: count() }).from(surveyResponses).where(eq(surveyResponses.classSectionId, sample.classSectionId));
+    const [{ total }] = await db
+      .select({ total: count() })
+      .from(surveyResponses)
+      .where(and(eq(surveyResponses.classSectionId, sample.classSectionId), eq(surveyResponses.surveyId, SURVEY.id)));
     const [section] = await db.select({ enrolled: classSections.enrolledCount }).from(classSections).where(eq(classSections.id, sample.classSectionId));
     assert.equal(total, Math.min(sample.responses, section.enrolled));
     const [{ average }] = await db
       .select({ average: sql<number>`avg(${surveyAnswers.score})::float` })
       .from(surveyAnswers)
       .innerJoin(surveyResponses, eq(surveyResponses.id, surveyAnswers.responseId))
-      .where(and(eq(surveyResponses.classSectionId, sample.classSectionId), eq(surveyAnswers.questionId, SURVEY.questions[0].id)));
+      .where(and(eq(surveyResponses.classSectionId, sample.classSectionId), eq(surveyResponses.surveyId, SURVEY.id), eq(surveyAnswers.questionId, SURVEY.questions[0].id)));
     assert.ok(Math.abs(average - sample.averages[SURVEY.questions[0].id]) <= 0.5 / total + 1e-9);
   });
 });

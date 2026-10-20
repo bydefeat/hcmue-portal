@@ -2,11 +2,15 @@ export type AppointmentMode = "in-person" | "online";
 
 export type AppointmentStatus = "scheduled" | "done" | "missed" | "cancelled";
 
+export type AppointmentAttendance = "present" | "absent";
+
 export type AppointmentStudent = {
   id: string;
   code: string;
   fullName: string;
   className: string;
+  // Có mặt hay vắng ở buổi này; null là chưa ghi nhận (buổi chưa diễn ra hoặc chưa ghi).
+  attendance?: AppointmentAttendance | null;
 };
 
 export type Appointment = {
@@ -26,6 +30,8 @@ export type Appointment = {
 export type MeetingNote = {
   id: string;
   studentId: string;
+  // Buổi hẹn sinh ra ghi chú; null là ghi chú độc lập.
+  appointmentId: string | null;
   at: string;
   author: string;
   topic: string;

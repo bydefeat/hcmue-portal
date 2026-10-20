@@ -187,7 +187,8 @@ export async function studentRequestFacts(tx: Executor, kind: RequestKind, input
       .from(examSessions)
       .where(eq(examSessions.classSectionId, input.classSectionId))
       .orderBy(asc(examSessions.date));
-    return { examDates: exams };
+    // Ca thi bù không phải lịch thi gốc để đối chiếu đơn hoãn thi.
+    return { examDates: exams.filter((exam): exam is { kind: "midterm" | "final"; date: string } => exam.kind !== "makeup") };
   }
   return {};
 }

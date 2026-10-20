@@ -312,9 +312,11 @@ describe("khóa chính UUID v7", () => {
         AND (SELECT count(*) FROM information_schema.key_column_usage x WHERE x.constraint_name = tc.constraint_name AND x.table_schema = tc.table_schema) = 1
     `);
     assert.ok(rows.length >= 50);
-    assert.deepEqual(rows.filter((row) => row.column_default !== "uuidv7()").map((row) => row.table_name), []);
-    const random = await db.execute(sql`SELECT table_name, column_name FROM information_schema.columns WHERE table_schema = 'public' AND column_default ILIKE '%random_uuid%'`);
-    assert.equal(random.length, 0);
+    // Ngoại lệ có chủ đích: phiếu khảo sát ẩn danh dùng uuid v4 (uuid v7 mang thời điểm nộp, đối chiếu được với người nộp).
+    const ANONYMOUS = ["survey_responses"];
+    assert.deepEqual(rows.filter((row) => row.column_default !== "uuidv7()" && !ANONYMOUS.includes(row.table_name)).map((row) => row.table_name), []);
+    const random = await db.execute<{ table_name: string }>(sql`SELECT table_name, column_name FROM information_schema.columns WHERE table_schema = 'public' AND column_default ILIKE '%random_uuid%'`);
+    assert.deepEqual(random.map((row) => row.table_name), ANONYMOUS);
   });
 
   test("id sinh ra là phiên bản 7 và tăng dần, ở cả DB lẫn newId()", async () => {

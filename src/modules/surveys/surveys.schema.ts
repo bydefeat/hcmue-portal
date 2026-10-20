@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
-import { check, date, index, pgTable, primaryKey, smallint, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
+import { check, index, pgTable, primaryKey, smallint, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
 import { primaryId, timestamps } from "@/shared/libs/db-column.lib";
+import { user } from "@/modules/authentication/authentication.schema";
 import { classSections, terms } from "@/modules/course-registration/course-registration.schema";
 import { students } from "@/modules/users/users.schema";
 
@@ -14,9 +15,19 @@ export const surveys = pgTable(
     title: text().notNull(),
     opensAt: timestamp({ withTimezone: true }).notNull(),
     closesAt: timestamp({ withTimezone: true }).notNull(),
+    // Lúc đã xáo lại phiếu sau khi đóng đợt (xem sealSurvey): từ đó giảng viên mới xem được kết quả.
+    sealedAt: timestamp({ withTimezone: true }),
+    // Lần nhắc sinh viên chưa làm gần nhất, để không nhắc dồn dập.
+    remindedAt: timestamp({ withTimezone: true }),
+    createdByUserId: uuid().references(() => user.id, { onDelete: "set null" }),
     ...timestamps(),
   },
-  (table) => [index().on(table.termId), check("surveys_time_order", sql`${table.opensAt} < ${table.closesAt}`)],
+  (table) => [
+    index().on(table.termId),
+    index().on(table.createdByUserId),
+    check("surveys_time_order", sql`${table.opensAt} < ${table.closesAt}`),
+    check("surveys_title_present", sql`length(btrim(${table.title})) BETWEEN 1 AND 200`),
+  ],
 );
 
 export const surveyQuestions = pgTable(
@@ -30,7 +41,10 @@ export const surveyQuestions = pgTable(
     group: text().notNull(),
     text: text().notNull(),
   },
-  (table) => [unique("survey_questions_survey_id_position_unique").on(table.surveyId, table.position)],
+  (table) => [
+    unique("survey_questions_survey_id_position_unique").on(table.surveyId, table.position),
+    check("survey_questions_text_present", sql`length(btrim(${table.text})) BETWEEN 1 AND 300 AND length(btrim(${table.group})) BETWEEN 1 AND 100`),
+  ],
 );
 
 export const surveySubmissions = pgTable(
@@ -45,15 +59,15 @@ export const surveySubmissions = pgTable(
     studentId: uuid()
       .notNull()
       .references(() => students.id, { onDelete: "cascade" }),
-    submittedOn: date({ mode: "string" }).notNull().defaultNow(),
   },
   (table) => [primaryKey({ columns: [table.surveyId, table.classSectionId, table.studentId] }), index().on(table.classSectionId), index().on(table.studentId)],
 );
 
+// Phiếu trả lời ẩn danh: id ngẫu nhiên (uuid v4, không mang thời điểm), không cột thời gian, không khóa tới sinh viên.
 export const surveyResponses = pgTable(
   "survey_responses",
   {
-    id: primaryId(),
+    id: uuid().primaryKey().default(sql`gen_random_uuid()`),
     surveyId: uuid()
       .notNull()
       .references(() => surveys.id, { onDelete: "cascade" }),

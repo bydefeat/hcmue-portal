@@ -10,9 +10,10 @@ import { PERIODS, periodLabel, weekdayLabel } from "@/shared/constants/period.co
 import { dayjs, daysUntil, formatDate, formatDateTime, schoolTime, weekdayOf } from "@/shared/libs/date.lib";
 import { toFormFields } from "@/shared/libs/form.lib";
 import { acceptOf, formatFileSize, inspectFile } from "@/shared/libs/upload.lib";
-import { requestProctorSwap, submitExamPaper } from "@/modules/exams/exams.action";
+import { DownloadPdfButton } from "@/shared/components/ui/download-pdf-button";
+import { exportExamRosterPdf, requestProctorSwap, submitExamPaper } from "@/modules/exams/exams.action";
 import { EXAM_FORMAT_LABEL, EXAM_KIND_LABEL, EXAM_PAPER_FILE_LABEL, EXAM_PAPER_LIMIT, EXAM_PAPER_STATUS, EXAM_STATUS } from "@/modules/exams/exams.constant";
-import { canSubmitPaper } from "@/modules/exams/exams.rule";
+import { paperSubmitBlockedReason } from "@/modules/exams/exams.rule";
 import type { ExamPaperFile, ExamPaperFileKind, ExamPaperReview, ExamPaperStatus, ExamSession } from "@/modules/exams/exams.type";
 import { ExamPaperLinks } from "@/modules/exams/components/exam-paper-links";
 
@@ -61,14 +62,16 @@ function deadlineHint(deadline: string) {
   return { text: `Hạn ${formatDate(deadline)}`, className: "text-muted" };
 }
 
-function WhenCell({ exam }: { exam: ExamSession }) {
+const roomsText = (exam: ExamSession) => exam.rooms.map((room) => room.code).join(", ") || "chưa xếp phòng";
+
+function WhenCell({ exam, room }: { exam: ExamSession; room?: string }) {
   return (
     <span className="flex flex-col tabular-nums">
       <span className="font-medium">
         {weekdayLabel(weekdayOf(exam.date))}, {formatDate(exam.date)}
       </span>
       <span className="text-xs text-muted">
-        {exam.startTime} - {endTime(exam)} · phòng {exam.room}
+        {exam.startTime} - {endTime(exam)} · phòng {room ?? roomsText(exam)}
       </span>
     </span>
   );
@@ -92,8 +95,9 @@ export function LecturerExamBoard({ lecturerId, teaching, proctoring, teachingSl
   const [files, setFiles] = useState<Record<ExamPaperFileKind, File | null>>({ paper: null, "answer-key": null });
   const [swapping, setSwapping] = useState<ExamSession | null>(null);
   const [swapRequested, setSwapRequested] = useState<string[]>(() =>
-    proctoring.filter((exam) => exam.swapRequests.some((swap) => swap.requesterId === lecturerId)).map((exam) => exam.id),
+    proctoring.filter((exam) => exam.swapRequests.some((swap) => swap.requesterId === lecturerId && swap.decision === null)).map((exam) => exam.id),
   );
+  const myRoom = (exam: ExamSession) => exam.proctors.find((proctor) => proctor.id === lecturerId)?.room;
   const [swapForm] = Form.useForm<SwapValues>();
   const [isSubmitting, startSubmitting] = useTransition();
   const [isSwapping, startSwapping] = useTransition();
@@ -101,7 +105,7 @@ export function LecturerExamBoard({ lecturerId, teaching, proctoring, teachingSl
   const paperOf = (exam: ExamSession) => papers[exam.id]?.status ?? exam.paperStatus;
   const filesOf = (exam: ExamSession) => papers[exam.id]?.files ?? exam.papers;
   const reviewOf = (exam: ExamSession) => (papers[exam.id] ? papers[exam.id].review : exam.paperReview);
-  const pendingPapers = teaching.filter((exam) => exam.status !== "done" && (paperOf(exam) === "not-submitted" || paperOf(exam) === "returned"));
+  const pendingPapers = teaching.filter((exam) => exam.status !== "done" && !exam.hasStarted && (paperOf(exam) === "not-submitted" || paperOf(exam) === "returned"));
   const conflicts = proctoring.map((exam) => ({ exam, slot: teachingConflict(exam, teachingSlots) })).filter((entry) => entry.slot);
 
   const closeUpload = () => {
@@ -167,7 +171,7 @@ export function LecturerExamBoard({ lecturerId, teaching, proctoring, teachingSl
   };
 
   const paperCell = (exam: ExamSession) => {
-    if (exam.status === "done")
+    if (exam.status === "done" || exam.hasStarted)
       return (
         <span className="flex flex-col items-start gap-1">
           <StatusTag status={EXAM_STATUS.done} />
@@ -188,12 +192,21 @@ export function LecturerExamBoard({ lecturerId, teaching, proctoring, teachingSl
     );
   };
 
-  const paperAction = (exam: ExamSession) =>
-    canSubmitPaper({ status: exam.status, paperStatus: paperOf(exam) }) ? (
-      <Button size="small" icon={<FileArrowIn size={14} aria-hidden className="text-zinc-500" />} onClick={() => setUploading(exam)}>
-        {paperOf(exam) === "not-submitted" ? "Nộp đề" : "Nộp lại"}
-      </Button>
-    ) : null;
+  const paperAction = (exam: ExamSession) => {
+    const blocked = paperSubmitBlockedReason({ status: exam.status, hasStarted: exam.hasStarted, paperStatus: paperOf(exam), paperDeadline: exam.paperDeadline });
+    return (
+      <span className="flex flex-col items-end gap-1">
+        {blocked === null ? (
+          <Button size="small" icon={<FileArrowIn size={14} aria-hidden className="text-zinc-500" />} onClick={() => setUploading(exam)}>
+            {paperOf(exam) === "not-submitted" ? "Nộp đề" : "Nộp lại"}
+          </Button>
+        ) : (
+          paperOf(exam) !== "approved" && exam.status !== "done" && !exam.hasStarted && <span className="max-w-40 text-right text-xs text-pretty text-rose-700">{blocked}</span>
+        )}
+        {exam.status !== "draft" && exam.candidateCount > 0 && <DownloadPdfButton action={() => exportExamRosterPdf(exam.id)} label="Danh sách thi" />}
+      </span>
+    );
+  };
 
   const partnersText = (exam: ExamSession) =>
     exam.proctors
@@ -203,18 +216,20 @@ export function LecturerExamBoard({ lecturerId, teaching, proctoring, teachingSl
 
   const noteCell = (exam: ExamSession) => {
     const slot = teachingConflict(exam, teachingSlots);
-    if (swapRequested.includes(exam.id)) return <span className="text-xs text-amber-700">Đã gửi đề nghị đổi ca</span>;
+    if (swapRequested.includes(exam.id)) return <span className="text-xs text-amber-700">Đã gửi đề nghị đổi ca, chờ Phòng Khảo thí</span>;
+    const decided = exam.swapRequests.find((swap) => swap.requesterId === lecturerId && swap.decision === "rejected");
+    if (decided) return <span className="text-xs text-pretty text-rose-700">Đề nghị đổi ca không được chấp nhận{decided.resolveNote ? `: ${decided.resolveNote}` : ""}</span>;
     if (slot)
       return (
         <span className="text-xs text-amber-700">
           Trùng giờ dạy {slot.code} ({periodLabel(slot.startPeriod, slot.endPeriod)})
         </span>
       );
-    return <span className="text-xs text-muted">{exam.status === "done" ? "Đã coi thi" : "Có mặt trước giờ thi 30 phút"}</span>;
+    return <span className="text-xs text-muted">{exam.status === "done" ? "Đã coi thi" : `Coi phòng ${myRoom(exam) ?? ""}, có mặt trước giờ thi 30 phút`}</span>;
   };
 
   const swapAction = (exam: ExamSession) =>
-    exam.status !== "done" && !swapRequested.includes(exam.id) ? (
+    exam.status !== "done" && !exam.hasStarted && !swapRequested.includes(exam.id) ? (
       <Button size="small" icon={<ArrowsTransaction size={14} aria-hidden className="text-zinc-500" />} onClick={() => setSwapping(exam)}>
         Đổi ca
       </Button>
@@ -234,7 +249,7 @@ export function LecturerExamBoard({ lecturerId, teaching, proctoring, teachingSl
         <span className="flex flex-col">
           {EXAM_FORMAT_LABEL[exam.format]}
           <span className="text-xs text-muted tabular-nums">
-            {exam.durationMinutes} phút · {exam.candidateCount} thí sinh
+            {exam.durationMinutes} phút · {exam.expectedCandidates} thí sinh
           </span>
         </span>
       ),
@@ -255,7 +270,7 @@ export function LecturerExamBoard({ lecturerId, teaching, proctoring, teachingSl
   ];
 
   const proctorColumns: TableColumnsType<ExamSession> = [
-    { title: "Ca thi", key: "when", width: 200, render: (_, exam) => <WhenCell exam={exam} /> },
+    { title: "Ca thi", key: "when", width: 200, render: (_, exam) => <WhenCell exam={exam} room={myRoom(exam)} /> },
     { title: "Môn thi", key: "class", width: 240, render: (_, exam) => <ClassCell exam={exam} /> },
     {
       title: "Cùng coi thi",
@@ -319,7 +334,7 @@ export function LecturerExamBoard({ lecturerId, teaching, proctoring, teachingSl
                   <ClassCell exam={exam} />
                   <WhenCell exam={exam} />
                   <span className="text-xs text-muted tabular-nums">
-                    {EXAM_FORMAT_LABEL[exam.format]} · {exam.durationMinutes} phút · {exam.candidateCount} thí sinh
+                    {EXAM_FORMAT_LABEL[exam.format]} · {exam.durationMinutes} phút · {exam.expectedCandidates} thí sinh
                   </span>
                   <span className="flex items-start justify-between gap-2">
                     {paperCell(exam)}
@@ -350,7 +365,7 @@ export function LecturerExamBoard({ lecturerId, teaching, proctoring, teachingSl
             <ul className="flex flex-col divide-y divide-border-strong">
               {proctoring.map((exam) => (
                 <li key={exam.id} className="flex flex-col gap-2 px-4 sm:px-5 py-3">
-                  <WhenCell exam={exam} />
+                  <WhenCell exam={exam} room={myRoom(exam)} />
                   <ClassCell exam={exam} />
                   <span className="text-xs text-muted">Cùng coi thi: {partnersText(exam)}</span>
                   <span className="flex items-start justify-between gap-2">
@@ -424,7 +439,7 @@ export function LecturerExamBoard({ lecturerId, teaching, proctoring, teachingSl
             onFinish={submitSwap}
           >
             <p className="mb-4 text-sm text-muted">
-              {swapping.courseName}, {formatDate(swapping.date)} lúc {swapping.startTime}, phòng {swapping.room}
+              {swapping.courseName}, {formatDate(swapping.date)} lúc {swapping.startTime}, phòng {myRoom(swapping) ?? roomsText(swapping)}. Người coi thay phải cùng khoa và không coi ca khác trùng giờ.
             </p>
             <Form.Item name="colleagueId" label="Người coi thay" rules={[{ required: true, message: "Chọn người coi thay" }]}>
               <Select showSearch={{ optionFilterProp: "label" }} options={colleagues.map((entry) => ({ value: entry.id, label: entry.name }))} />

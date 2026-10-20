@@ -18,7 +18,7 @@ import {
   studentSyllabus,
 } from "@/modules/teaching/teaching.lib";
 import { classAnnouncements } from "@/modules/teaching/teaching.schema";
-import type { ClassAnnouncement, StudentClassAnnouncement, StudentClassDetail, Syllabus } from "@/modules/teaching/teaching.type";
+import type { ClassAnnouncement, StudentClassDetail, Syllabus } from "@/modules/teaching/teaching.type";
 import { getCurrentStudent } from "@/modules/users/users.query";
 import { lecturers, students } from "@/modules/users/users.schema";
 
@@ -60,6 +60,8 @@ export async function getSyllabus(classSectionId: string, fallback: { courseCode
         weeks: fillWeeks([]),
         assessments: [],
         references: [],
+        version: 1,
+        revisions: [],
       }
     );
   }
@@ -86,12 +88,6 @@ export async function getClassAnnouncement(id: string): Promise<ClassAnnouncemen
     return visible.find((entry) => entry.id === id) ?? null;
   }
   return null;
-}
-
-// Thông báo đã tới giờ đăng của các lớp sinh viên đang học, kèm đã đọc hay chưa.
-export async function getMyClassAnnouncements(): Promise<StudentClassAnnouncement[]> {
-  const student = await getCurrentStudent();
-  return studentAnnouncements(student.id);
 }
 
 // Lớp học phần học kỳ hiện tại của sinh viên đang đăng nhập, kèm số thông báo chưa đọc.

@@ -12,7 +12,7 @@ import {
 import { applicablePeriod, pickTimetable } from "@/modules/course-registration/course-registration.rule";
 import { getProgramOf } from "@/modules/curriculum/curriculum.query";
 import { EXAM_KIND_LABEL } from "@/modules/exams/exams.constant";
-import { getExamsForClassSections } from "@/modules/exams/exams.query";
+import { getStudentExams } from "@/modules/exams/exams.query";
 import { formatPoint, standingLabel, WARNING_LEVEL } from "@/modules/grades/grades.constant";
 import { getCurrentWarnings, getStudentStandings } from "@/modules/grades/grades.query";
 import { getRegulation } from "@/modules/settings/settings.query";
@@ -49,7 +49,7 @@ export default async function Page() {
   // Cảnh báo chính thức (đã gửi thông báo), không phải dự báo theo điểm hiện có.
   const warning = warnings[student.id];
   const timetable = pickTimetable(enrollments);
-  const [exams, invoices] = await Promise.all([getExamsForClassSections(timetable.map(({ section }) => section.id)), getInvoices(student.id)]);
+  const [{ exams }, invoices] = await Promise.all([getStudentExams(term.id), getInvoices(student.id)]);
   const invoice = invoices.find((entry) => entry.termId === term.id);
 
   const today = weekdayOf(dayjs());
@@ -59,7 +59,7 @@ export default async function Page() {
   const todaySlots = slots.filter((slot) => slot.meeting.dayOfWeek === today);
   const nextSlot = slots.find((slot) => slot.meeting.dayOfWeek > today) ?? slots[0];
   const period = applicablePeriod(periods, student.cohort);
-  const upcomingExams = exams.filter((exam) => daysUntil(exam.date) >= 0 && exam.status !== "draft").slice(0, 3);
+  const upcomingExams = exams.filter((exam) => daysUntil(exam.date) >= 0).slice(0, 3);
   const openRequests = requests.filter((request) => request.status === "pending" || request.status === "in-review" || request.status === "needs-info");
   const unread = notifications.filter((notification) => !notification.isRead);
   const totalCredits = program?.totalCredits ?? null;
@@ -157,7 +157,7 @@ export default async function Page() {
                         <span className="flex min-w-0 flex-1 flex-col">
                           <span className="truncate font-medium">{exam.courseName}</span>
                           <span className="text-xs text-muted">
-                            {EXAM_KIND_LABEL[exam.kind]} · Phòng {exam.room}
+                            {EXAM_KIND_LABEL[exam.kind]} · Phòng {exam.room ?? "chưa xếp"}
                           </span>
                         </span>
                         <span className={`shrink-0 text-xs tabular-nums ${days <= 3 ? "text-amber-700" : "text-muted"}`}>

@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { newId } from "@/shared/libs/id.lib";
 
 // Phiếu khảo sát: mỗi câu một mức 1..5 (khóa là id câu hỏi), góp ý tùy chọn. Đủ câu hay chưa kiểm ở server theo phiếu thật.
 export const SURVEY_SUBMIT_SCHEMA = z.object({
@@ -16,6 +15,25 @@ export const SURVEY_SUBMIT_SCHEMA = z.object({
 
 export type SurveySubmitInput = z.input<typeof SURVEY_SUBMIT_SCHEMA>;
 
+const QUESTION = z.object({
+  group: z.string("Nhập nhóm câu hỏi").trim().min(1, "Nhập nhóm câu hỏi").max(100, "Tối đa 100 ký tự"),
+  text: z.string("Nhập nội dung câu hỏi").trim().min(1, "Nhập nội dung câu hỏi").max(300, "Tối đa 300 ký tự"),
+});
+
+// Tạo, sửa đợt khảo sát (Phòng Đào tạo): học kỳ, thời gian mở, đóng, bộ câu hỏi (3..30 câu).
+export const SURVEY_SAVE_SCHEMA = z
+  .object({
+    id: z.uuid().nullish(),
+    termId: z.uuid("Chọn học kỳ"),
+    title: z.string("Nhập tên đợt").trim().min(1, "Nhập tên đợt").max(200, "Tối đa 200 ký tự"),
+    opensAt: z.iso.datetime({ offset: true, message: "Chọn thời điểm mở" }),
+    closesAt: z.iso.datetime({ offset: true, message: "Chọn thời điểm đóng" }),
+    questions: z.array(QUESTION).min(3, "Phiếu cần ít nhất 3 câu hỏi").max(30, "Tối đa 30 câu hỏi"),
+  })
+  .refine((value) => new Date(value.opensAt) < new Date(value.closesAt), { path: ["closesAt"], message: "Thời điểm đóng phải sau thời điểm mở" });
+
+export type SurveySaveInput = z.input<typeof SURVEY_SAVE_SCHEMA>;
+
 // Câu hỏi của phiếu còn thiếu hoặc câu trả lời không thuộc phiếu.
 export function answerProblems(questionIds: string[], answers: Record<string, number>) {
   const given = Object.keys(answers);
@@ -23,13 +41,6 @@ export function answerProblems(questionIds: string[], answers: Record<string, nu
     missing: questionIds.filter((id) => !(id in answers)),
     unknown: given.filter((id) => !questionIds.includes(id)),
   };
-}
-
-// Id phiếu trả lời dạng uuid v7 nhưng phần thời gian chỉ là đầu ngày nộp (UTC): uuid v7 thường mang mốc mili giây,
-// đối chiếu với nhật ký truy cập là lần ra người nộp. Phần ngẫu nhiên giữ nguyên nên vẫn không trùng.
-export function anonymousResponseId(day: string, id = newId()) {
-  const stamp = Date.parse(`${day}T00:00:00Z`).toString(16).padStart(12, "0");
-  return `${stamp.slice(0, 8)}-${stamp.slice(8, 12)}${id.slice(13)}`;
 }
 
 // Điểm trung bình mỗi câu và điểm chung (trung bình các câu), làm tròn 2 chữ số như báo cáo.
@@ -40,4 +51,17 @@ export function summarizeScores(questionIds: string[], averages: Record<string, 
     averages: Object.fromEntries(questionIds.filter((id) => averages[id] !== undefined).map((id) => [id, Math.round(averages[id] * 100) / 100])),
     overall: Math.round(overall * 100) / 100,
   };
+}
+
+// Tỉ lệ phản hồi: tổng phiếu trên tổng sĩ số MỌI lớp được khảo sát (kể cả lớp chưa có phiếu nào).
+export function responseRate(rows: { responses: number; enrolled: number }[]) {
+  const enrolled = rows.reduce((sum, row) => sum + row.enrolled, 0);
+  const responses = rows.reduce((sum, row) => sum + row.responses, 0);
+  return { responses, enrolled, percent: enrolled > 0 ? Math.round((responses / enrolled) * 100) : 0 };
+}
+
+// Điểm chung trung bình có trọng số theo số phiếu (lớp 0 phiếu không ảnh hưởng điểm, chỉ ảnh hưởng tỉ lệ phản hồi).
+export function weightedOverall(rows: { responses: number; overall: number }[]) {
+  const responses = rows.reduce((sum, row) => sum + row.responses, 0);
+  return responses > 0 ? rows.reduce((sum, row) => sum + row.overall * row.responses, 0) / responses : 0;
 }

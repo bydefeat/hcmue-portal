@@ -1,11 +1,11 @@
+import { randomUUID } from "node:crypto";
 import { and, asc, eq, inArray } from "drizzle-orm";
 import type { Transaction } from "@/shared/libs/db.lib";
-import { dayjs } from "@/shared/libs/date.lib";
 import { createRandom } from "@/shared/libs/mock.lib";
 import { classSections, enrollments } from "@/modules/course-registration/course-registration.schema";
-import { SURVEY, SURVEY_RESULTS } from "@/modules/surveys/surveys.mock";
-import { anonymousResponseId } from "@/modules/surveys/surveys.rule";
+import { MIDTERM_SURVEY, MIDTERM_SURVEY_RESULTS, SURVEY, SURVEY_RESULTS, type SurveySeed } from "@/modules/surveys/surveys.mock";
 import { surveyAnswers, surveyQuestions, surveyResponses, surveys, surveySubmissions } from "@/modules/surveys/surveys.schema";
+import type { SectionSurveyResult } from "@/modules/surveys/surveys.type";
 import { CURRENT_STUDENT_ID } from "@/modules/users/users.mock";
 import type { SeedContext } from "./context";
 
@@ -17,12 +17,56 @@ function scoresFor(average: number, n: number, random: () => number) {
   return scores.map((score) => ({ score, order: random() })).toSorted((a, b) => a.order - b.order).map((entry) => entry.score);
 }
 
-// Đợt khảo sát của học kỳ hiện tại: câu hỏi, sinh viên đã nộp và phiếu ẩn danh khớp kết quả tổng hợp của dữ liệu mẫu
-// (số phiếu, điểm trung bình từng câu, góp ý). Sinh viên hiện tại đã đánh giá lớp thứ 1 và thứ 4 (theo mã lớp) như dữ liệu mẫu.
-export async function seedSurveys(tx: Transaction, _context: SeedContext) {
-  await tx.insert(surveys).values({ id: SURVEY.id, termId: SURVEY.termId, title: SURVEY.title, opensAt: new Date(SURVEY.opensAt), closesAt: new Date(SURVEY.closesAt) });
-  await tx.insert(surveyQuestions).values(SURVEY.questions.map((question, index) => ({ id: question.id, surveyId: SURVEY.id, position: index + 1, group: question.group, text: question.text })));
+type Roster = { sectionId: string; studentId: string }[];
 
+// Một đợt khảo sát: câu hỏi, sinh viên đã nộp (chỉ dấu "đã nộp") và phiếu ẩn danh khớp kết quả tổng hợp của dữ liệu mẫu. Phiếu
+// có id ngẫu nhiên và được chèn theo thứ tự xáo trộn, không theo thứ tự người nộp.
+async function seedRound(tx: Transaction, survey: SurveySeed, results: SectionSurveyResult[], roster: Roster, mineSubmitted: Set<string>, seed: number) {
+  await tx.insert(surveys).values({
+    id: survey.id,
+    termId: survey.termId,
+    title: survey.title,
+    opensAt: new Date(survey.opensAt),
+    closesAt: new Date(survey.closesAt),
+    sealedAt: survey.isSealed ? new Date(survey.closesAt) : null,
+  });
+  await tx.insert(surveyQuestions).values(survey.questions.map((question, index) => ({ id: question.id, surveyId: survey.id, position: index + 1, group: question.group, text: question.text })));
+  const resultOf = new Map(results.map((result) => [result.classSectionId, result]));
+  const sectionIds = [...new Set([...results.map((result) => result.classSectionId), ...mineSubmitted])];
+  const submissions: (typeof surveySubmissions.$inferInsert)[] = [];
+  const responses: { response: typeof surveyResponses.$inferInsert; answers: (typeof surveyAnswers.$inferInsert)[]; order: number }[] = [];
+  const shuffle = createRandom(seed);
+  for (const [position, sectionId] of sectionIds.entries()) {
+    const random = createRandom(seed + position * 97 + 13);
+    const result = resultOf.get(sectionId);
+    const members = roster.filter((entry) => entry.sectionId === sectionId).map((entry) => entry.studentId);
+    const others = members.filter((id) => id !== CURRENT_STUDENT_ID);
+    const meToo = mineSubmitted.has(sectionId);
+    const target = Math.min(members.length, Math.max(meToo ? 1 : 0, result?.responses ?? 1));
+    const submitters = [...(meToo ? [CURRENT_STUDENT_ID] : []), ...others].slice(0, target);
+    const scores = survey.questions.map((question) => scoresFor(result?.averages[question.id] ?? 4, submitters.length, random));
+    for (const [index, studentId] of submitters.entries()) {
+      submissions.push({ surveyId: survey.id, classSectionId: sectionId, studentId });
+      const id = randomUUID();
+      const comment = result?.comments[submitters.length - 1 - index] ?? null;
+      responses.push({
+        response: { id, surveyId: survey.id, classSectionId: sectionId, comment },
+        answers: survey.questions.map((question, questionIndex) => ({ responseId: id, questionId: question.id, score: scores[questionIndex][index] })),
+        order: shuffle(),
+      });
+    }
+  }
+  const shuffled = responses.toSorted((a, b) => a.order - b.order);
+  await tx.insert(surveySubmissions).values(submissions);
+  await tx.insert(surveyResponses).values(shuffled.map((entry) => entry.response));
+  const answers = shuffled.flatMap((entry) => entry.answers);
+  for (let start = 0; start < answers.length; start += 1000) await tx.insert(surveyAnswers).values(answers.slice(start, start + 1000));
+  return submissions.length;
+}
+
+// Đợt khảo sát đang mở của học kỳ hiện tại (sinh viên hiện tại đã đánh giá lớp thứ 1 và thứ 4 theo mã lớp) và một đợt giữa kỳ
+// đã đóng để giảng viên xem được kết quả.
+export async function seedSurveys(tx: Transaction, _context: SeedContext) {
   const roster = await tx
     .select({ sectionId: enrollments.classSectionId, studentId: enrollments.studentId })
     .from(enrollments)
@@ -31,41 +75,13 @@ export async function seedSurveys(tx: Transaction, _context: SeedContext) {
     .orderBy(asc(enrollments.id));
   const mine = [...new Set(roster.filter((entry) => entry.studentId === CURRENT_STUDENT_ID).map((entry) => entry.sectionId))];
   const mineSections = await tx.select({ id: classSections.id, code: classSections.code }).from(classSections).where(inArray(classSections.id, mine));
-  const mineSubmitted = new Map(
+  const mineSubmitted = new Set(
     mineSections
       .toSorted((a, b) => a.code.localeCompare(b.code))
-      .flatMap((section, index) => (index % 3 === 0 ? [[section.id, dayjs().add(Math.min(0, index - 2), "day").format("YYYY-MM-DD")] as const] : [])),
+      .filter((_, index) => index % 3 === 0)
+      .map((section) => section.id),
   );
-
-  const opened = dayjs(SURVEY.opensAt).startOf("day");
-  const span = Math.max(1, dayjs().startOf("day").diff(opened, "day") + 1);
-  const resultOf = new Map(SURVEY_RESULTS.map((result) => [result.classSectionId, result]));
-  const sectionIds = [...new Set([...SURVEY_RESULTS.map((result) => result.classSectionId), ...mineSubmitted.keys()])];
-
-  const submissions: (typeof surveySubmissions.$inferInsert)[] = [];
-  const responses: (typeof surveyResponses.$inferInsert)[] = [];
-  const answers: (typeof surveyAnswers.$inferInsert)[] = [];
-  for (const [position, sectionId] of sectionIds.entries()) {
-    const random = createRandom(position * 97 + 13);
-    const result = resultOf.get(sectionId);
-    const members = roster.filter((entry) => entry.sectionId === sectionId).map((entry) => entry.studentId);
-    const others = members.filter((id) => id !== CURRENT_STUDENT_ID);
-    const meToo = mineSubmitted.has(sectionId);
-    const target = Math.min(members.length, Math.max(meToo ? 1 : 0, result?.responses ?? 1));
-    const submitters = [...(meToo ? [CURRENT_STUDENT_ID] : []), ...others].slice(0, target);
-    const scores = SURVEY.questions.map((question) => scoresFor(result?.averages[question.id] ?? 4, submitters.length, random));
-    for (const [index, studentId] of submitters.entries()) {
-      const day = studentId === CURRENT_STUDENT_ID ? mineSubmitted.get(sectionId)! : opened.add(Math.floor(random() * span), "day").format("YYYY-MM-DD");
-      submissions.push({ surveyId: SURVEY.id, classSectionId: sectionId, studentId, submittedOn: day });
-      // Phiếu không gắn với người nộp; góp ý mẫu rải vào các phiếu cuối để không trùng thứ tự người nộp.
-      const responseId = anonymousResponseId(day);
-      const comment = result?.comments[submitters.length - 1 - index] ?? null;
-      responses.push({ id: responseId, surveyId: SURVEY.id, classSectionId: sectionId, comment });
-      SURVEY.questions.forEach((question, questionIndex) => answers.push({ responseId, questionId: question.id, score: scores[questionIndex][index] }));
-    }
-  }
-  await tx.insert(surveySubmissions).values(submissions);
-  await tx.insert(surveyResponses).values(responses);
-  for (let start = 0; start < answers.length; start += 1000) await tx.insert(surveyAnswers).values(answers.slice(start, start + 1000));
-  return { submissions: submissions.length, responses: responses.length };
+  const current = await seedRound(tx, SURVEY, SURVEY_RESULTS, roster, mineSubmitted, 7);
+  const midterm = await seedRound(tx, MIDTERM_SURVEY, MIDTERM_SURVEY_RESULTS, roster, new Set(), 31);
+  return { submissions: current + midterm };
 }

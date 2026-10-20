@@ -11,8 +11,8 @@ import { StatusTag } from "@/shared/components/ui/status-tag";
 import { weekdayLabel } from "@/shared/constants/period.constant";
 import { dayjs, formatDate, formatDateTime, weekdayOf } from "@/shared/libs/date.lib";
 import { toFormFields } from "@/shared/libs/form.lib";
-import { cancelAppointment, completeAppointment, createAppointment, markAppointmentMissed } from "@/modules/advising/advising.action";
-import { appointmentsOverlap } from "@/modules/advising/advising.rule";
+import { cancelAppointment, createAppointment, moveAppointment, recordAppointment } from "@/modules/advising/advising.action";
+import { appointmentStart, appointmentsOverlap, splitAppointments } from "@/modules/advising/advising.rule";
 import { APPOINTMENT_DURATIONS, APPOINTMENT_MODE_LABEL, APPOINTMENT_STATUS, APPOINTMENT_TOPICS } from "@/modules/advising/advising.constant";
 import type { Appointment, AppointmentMode, AppointmentStudent, MeetingNote } from "@/modules/advising/advising.type";
 
@@ -34,16 +34,16 @@ type CreateValues = {
   location: string;
 };
 
-type DoneValues = { note: string; followUp?: string };
+type DoneValues = { attendance: Record<string, "present" | "absent">; note?: string; followUp?: string };
+
+type MoveValues = { date: Dayjs; time: Dayjs; durationMinutes: number; location: string };
 
 const DEFAULT_LOCATION: Record<AppointmentMode, string> = {
   "in-person": "Văn phòng khoa, phòng B.201",
   online: "Google Meet",
 };
 
-function startOf(appointment: Pick<Appointment, "date" | "startTime">) {
-  return dayjs(`${appointment.date}T${appointment.startTime}`);
-}
+const startOf = appointmentStart;
 
 function dayText(date: string) {
   const diff = dayjs(date).startOf("day").diff(dayjs().startOf("day"), "day");
@@ -60,6 +60,8 @@ export function AppointmentBoard({ appointments, advisees, notes: initialNotes }
   const [view, setView] = useState<View>("upcoming");
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [completing, setCompleting] = useState<Appointment | null>(null);
+  const [moving, setMoving] = useState<Appointment | null>(null);
+  const [moveForm] = Form.useForm<MoveValues>();
   const [isSaving, startSaving] = useTransition();
   const [createForm] = Form.useForm<CreateValues>();
   const [doneForm] = Form.useForm<DoneValues>();
@@ -72,8 +74,9 @@ export function AppointmentBoard({ appointments, advisees, notes: initialNotes }
   }, [isCreateOpen, createForm]);
 
   const now = dayjs();
-  const upcoming = rows.filter((row) => row.status === "scheduled" && !startOf(row).add(row.durationMinutes, "minute").isBefore(now)).toSorted((a, b) => startOf(a).valueOf() - startOf(b).valueOf());
-  const past = rows.filter((row) => !upcoming.includes(row)).toSorted((a, b) => startOf(b).valueOf() - startOf(a).valueOf());
+  const { upcoming, past } = splitAppointments(rows, now);
+  const watchedAttendance = Form.useWatch("attendance", doneForm) as DoneValues["attendance"] | undefined;
+  const anyPresent = Object.values(watchedAttendance ?? {}).includes("present");
   const visible = view === "upcoming" ? upcoming : past;
   const today = upcoming.filter((row) => dayjs(row.date).isSame(now, "day")).length;
   const classNames = [...new Set(advisees.map((student) => student.className))];
@@ -117,7 +120,7 @@ export function AppointmentBoard({ appointments, advisees, notes: initialNotes }
   const complete = (values: DoneValues) => {
     if (!completing) return;
     startSaving(async () => {
-      const result = await completeAppointment({ id: completing.id, note: values.note, followUp: values.followUp ?? null }).catch(() => null);
+      const result = await recordAppointment({ id: completing.id, attendance: values.attendance ?? {}, note: values.note ?? null, followUp: values.followUp ?? null }).catch(() => null);
       if (!result) {
         messageApi.error("Chưa lưu được, kiểm tra kết nối rồi thử lại.");
         return;
@@ -130,24 +133,40 @@ export function AppointmentBoard({ appointments, advisees, notes: initialNotes }
       replace(result.data.appointment);
       setNotes((current) => [...result.data.notes, ...current]);
       setCompleting(null);
-      messageApi.success("Đã ghi nhận buổi gặp vào hồ sơ cố vấn của sinh viên");
+      messageApi.success(result.data.appointment.status === "done" ? "Đã ghi nhận buổi gặp vào hồ sơ cố vấn của sinh viên có mặt" : "Đã ghi nhận sinh viên vắng");
     });
   };
 
-  const markMissed = (appointment: Appointment) =>
+  // Giá trị đầu đặt qua initialValues của Form (modal mở mới mỗi lần), không setFieldsValue khi Form chưa gắn.
+  const openRecord = (appointment: Appointment) => setCompleting(appointment);
+
+  const openMove = (appointment: Appointment) => setMoving(appointment);
+
+  const move = (values: MoveValues) => {
+    if (!moving) return;
     startSaving(async () => {
-      const result = await markAppointmentMissed(appointment.id).catch(() => null);
+      const result = await moveAppointment({
+        id: moving.id,
+        date: values.date.format("YYYY-MM-DD"),
+        startTime: values.time.format("HH:mm"),
+        durationMinutes: values.durationMinutes,
+        location: values.location,
+      }).catch(() => null);
       if (!result) {
-        messageApi.error("Chưa lưu được, kiểm tra kết nối rồi thử lại.");
+        messageApi.error("Chưa dời được, kiểm tra kết nối rồi thử lại.");
         return;
       }
       if (!result.ok) {
+        const { startTime, ...fieldErrors } = result.fieldErrors ?? {};
+        moveForm.setFields(toFormFields(startTime ? { ...fieldErrors, time: startTime } : fieldErrors));
         messageApi.error(result.message);
         return;
       }
       replace(result.data);
-      messageApi.info("Đã ghi nhận sinh viên vắng");
+      setMoving(null);
+      messageApi.success("Đã dời buổi hẹn, sinh viên nhận thông báo giờ mới");
     });
+  };
 
   const cancel = (appointment: Appointment) =>
     modal.confirm({
@@ -223,9 +242,10 @@ export function AppointmentBoard({ appointments, advisees, notes: initialNotes }
                         </span>
                         <span className="flex flex-wrap gap-x-3 gap-y-1 text-sm">
                           {appointment.students.map((student) => (
-                            <Link key={student.id} href={`/lecturer/advising/students/${student.code}`}>
-                              {student.fullName}
-                            </Link>
+                            <span key={student.id}>
+                              <Link href={`/lecturer/advising/students/${student.code}`}>{student.fullName}</Link>
+                              {student.attendance && <span className={`text-xs ${student.attendance === "absent" ? "text-amber-700" : "text-muted"}`}> ({student.attendance === "present" ? "có mặt" : "vắng"})</span>}
+                            </span>
                           ))}
                         </span>
                         {appointment.note && <p className="mt-1 text-sm text-pretty text-muted">“{appointment.note}”</p>}
@@ -236,12 +256,15 @@ export function AppointmentBoard({ appointments, advisees, notes: initialNotes }
                         <Button size="small" danger onClick={() => cancel(appointment)}>
                           Hủy hẹn
                         </Button>
-                        <Button size="small" disabled={isSaving} onClick={() => markMissed(appointment)}>
-                          Sinh viên vắng
-                        </Button>
-                        <Button size="small" type="primary" onClick={() => setCompleting(appointment)}>
-                          Ghi nhận đã gặp
-                        </Button>
+                        {appointmentStart(appointment).isAfter(now) ? (
+                          <Button size="small" onClick={() => openMove(appointment)}>
+                            Dời lịch
+                          </Button>
+                        ) : (
+                          <Button size="small" type="primary" onClick={() => openRecord(appointment)}>
+                            Ghi nhận buổi gặp
+                          </Button>
+                        )}
                       </div>
                     )}
                   </Card>
@@ -371,6 +394,45 @@ export function AppointmentBoard({ appointments, advisees, notes: initialNotes }
       </Drawer>
 
       <Modal
+        open={moving !== null}
+        title="Dời buổi hẹn"
+        okText="Dời lịch"
+        cancelText="Hủy"
+        onOk={() => moveForm.submit()}
+        confirmLoading={isSaving}
+        onCancel={() => setMoving(null)}
+        mask={{ closable: false }}
+        destroyOnHidden
+      >
+        {moving && (
+          <Form
+            form={moveForm}
+            layout="vertical"
+            onFinish={move}
+            initialValues={{ date: dayjs(moving.date), time: dayjs(`${moving.date}T${moving.startTime}`), durationMinutes: moving.durationMinutes, location: moving.location }}
+          >
+            <p className="mb-4 text-sm text-muted">
+              {moving.topic} · {moving.students.map((student) => student.fullName).join(", ")}. Sinh viên nhận thông báo giờ mới.
+            </p>
+            <div className="grid gap-x-3 sm:grid-cols-3">
+              <Form.Item name="date" label="Ngày" rules={[{ required: true, message: "Chọn ngày" }]}>
+                <DatePicker format="DD/MM/YYYY" disabledDate={(value) => value.isBefore(dayjs().startOf("day"))} className="w-full" />
+              </Form.Item>
+              <Form.Item name="time" label="Giờ bắt đầu" rules={[{ required: true, message: "Chọn giờ" }]}>
+                <TimePicker format="HH:mm" minuteStep={15} className="w-full" />
+              </Form.Item>
+              <Form.Item name="durationMinutes" label="Thời lượng">
+                <Select options={APPOINTMENT_DURATIONS.map((value) => ({ value, label: `${value} phút` }))} />
+              </Form.Item>
+            </div>
+            <Form.Item name="location" label="Địa điểm hoặc đường dẫn" rules={[{ required: true, whitespace: true, message: "Chưa nhập địa điểm" }]}>
+              <Input />
+            </Form.Item>
+          </Form>
+        )}
+      </Modal>
+
+      <Modal
         open={completing !== null}
         title="Ghi nhận buổi gặp"
         okText="Lưu ghi chú"
@@ -382,11 +444,35 @@ export function AppointmentBoard({ appointments, advisees, notes: initialNotes }
         destroyOnHidden
       >
         {completing && (
-          <Form form={doneForm} layout="vertical" onFinish={complete}>
+          <Form form={doneForm} layout="vertical" onFinish={complete} initialValues={{ attendance: Object.fromEntries(completing.students.map((student) => [student.id, "present"])) }}>
             <p className="mb-4 text-sm text-muted">
               {completing.topic} · {completing.students.map((student) => student.fullName).join(", ")} · {formatDateTime(startOf(completing).toISOString())}
             </p>
-            <Form.Item name="note" label="Nội dung trao đổi" rules={[{ required: true, whitespace: true, message: "Ghi lại nội dung chính đã trao đổi" }]}>
+            <div className="mb-4 flex flex-col gap-2">
+              <span className="text-sm font-medium">Có mặt hay vắng</span>
+              {completing.students.map((student) => (
+                <div key={student.id} className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-sm">{student.fullName}</span>
+                  <Form.Item name={["attendance", student.id]} className="mb-0">
+                    <Radio.Group
+                      optionType="button"
+                      size="small"
+                      aria-label={`Có mặt hay vắng: ${student.fullName}`}
+                      options={[
+                        { value: "present", label: "Có mặt" },
+                        { value: "absent", label: "Vắng" },
+                      ]}
+                    />
+                  </Form.Item>
+                </div>
+              ))}
+            </div>
+            <Form.Item
+              name="note"
+              label="Nội dung trao đổi"
+              extra="Ghi vào hồ sơ cố vấn của sinh viên có mặt"
+              rules={[{ required: anyPresent, whitespace: true, message: "Ghi lại nội dung chính đã trao đổi" }]}
+            >
               <Input.TextArea autoSize={{ minRows: 3, maxRows: 6 }} maxLength={1000} showCount />
             </Form.Item>
             <Form.Item name="followUp" label="Việc cần theo dõi">

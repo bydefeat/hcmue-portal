@@ -36,7 +36,7 @@ export default async function Page({ params }: { params: Promise<{ classId: stri
                 exams.map((exam) => (
                   <span key={exam.id} className="tabular-nums">
                     <span className="text-muted">Thi {EXAM_KIND_LABEL[exam.kind].toLowerCase()}:</span> {weekdayLabel(weekdayOf(exam.date))},{" "}
-                    {formatDate(exam.date)}, {exam.startTime}, phòng {exam.room}
+                    {formatDate(exam.date)}, {exam.startTime}, phòng {exam.rooms.map((room) => room.code).join(", ") || "chưa xếp"}
                   </span>
                 ))
               )}

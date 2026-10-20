@@ -1,12 +1,15 @@
 import { createRandom, mockDate, mockId, mockLecturerIdentity, mockSectionId, mockTermId } from "@/shared/libs/mock.lib";
-import type { SectionSurveyResult, Survey } from "@/modules/surveys/surveys.type";
+import type { SectionSurveyResult, SurveyQuestion } from "@/modules/surveys/surveys.type";
 
-export const SURVEY: Survey = {
+export type SurveySeed = { id: string; termId: string; title: string; opensAt: string; closesAt: string; isSealed: boolean; questions: SurveyQuestion[] };
+
+export const SURVEY: SurveySeed = {
   id: mockId("survey:ks-hk1-2026"),
   termId: mockTermId("hk1-2026"),
   title: "Khảo sát ý kiến người học về hoạt động giảng dạy, học kỳ 1, năm học 2026-2027",
   opensAt: mockDate(-5, "08:00"),
   closesAt: mockDate(30, "23:59"),
+  isSealed: false,
   questions: [
     { id: mockId("survey-question:ks-hk1-2026:q1"), group: "Nội dung học phần", text: "Đề cương và mục tiêu học phần được giới thiệu rõ từ buổi đầu" },
     { id: mockId("survey-question:ks-hk1-2026:q2"), group: "Nội dung học phần", text: "Nội dung cập nhật, gắn với thực tiễn nghề nghiệp" },
@@ -69,5 +72,50 @@ export const SURVEY_RESULTS: SectionSurveyResult[] = SEEDS.map(([classSectionId,
     averages,
     overall: Math.round((values.reduce((sum, value) => sum + value, 0) / values.length) * 100) / 100,
     comments: quality >= 4 ? [COMMENTS_GOOD[index % 3], COMMENTS_BAD[index % 4]] : [COMMENTS_BAD[index % 4], COMMENTS_BAD[(index + 1) % 4], COMMENTS_GOOD[index % 3]],
+  };
+});
+
+// Đợt khảo sát giữa học kỳ đã đóng (và đã xáo phiếu): giảng viên xem được kết quả lớp đủ 5 phiếu; COMP1020.02 chỉ có 3 phiếu
+// nên giảng viên không thấy lớp này.
+export const MIDTERM_SURVEY: SurveySeed = {
+  id: mockId("survey:ks-giua-ky-hk1-2026"),
+  termId: mockTermId("hk1-2026"),
+  title: "Khảo sát nhanh giữa học kỳ 1, năm học 2026-2027",
+  opensAt: mockDate(-40, "08:00"),
+  closesAt: mockDate(-25, "23:59"),
+  isSealed: true,
+  questions: [
+    { id: mockId("survey-question:ks-giua-ky-hk1-2026:q1"), group: "Nội dung học phần", text: "Đề cương và mục tiêu học phần được giới thiệu rõ từ buổi đầu" },
+    { id: mockId("survey-question:ks-giua-ky-hk1-2026:q2"), group: "Phương pháp giảng dạy", text: "Giảng viên giải thích dễ hiểu, có ví dụ minh họa" },
+    { id: mockId("survey-question:ks-giua-ky-hk1-2026:q3"), group: "Tác phong", text: "Giảng viên lên lớp đúng giờ, đủ số buổi" },
+    { id: mockId("survey-question:ks-giua-ky-hk1-2026:q4"), group: "Tổng thể", text: "Nhìn chung, tôi hài lòng với học phần này" },
+  ],
+};
+
+const MIDTERM_SEEDS: [string, string, string, number, number, number][] = [
+  [mockSectionId("hk1-2026", "COMP1020.01"), "COMP1020.01", "Cấu trúc dữ liệu và giải thuật", 0, 12, 4.3],
+  [mockSectionId("hk1-2026", "COMP1020.02"), "COMP1020.02", "Cấu trúc dữ liệu và giải thuật", 0, 3, 3.9],
+  [mockSectionId("hk1-2026", "COMP1080.01"), "COMP1080.01", "Trí tuệ nhân tạo", 0, 9, 4.0],
+  [mockSectionId("hk1-2026", "COMP1010.01"), "COMP1010.01", "Lập trình cơ bản", 6, 14, 3.6],
+  [mockSectionId("hk1-2026", "MATH1013.01"), "MATH1013.01", "Xác suất thống kê", 7, 11, 3.1],
+];
+
+export const MIDTERM_SURVEY_RESULTS: SectionSurveyResult[] = MIDTERM_SEEDS.map(([classSectionId, classCode, courseName, lecturerIndex, responses, quality], index) => {
+  const random = createRandom(index * 53 + 11);
+  const lecturer = mockLecturerIdentity(lecturerIndex);
+  const averages = Object.fromEntries(MIDTERM_SURVEY.questions.map((question) => [question.id, Math.min(5, Math.max(1, Math.round((quality + (random() - 0.5) * 0.6) * 100) / 100))]));
+  const values = Object.values(averages);
+  return {
+    classSectionId,
+    classCode,
+    courseName,
+    lecturerId: lecturer.id,
+    lecturerName: lecturer.displayName,
+    faculty: classCode.startsWith("MATH") ? "Khoa Toán - Tin học" : "Khoa Công nghệ Thông tin",
+    enrolled: 0,
+    responses,
+    averages,
+    overall: Math.round((values.reduce((sum, value) => sum + value, 0) / values.length) * 100) / 100,
+    comments: [COMMENTS_GOOD[index % 3], COMMENTS_BAD[(index + 2) % 4]],
   };
 });

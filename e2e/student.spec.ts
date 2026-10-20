@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { E2E_ACCOUNTS, PASSWORD } from "./support/accounts";
-import { asRole, chooseOption, dialog, expect, freshIp, signIn, test, toast } from "./support/fixtures";
+import { asRole, chooseOption, dialog, expect, freshIp, signIn, test, toast, waitForAction } from "./support/fixtures";
 
 test.use(asRole("student"));
 
@@ -153,8 +153,11 @@ test("thông báo: đánh dấu đã đọc hết, tải lại vẫn đã đọc
   await page.goto("/application/notifications");
   const examNotice = page.getByRole("link", { name: /Lịch thi giữa kỳ đã có/ });
   await expect(examNotice).toHaveAccessibleName(/chưa đọc/);
+  // Giao diện đổi ngay khi bấm; chờ server lưu xong rồi mới tải lại.
+  const saved = waitForAction(page);
   await page.getByRole("button", { name: "Đánh dấu đã đọc hết" }).click();
   await expect(examNotice).not.toHaveAccessibleName(/chưa đọc/);
+  expect((await saved).ok()).toBe(true);
   await page.reload();
   await expect(page.getByRole("link", { name: /Lịch thi giữa kỳ đã có/ })).not.toHaveAccessibleName(/chưa đọc/);
 });

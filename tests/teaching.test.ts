@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { after, describe, mock, test } from "node:test";
-import { and, eq, inArray, isNotNull, ne, notInArray, TransactionRollbackError } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, ne, notInArray, sql, TransactionRollbackError } from "drizzle-orm";
 import { db, type Transaction } from "@/shared/libs/db.lib";
 import { parseInput } from "@/shared/libs/action.lib";
 import { mockId, mockSectionId } from "@/shared/libs/mock.lib";
@@ -393,6 +393,45 @@ describe("teaching: phiên bản đề cương", () => {
       // Lớp mẫu không có sinh viên có tài khoản cổng; kiểm nhật ký thao tác thay cho chuông thông báo.
       const [log] = await tx.select({ summary: auditLogs.summary }).from(auditLogs).where(and(eq(auditLogs.entityType, "syllabus"), eq(auditLogs.entityId, saved.id)));
       assert.match(log.summary, /phiên bản 2: Giảm trọng số giữa kỳ/);
+      // Kiểm ngay các ràng buộc hoãn tới lúc commit: đổi qua phiên bản mới thì trigger cho qua.
+      await tx.execute(sql`SET CONSTRAINTS ALL IMMEDIATE`);
+    });
+  });
+
+  test("DB: đề cương đã công bố không đổi trọng số, tên đánh giá nếu không lên phiên bản; không về nháp, không lùi phiên bản", async () => {
+    const [row] = await db.select({ id: syllabi.id, version: syllabi.version }).from(syllabi).where(eq(syllabi.classSectionId, SECTION_ID));
+    const immediate = (tx: Transaction, work: (sp: Transaction) => Promise<unknown>) =>
+      tx
+        .transaction(async (sp) => {
+          await work(sp);
+          await sp.execute(sql`SET CONSTRAINTS ALL IMMEDIATE`);
+        })
+        .then(() => null)
+        .catch((caught: unknown) => caught);
+    await inRollbackTx(async (tx) => {
+      // Đổi trọng số giữa hai dòng (tổng vẫn 100) mà không lên phiên bản: chặn.
+      const swapped = await immediate(tx, async (sp) => {
+        await sp.update(syllabusAssessments).set({ weight: sql`CASE ${syllabusAssessments.key} WHEN 'midterm' THEN 60 WHEN 'final' THEN 30 ELSE ${syllabusAssessments.weight} END` }).where(eq(syllabusAssessments.syllabusId, row.id));
+      });
+      assert.equal(pgErrorMessage(swapped, TEACHING_CONSTRAINT_MESSAGE), TEACHING_CONSTRAINT_MESSAGE.syllabus_assessments_weights_versioned);
+      const renamed = await immediate(tx, (sp) => sp.update(syllabusAssessments).set({ label: sql`${syllabusAssessments.label} || ' (sửa)'` }).where(eq(syllabusAssessments.syllabusId, row.id)));
+      assert.equal(pgErrorMessage(renamed, TEACHING_CONSTRAINT_MESSAGE), TEACHING_CONSTRAINT_MESSAGE.syllabus_assessments_weights_versioned);
+      // Xóa rồi chèn lại đúng như cũ (cách server lưu đề cương), chỉ đổi cách đánh giá: cho qua.
+      const unchanged = await immediate(tx, async (sp) => {
+        const items = await sp.select().from(syllabusAssessments).where(eq(syllabusAssessments.syllabusId, row.id));
+        await sp.delete(syllabusAssessments).where(eq(syllabusAssessments.syllabusId, row.id));
+        await sp.insert(syllabusAssessments).values(items.map(({ id: _id, ...item }) => ({ ...item, method: `${item.method} (cập nhật)` })));
+      });
+      assert.equal(unchanged, null);
+      const draft = await immediate(tx, (sp) => sp.update(syllabi).set({ status: "draft", publishedAt: null }).where(eq(syllabi.id, row.id)));
+      assert.equal(pgErrorMessage(draft, TEACHING_CONSTRAINT_MESSAGE), TEACHING_CONSTRAINT_MESSAGE.syllabi_published_final);
+      const lower = await immediate(tx, (sp) => sp.update(syllabi).set({ version: 0 }).where(eq(syllabi.id, row.id)));
+      assert.ok(lower);
+    });
+    // Đề cương nháp sửa tự do.
+    const [draftRow] = await db.select({ id: syllabi.id }).from(syllabi).where(eq(syllabi.status, "draft")).limit(1);
+    await inRollbackTx(async (tx) => {
+      assert.equal(await immediate(tx, (sp) => sp.update(syllabusAssessments).set({ label: sql`${syllabusAssessments.label} || ' (sửa)'` }).where(eq(syllabusAssessments.syllabusId, draftRow.id))), null);
     });
   });
 });

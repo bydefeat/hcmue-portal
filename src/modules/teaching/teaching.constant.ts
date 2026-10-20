@@ -25,4 +25,6 @@ export const TEACHING_CONSTRAINT_MESSAGE: Partial<Record<string, string>> = {
   class_announcement_reads_announcement_fk: "Thông báo đã bị giảng viên xóa.",
   class_announcements_notified_published: "Thông báo đã báo tới sinh viên nên không chuyển lại thành hẹn giờ được.",
   syllabus_revisions_syllabus_id_version_unique: "Đề cương vừa được lưu phiên bản mới, tải lại trang.",
+  syllabus_assessments_weights_versioned: "Đề cương đã công bố: đổi cách tính điểm phải lưu thành phiên bản mới kèm lý do.",
+  syllabi_published_final: "Đề cương đã công bố không chuyển về nháp, không lùi phiên bản được.",
 };

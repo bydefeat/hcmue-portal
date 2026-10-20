@@ -268,8 +268,8 @@ describe("grades: ràng buộc ký hiệu ở DB", () => {
       const { roster, section } = await makeClass(tx);
       assert.equal(await messageOf(tx, (inner) => inner.update(enrollments).set({ status: "withdrawn" }).where(eq(enrollments.id, roster[0].id))), GRADES_CONSTRAINT_MESSAGE.enrollments_withdrawn_at_matches_status);
       await tx.update(enrollments).set({ status: "withdrawn", withdrawnAt: new Date() }).where(eq(enrollments.id, roster[0].id));
-      const [after] = await tx.select({ enrolledCount: classSections.enrolledCount }).from(classSections).where(eq(classSections.id, section.id));
-      assert.equal(after.enrolledCount, 1);
+      const [counted] = await tx.select({ enrolledCount: classSections.enrolledCount }).from(classSections).where(eq(classSections.id, section.id));
+      assert.equal(counted.enrolledCount, 1);
     });
   });
 });

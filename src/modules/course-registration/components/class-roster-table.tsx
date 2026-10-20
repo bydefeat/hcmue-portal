@@ -64,7 +64,7 @@ export function ClassRosterTable({ roster, classCode, classSectionId }: { roster
         <span className="text-sm text-muted tabular-nums">
           {filtered.length === roster.length ? `${roster.length} sinh viên` : `${filtered.length}/${roster.length} sinh viên`}
         </span>
-        <div className="flex gap-2 sm:ml-auto">
+        <div className="flex flex-wrap gap-2 sm:ml-auto">
           <Button icon={<Envelope size={16} aria-hidden className="text-zinc-500" />} href={`mailto:?bcc=${roster.map((entry) => emailOf(entry.studentCode)).join(",")}&subject=${encodeURIComponent(`[${classCode}] `)}`}>
             Email cả lớp
           </Button>

@@ -163,6 +163,13 @@ Ngoại lệ: file mà Next.js quy định tên (`proxy.ts`, `layout.tsx`, `page
 
 **Ngoại lệ khi đọc DB thật:** query và action của một module được import `*.schema.ts` của module khác để join, và được gọi hai hàm kiểm quyền dùng chung: `requireSession()` / `requireRole()` (`@/modules/authentication/authentication.query`) và `requirePermission()` (`@/modules/access/access.query`).
 
+**Ngoại lệ đọc dữ liệu nghiệp vụ dùng chung** (một nguồn cho mọi module, không tự viết lại):
+- Quy chế: `getRegulation()` / `getRegulationAt(date)` (`@/modules/settings/settings.query`, cache theo request, cần phiên đăng nhập) và `regulationAt(executor, date?)` (`@/modules/settings/settings.lib`, dùng trong transaction, cron, không kiểm quyền). Không đọc bảng `regulations` trực tiếp.
+- Kết quả học tập: `loadTranscripts(executor, studentIds, options)`, `cumulativeResults(executor, options)`, `currentWarnings(executor, studentIds?)`, `currentWarningLevel(executor, studentId)` (`@/modules/grades/grades.lib`); hàm thuần `latestGrades`, `latestAttempts`, `computeStanding`, `letterOf`, `weightedScore` (`@/modules/grades/grades.rule`).
+- Chương trình đào tạo của sinh viên: `programsOf(executor, students)` + `programFor(map, student)`, `requiredCoursesOf(executor, programIds)` (`@/modules/curriculum/curriculum.lib`); trang dùng `getProgramOf(majorCode, cohort)` (`curriculum.query`).
+- Xét tốt nghiệp: `loadGraduationCandidates(viewer, executor?)`, `openGraduationRound()` (`@/modules/graduation/graduation.lib`).
+- Học phí còn nợ: `INVOICE_TOTAL_SQL`, `INVOICE_PAID_SQL` (`@/modules/tuition/tuition.lib`).
+
 **Ngoại lệ ghi kèm thao tác:** code server của một module (action, `*.lib.ts` server-only) được gọi hai hàm ghi dùng chung, luôn truyền transaction của thao tác để thao tác rollback thì dòng ghi kèm cũng mất:
 - `recordAudit(tx, record)` (`@/modules/audit/audit.lib`): ghi nhật ký thao tác.
 - `notifyStudents(tx, studentIds, message)`, `notifyLecturers(tx, lecturerIds, message)`, `notifyUsers(tx, userIds, audience, message)` (`@/modules/notifications/notifications.lib`): ghi thông báo vào chuông và trang Thông báo của cổng người nhận. Sinh viên, giảng viên chưa có tài khoản cổng (`userId` trống) bị bỏ qua; hàm trả về id đã nhận để nơi gọi đếm số chưa nhận. `href` phải là đường dẫn thật trong cổng của người nhận. Email không đi kèm tự động: cần email thì xếp thư bằng `enqueueMail` (dưới đây).
@@ -265,7 +272,7 @@ Mỗi folder chỉ export `index.tsx`; các file con là chi tiết nội bộ c
 | Đơn từ, quy trình duyệt | `modules/requests` | Mỗi loại đơn khai báo chuỗi bước (`REQUEST_KINDS`) và hạn xử lý từng bước. `requestView()` suy ra trạng thái và quá hạn, `decideStep()` chuyển bước. `RequestInbox` dùng chung cho 3 cổng (`mode` = `process` hoặc `own`) |
 | Thông báo | `modules/notifications` + `shared/components/ui/notification-bell.tsx` | Layout của mỗi portal nhận danh sách đã ghép nhãn, trang `/…/notifications` dùng `NotificationList` |
 | Nhật ký thao tác | `modules/audit` | Mỗi thao tác ghi ai, lúc nào, đối tượng, giá trị trước và sau |
-| Quy chế, lịch năm học | `modules/settings` | Thang điểm, hạn mức tín chỉ, ngưỡng cảnh báo, tỉ lệ vắng, hạn xử lý quy trình. Hiện các module khác vẫn dùng hằng số mặc định trùng với giá trị này; khi có DB sẽ đọc từ đây |
+| Quy chế, lịch năm học | `modules/settings` | Nguồn duy nhất của mọi tham số quy chế (xem mục "Quy chế đào tạo" bên dưới); hằng số trong code chỉ là giá trị mặc định khi seed |
 | Khảo thí, phòng học, khảo sát | `modules/exams`, `modules/facilities`, `modules/surveys` | Dữ liệu dùng chung cho cả 3 cổng |
 
 ## 7. Danh sách màn hình
@@ -291,7 +298,7 @@ Hàm thuần trong `modules/course-registration/course-registration.rule.ts`, d�
 | Chỗ dành riêng | `ClassSection.reservedSeats` | Chỗ còn trống trừ phần giữ cho nhóm khác, hết thì cho vào danh sách chờ |
 | Tiên quyết, song hành, tương đương | `Course.prerequisiteCodes`, `corequisiteCodes`, `equivalentCodes` | Đạt học phần tương đương được tính là đạt; song hành phải nằm trong các lớp đã chọn hoặc đã đạt |
 | Nhóm thực hành | `ClassSection.labGroups` | Bắt buộc chọn 1 nhóm, lịch nhóm tính vào kiểm tra trùng lịch |
-| Hạn mức tín chỉ | Quy chế + mức cảnh báo học vụ (`creditCapOf`) | Bị cảnh báo thì dùng `maxWhenWarned` |
+| Hạn mức tín chỉ | Quy chế + cảnh báo học vụ chính thức (`creditCapOf`, `currentWarningLevel`) | Bị cảnh báo thì dùng `maxWhenWarned` |
 | Sĩ số tối thiểu | `ClassSection.minEnrollment` | Lớp dưới mức được đề xuất hủy, sinh viên nhận gợi ý lớp thay thế |
 
 Giờ tiết học ở `shared/constants/period.constant.ts`: 12 tiết, mỗi tiết 50 phút, bắt đầu 06:30, giải lao sau tiết 3 và 9, nghỉ trưa 11:40 đến 12:30, kết thúc 17:40.
@@ -331,7 +338,26 @@ Trigger báo lỗi bằng `RAISE ... USING CONSTRAINT = '<tên>'` nên `pgErrorM
 
 - **Ràng buộc đặt ở DB**, không chỉ ở code: sĩ số trong sức chứa, một đăng ký hiệu lực mỗi lớp và một lớp mỗi học phần trong học kỳ (unique index có điều kiện), nhóm thực hành thuộc đúng lớp và học kỳ, học phần trên đăng ký khớp lớp (khóa ngoại kép), tiết 1..12, thứ 2..8, điểm 0..10, một học kỳ hiện tại, một kế hoạch học tập hiệu lực mỗi SV, đơn từ có đúng một người gửi.
 - **Khảo sát ẩn danh:** `survey_submissions` ghi ai đã nộp (để nhắc), `survey_responses` + `survey_answers` giữ câu trả lời không có khóa tới sinh viên; ngày nộp chỉ lưu ngày, không lưu giờ.
-- **Cấu hình quy chế** lưu `jsonb` có phiên bản (`regulations.rules`), validate bằng zod khi ghi.
+- **Cấu hình quy chế** lưu `jsonb` có phiên bản (`regulations.rules`), validate bằng zod khi ghi (`REGULATION_RULES_SCHEMA`).
+
+### Quy chế đào tạo (nguồn duy nhất)
+
+Mỗi lần lưu ở trang Quy chế tạo một phiên bản có ngày áp dụng (không trước hôm nay). Bản áp dụng tại một ngày là bản có `effective_from` gần nhất không sau ngày đó, theo ngày của trường (giờ Việt Nam, `schoolToday()`); chưa tới bản nào thì lấy bản sớm nhất. Mọi nơi đọc qua `getRegulation()` / `regulationAt()`; không có ngưỡng nào hard-code.
+
+| Nhóm | Tham số | Dùng ở |
+|---|---|---|
+| `grading` | `scale` (điểm chữ, ngưỡng thang 10, điểm thang 4; mức cuối là F từ 0), `roundingStep` (0,1 / 0,5 / 1), `standing` (ngưỡng CPA Xuất sắc, Giỏi, Khá, Trung bình, Yếu) | Tổng điểm và điểm chữ trên bảng nhập điểm, duyệt điểm, Excel (công thức `ROUND` theo bước), PDF; công bố điểm lưu `letter`/`point4` theo bản áp dụng ngày công bố (đổi quy chế sau không đổi điểm đã công bố); xếp loại học lực; hạng tốt nghiệp (từ mức Trung bình mới tốt nghiệp) |
+| `credits` | `minPerTerm`, `maxPerTerm`, `maxSummer`, `maxWhenWarned`, `overloadMinCpa` | Hạn mức kế hoạch học tập (học kỳ hè tối đa `maxSummer`, không bắt tối thiểu; đang bị cảnh báo chính thức thì `maxWhenWarned`), màn duyệt của cố vấn, đăng ký học phần (`creditCapOf`), đơn học vượt |
+| `warning` | `level1TermGpa`, `level1FailedCredits`, `level2Cpa`, `level2FailedCredits`, `level3Cpa`, `expelAfterWarnings` | Sinh cảnh báo sau học kỳ chính (lý do ghi theo ngưỡng của bản đã dùng); danh sách đề xuất xét buộc thôi học (cảnh báo đủ số học kỳ chính liên tiếp hoặc mức 3; quyết định lập ở module users) |
+| `attendance` | `absenceLimitPercent` | Điểm danh, điều kiện dự thi |
+| `workflow` | `gradeEntryDays` (hạn nhập điểm tính từ ngày thi cuối kỳ của lớp, chưa có lịch thi thì từ ngày kết thúc học kỳ), `gradeDueSoonDays` (nhãn "Sắp hết hạn"), `studyPlanReviewDays` (kế hoạch chờ duyệt quá hạn), `regradeWindowDays`, `registrationClosingSoonHours` | Bảng điểm, kế hoạch học tập, phúc khảo, đợt đăng ký |
+| `graduation` | `retakeLimitPercent`, `downgradeDisciplineLevel`, `downgradeStandings`, `languageMinLevel` (bậc CEFR), `requireItCertificate` | Xét tốt nghiệp: giảm một hạng khi khối lượng học lại (tổng tín chỉ các lần F) vượt tỉ lệ trên tổng tín chỉ chương trình hoặc bị kỷ luật từ mức đã chọn, chỉ với các hạng đã chọn |
+
+**Điểm theo lần học cuối:** CPA, tín chỉ tích lũy (mỗi học phần một lần, lần cuối đạt), tín chỉ nợ (lần cuối F), xếp loại, cảnh báo, xét tốt nghiệp, tiên quyết ("đã học đạt"), báo cáo, PDF/Excel đều lấy lần học cuối có điểm của mỗi học phần (`buildTranscript` đánh dấu `replaced`, `latestGrades`, `cumulativeResults` trong SQL). GPA học kỳ vẫn tính mọi học phần học trong kỳ. Chưa có điểm thì "Chưa xếp loại", không vào thống kê xếp loại.
+
+**Cảnh báo chính thức:** cảnh báo đã gửi thông báo (hoặc đã gặp sinh viên) của học kỳ gần nhất có cảnh báo đã ban hành (`currentWarnings`). Hạn mức tín chỉ và mọi chỗ "đang bị cảnh báo" dùng nguồn này; `StudentStanding.warningLevel` chỉ là mức dự báo theo điểm hiện có.
+
+**Xét tốt nghiệp:** đợt xét đang mở (`graduation_rounds`, mỗi lúc một đợt, Phòng Đào tạo cấu hình tên đợt và các khóa); chương trình của sinh viên chọn theo ngành + `program_cohorts`, chỉ chương trình đang áp dụng (trigger `programs_single_active_cohort`: mỗi ngành, khóa một chương trình; `programs_archived_final`: ngừng áp dụng không mở lại); tín chỉ yêu cầu là tổng tín chỉ chương trình, học phần bắt buộc của khung phải học đạt (kể cả qua học phần tương đương); học phí suy ra từ hóa đơn còn nợ; kỷ luật từ quyết định `discipline` đã ký (đình chỉ trở lên chặn tốt nghiệp, mức thấp hơn chỉ xét giảm hạng); chứng chỉ ngoại ngữ (kèm bậc) và tin học do Phòng Đào tạo xác nhận vào `graduation_records`.
 
 Chạy cục bộ:
 

@@ -60,7 +60,7 @@ export type ProgramInput = z.input<typeof PROGRAM_SCHEMA>;
 
 // Khung chỉ xếp hai học kỳ chính mỗi năm. Mô hình khung (program_courses) không có học kỳ hè: học kỳ hè dùng để học lại,
 // học vượt nên không cộng thêm. DB giới hạn tối đa 12 học kỳ và không vượt số năm đào tạo × 2.
-export const PROGRAM_MAX_SEMESTER = 12;
+const PROGRAM_MAX_SEMESTER = 12;
 
 export function programSemesterLimit(durationYears: number) {
   return Math.min(PROGRAM_MAX_SEMESTER, durationYears * 2);

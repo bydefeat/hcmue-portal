@@ -1,9 +1,7 @@
 import type { StatusMeta } from "@/shared/constants/status.constant";
 import type { AcademicStanding, GradeComponent, GradeSheetState, LetterGrade, WarningStatus } from "@/modules/grades/grades.type";
 
-// Thứ tự điểm chữ từ cao xuống thấp (để hiển thị, xếp hạng); ngưỡng và điểm thang 4 lấy theo quy chế (grading.scale).
-export const LETTER_ORDER: LetterGrade[] = ["A", "B+", "B", "C+", "C", "D+", "D", "F"];
-
+// Màu theo điểm chữ; ngưỡng và điểm thang 4 của từng điểm chữ lấy theo quy chế (grading.scale).
 export const LETTER_COLOR: Record<LetterGrade, { text: string; fill: string }> = {
   A: { text: "text-green-700", fill: "#15803d" },
   "B+": { text: "text-green-600", fill: "#22c55e" },

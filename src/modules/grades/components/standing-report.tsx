@@ -27,7 +27,7 @@ function DistributionBar({ counts, total }: { counts: Record<AcademicStanding, n
   );
 }
 
-export function StandingLegend({ summaries }: { summaries: FacultyStandingSummary[] }) {
+function StandingLegend({ summaries }: { summaries: FacultyStandingSummary[] }) {
   const totals = STANDINGS.map((step) => ({ ...step, count: summaries.reduce((sum, entry) => sum + entry.counts[step.standing], 0) }));
   return (
     <ul className="flex flex-wrap gap-x-5 gap-y-2 text-sm">

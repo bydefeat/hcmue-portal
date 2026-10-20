@@ -24,7 +24,7 @@ function clamp(value: number) {
   return Math.min(10, Math.max(0, Math.round(value * 10) / 10));
 }
 
-export function abilityOf(index: number) {
+function abilityOf(index: number) {
   const random = createRandom(index * 97 + 3);
   if (index % 23 === 5) return 3.9 + random();
   if (index % 37 === 11) return 4.4 + random();
@@ -94,7 +94,7 @@ export function mockTranscriptTerms(index: number) {
   return student.cohort === 48 ? terms : [...terms, current];
 }
 
-export const PROJECT_COMPONENTS: GradeComponent[] = [
+const PROJECT_COMPONENTS: GradeComponent[] = [
   { key: "attendance", label: "Chuyên cần", weight: 10 },
   { key: "project", label: "Đồ án", weight: 40 },
   { key: "final", label: "Cuối kỳ", weight: 50 },

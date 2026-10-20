@@ -14,7 +14,8 @@ import { STANDING_LABEL, UNRANKED_LABEL, WARNING_STATUS } from "@/modules/grades
 import { cumulativeResults } from "@/modules/grades/grades.lib";
 import { toStanding } from "@/modules/grades/grades.rule";
 import { academicWarnings } from "@/modules/grades/grades.schema";
-import { graduationRecords } from "@/modules/graduation/graduation.schema";
+import { GRADUATION_STATUS } from "@/modules/graduation/graduation.constant";
+import { loadGraduationCandidates } from "@/modules/graduation/graduation.lib";
 import { surveyAnswers, surveyResponses, surveys } from "@/modules/surveys/surveys.schema";
 import { STUDENT_STATUS } from "@/modules/users/users.constant";
 import { administrativeClasses, lecturers, students } from "@/modules/users/users.schema";
@@ -111,8 +112,6 @@ export async function getReportExports(id?: string): Promise<ReportExportJob[]> 
 }
 
 export type ReportTable = { header: string[]; rows: ReportCell[][] };
-
-const GRADUATION_RECORD_LABEL = { pending: "Chờ xét", approved: "Hội đồng đã công nhận", graduated: "Đã tốt nghiệp" } as const;
 
 // Tỉ lệ và điểm giữ cả giá trị số (để Excel tính được) lẫn chữ theo kiểu Việt Nam (dấu phẩy thập phân) cho CSV.
 const percent = (part: number, whole: number): ReportCell =>
@@ -258,27 +257,29 @@ export async function getReportTable(reportKey: string, termId: string, faculty:
       };
     }
     case "graduation": {
-      const rows = await db
-        .select({ ...studentColumns, language: graduationRecords.languageCertificate, it: graduationRecords.itCertificate, tuitionCleared: graduationRecords.tuitionCleared, disciplineFree: graduationRecords.disciplineFree, status: graduationRecords.status })
-        .from(graduationRecords)
-        .innerJoin(students, eq(students.id, graduationRecords.studentId))
-        .innerJoin(administrativeClasses, eq(administrativeClasses.id, students.administrativeClassId))
-        .innerJoin(majors, eq(majors.id, administrativeClasses.majorId))
-        .innerJoin(faculties, eq(faculties.id, majors.facultyId))
-        .where(byFaculty)
-        .orderBy(faculties.name, administrativeClasses.code, students.code);
+      // Cùng kết quả xét với trang Xét tốt nghiệp (đợt đang mở): điều kiện, hạng tốt nghiệp đã xét giảm hạng.
+      const { candidates } = await loadGraduationCandidates({ faculty: faculty === "all" ? null : faculty });
+      const check = (candidate: (typeof candidates)[number], key: string) => candidate.checks.find((entry) => entry.key === key);
       return {
-        header: ["MSSV", "Họ và tên", "Lớp", "Khoa", "Chứng chỉ ngoại ngữ", "Chứng chỉ tin học", "Hoàn thành học phí", "Không bị kỷ luật", "Trạng thái hồ sơ"],
-        rows: rows.map((row) => [
-          formatStudentCode(row.code),
-          row.fullName,
-          row.className,
-          row.faculty,
-          row.language ?? "Chưa nộp",
-          row.it ?? "Chưa nộp",
-          row.tuitionCleared ? "Đã hoàn thành" : "Còn nợ",
-          row.disciplineFree ? "Đạt" : "Đang bị kỷ luật",
-          GRADUATION_RECORD_LABEL[row.status],
+        header: ["MSSV", "Họ và tên", "Lớp", "Khoa", "Tín chỉ tích lũy", "Tín chỉ yêu cầu", "CPA hệ 4", "Hạng tốt nghiệp", "Chuẩn ngoại ngữ", "Chuẩn tin học", "Học phí", "Kỷ luật", "Điều kiện chưa đạt", "Trạng thái"],
+        rows: candidates.map((candidate) => [
+          candidate.code,
+          candidate.fullName,
+          candidate.className,
+          candidate.faculty,
+          candidate.earnedCredits,
+          candidate.requiredCredits,
+          decimal(candidate.cpa4),
+          candidate.classification,
+          check(candidate, "language")?.detail ?? "",
+          check(candidate, "it")?.detail ?? "",
+          check(candidate, "tuition")?.detail ?? "",
+          check(candidate, "discipline")?.detail ?? "",
+          candidate.checks
+            .filter((entry) => !entry.passed)
+            .map((entry) => entry.label)
+            .join("; "),
+          GRADUATION_STATUS[candidate.status].label,
         ]),
       };
     }

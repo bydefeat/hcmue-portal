@@ -29,8 +29,6 @@ export const REGULATION: RegulationSettings = {
   graduation: { retakeLimitPercent: 5, downgradeDisciplineLevel: "warning", downgradeStandings: ["excellent", "very-good"], languageMinLevel: "B1", requireItCertificate: true },
 };
 
-export const REGULATION_ID = mockId(`regulation:${REGULATION.version}`);
-
 // Tham số của bản quy chế đang áp dụng trong dữ liệu mẫu, seed và test dùng để tính điểm, cảnh báo như app.
 export const REGULATION_RULES: RegulationRules = {
   grading: REGULATION.grading,

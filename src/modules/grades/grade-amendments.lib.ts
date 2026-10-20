@@ -281,8 +281,9 @@ const SYSTEM_ACTOR: AuditActor = { userId: null, name: "Hệ thống", role: "T�
 
 // Tác vụ incomplete-grades: điểm I quá grading.incompleteTerms học kỳ mà chưa có điểm thi bù thì chuyển F (điểm 0), báo sinh viên.
 // Chỉ đổi dòng còn là I nên chạy lại không chuyển trùng, không báo trùng.
-export async function convertOverdueIncompletes(executor: typeof db = db, today = schoolToday()) {
-  return executor.transaction(async (tx) => {
+export async function convertOverdueIncompletes(executor: Executor = db, today = schoolToday()) {
+  // Trong transaction của nơi gọi (test) thì chạy trong savepoint.
+  return (executor as typeof db).transaction(async (tx) => {
     const regulation = await regulationAt(tx, today);
     const [pending, allTerms] = await Promise.all([
       tx

@@ -7,6 +7,7 @@
     { "path": "/api/cron/request-sla", "schedule": "7 * * * *" },
     { "path": "/api/cron/decision-effects", "schedule": "10 17 * * *" },
     { "path": "/api/cron/academic-warnings", "schedule": "20 18 * * *" },
+    { "path": "/api/cron/incomplete-grades", "schedule": "25 18 * * *" },
     { "path": "/api/cron/sign-in-failures", "schedule": "30 19 * * *" },
     { "path": "/api/cron/orphan-files", "schedule": "40 19 * * *" },
     { "path": "/api/cron/notifications-cleanup", "schedule": "50 19 * * *" },

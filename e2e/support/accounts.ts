@@ -3,8 +3,8 @@ export const PASSWORD = process.env.DEFEAT_SEED_ACCOUNT_PASSWORD || "Hcmue@2026"
 
 export const SEED_ACCOUNTS = {
   student: { login: "50.01.104.009", name: "Phạm Gia Đạt", home: "/application/dashboard" },
-  lecturer: { login: "hanhpt@hcmue.edu.vn", name: "ThS. Phạm Thùy Hạnh", home: "/lecturer" },
-  admin: { login: "khoatm@hcmue.edu.vn", name: "Trần Minh Khoa", home: "/administrator" },
+  lecturer: { login: "GV104011", name: "ThS. Phạm Thùy Hạnh", home: "/lecturer" },
+  admin: { login: "CB0021", name: "Trần Minh Khoa", home: "/administrator" },
 } as const;
 
 export type SeedRole = keyof typeof SEED_ACCOUNTS;

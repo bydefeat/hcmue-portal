@@ -46,12 +46,12 @@ test.describe("đăng nhập sai", () => {
     await expect(page.locator(".ant-alert")).toHaveText("Sai tên đăng nhập hoặc mật khẩu");
   });
 
-  test("sinh viên chỉ đăng nhập bằng MSSV, không bằng email", async ({ page }) => {
+  test("đăng nhập bằng mã số, không bằng email (sinh viên lẫn cán bộ)", async ({ page }) => {
     await page.goto("/authentication/sign-in");
     await page.getByLabel("Tên đăng nhập").fill("5001104009@student.hcmue.edu.vn");
     await page.getByLabel("Mật khẩu").fill(PASSWORD);
     await page.getByRole("button", { name: "Đăng nhập" }).click();
-    await expect(page.getByText("Sinh viên đăng nhập bằng mã số sinh viên, không dùng email")).toBeVisible();
+    await expect(page.getByText("Đăng nhập bằng mã số sinh viên hoặc mã số cán bộ, giảng viên").first()).toBeVisible();
     await expect(page).toHaveURL(/\/authentication\/sign-in/);
 
     // Server cũng chặn khi gọi thẳng API, kể cả đúng mật khẩu.
@@ -60,7 +60,14 @@ test.describe("đăng nhập sai", () => {
       headers: { origin: new URL(page.url()).origin },
     });
     expect(response.status()).toBe(401);
-    expect((await response.json()).code).toBe("STUDENT_USE_CODE");
+    expect((await response.json()).code).toBe("USE_LOGIN_CODE");
+    // Giảng viên cũng vậy: email công vụ không còn là tên đăng nhập.
+    const lecturer = await page.request.post("/api/auth/sign-in/email", {
+      data: { email: "hanhpt@hcmue.edu.vn", password: PASSWORD },
+      headers: { origin: new URL(page.url()).origin },
+    });
+    expect(lecturer.status()).toBe(401);
+    expect((await lecturer.json()).code).toBe("USE_LOGIN_CODE");
   });
 });
 

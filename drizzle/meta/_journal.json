@@ -148,6 +148,20 @@
       "when": 1792477330480,
       "tag": "0020_mail_outbox",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1792478535501,
+      "tag": "0021_sign_in_failures",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1792478539751,
+      "tag": "0022_staff_login_usernames",
+      "breakpoints": true
     }
   ]
 }

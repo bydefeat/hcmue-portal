@@ -1,11 +1,13 @@
 import "server-only";
-import { and, asc, eq, inArray, lte, ne, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNotNull, lte, ne, sql } from "drizzle-orm";
 import { db, type Transaction } from "@/shared/libs/db.lib";
-import { dayjs } from "@/shared/libs/date.lib";
+import { schoolToday } from "@/shared/libs/date.lib";
+import { isUuid } from "@/shared/libs/id.lib";
 import { formatStudentCode } from "@/shared/libs/student-code.lib";
 import { enrollments, terms } from "@/modules/course-registration/course-registration.schema";
 import { courses } from "@/modules/curriculum/curriculum.schema";
 import { notifyLecturers } from "@/modules/notifications/notifications.lib";
+import { regulationAt } from "@/modules/settings/settings.lib";
 import {
   academicWarningOf,
   buildTranscript,
@@ -14,11 +16,12 @@ import {
   latestWarningTerm,
   planComponentChanges,
   planWarningSync,
+  standingRulesOf,
   type ComputedWarning,
   type TranscriptTermInput,
 } from "@/modules/grades/grades.rule";
 import { academicWarnings, courseResults, gradeComponents, gradeScores } from "@/modules/grades/grades.schema";
-import type { LetterGrade } from "@/modules/grades/grades.type";
+import type { CurrentWarning, LetterGrade, TranscriptTerm } from "@/modules/grades/grades.type";
 import { administrativeClasses, students } from "@/modules/users/users.schema";
 
 // Lỗi nghiệp vụ phát hiện trong giao dịch: hủy giao dịch và trả câu báo cho người dùng.
@@ -84,6 +87,178 @@ export async function replaceGradeComponents(
   return { before, after, removed: plan.removed.length, created: plan.created.length };
 }
 
+// ---------- Bảng điểm, kết quả tích lũy, cảnh báo chính thức (dùng chung cho grades, graduation, settings) ----------
+
+const ID_CHUNK = 2000;
+
+function chunked<T>(items: T[], size = ID_CHUNK) {
+  const chunks: T[][] = [];
+  for (let start = 0; start < items.length; start += size) chunks.push(items.slice(start, start + size));
+  return chunks;
+}
+
+export type TranscriptOptions = {
+  // Học kỳ hiện tại: đánh dấu đang học (không tính CPA, không thay thế lần học trước).
+  currentTermId?: string | null;
+  // Chỉ lấy kết quả các học kỳ bắt đầu không sau ngày này (báo cáo theo học kỳ, xét cảnh báo một học kỳ).
+  upToTermStart?: string;
+  // Thêm học phần đang đăng ký của học kỳ hiện tại chưa có điểm (trang bảng điểm sinh viên).
+  withOngoing?: boolean;
+};
+
+const transcriptCourse = (row: { courseCode: string; courseName: string; credits: number; score10: number | null; letter: string | null; point4: number | null }) => ({
+  courseCode: row.courseCode,
+  courseName: row.courseName,
+  credits: row.credits,
+  score10: row.score10,
+  letter: row.letter as LetterGrade | null,
+  point4: row.point4,
+});
+
+// Bảng điểm theo kỳ của nhiều sinh viên, một nguồn cho trang sinh viên, xét cảnh báo, xét tốt nghiệp, báo cáo: các kỳ có kết quả học phần
+// (xếp theo ngày bắt đầu học kỳ, rồi thời điểm ghi điểm), cộng kỳ hiện tại lấy từ đăng ký nếu cần. Lấy theo danh sách id, chia lô.
+export async function loadTranscripts(executor: Executor, studentIds: string[], options: TranscriptOptions = {}): Promise<Map<string, TranscriptTerm[]>> {
+  const ids = [...new Set(studentIds.filter(isUuid))];
+  const transcripts = new Map<string, TranscriptTerm[]>();
+  if (ids.length === 0) return transcripts;
+  const current = options.currentTermId ?? null;
+  const batches = await Promise.all(
+    chunked(ids).map((batch) =>
+      Promise.all([
+        executor
+          .select({
+            studentId: courseResults.studentId,
+            termId: courseResults.termId,
+            termName: terms.name,
+            termStart: terms.startDate,
+            enrollmentId: courseResults.enrollmentId,
+            courseCode: courses.code,
+            courseName: courses.name,
+            credits: courses.credits,
+            score10: courseResults.score10,
+            letter: courseResults.letter,
+            point4: courseResults.point4,
+          })
+          .from(courseResults)
+          .innerJoin(courses, eq(courses.id, courseResults.courseId))
+          .innerJoin(terms, eq(terms.id, courseResults.termId))
+          .where(and(inArray(courseResults.studentId, batch), options.upToTermStart ? lte(terms.startDate, options.upToTermStart) : undefined))
+          .orderBy(asc(terms.startDate), asc(courseResults.recordedAt), asc(courses.code)),
+        current && options.withOngoing
+          ? executor
+              .select({
+                studentId: enrollments.studentId,
+                enrollmentId: enrollments.id,
+                termName: terms.name,
+                termStart: terms.startDate,
+                courseCode: courses.code,
+                courseName: courses.name,
+                credits: courses.credits,
+              })
+              .from(enrollments)
+              .innerJoin(courses, eq(courses.id, enrollments.courseId))
+              .innerJoin(terms, eq(terms.id, enrollments.termId))
+              .where(and(eq(enrollments.termId, current), eq(enrollments.status, "enrolled"), inArray(enrollments.studentId, batch)))
+              .orderBy(asc(enrollments.registeredAt))
+          : Promise.resolve([]),
+      ]),
+    ),
+  );
+  const results = batches.flatMap(([rows]) => rows);
+  const ongoing = batches.flatMap(([, rows]) => rows);
+
+  const raw = new Map<string, Map<string, TranscriptTermInput & { start: string }>>();
+  const termOf = (studentId: string, termId: string, termName: string, start: string) => {
+    const byTerm = raw.get(studentId) ?? new Map<string, TranscriptTermInput & { start: string }>();
+    raw.set(studentId, byTerm);
+    const term = byTerm.get(termId) ?? { termId, termName, start, isInProgress: termId === current, courses: [] };
+    byTerm.set(termId, term);
+    return term;
+  };
+  const resultByEnrollment = new Map(results.filter((row) => row.enrollmentId).map((row) => [row.enrollmentId!, row]));
+  for (const row of ongoing) {
+    const result = resultByEnrollment.get(row.enrollmentId);
+    termOf(row.studentId, current!, row.termName, row.termStart).courses.push(transcriptCourse({ ...row, score10: result?.score10 ?? null, letter: result?.letter ?? null, point4: result?.point4 ?? null }));
+  }
+  for (const row of results) {
+    if (row.termId === current && row.enrollmentId && options.withOngoing) continue;
+    termOf(row.studentId, row.termId, row.termName, row.termStart).courses.push(transcriptCourse(row));
+  }
+  for (const [studentId, byTerm] of raw) {
+    const ordered = [...byTerm.values()].toSorted((a, b) => a.start.localeCompare(b.start)).map(({ start: _start, ...term }) => term);
+    transcripts.set(studentId, buildTranscript(ordered));
+  }
+  return transcripts;
+}
+
+// Kết quả tích lũy (lần học cuối của mỗi học phần) tính trong SQL cho báo cáo toàn trường, không nạp từng dòng điểm:
+// CPA làm tròn 2 chữ số như creditAverage, tín chỉ tích lũy (lần cuối đạt), tín chỉ nợ (lần cuối F).
+export async function cumulativeResults(executor: Executor, options: { upToTermStart?: string; excludeCurrent?: boolean } = {}) {
+  const latest = executor
+    .selectDistinctOn([courseResults.studentId, courseResults.courseId], {
+      studentId: courseResults.studentId,
+      credits: courses.credits,
+      point4: courseResults.point4,
+      score10: courseResults.score10,
+      letter: courseResults.letter,
+    })
+    .from(courseResults)
+    .innerJoin(terms, eq(terms.id, courseResults.termId))
+    .innerJoin(courses, eq(courses.id, courseResults.courseId))
+    .where(
+      and(
+        isNotNull(courseResults.point4),
+        options.upToTermStart ? lte(terms.startDate, options.upToTermStart) : undefined,
+        options.excludeCurrent ? eq(terms.isCurrent, false) : undefined,
+      ),
+    )
+    .orderBy(courseResults.studentId, courseResults.courseId, desc(terms.startDate), desc(courseResults.recordedAt))
+    .as("latest_results");
+  const rows = await executor
+    .select({
+      studentId: latest.studentId,
+      cpa4: sql<number>`round(sum(${latest.point4} * ${latest.credits}) / sum(${latest.credits}), 2)`.mapWith(Number),
+      cpa10: sql<number>`round(sum(${latest.score10} * ${latest.credits}) / sum(${latest.credits}), 2)`.mapWith(Number),
+      earnedCredits: sql<number>`coalesce(sum(${latest.credits}) FILTER (WHERE ${latest.letter} <> 'F'), 0)::int`.mapWith(Number),
+      failedCredits: sql<number>`coalesce(sum(${latest.credits}) FILTER (WHERE ${latest.letter} = 'F'), 0)::int`.mapWith(Number),
+    })
+    .from(latest)
+    .groupBy(latest.studentId);
+  return new Map(rows.map(({ studentId, ...row }) => [studentId, row]));
+}
+
+// Cảnh báo chính thức đang có hiệu lực: học kỳ gần nhất có cảnh báo đã ban hành (đã gửi thông báo hoặc đã gặp sinh viên), lấy cảnh báo
+// đã ban hành của sinh viên trong học kỳ đó. Cảnh báo mới sinh chưa gửi chưa có hiệu lực; học kỳ sau đã ban hành mà sinh viên không bị
+// cảnh báo thì hết cảnh báo. Dùng cho hạn mức tín chỉ (đăng ký, kế hoạch học tập) và mọi chỗ hiện "đang bị cảnh báo".
+export async function currentWarnings(executor: Executor, studentIds?: string[]): Promise<Map<string, CurrentWarning>> {
+  const ids = studentIds?.filter(isUuid);
+  if (ids && ids.length === 0) return new Map();
+  const [issued] = await executor
+    .select({ termId: terms.id, termName: terms.name })
+    .from(academicWarnings)
+    .innerJoin(terms, eq(terms.id, academicWarnings.termId))
+    .where(ne(academicWarnings.status, "new"))
+    .orderBy(desc(terms.startDate))
+    .limit(1);
+  if (!issued) return new Map();
+  const rows = (
+    await Promise.all(
+      (ids ? chunked(ids) : [null]).map((batch) =>
+        executor
+          .select({ studentId: academicWarnings.studentId, level: academicWarnings.level })
+          .from(academicWarnings)
+          .where(and(eq(academicWarnings.termId, issued.termId), ne(academicWarnings.status, "new"), batch ? inArray(academicWarnings.studentId, batch) : undefined)),
+      ),
+    )
+  ).flat();
+  return new Map(rows.map((row) => [row.studentId, { level: row.level as 1 | 2 | 3, termId: issued.termId, termName: issued.termName }]));
+}
+
+// Mức cảnh báo chính thức của một sinh viên (0 là không bị cảnh báo), cho hạn mức tín chỉ khi đăng ký học phần.
+export async function currentWarningLevel(executor: Executor, studentId: string): Promise<0 | 1 | 2 | 3> {
+  return (await currentWarnings(executor, [studentId])).get(studentId)?.level ?? 0;
+}
+
 export type WarningSyncResult = {
   termId: string;
   termName: string;
@@ -96,11 +271,11 @@ export type WarningSyncResult = {
   advisorsNotified: number;
 };
 
-// Tính cảnh báo học vụ sau một học kỳ đã kết thúc từ course_results (mọi kỳ đến hết học kỳ đó), cho sinh viên có kết quả
-// trong học kỳ và chưa tốt nghiệp. Chạy lại được: unique (sinh viên, học kỳ) và khóa theo học kỳ để hai lần chạy cùng lúc
+// Tính cảnh báo học vụ sau một học kỳ đã kết thúc từ course_results (mọi kỳ đến hết học kỳ đó, lần học cuối của mỗi học phần) theo
+// ngưỡng của bản quy chế đang áp dụng ngày xét, cho sinh viên có kết quả trong học kỳ và chưa tốt nghiệp. Chạy lại được: unique (sinh viên, học kỳ) và khóa theo học kỳ để hai lần chạy cùng lúc
 // không chen nhau; cảnh báo đã gửi thông báo hoặc đã gặp sinh viên giữ nguyên. Cố vấn nhận thông báo khi lớp có cảnh báo mới.
 export async function syncAcademicWarnings(tx: Transaction, termId: string, options: { notify?: boolean; today?: string } = {}): Promise<WarningSyncResult> {
-  const today = options.today ?? dayjs().format("YYYY-MM-DD");
+  const today = options.today ?? schoolToday();
   const [term] = await tx.select({ id: terms.id, name: terms.name, semester: terms.semester, startDate: terms.startDate, endDate: terms.endDate }).from(terms).where(eq(terms.id, termId));
   if (!term) throw new GradeActionError("Học kỳ không còn trong danh mục, tải lại trang.");
   if (!isWarningTerm(term, today)) {
@@ -116,37 +291,12 @@ export async function syncAcademicWarnings(tx: Transaction, termId: string, opti
     .where(and(eq(courseResults.termId, term.id), ne(students.status, "graduated")));
   const ids = cohort.map((row) => row.studentId);
 
+  const regulation = await regulationAt(tx, today);
+  const transcripts = await loadTranscripts(tx, ids, { upToTermStart: term.startDate });
   const computed: ComputedWarning[] = [];
-  if (ids.length > 0) {
-    const rows = await tx
-      .select({
-        studentId: courseResults.studentId,
-        termId: courseResults.termId,
-        termName: terms.name,
-        courseCode: courses.code,
-        courseName: courses.name,
-        credits: courses.credits,
-        score10: courseResults.score10,
-        letter: courseResults.letter,
-        point4: courseResults.point4,
-      })
-      .from(courseResults)
-      .innerJoin(courses, eq(courses.id, courseResults.courseId))
-      .innerJoin(terms, eq(terms.id, courseResults.termId))
-      .where(and(inArray(courseResults.studentId, ids), lte(terms.startDate, term.startDate)))
-      .orderBy(asc(terms.startDate), asc(courseResults.recordedAt), asc(courses.code));
-    const byStudent = new Map<string, Map<string, TranscriptTermInput>>();
-    for (const { studentId, termId: rowTermId, termName, ...course } of rows) {
-      const byTerm = byStudent.get(studentId) ?? new Map<string, TranscriptTermInput>();
-      byStudent.set(studentId, byTerm);
-      const entry = byTerm.get(rowTermId) ?? { termId: rowTermId, termName, isInProgress: false, courses: [] };
-      byTerm.set(rowTermId, entry);
-      entry.courses.push({ ...course, letter: course.letter as LetterGrade | null });
-    }
-    for (const id of ids) {
-      const warning = academicWarningOf(computeStanding(id, buildTranscript([...(byStudent.get(id)?.values() ?? [])])));
-      if (warning) computed.push({ ...warning, studentId: id });
-    }
+  for (const id of ids) {
+    const warning = academicWarningOf(computeStanding(id, transcripts.get(id) ?? [], standingRulesOf(regulation)), regulation.warning);
+    if (warning) computed.push({ ...warning, studentId: id });
   }
 
   const stored = await tx
@@ -218,7 +368,7 @@ export async function syncAcademicWarnings(tx: Transaction, termId: string, opti
 
 // Tác vụ định kỳ: xét cảnh báo cho học kỳ chính vừa kết thúc. Gọi nhiều lần trong ngày cũng không sinh trùng.
 export async function runAcademicWarningsJob(): Promise<Record<string, number>> {
-  const today = dayjs().format("YYYY-MM-DD");
+  const today = schoolToday();
   const term = latestWarningTerm(await db.select({ id: terms.id, semester: terms.semester, endDate: terms.endDate }).from(terms), today);
   if (!term) return { students: 0, created: 0, updated: 0, removed: 0, unchanged: 0, handled: 0, advisorsNotified: 0 };
   const { termId: _termId, termName: _termName, ...counts } = await db.transaction((tx) => syncAcademicWarnings(tx, term.id, { today }));

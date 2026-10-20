@@ -52,7 +52,8 @@ export type NavItem = {
   icon?: ComponentType<IconProps>;
   shortLabel?: string;
   exact?: boolean;
-  permission?: string;
+  // Một quyền, hoặc danh sách quyền mà có một trong số đó là thấy mục.
+  permission?: string | string[];
 };
 
 export type NavGroup = {
@@ -178,7 +179,7 @@ export const ADMINISTRATOR_NAVIGATION: NavGroup[] = [
       { label: "Theo dõi đăng ký", href: "/administrator/registration-monitor", icon: ChartActivity, permission: "registration.manage" },
       { label: "Khóa đăng ký", href: "/administrator/registration-holds", icon: UserLock, permission: "registration.manage" },
       { label: "Học phí", href: "/administrator/tuition", icon: Receipt, permission: "tuition.manage" },
-      { label: "Duyệt và công bố điểm", href: "/administrator/grade-publishing", icon: ClipboardCheck, permission: "grades.approve" },
+      { label: "Duyệt và công bố điểm", href: "/administrator/grade-publishing", icon: ClipboardCheck, permission: ["grades.approve", "grades.publish"] },
       { label: "Quyết định sinh viên", href: "/administrator/decisions", icon: ScrollText, permission: "decisions.manage" },
       { label: "Xét tốt nghiệp", href: "/administrator/graduation", icon: AwardCertificate, permission: "graduation.manage" },
     ],
@@ -234,7 +235,7 @@ export const ADMINISTRATOR_ACCOUNT_LINKS: NavItem[] = [{ label: "Hồ sơ cá nh
 
 export function filterNavigation(groups: NavGroup[], permissions: string[]) {
   return groups
-    .map((group) => ({ ...group, items: group.items.filter((item) => !item.permission || permissions.includes(item.permission)) }))
+    .map((group) => ({ ...group, items: group.items.filter((item) => !item.permission || [item.permission].flat().some((permission) => permissions.includes(permission))) }))
     .filter((group) => group.items.length > 0);
 }
 

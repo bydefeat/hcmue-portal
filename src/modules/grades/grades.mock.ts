@@ -1,7 +1,9 @@
 import { createRandom, mockDate, mockId, mockSectionId, mockStudentIdentity, mockStudentIndex, mockTermId } from "@/shared/libs/mock.lib";
 import { COURSES_IN_CURRENT_TERM, COURSES_PER_PAST_TERM, mockCourseSequence, TERMS_DONE_BY_COHORT } from "@/shared/libs/mock-course.lib";
-import { DEFAULT_COMPONENTS, toLetter } from "@/modules/grades/grades.constant";
-import type { GradeComponent, GradeSheetStatus, ScoreRow, TranscriptCourse, WarningStatus } from "@/modules/grades/grades.type";
+import { DEFAULT_COMPONENTS } from "@/modules/grades/grades.constant";
+import { letterOf } from "@/modules/grades/grades.rule";
+import { REGULATION_RULES } from "@/modules/settings/settings.mock";
+import type { GradeComponent, GradeSheetStatus, ScoreRow, TranscriptCourseInput, WarningStatus } from "@/modules/grades/grades.type";
 
 // Dữ liệu mẫu chỉ còn seed dùng (scripts/seed/grades.seed.ts); query đọc từ Postgres.
 
@@ -29,6 +31,14 @@ export function abilityOf(index: number) {
   return 5.8 + random() * 3.4;
 }
 
+const graded = (courseCode: string, courseName: string, credits: number, score10: number): TranscriptCourseInput => ({
+  courseCode,
+  courseName,
+  credits,
+  score10,
+  ...letterOf(score10, REGULATION_RULES.grading.scale),
+});
+
 export function mockTranscriptTerms(index: number) {
   const student = mockStudentIdentity(index);
   const termsDone = TERMS_DONE_BY_COHORT[student.cohort] ?? 0;
@@ -48,18 +58,30 @@ export function mockTranscriptTerms(index: number) {
     termId: term.id,
     termName: term.name,
     isInProgress: false,
-    courses: takeCourses(COURSES_PER_PAST_TERM).map(([courseCode, courseName, credits]): TranscriptCourse => {
-      const score10 = clamp(ability + (random() - 0.5) * 3);
-      const scale = toLetter(score10);
-      return { courseCode, courseName, credits, score10, letter: scale.letter, point4: scale.point4 };
-    }),
+    courses: takeCourses(COURSES_PER_PAST_TERM).map(([courseCode, courseName, credits]) => graded(courseCode, courseName, credits, clamp(ability + (random() - 0.5) * 3))),
   }));
+
+  // Học lại và học cải thiện ở học kỳ chính kế tiếp (luồng ngẫu nhiên riêng để điểm lần đầu không đổi): phần lớn học phần F được học lại,
+  // một số sinh viên học cải thiện một học phần điểm D. Điểm tính CPA là lần học cuối.
+  const retakeRandom = createRandom(index * 211 + 17);
+  let improved = index % 7 !== 3;
+  terms.forEach((term, position) => {
+    const next = terms[position + 1];
+    if (!next) return;
+    for (const course of term.courses) {
+      const isFailed = course.letter === "F";
+      const improve = !improved && (course.letter === "D" || course.letter === "D+");
+      if (!(isFailed && retakeRandom() < 0.75) && !improve) continue;
+      if (improve) improved = true;
+      next.courses.push(graded(course.courseCode, course.courseName, course.credits, clamp(Math.max(ability, 5) + retakeRandom() * 2)));
+    }
+  });
 
   const current = {
     termId: CURRENT_TERM.id,
     termName: CURRENT_TERM.name,
     isInProgress: true,
-    courses: takeCourses(COURSES_IN_CURRENT_TERM).map(([courseCode, courseName, credits]): TranscriptCourse => ({
+    courses: takeCourses(COURSES_IN_CURRENT_TERM).map(([courseCode, courseName, credits]): TranscriptCourseInput => ({
       courseCode,
       courseName,
       credits,

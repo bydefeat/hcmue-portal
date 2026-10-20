@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { PageHeader } from "@/shared/components/ui/page-header";
-import { STANDING_LABEL, WARNING_LEVEL } from "@/modules/grades/grades.constant";
-import { getStudentStandings } from "@/modules/grades/grades.query";
+import { standingLabel, WARNING_LEVEL } from "@/modules/grades/grades.constant";
+import { getCurrentWarnings, getStudentStandings } from "@/modules/grades/grades.query";
 import { STUDY_PLAN_STATUS } from "@/modules/study-plan/study-plan.constant";
 import { getStudyPlans } from "@/modules/study-plan/study-plan.query";
 import { AdviseeTable, type AdviseeRow } from "@/modules/users/components/advisee-table";
@@ -13,21 +13,23 @@ export default async function Page() {
   const lecturer = await getCurrentLecturer();
   const [advisees, classes] = await Promise.all([getAdvisees(lecturer.id), getAdvisedClasses(lecturer.id)]);
   const ids = advisees.map((student) => student.id);
-  const [standings, plans] = await Promise.all([getStudentStandings(ids), getStudyPlans(ids)]);
+  const [standings, plans, warnings] = await Promise.all([getStudentStandings(ids), getStudyPlans(ids), getCurrentWarnings(ids)]);
   const standingById = new Map(standings.map((standing) => [standing.studentId, standing]));
   const planById = new Map(plans.map((plan) => [plan.studentId, plan]));
 
   const rows: AdviseeRow[] = advisees.map((student) => {
     const standing = standingById.get(student.id)!;
     const plan = planById.get(student.id);
+    const warning = warnings[student.id];
     return {
       student,
       cpa4: standing.cpa4,
       earnedCredits: standing.earnedCredits,
-      standingLabel: STANDING_LABEL[standing.standing],
-      warning: standing.warningLevel > 0 ? WARNING_LEVEL[standing.warningLevel as 1 | 2 | 3] : null,
+      standingLabel: standingLabel(standing.standing),
+      warning: warning ? WARNING_LEVEL[warning.level] : null,
       plan: plan ? STUDY_PLAN_STATUS[plan.status] : null,
-      needsAttention: standing.warningLevel > 0 || standing.cpa4 < 2 || plan?.status === "pending",
+      // Cần chú ý: đang bị cảnh báo chính thức, hoặc điểm hiện có đã dưới ngưỡng cảnh báo (dự báo), hoặc kế hoạch chờ duyệt.
+      needsAttention: warning !== undefined || standing.warningLevel > 0 || plan?.status === "pending",
     };
   });
   const attention = rows.filter((row) => row.needsAttention).length;

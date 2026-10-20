@@ -43,6 +43,7 @@ export const ROLES: Role[] = [
       "students.view",
       "advisors.assign",
       "reports.view",
+      "warnings.manage",
     ],
     isSystem: false,
   },

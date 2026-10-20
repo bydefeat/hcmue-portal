@@ -13,7 +13,7 @@ import { normalizeSearch } from "@/shared/libs/search.lib";
 
 export type AdviseeRow = {
   student: Student;
-  cpa4: number;
+  cpa4: number | null;
   earnedCredits: number;
   standingLabel: string;
   warning: StatusMeta | null;
@@ -67,8 +67,8 @@ export function AdviseeTable({ rows, studentHrefBase }: AdviseeTableProps) {
       dataIndex: "cpa4",
       width: 80,
       align: "right",
-      sorter: (a, b) => a.cpa4 - b.cpa4,
-      render: (value: number) => <span className="tabular-nums">{value.toFixed(2).replace(".", ",")}</span>,
+      sorter: (a, b) => (a.cpa4 ?? -1) - (b.cpa4 ?? -1),
+      render: (value: number | null) => <span className="tabular-nums">{value === null ? "–" : value.toFixed(2).replace(".", ",")}</span>,
     },
     { title: "Xếp loại", dataIndex: "standingLabel", width: 110 },
     {
@@ -159,7 +159,7 @@ export function AdviseeTable({ rows, studentHrefBase }: AdviseeTableProps) {
                   </a>
                 </span>
                 <span className="text-xs text-muted tabular-nums">
-                  CPA {row.cpa4.toFixed(2).replace(".", ",")} · {row.standingLabel} · {row.earnedCredits} tín chỉ tích lũy
+                  CPA {row.cpa4 === null ? "chưa có" : row.cpa4.toFixed(2).replace(".", ",")} · {row.standingLabel} · {row.earnedCredits} tín chỉ tích lũy
                 </span>
                 <span className="flex flex-wrap items-center gap-2">
                   {row.warning && <StatusTag status={row.warning} />}

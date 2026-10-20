@@ -1,18 +1,21 @@
 "use server";
 
-import { and, desc, eq, inArray, lte } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db, type Transaction } from "@/shared/libs/db.lib";
 import { actionError, actionFailure, actionOk, parseInput, type ActionResult } from "@/shared/libs/action.lib";
-import { courses, programCohorts, programCourses, programs } from "@/modules/curriculum/curriculum.schema";
+import { programFor, programsOf } from "@/modules/curriculum/curriculum.lib";
+import { courses, programCourses } from "@/modules/curriculum/curriculum.schema";
+import { currentWarningLevel } from "@/modules/grades/grades.lib";
 import { notifyLecturers, notifyStudents } from "@/modules/notifications/notifications.lib";
-import { regulations } from "@/modules/settings/settings.schema";
-import { STUDY_PLAN_CONSTRAINT_MESSAGE, STUDY_PLAN_CREDIT_LIMIT } from "@/modules/study-plan/study-plan.constant";
+import { regulationAt } from "@/modules/settings/settings.lib";
+import { STUDY_PLAN_CONSTRAINT_MESSAGE } from "@/modules/study-plan/study-plan.constant";
 import { getStudyPlanOfStudent } from "@/modules/study-plan/study-plan.query";
 import {
   planEditMode,
   STUDY_PLAN_REVIEW_SCHEMA,
   STUDY_PLAN_SCHEMA,
+  termCreditLimits,
   termsOutOfRange,
   type StudyPlanInput,
   type StudyPlanReviewInput,
@@ -24,30 +27,22 @@ import { administrativeClasses, students } from "@/modules/users/users.schema";
 
 class PlanError extends Error {}
 
-// Hạn mức tín chỉ mỗi học kỳ theo quy chế đang áp dụng; chưa có quy chế trong DB thì dùng mức mặc định.
-async function creditLimits(tx: Transaction) {
-  const [regulation] = await tx
-    .select({ rules: regulations.rules })
-    .from(regulations)
-    .where(lte(regulations.effectiveFrom, new Date().toISOString().slice(0, 10)))
-    .orderBy(desc(regulations.effectiveFrom))
-    .limit(1);
-  const credits = regulation?.rules.credits;
-  return credits ? { min: credits.minPerTerm, max: credits.maxPerTerm } : STUDY_PLAN_CREDIT_LIMIT;
-}
-
-// Học phần trong kế hoạch phải thuộc khung chương trình đào tạo áp dụng cho ngành và khóa của sinh viên.
+// Học phần trong kế hoạch phải thuộc khung chương trình đang áp dụng cho ngành và khóa của sinh viên (programsOf, cùng cách chọn với
+// xét tốt nghiệp và trang Chương trình đào tạo).
 async function programCoursesOf(tx: Transaction, studentId: string, codes: string[]) {
   if (codes.length === 0) return new Map<string, { id: string; credits: number }>();
-  const rows = await tx
-    .selectDistinct({ code: courses.code, id: courses.id, credits: courses.credits })
+  const [home] = await tx
+    .select({ majorId: administrativeClasses.majorId, cohort: administrativeClasses.cohort })
     .from(students)
     .innerJoin(administrativeClasses, eq(administrativeClasses.id, students.administrativeClassId))
-    .innerJoin(programs, eq(programs.majorId, administrativeClasses.majorId))
-    .innerJoin(programCohorts, and(eq(programCohorts.programId, programs.id), eq(programCohorts.cohort, administrativeClasses.cohort)))
-    .innerJoin(programCourses, eq(programCourses.programId, programs.id))
+    .where(eq(students.id, studentId));
+  const program = home ? programFor(await programsOf(tx, [home]), home) : null;
+  if (!program) throw new PlanError("Chưa có chương trình đào tạo đang áp dụng cho ngành và khóa của bạn, liên hệ Phòng Đào tạo.");
+  const rows = await tx
+    .select({ code: courses.code, id: courses.id, credits: courses.credits })
+    .from(programCourses)
     .innerJoin(courses, eq(courses.id, programCourses.courseId))
-    .where(and(eq(students.id, studentId), inArray(courses.code, codes)));
+    .where(and(eq(programCourses.programId, program.id), inArray(courses.code, codes)));
   const found = new Map(rows.map(({ code, ...course }) => [code, course]));
   const missing = codes.filter((code) => !found.has(code));
   if (missing.length > 0) throw new PlanError(`Học phần ${missing.join(", ")} không thuộc chương trình đào tạo của bạn.`);
@@ -74,10 +69,15 @@ async function writePlan(input: StudyPlanInput, submit: boolean): Promise<Action
         terms.flatMap((term) => term.courseCodes),
       );
       if (submit) {
-        const limits = await creditLimits(tx);
+        // Hạn mức theo quy chế đang áp dụng: học kỳ hè theo maxSummer, đang bị cảnh báo chính thức theo maxWhenWarned.
+        const [regulation, warningLevel] = await Promise.all([regulationAt(tx), currentWarningLevel(tx, student.id)]);
+        const limitsOf = (termName: string) => termCreditLimits(terms.find((term) => term.termName === termName)!, regulation.credits, warningLevel > 0);
         const credits = terms.map((term) => ({ termName: term.termName, credits: term.courseCodes.reduce((sum, code) => sum + found.get(code)!.credits, 0) }));
-        const [first] = termsOutOfRange(credits, limits);
-        if (first) throw new PlanError(`${first.termName} có ${first.credits} tín chỉ, cần từ ${limits.min} đến ${limits.max}. Điều chỉnh rồi gửi lại.`);
+        const [first] = termsOutOfRange(credits, limitsOf);
+        if (first) {
+          const limits = limitsOf(first.termName);
+          throw new PlanError(`${first.termName} có ${first.credits} tín chỉ, cần ${limits.min > 0 ? `từ ${limits.min} đến ${limits.max}` : `tối đa ${limits.max}`}${warningLevel > 0 ? " (đang bị cảnh báo học vụ)" : ""}. Điều chỉnh rồi gửi lại.`);
+        }
       }
       let planId: string;
       if (mode === "update") {

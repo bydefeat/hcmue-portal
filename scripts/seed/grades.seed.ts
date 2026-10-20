@@ -4,7 +4,6 @@ import { dayjs } from "@/shared/libs/date.lib";
 import { mockDate, mockId } from "@/shared/libs/mock.lib";
 import { CLASS_SECTIONS } from "@/modules/course-registration/course-registration.mock";
 import { enrollments } from "@/modules/course-registration/course-registration.schema";
-import { weightedScore } from "@/modules/grades/grades.constant";
 import {
   CURRENT_TERM,
   DEFAULT_SHEET_SEED,
@@ -17,9 +16,10 @@ import {
   SHEET_SAVED_AT,
   WARNING_TERM_KEY,
 } from "@/modules/grades/grades.mock";
-import { academicWarningOf, buildTranscript, computeStanding, courseGrade } from "@/modules/grades/grades.rule";
+import { academicWarningOf, buildTranscript, computeStanding, courseGrade, standingRulesOf, weightedScore } from "@/modules/grades/grades.rule";
 import { academicWarnings, courseResults, gradeComponents, gradeScores, gradeSheets } from "@/modules/grades/grades.schema";
 import type { GradeSheetStatus } from "@/modules/grades/grades.type";
+import { REGULATION_RULES } from "@/modules/settings/settings.mock";
 import { STUDENTS } from "@/modules/users/users.mock";
 import type { SeedContext } from "./context";
 
@@ -65,7 +65,7 @@ export async function seedGrades(tx: Transaction, context: SeedContext) {
     // Cùng cách tính với syncAcademicWarnings (grades.lib): sinh viên có kết quả trong học kỳ xét và chưa tốt nghiệp,
     // nên bấm "Sinh cảnh báo" cho học kỳ này trên dữ liệu mẫu không tạo thêm hay đổi cảnh báo nào.
     const warningTermId = context.termByKey.get(WARNING_TERM_KEY)!.id;
-    const warning = academicWarningOf(computeStanding(student.id, buildTranscript(catalogTerms)));
+    const warning = academicWarningOf(computeStanding(student.id, buildTranscript(catalogTerms), standingRulesOf(REGULATION_RULES)), REGULATION_RULES.warning);
     if (warning && student.status !== "graduated" && terms.some((term) => term.termId === warningTermId)) {
       const meta = mockWarningMeta(index);
       warnings.push({ ...warning, id: meta.id, studentId: student.id, termId: warningTermId, status: meta.status, createdAt: new Date(meta.createdAt) });
@@ -105,7 +105,7 @@ export async function seedGrades(tx: Transaction, context: SeedContext) {
         const score = row[component.key];
         if (score !== null) scores.push({ gradeComponentId: mockId(`grade-component:${section.id}:${component.key}`), enrollmentId: enrollment.id, score });
       }
-      const total = weightedScore(seed.components, row);
+      const total = weightedScore(seed.components, row, REGULATION_RULES.grading.roundingStep);
       if (seed.status === "published" && total !== null) {
         published.push({
           id: mockId(`result:${enrollment.studentId}:${CURRENT_TERM.id}:${section.courseCode}`),
@@ -114,7 +114,7 @@ export async function seedGrades(tx: Transaction, context: SeedContext) {
           termId: CURRENT_TERM.id,
           enrollmentId: enrollment.id,
           source: "class",
-          ...courseGrade(total),
+          ...courseGrade(total, REGULATION_RULES.grading.scale),
           recordedAt: new Date(mockDate(-2, "15:00")),
         });
       }

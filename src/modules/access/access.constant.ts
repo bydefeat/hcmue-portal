@@ -45,6 +45,7 @@ export const PERMISSION_GROUPS: { label: string; permissions: { key: Permission;
     label: "Báo cáo",
     permissions: [
       { key: "reports.view", label: "Xem thống kê, cảnh báo học vụ" },
+      { key: "warnings.manage", label: "Xử lý cảnh báo học vụ, gửi thông báo cho sinh viên" },
       { key: "surveys.view", label: "Xem kết quả khảo sát giảng dạy" },
     ],
   },

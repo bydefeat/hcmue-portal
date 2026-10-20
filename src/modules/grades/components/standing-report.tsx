@@ -2,7 +2,7 @@
 
 import { Table, Tooltip, type TableColumnsType } from "antd";
 import { EmptyState } from "@/shared/components/ui/empty-state";
-import { formatPoint, STANDING_SCALE } from "@/modules/grades/grades.constant";
+import { formatPoint, STANDINGS } from "@/modules/grades/grades.constant";
 import type { AcademicStanding, FacultyStandingSummary } from "@/modules/grades/grades.type";
 
 const SEGMENT_CLASS: Record<AcademicStanding, string> = {
@@ -15,10 +15,10 @@ const SEGMENT_CLASS: Record<AcademicStanding, string> = {
 };
 
 function DistributionBar({ counts, total }: { counts: Record<AcademicStanding, number>; total: number }) {
-  const summary = STANDING_SCALE.map((step) => `${step.label} ${counts[step.standing]}`).join(", ");
+  const summary = STANDINGS.map((step) => `${step.label} ${counts[step.standing]}`).join(", ");
   return (
     <div role="img" aria-label={summary} className="flex h-3 w-full min-w-40 gap-0.5 overflow-hidden rounded-full bg-border-strong">
-      {STANDING_SCALE.filter((step) => counts[step.standing] > 0).map((step) => (
+      {STANDINGS.filter((step) => counts[step.standing] > 0).map((step) => (
         <Tooltip key={step.standing} title={`${step.label}: ${counts[step.standing]} sinh viên (${Math.round((counts[step.standing] / total) * 100)}%)`}>
           <div className={`h-full ${SEGMENT_CLASS[step.standing]}`} style={{ width: `${(counts[step.standing] / total) * 100}%` }} />
         </Tooltip>
@@ -28,7 +28,7 @@ function DistributionBar({ counts, total }: { counts: Record<AcademicStanding, n
 }
 
 export function StandingLegend({ summaries }: { summaries: FacultyStandingSummary[] }) {
-  const totals = STANDING_SCALE.map((step) => ({ ...step, count: summaries.reduce((sum, entry) => sum + entry.counts[step.standing], 0) }));
+  const totals = STANDINGS.map((step) => ({ ...step, count: summaries.reduce((sum, entry) => sum + entry.counts[step.standing], 0) }));
   return (
     <ul className="flex flex-wrap gap-x-5 gap-y-2 text-sm">
       {totals.map((step) => (

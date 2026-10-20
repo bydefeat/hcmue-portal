@@ -20,6 +20,8 @@ export const auditEntityTypeEnum = pgEnum("audit_entity_type", [
   "calendar-event",
   "report",
   "program",
+  "course",
+  "graduation",
 ]);
 
 export const auditLogs = pgTable(

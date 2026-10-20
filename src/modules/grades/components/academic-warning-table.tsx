@@ -17,6 +17,8 @@ type AcademicWarningTableProps = {
   warnings: AcademicWarning[];
   studentHrefBase: string;
   showFaculty?: boolean;
+  // Người xem có quyền xử lý (cố vấn của lớp, cán bộ có warnings.manage); chỉ xem thì ẩn nút.
+  canAdvance?: boolean;
 };
 
 const NEXT_STATUS: Partial<Record<WarningStatus, { status: WarningStatus; label: string; done: string }>> = {
@@ -24,7 +26,7 @@ const NEXT_STATUS: Partial<Record<WarningStatus, { status: WarningStatus; label:
   notified: { status: "resolved", label: "Ghi nhận đã gặp", done: "Đã ghi nhận buổi gặp sinh viên" },
 };
 
-export function AcademicWarningTable({ warnings, studentHrefBase, showFaculty = false }: AcademicWarningTableProps) {
+export function AcademicWarningTable({ warnings, studentHrefBase, showFaculty = false, canAdvance = true }: AcademicWarningTableProps) {
   const [messageApi, contextHolder] = message.useMessage();
   const [statuses, setStatuses] = useState<Record<string, WarningStatus>>({});
   const [query, setQuery] = useState("");
@@ -137,7 +139,7 @@ export function AcademicWarningTable({ warnings, studentHrefBase, showFaculty = 
         return (
           <div className="flex flex-col items-start gap-1">
             <StatusTag status={WARNING_STATUS[row.status]} />
-            {next && (
+            {next && canAdvance && (
               <Button size="small" loading={busyId === row.id} disabled={busyId !== null && busyId !== row.id} onClick={() => advance(row)}>
                 {next.label}
               </Button>

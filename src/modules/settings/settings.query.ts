@@ -1,7 +1,8 @@
 import "server-only";
 import { cache } from "react";
-import { and, asc, avg, count, countDistinct, desc, eq, isNotNull, lte, sql } from "drizzle-orm";
+import { and, asc, avg, count, countDistinct, desc, eq, sql } from "drizzle-orm";
 import { db } from "@/shared/libs/db.lib";
+import { schoolToday } from "@/shared/libs/date.lib";
 import { requirePermission } from "@/modules/access/access.query";
 import { requireSession } from "@/modules/authentication/authentication.query";
 import { user } from "@/modules/authentication/authentication.schema";
@@ -9,44 +10,27 @@ import { formatStudentCode } from "@/shared/libs/student-code.lib";
 import { CLASS_SECTION_STATUS } from "@/modules/course-registration/course-registration.constant";
 import { classSections, terms } from "@/modules/course-registration/course-registration.schema";
 import { courses, faculties, majors } from "@/modules/curriculum/curriculum.schema";
-import { STANDING_LABEL, WARNING_STATUS } from "@/modules/grades/grades.constant";
-import { buildTranscript, computeStanding, type TranscriptTermInput } from "@/modules/grades/grades.rule";
-import type { TranscriptCourse } from "@/modules/grades/grades.type";
-import { academicWarnings, courseResults } from "@/modules/grades/grades.schema";
+import { STANDING_LABEL, UNRANKED_LABEL, WARNING_STATUS } from "@/modules/grades/grades.constant";
+import { cumulativeResults } from "@/modules/grades/grades.lib";
+import { toStanding } from "@/modules/grades/grades.rule";
+import { academicWarnings } from "@/modules/grades/grades.schema";
 import { graduationRecords } from "@/modules/graduation/graduation.schema";
 import { surveyAnswers, surveyResponses, surveys } from "@/modules/surveys/surveys.schema";
 import { STUDENT_STATUS } from "@/modules/users/users.constant";
 import { administrativeClasses, lecturers, students } from "@/modules/users/users.schema";
 import { REPORT_DEFINITIONS } from "@/modules/settings/settings.constant";
-import { calendarEvents, regulations, reportExports, type RegulationRules } from "@/modules/settings/settings.schema";
+import { regulationAt, REGULATION_COLUMNS, toRegulation } from "@/modules/settings/settings.lib";
+import { calendarEvents, regulations, reportExports } from "@/modules/settings/settings.schema";
 import type { CalendarEvent, RegulationSettings, RegulationVersion, ReportCell, ReportExportJob, ReportExportStatus } from "@/modules/settings/settings.type";
 
-const REGULATION_COLUMNS = {
-  version: regulations.version,
-  effectiveFrom: regulations.effectiveFrom,
-  rules: regulations.rules,
-  createdAt: regulations.createdAt,
-  createdBy: user.name,
-};
+// Bản quy chế đang áp dụng hôm nay (giờ Việt Nam). Nhiều trang và quy tắc (đăng ký, điểm danh, điểm, cảnh báo) gọi trong cùng request
+// nên cache theo request. Module khác cần tham số quy chế thì gọi hàm này (hoặc regulationAt trong settings.lib khi ở trong transaction).
+export const getRegulation = cache(async (): Promise<RegulationSettings> => getRegulationAt(schoolToday()));
 
-type RegulationRow = { version: string; effectiveFrom: string; rules: RegulationRules; createdAt: Date; createdBy: string | null };
-
-function toRegulation({ version, effectiveFrom, rules, createdAt, createdBy }: RegulationRow): RegulationSettings {
-  return { version, effectiveFrom, updatedAt: createdAt.toISOString(), updatedBy: createdBy ?? "Hệ thống", ...rules };
-}
-
-// Bản quy chế đang áp dụng hôm nay: ngày áp dụng gần nhất không sau hôm nay. Chưa có bản nào tới ngày thì lấy bản sớm nhất.
-// Nhiều trang và quy tắc (đăng ký, điểm danh, lịch thi) gọi trong cùng request nên cache theo request.
-export const getRegulation = cache(async (): Promise<RegulationSettings> => {
+// Bản quy chế áp dụng tại một ngày ("YYYY-MM-DD", ngày của trường).
+export const getRegulationAt = cache(async (date: string): Promise<RegulationSettings> => {
   await requireSession();
-  const [row] = await db
-    .select(REGULATION_COLUMNS)
-    .from(regulations)
-    .leftJoin(user, eq(user.id, regulations.createdByUserId))
-    .orderBy(sql`${regulations.effectiveFrom} <= current_date DESC`, sql`CASE WHEN ${regulations.effectiveFrom} <= current_date THEN ${regulations.effectiveFrom} END DESC`, asc(regulations.effectiveFrom))
-    .limit(1);
-  if (!row) throw new Error("Chưa có quy chế đào tạo trong hệ thống");
-  return toRegulation(row);
+  return regulationAt(db, date);
 });
 
 // Trang sửa quy chế mở bản mới nhất, kể cả bản đã lưu nhưng chưa tới ngày áp dụng.
@@ -176,7 +160,8 @@ export async function getReportTable(reportKey: string, termId: string, faculty:
       };
     }
     case "standing": {
-      const [people, results] = await Promise.all([
+      // CPA, tín chỉ theo lần học cuối của mỗi học phần đến hết học kỳ đã chọn, tính trong SQL; chưa có điểm thì Chưa xếp loại.
+      const [people, results, regulation] = await Promise.all([
         db
           .select(studentColumns)
           .from(students)
@@ -185,46 +170,23 @@ export async function getReportTable(reportKey: string, termId: string, faculty:
           .innerJoin(faculties, eq(faculties.id, majors.facultyId))
           .where(and(eq(students.status, "studying"), byFaculty))
           .orderBy(faculties.name, administrativeClasses.code, students.code),
-        db
-          .select({
-            studentId: courseResults.studentId,
-            termId: courseResults.termId,
-            termName: terms.name,
-            courseCode: courses.code,
-            courseName: courses.name,
-            credits: courses.credits,
-            score10: courseResults.score10,
-            letter: courseResults.letter,
-            point4: courseResults.point4,
-          })
-          .from(courseResults)
-          .innerJoin(terms, eq(terms.id, courseResults.termId))
-          .innerJoin(courses, eq(courses.id, courseResults.courseId))
-          .where(and(isNotNull(courseResults.point4), lte(terms.startDate, term.startDate)))
-          .orderBy(terms.startDate),
+        cumulativeResults(db, { upToTermStart: term.startDate }),
+        getRegulation(),
       ]);
-      // Kết quả theo sinh viên, giữ thứ tự học kỳ để CPA tính như trang kết quả học tập.
-      const termsOf = new Map<string, Map<string, TranscriptTermInput>>();
-      for (const { studentId, termId: resultTermId, termName, letter, ...course } of results) {
-        const byTerm = termsOf.get(studentId) ?? new Map<string, TranscriptTermInput>();
-        const entry = byTerm.get(resultTermId) ?? { termId: resultTermId, termName, isInProgress: false, courses: [] };
-        entry.courses.push({ ...course, letter: letter as TranscriptCourse["letter"] });
-        byTerm.set(resultTermId, entry);
-        termsOf.set(studentId, byTerm);
-      }
       return {
-        header: ["MSSV", "Họ và tên", "Lớp", "Khoa", "Tín chỉ tích lũy", "CPA hệ 4", "CPA hệ 10", "Xếp loại"],
+        header: ["MSSV", "Họ và tên", "Lớp", "Khoa", "Tín chỉ tích lũy", "Tín chỉ nợ", "CPA hệ 4", "CPA hệ 10", "Xếp loại"],
         rows: people.map((person) => {
-          const standing = computeStanding(person.id, buildTranscript([...(termsOf.get(person.id)?.values() ?? [])]));
+          const result = results.get(person.id);
           return [
             formatStudentCode(person.code),
             person.fullName,
             person.className,
             person.faculty,
-            standing.earnedCredits,
-            decimal(standing.cpa4),
-            decimal(standing.cpa10),
-            standing.earnedCredits > 0 ? STANDING_LABEL[standing.standing] : "Chưa có điểm",
+            result?.earnedCredits ?? 0,
+            result?.failedCredits ?? 0,
+            decimal(result?.cpa4 ?? null),
+            decimal(result?.cpa10 ?? null),
+            result ? STANDING_LABEL[toStanding(result.cpa4, regulation.grading.standing)] : UNRANKED_LABEL,
           ];
         }),
       };

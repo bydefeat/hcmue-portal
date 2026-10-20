@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { STANDING_LABEL } from "@/modules/grades/grades.constant";
+import { standingLabel } from "@/modules/grades/grades.constant";
 import { getStudentStandings } from "@/modules/grades/grades.query";
 import { StudentTable } from "@/modules/users/components/student-table";
 import { getAccountStates, getCohorts, getStudents } from "@/modules/users/users.query";
@@ -21,8 +21,8 @@ export default async function Page() {
     const standing = standingById.get(student.id);
     return {
       ...student,
-      cpa4: standing && standing.earnedCredits > 0 ? standing.cpa4 : null,
-      standingLabel: standing ? STANDING_LABEL[standing.standing] : null,
+      cpa4: standing?.cpa4 ?? null,
+      standingLabel: standing?.standing ? standingLabel(standing.standing) : null,
       account: accounts[student.id] ?? NO_ACCOUNT,
     };
   });

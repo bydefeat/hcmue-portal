@@ -1,11 +1,12 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Button, Card, DatePicker, Form, Input, InputNumber, message, Modal, Table } from "antd";
+import { Button, Card, DatePicker, Form, Input, InputNumber, message, Modal, Select, Switch, Table } from "antd";
 import type { Dayjs } from "dayjs";
 import { StatusTag } from "@/shared/components/ui/status-tag";
 import { dayjs, formatDate, formatDateTime } from "@/shared/libs/date.lib";
 import { saveRegulation } from "@/modules/settings/settings.action";
+import { CEFR_LEVELS, DISCIPLINE_LEVEL_LABEL, DISCIPLINE_LEVELS, RANKED_STANDING_LABEL, ROUNDING_STEPS } from "@/modules/settings/settings.constant";
 import type { RegulationSettings, RegulationVersion } from "@/modules/settings/settings.type";
 import { SectionCard } from "@/shared/components/ui/section-card";
 
@@ -69,9 +70,9 @@ export function RegulationForm({ regulation, versions }: RegulationFormProps) {
 
   const save = (values: SaveValues) =>
     startSaving(async () => {
-      const { grading, credits, warning, attendance, workflow } = form.getFieldsValue(true) as RegulationSettings;
+      const { grading, credits, warning, attendance, workflow, graduation } = form.getFieldsValue(true) as RegulationSettings;
       const result = await saveRegulation({
-        rules: { grading, credits, warning, attendance, workflow },
+        rules: { grading, credits, warning, attendance, workflow, graduation },
         decision: values.decision,
         reason: values.reason,
         effectiveFrom: values.effectiveFrom.format("YYYY-MM-DD"),
@@ -147,13 +148,27 @@ export function RegulationForm({ regulation, versions }: RegulationFormProps) {
             )}
           </Form.List>
           <div className="grid gap-x-3 sm:grid-cols-2">
-            <NumberField name={["grading", "passScore"]} label="Điểm đạt học phần" min={0} max={10} step={0.5} />
-            <NumberField name={["grading", "roundingStep"]} label="Làm tròn điểm học phần đến" min={0.1} max={1} step={0.1} />
+            <Form.Item name={["grading", "roundingStep"]} label="Làm tròn điểm học phần đến" extra="Điểm tổng kết làm tròn theo bước này rồi mới quy đổi điểm chữ; điểm dưới mức D là F (không đạt).">
+              <Select options={ROUNDING_STEPS.map((step) => ({ value: step, label: String(step).replace(".", ",") }))} className="w-full" />
+            </Form.Item>
+          </div>
+        </SectionCard>
+
+        <SectionCard title="Xếp loại học lực và tốt nghiệp">
+          <SectionDescription>CPA thang 4 thấp nhất của từng mức. Sinh viên chưa có điểm học phần nào là Chưa xếp loại; tốt nghiệp cần CPA từ mức Trung bình.</SectionDescription>
+          <div className="grid gap-x-3 sm:grid-cols-2 lg:grid-cols-3">
+            <NumberField name={["grading", "standing", "excellent"]} label="Xuất sắc từ" min={0} max={4} step={0.1} />
+            <NumberField name={["grading", "standing", "veryGood"]} label="Giỏi từ" min={0} max={4} step={0.1} />
+            <NumberField name={["grading", "standing", "good"]} label="Khá từ" min={0} max={4} step={0.1} />
+            <NumberField name={["grading", "standing", "average"]} label="Trung bình từ" min={0} max={4} step={0.1} />
+            <NumberField name={["grading", "standing", "weak"]} label="Yếu từ (dưới là Kém)" min={0} max={4} step={0.1} />
           </div>
         </SectionCard>
 
         <SectionCard title="Hạn mức tín chỉ">
-          <SectionDescription>Áp dụng khi kiểm tra đăng ký học phần. Sinh viên bị cảnh báo học vụ dùng hạn mức riêng.</SectionDescription>
+          <SectionDescription>
+            Áp dụng khi kiểm tra đăng ký học phần và kế hoạch học tập. Học kỳ hè không bắt buộc số tín chỉ tối thiểu. Sinh viên đang bị cảnh báo học vụ (cảnh báo đã gửi của học kỳ gần nhất) dùng hạn mức riêng.
+          </SectionDescription>
           <div className="grid gap-x-3 sm:grid-cols-2 lg:grid-cols-3">
             <NumberField name={["credits", "minPerTerm"]} label="Tối thiểu mỗi học kỳ" min={0} max={30} suffix="TC" />
             <NumberField name={["credits", "maxPerTerm"]} label="Tối đa mỗi học kỳ" min={1} max={40} suffix="TC" />
@@ -164,18 +179,22 @@ export function RegulationForm({ regulation, versions }: RegulationFormProps) {
         </SectionCard>
 
         <SectionCard title="Cảnh báo học vụ">
-          <SectionDescription>Hệ thống tự xét cảnh báo sau khi công bố điểm học kỳ theo các ngưỡng dưới đây.</SectionDescription>
+          <SectionDescription>
+            Xét sau mỗi học kỳ chính theo các ngưỡng dưới đây; nợ tín chỉ tính theo lần học cuối của từng học phần. Bị cảnh báo đủ số học kỳ liên tiếp thì sinh viên vào danh sách đề xuất xét buộc
+            thôi học.
+          </SectionDescription>
           <div className="grid gap-x-3 sm:grid-cols-2 lg:grid-cols-3">
             <NumberField name={["warning", "level1TermGpa"]} label="Mức 1: ĐTB học kỳ dưới" min={0} max={4} step={0.1} />
             <NumberField name={["warning", "level1FailedCredits"]} label="Mức 1: nợ từ" min={0} max={60} suffix="TC" />
             <NumberField name={["warning", "level2Cpa"]} label="Mức 2: CPA dưới" min={0} max={4} step={0.1} />
             <NumberField name={["warning", "level2FailedCredits"]} label="Mức 2: nợ từ" min={0} max={60} suffix="TC" />
             <NumberField name={["warning", "level3Cpa"]} label="Mức 3: CPA dưới" min={0} max={4} step={0.1} />
+            <NumberField name={["warning", "expelAfterWarnings"]} label="Đề xuất thôi học khi cảnh báo liên tiếp" min={1} max={6} suffix="học kỳ" />
           </div>
         </SectionCard>
 
         <SectionCard title="Chuyên cần và thời hạn xử lý">
-          <SectionDescription>Thời hạn tính theo ngày từ khi việc đến lượt người xử lý.</SectionDescription>
+          <SectionDescription>Hạn nhập điểm tính từ ngày thi cuối kỳ của lớp, lớp chưa có lịch thi thì từ ngày kết thúc học kỳ. Các thời hạn khác tính từ khi việc đến lượt người xử lý.</SectionDescription>
           <div className="grid gap-x-3 sm:grid-cols-2 lg:grid-cols-3">
             <NumberField name={["attendance", "absenceLimitPercent"]} label="Vắng quá thì cấm thi" min={0} max={100} suffix="%" />
             <NumberField name={["workflow", "gradeEntryDays"]} label="Hạn nhập điểm sau ngày thi" min={1} max={30} suffix="ngày" />
@@ -183,6 +202,25 @@ export function RegulationForm({ regulation, versions }: RegulationFormProps) {
             <NumberField name={["workflow", "studyPlanReviewDays"]} label="Cố vấn duyệt kế hoạch trong" min={1} max={14} suffix="ngày" />
             <NumberField name={["workflow", "regradeWindowDays"]} label="Nhận đơn phúc khảo trong" min={1} max={30} suffix="ngày" />
             <NumberField name={["workflow", "registrationClosingSoonHours"]} label="Báo đợt sắp đóng trước" min={1} max={168} suffix="giờ" />
+          </div>
+        </SectionCard>
+
+        <SectionCard title="Xét tốt nghiệp">
+          <SectionDescription>Hạng tốt nghiệp theo CPA, bị giảm một mức nếu khối lượng học lại vượt tỉ lệ dưới đây hoặc bị kỷ luật từ mức đã chọn trong thời gian học.</SectionDescription>
+          <div className="grid gap-x-3 sm:grid-cols-2 lg:grid-cols-3">
+            <NumberField name={["graduation", "retakeLimitPercent"]} label="Học lại vượt quá" min={0} max={100} step={0.5} suffix="% tín chỉ" />
+            <Form.Item name={["graduation", "downgradeDisciplineLevel"]} label="Kỷ luật từ mức">
+              <Select options={DISCIPLINE_LEVELS.map((level) => ({ value: level, label: DISCIPLINE_LEVEL_LABEL[level] }))} className="w-full" />
+            </Form.Item>
+            <Form.Item name={["graduation", "downgradeStandings"]} label="Hạng bị giảm">
+              <Select mode="multiple" options={Object.entries(RANKED_STANDING_LABEL).map(([value, label]) => ({ value, label }))} className="w-full" />
+            </Form.Item>
+            <Form.Item name={["graduation", "languageMinLevel"]} label="Chuẩn ngoại ngữ tối thiểu" extra="Bậc theo khung tham chiếu châu Âu (bậc 3 của Việt Nam là B1).">
+              <Select options={CEFR_LEVELS.map((level) => ({ value: level, label: level }))} className="w-full" />
+            </Form.Item>
+            <Form.Item name={["graduation", "requireItCertificate"]} label="Bắt buộc chứng chỉ tin học" valuePropName="checked">
+              <Switch />
+            </Form.Item>
           </div>
         </SectionCard>
 

@@ -1,4 +1,6 @@
-export type GraduationCheckKey = "credits" | "cpa" | "failed" | "language" | "it" | "tuition" | "discipline";
+import type { CefrLevel, DisciplineLevel, RankedStanding } from "@/modules/settings/settings.type";
+
+export type GraduationCheckKey = "program" | "credits" | "required" | "cpa" | "failed" | "language" | "it" | "tuition" | "discipline";
 
 export type GraduationCheck = {
   key: GraduationCheckKey;
@@ -12,10 +14,11 @@ export type GraduationStatus = "eligible" | "missing" | "approved" | "graduated"
 export type GraduationExtras = {
   studentId: string;
   languageCertificate: string | null;
+  languageLevel: CefrLevel | null;
   itCertificate: string | null;
-  tuitionCleared: boolean;
-  disciplineFree: boolean;
 };
+
+export type GraduationDiscipline = { title: string; level: DisciplineLevel; effectiveDate: string };
 
 export type GraduationInput = GraduationExtras & {
   code: string;
@@ -23,16 +26,33 @@ export type GraduationInput = GraduationExtras & {
   className: string;
   faculty: string;
   majorName: string;
+  cohort: number;
+  program: { name: string; totalCredits: number } | null;
   earnedCredits: number;
-  requiredCredits: number;
-  cpa4: number;
+  cpa4: number | null;
   failedCredits: number;
+  // Tổng tín chỉ các lần học bị F (khối lượng phải học lại), so với tỉ lệ giảm hạng của quy chế.
+  retakeCredits: number;
+  // Học phần bắt buộc trong khung chưa học đạt (kể cả qua học phần tương đương).
+  missingRequired: { code: string; name: string }[];
+  certificatesVerifiedAt: string | null;
+  // Số tiền học phí còn nợ trên mọi hóa đơn.
+  outstandingTuition: number;
+  // Quyết định kỷ luật đã ký, chưa thu hồi trong thời gian học.
+  disciplines: GraduationDiscipline[];
   alreadyGraduated: boolean;
   isApproved: boolean;
 };
 
 export type GraduationCandidate = GraduationInput & {
+  requiredCredits: number;
   checks: GraduationCheck[];
   status: GraduationStatus;
+  // Hạng tốt nghiệp sau khi xét giảm hạng; null khi CPA dưới mức Trung bình hoặc chưa có điểm.
+  rank: RankedStanding | null;
+  baseRank: RankedStanding | null;
   classification: string;
+  downgradeReasons: string[];
 };
+
+export type GraduationRound = { id: string; name: string; cohorts: number[]; updatedAt: string };

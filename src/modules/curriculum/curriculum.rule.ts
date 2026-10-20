@@ -66,6 +66,13 @@ export function programSemesterLimit(durationYears: number) {
   return Math.min(PROGRAM_MAX_SEMESTER, durationYears * 2);
 }
 
+// Chương trình đã ngừng áp dụng là trạng thái cuối: không mở lại (sinh viên khóa cũ đã xét theo khung đó). Muốn dùng lại thì tạo
+// chương trình mới. DB chặn thêm bằng trigger programs_archived_final.
+export function programStatusChangeError(from: ProgramStatus, to: ProgramStatus) {
+  if (from === "archived" && to !== "archived") return "Chương trình đã ngừng áp dụng, không mở lại được. Tạo chương trình mới nếu cần áp dụng lại.";
+  return null;
+}
+
 // Chương trình ngừng áp dụng chỉ xem; DB chặn thêm bằng trigger program_courses_program_archived.
 export function isProgramEditable(status: ProgramStatus) {
   return status !== "archived";

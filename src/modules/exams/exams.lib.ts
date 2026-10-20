@@ -123,7 +123,8 @@ export async function sessionForWrite(tx: Transaction, id: string) {
 
 export type SessionForWrite = NonNullable<Awaited<ReturnType<typeof sessionForWrite>>>;
 
-export const sessionLabel = (exam: { kind: ExamKind; classCode: string }) => `${EXAM_KIND_LABEL[exam.kind].toLowerCase()} lớp ${exam.classCode}`;
+// "giữa kỳ lớp X", "bù lớp X": ghép sau "Lịch thi", "Đề thi", "ca thi".
+export const sessionLabel = (exam: { kind: ExamKind; classCode: string }) => `${exam.kind === "makeup" ? "bù" : EXAM_KIND_LABEL[exam.kind].toLowerCase()} lớp ${exam.classCode}`;
 
 const whenText = (slot: { date: string; startTime: string }) => `${slot.startTime.slice(0, 5)} ngày ${formatDate(slot.date)}`;
 

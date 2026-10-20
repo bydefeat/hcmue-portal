@@ -28,7 +28,13 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ o
   return (
     <StudentRequestCenter
       requests={requests}
-      rules={{ maxPerTerm: regulation.credits.maxPerTerm, overloadMinCpa: regulation.credits.overloadMinCpa, regradeWindowDays: regulation.workflow.regradeWindowDays }}
+      rules={{
+        maxPerTerm: regulation.credits.maxPerTerm,
+        overloadMinCpa: regulation.credits.overloadMinCpa,
+        overloadExtraCredits: regulation.credits.overloadExtraCredits,
+        regradeWindowDays: regulation.workflow.regradeWindowDays,
+        maxReserveTerms: regulation.workflow.maxReserveTerms,
+      }}
       initialOpenId={open}
       sections={timetable.map(({ section }) => ({ value: section.id, label: `${section.code} ${section.courseName}` }))}
       requester={{

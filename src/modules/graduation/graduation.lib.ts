@@ -5,7 +5,8 @@ import { formatStudentCode } from "@/shared/libs/student-code.lib";
 import { inScope } from "@/modules/access/access.constant";
 import type { Viewer } from "@/modules/access/access.type";
 import { terms } from "@/modules/course-registration/course-registration.schema";
-import { programFor, programsOf, requiredCoursesOf } from "@/modules/curriculum/curriculum.lib";
+import { conditionalCoursesOf, electiveGroupsOf, programFor, programsOf, requiredCoursesOf } from "@/modules/curriculum/curriculum.lib";
+import { electiveProgress } from "@/modules/curriculum/curriculum.rule";
 import { faculties, majors } from "@/modules/curriculum/curriculum.schema";
 import { loadTranscripts } from "@/modules/grades/grades.lib";
 import { computeStanding, latestGrades, standingRulesOf } from "@/modules/grades/grades.rule";
@@ -101,9 +102,12 @@ export async function loadGraduationCandidates(viewer: Pick<Viewer, "faculty">, 
     outstandingTuitionOf(executor, ids),
     disciplinesOf(executor, ids),
   ]);
-  const [transcripts, required] = await Promise.all([
+  const programIds = [...programs.values()].map((program) => program.id);
+  const [transcripts, required, conditional, electiveGroups] = await Promise.all([
     loadTranscripts(executor, ids, { currentTermId: current?.id ?? null }),
-    requiredCoursesOf(executor, [...programs.values()].map((program) => program.id)),
+    requiredCoursesOf(executor, programIds),
+    conditionalCoursesOf(executor, programIds),
+    electiveGroupsOf(executor, programIds),
   ]);
   const recordOf = new Map(records.map((record) => [record.studentId, record]));
   const rules = standingRulesOf(regulation);
@@ -116,9 +120,11 @@ export async function loadGraduationCandidates(viewer: Pick<Viewer, "faculty">, 
       const passed = (code: string) => grades[code] !== undefined && grades[code] !== "F";
       const record = recordOf.get(student.id);
       const program = programFor(programs, student);
-      const missingRequired = program
-        ? (required.get(program.id) ?? []).filter((course) => !passed(course.code) && !course.equivalentCodes.some(passed)).map(({ code, name }) => ({ code, name }))
-        : [];
+      const missing = (courses: { code: string; name: string; equivalentCodes: string[] }[] | undefined) =>
+        (courses ?? []).filter((course) => !passed(course.code) && !course.equivalentCodes.some(passed)).map(({ code, name }) => ({ code, name }));
+      const missingRequired = program ? missing(required.get(program.id)) : [];
+      const missingConditional = program ? missing(conditional.get(program.id)) : [];
+      const electives = program ? electiveProgress(electiveGroups.get(program.id) ?? [], passed).map(({ name, minCredits, earnedCredits }) => ({ name, minCredits, earnedCredits })) : [];
       return evaluateGraduation(
         {
           studentId: student.id,
@@ -134,6 +140,8 @@ export async function loadGraduationCandidates(viewer: Pick<Viewer, "faculty">, 
           failedCredits: standing.failedCredits,
           retakeCredits: standing.retakeCredits,
           missingRequired,
+          missingConditional,
+          electives,
           languageCertificate: record?.languageCertificate ?? null,
           languageLevel: (record?.languageLevel as CefrLevel | null) ?? null,
           itCertificate: record?.itCertificate ?? null,

@@ -247,7 +247,7 @@ async function tryLockRegistration(tx: Transaction, studentId: string, termId: s
 async function gradeFactsOf(executor: Executor, student: RegistrationStudentFacts) {
   const [results, [program]] = await Promise.all([
     executor
-      .select({ code: courses.code, credits: courses.credits, letter: courseResults.letter })
+      .select({ code: courses.code, credits: courses.credits, letter: courseResults.letter, isConditional: courses.isConditional })
       .from(courseResults)
       .innerJoin(courses, eq(courses.id, courseResults.courseId))
       .innerJoin(terms, eq(terms.id, courseResults.termId))
@@ -265,7 +265,8 @@ async function gradeFactsOf(executor: Executor, student: RegistrationStudentFact
   const credits = new Map<string, number>();
   for (const result of results) {
     last[result.code] = result.letter!;
-    credits.set(result.code, result.credits);
+    // Học phần điều kiện không tính tín chỉ tích lũy của chương trình (vẫn tính "đã học đạt" cho tiên quyết).
+    credits.set(result.code, result.isConditional ? 0 : result.credits);
   }
   const earned = Object.entries(last)
     .filter(([, letter]) => letter !== "F")

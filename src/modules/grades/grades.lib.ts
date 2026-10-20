@@ -106,13 +106,14 @@ export type TranscriptOptions = {
   withOngoing?: boolean;
 };
 
-const transcriptCourse = (row: { courseCode: string; courseName: string; credits: number; score10: number | null; letter: string | null; point4: number | null }) => ({
+const transcriptCourse = (row: { courseCode: string; courseName: string; credits: number; score10: number | null; letter: string | null; point4: number | null; isConditional: boolean }) => ({
   courseCode: row.courseCode,
   courseName: row.courseName,
   credits: row.credits,
   score10: row.score10,
   letter: row.letter as LetterGrade | null,
   point4: row.point4,
+  ...(row.isConditional ? { isConditional: true } : {}),
 });
 
 // Bảng điểm theo kỳ của nhiều sinh viên, một nguồn cho trang sinh viên, xét cảnh báo, xét tốt nghiệp, báo cáo: các kỳ có kết quả học phần
@@ -135,6 +136,7 @@ export async function loadTranscripts(executor: Executor, studentIds: string[], 
             courseCode: courses.code,
             courseName: courses.name,
             credits: courses.credits,
+            isConditional: courses.isConditional,
             score10: courseResults.score10,
             letter: courseResults.letter,
             point4: courseResults.point4,
@@ -154,6 +156,7 @@ export async function loadTranscripts(executor: Executor, studentIds: string[], 
                 courseCode: courses.code,
                 courseName: courses.name,
                 credits: courses.credits,
+                isConditional: courses.isConditional,
               })
               .from(enrollments)
               .innerJoin(courses, eq(courses.id, enrollments.courseId))
@@ -208,6 +211,8 @@ export async function cumulativeResults(executor: Executor, options: { upToTermS
     .where(
       and(
         isNotNull(courseResults.point4),
+        // Học phần điều kiện không tính CPA, tín chỉ tích lũy (countsTowardAverage trong grades.rule).
+        eq(courses.isConditional, false),
         options.upToTermStart ? lte(terms.startDate, options.upToTermStart) : undefined,
         options.excludeCurrent ? eq(terms.isCurrent, false) : undefined,
       ),

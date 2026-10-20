@@ -123,6 +123,7 @@ function catalogCourse(code: string, credits: number, prerequisiteCodes: string[
     corequisiteCodes: [],
     equivalentCodes: [],
     isActive,
+    isConditional: false,
     description: "",
   };
 }
@@ -307,12 +308,12 @@ describe("curriculum: sửa khung chương trình trên DB", () => {
     });
   });
 
-  test("khung mẫu của mỗi chương trình đang áp dụng đủ tổng tín chỉ của chương trình", async () => {
+  test("khung mẫu của mỗi chương trình đang áp dụng đủ tổng tín chỉ của chương trình (không kể học phần điều kiện)", async () => {
     const rows = await db
       .select({ name: programs.name, totalCredits: programs.totalCredits, planned: sql<number>`coalesce(sum(${courses.credits}), 0)::int` })
       .from(programs)
       .leftJoin(programCourses, eq(programCourses.programId, programs.id))
-      .leftJoin(courses, eq(courses.id, programCourses.courseId))
+      .leftJoin(courses, and(eq(courses.id, programCourses.courseId), eq(courses.isConditional, false)))
       .where(eq(programs.status, "active"))
       .groupBy(programs.id);
     assert.equal(rows.length, 6);

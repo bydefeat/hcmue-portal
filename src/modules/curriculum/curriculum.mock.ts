@@ -13,6 +13,16 @@ const ENGLISH = "Khoa Tiếng Anh";
 const PHYSICS = "Khoa Vật lý";
 const PSYCHOLOGY = "Khoa Tâm lý học";
 
+// Học phần điều kiện (Thông tư 08/2021): Giáo dục thể chất, Giáo dục quốc phòng và an ninh. Chấm Đạt/Không đạt, không tính
+// điểm trung bình, tín chỉ tích lũy; mọi chương trình đang áp dụng có trong khung ở học kỳ 1, 2.
+export const CONDITIONAL_COURSE_CODES = ["PHYE1001", "PHYE1002", "DEFE1001"] as const;
+
+const CONDITIONAL_SEEDS: CourseSeed[] = [
+  ["PHYE1001", "Giáo dục thể chất 1", 1, EDUCATION, "required", "general"],
+  ["PHYE1002", "Giáo dục thể chất 2", 1, EDUCATION, "required", "general", ["PHYE1001"]],
+  ["DEFE1001", "Giáo dục quốc phòng và an ninh", 8, EDUCATION, "required", "general"],
+];
+
 const COURSE_SEEDS: CourseSeed[] = [
   ["POLI1001", "Triết học Mác - Lênin", 3, POLITICS, "required", "general"],
   ["POLI1002", "Kinh tế chính trị Mác - Lênin", 2, POLITICS, "required", "general", ["POLI1001"]],
@@ -59,6 +69,7 @@ const COURSE_SEEDS: CourseSeed[] = [
   ["PSYC2001", "Tâm lý học phát triển", 3, PSYCHOLOGY, "required", "major", ["PSYC1001"]],
   ["PSYC2010", "Tham vấn tâm lý học đường", 3, PSYCHOLOGY, "elective", "major", ["PSYC2001"]],
   ["COMP0999", "Tin học văn phòng nâng cao", 2, IT, "elective", "general"],
+  ...CONDITIONAL_SEEDS,
 ];
 
 const FACULTY_BY_PREFIX: Record<string, string> = {
@@ -103,8 +114,11 @@ const DESCRIPTIONS: Record<string, string> = {
   COMP1080: "Tìm kiếm trong không gian trạng thái, biểu diễn tri thức, suy diễn và nhập môn học máy.",
 };
 
+const CONDITIONAL = new Set<string>(CONDITIONAL_COURSE_CODES);
+
 export const COURSES: Course[] = [...COURSE_SEEDS, ...TRANSCRIPT_SEEDS].map(([code, name, credits, faculty, type, block, prerequisites = []]) => {
-  const practiceCredits = code.startsWith("COMP") && credits >= 3 ? 1 : 0;
+  // Giáo dục thể chất học hoàn toàn thực hành; quốc phòng có 3 tín chỉ thực hành.
+  const practiceCredits = code.startsWith("PHYE") ? credits : code === "DEFE1001" ? 3 : code.startsWith("COMP") && credits >= 3 ? 1 : 0;
   return {
     id: code.toLowerCase(),
     code,
@@ -119,6 +133,7 @@ export const COURSES: Course[] = [...COURSE_SEEDS, ...TRANSCRIPT_SEEDS].map(([co
     corequisiteCodes: COREQUISITES[code] ?? [],
     equivalentCodes: EQUIVALENTS[code] ?? [],
     isActive: code !== "COMP0999" && code !== "MATH1014",
+    isConditional: CONDITIONAL.has(code),
     description: DESCRIPTIONS[code] ?? `Học phần ${name.toLowerCase()} thuộc khối ${block === "general" ? "đại cương" : "ngành"}.`,
   };
 });
@@ -136,9 +151,55 @@ export const PROGRAMS: Program[] = [
 
 // Khung chương trình của các chương trình đang áp dụng: học phần theo đúng thứ tự sinh viên mẫu đã học
 // (mockCourseSequence), chia đều cho các học kỳ của khóa, để bảng điểm, kế hoạch học tập và xét tốt nghiệp khớp nhau.
+// Học phần điều kiện xếp thêm ở học kỳ 1, 2 (không tính vào tổng tín chỉ của chương trình nên không làm lệch khung).
 export const PROGRAM_COURSES: Record<string, ProgramCourse[]> = Object.fromEntries(
   PROGRAMS.filter((program) => program.status === "active").map((program) => [
     program.id,
-    mockCourseSequence(program.majorCode).map(([courseCode], position, all) => ({ courseCode, semester: Math.floor((position * program.durationYears * 2) / all.length) + 1 })),
+    [
+      ...mockCourseSequence(program.majorCode).map(([courseCode], position, all) => ({ courseCode, semester: Math.floor((position * program.durationYears * 2) / all.length) + 1 })),
+      { courseCode: "PHYE1001", semester: 1 },
+      { courseCode: "PHYE1002", semester: 2 },
+      { courseCode: "DEFE1001", semester: 2 },
+    ],
   ]),
 );
+
+export type ElectiveGroupSeed = { id: string; programId: string; name: string; minCredits: number; courseCodes: string[] };
+
+const courseOf = new Map(COURSES.map((course) => [course.code, course]));
+
+// Nhóm tự chọn của các chương trình đang áp dụng, lấy từ học phần tự chọn đã có trong khung: đại cương, chuyên ngành (3 tín chỉ),
+// chuyên đề (2 tín chỉ). Khóa luận (tự chọn khối thực tập) để ngoài nhóm. Số tín chỉ tối thiểu bằng khoảng một nửa số có trong
+// nhóm nên sinh viên khóa 48 đã học hết khung đều đạt, sinh viên khóa sau thấy tiến độ từng nhóm.
+export const ELECTIVE_GROUPS: ElectiveGroupSeed[] = Object.entries(PROGRAM_COURSES).flatMap(([programId, plan]) => {
+  const electives = plan.map((entry) => courseOf.get(entry.courseCode)!).filter((course) => course.type === "elective" && !course.isConditional && course.block !== "internship");
+  const groups = [
+    { key: "general", name: "Tự chọn đại cương", courses: electives.filter((course) => course.block === "general") },
+    { key: "major", name: "Tự chọn chuyên ngành", courses: electives.filter((course) => course.block !== "general" && course.credits >= 3) },
+    { key: "topic", name: "Chuyên đề tự chọn", courses: electives.filter((course) => course.block !== "general" && course.credits < 3) },
+  ];
+  return groups
+    .filter((group) => group.courses.length > 0)
+    .map((group) => {
+      const total = group.courses.reduce((sum, course) => sum + course.credits, 0);
+      const minCredits = group.courses.length === 1 ? total : Math.max(group.courses[0].credits, Math.floor(total / 2));
+      return { id: `${programId}:${group.key}`, programId, name: group.name, minCredits, courseCodes: group.courses.map((course) => course.code) };
+    });
+});
+
+// Kết quả học phần điều kiện của sinh viên mẫu: Giáo dục thể chất 1 ở học kỳ đầu, Giáo dục thể chất 2 và quốc phòng ở học kỳ
+// thứ hai đã học. Vài sinh viên khóa 50, 51 không đạt Giáo dục thể chất 2 để minh họa Không đạt (khóa đang xét tốt nghiệp đều đạt).
+export function conditionalResultSeeds(index: number, pastTermIds: string[], cohort: number) {
+  const score = (offset: number) => (60 + ((index * 7 + offset * 3) % 35)) / 10;
+  const [first, second] = pastTermIds;
+  return [
+    ...(first ? [{ courseCode: "PHYE1001", termId: first, score10: score(1) }] : []),
+    ...(second
+      ? [
+          { courseCode: "PHYE1002", termId: second, score10: cohort >= 50 && index % 47 === 20 ? 3.5 : score(2) },
+          { courseCode: "DEFE1001", termId: second, score10: score(3) },
+        ]
+      : []),
+  ];
+}
+

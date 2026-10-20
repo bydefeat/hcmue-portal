@@ -357,14 +357,12 @@ export function gradeChangeSheetBlockedReason(status: string | null) {
   return "Bảng điểm của lớp chưa chốt, sửa trực tiếp trên trang nhập điểm.";
 }
 
-// Học vượt: CPA từ ngưỡng của quy chế, số tín chỉ xin đăng ký phải vượt hạn mức tối đa mỗi học kỳ.
-export const OVERLOAD_EXTRA_CREDITS = 5;
-
-export function overloadBounds(rules: Pick<RequestRules, "maxPerTerm">) {
-  return { min: rules.maxPerTerm + 1, max: rules.maxPerTerm + OVERLOAD_EXTRA_CREDITS };
+// Học vượt: CPA từ ngưỡng của quy chế, số tín chỉ xin đăng ký vượt hạn mức tối đa mỗi học kỳ, không quá phần thêm của quy chế.
+export function overloadBounds(rules: Pick<RequestRules, "maxPerTerm" | "overloadExtraCredits">) {
+  return { min: rules.maxPerTerm + 1, max: rules.maxPerTerm + rules.overloadExtraCredits };
 }
 
-export function overloadBlockedReason(input: { credits: number; cpa4: number }, rules: Pick<RequestRules, "maxPerTerm" | "overloadMinCpa">) {
+export function overloadBlockedReason(input: { credits: number; cpa4: number }, rules: Pick<RequestRules, "maxPerTerm" | "overloadMinCpa" | "overloadExtraCredits">) {
   if (input.cpa4 < rules.overloadMinCpa) {
     return { field: "kind", message: `CPA hiện tại ${numberText(Number(input.cpa4.toFixed(2)))} dưới ngưỡng ${numberText(rules.overloadMinCpa)} nên chưa đủ điều kiện học vượt tín chỉ.` };
   }
@@ -391,7 +389,7 @@ export function requestKindDescription(kind: RequestKind, rules?: RequestRules) 
     case "exam-postpone":
       return "Vắng thi có lý do chính đáng, bắt buộc kèm minh chứng. Được thi ở đợt thi kế tiếp.";
     case "reserve":
-      return "Tạm dừng học, giữ nguyên kết quả đã tích lũy, thời gian bảo lưu theo quy chế đào tạo. Kèm minh chứng lý do.";
+      return `Tạm dừng học, giữ nguyên kết quả đã tích lũy, tổng thời gian bảo lưu ${rules ? `tối đa ${rules.maxReserveTerms} học kỳ` : "theo quy chế đào tạo"}. Kèm minh chứng lý do.`;
     case "transcript":
       return "Bảng điểm có đóng dấu, nhận tại Phòng Đào tạo hoặc gửi bản điện tử.";
     case "credit-transfer":

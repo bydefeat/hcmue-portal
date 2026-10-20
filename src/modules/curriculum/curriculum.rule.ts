@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { DEGREE_OPTIONS } from "@/modules/curriculum/curriculum.constant";
-import type { Course, FrameworkIssue, ProgramCourseChange, ProgramDetail, ProgramStatus } from "@/modules/curriculum/curriculum.type";
+import type { Course, FrameworkIssue, ProgramCourseChange, ProgramDetail, ProgramElectiveGroup, ProgramStatus } from "@/modules/curriculum/curriculum.type";
 
 const COURSE_CODE = /^[A-Z]{4}\d{4}$/;
 const DEGREES = DEGREE_OPTIONS.map((option) => option.value) as [string, ...string[]];
@@ -30,6 +30,7 @@ export const COURSE_SCHEMA = z
     equivalentCodes: courseCodes,
     description: z.string().trim().max(2000, "Tối đa 2000 ký tự").default(""),
     isActive: z.boolean(),
+    isConditional: z.boolean().default(false),
   })
   .refine((course) => course.theoryCredits + course.practiceCredits === course.credits, {
     path: ["practiceCredits"],
@@ -133,8 +134,8 @@ export function applyFrameworkChange(plan: FrameworkPlanEntry[], change: Program
 }
 
 // Điểm cần xem lại của khung, chỉ cảnh báo chứ không chặn lưu: tiên quyết phải xếp ở học kỳ trước, học phần ngừng mở,
-// tổng tín chỉ so với tổng của chương trình.
-export function frameworkIssues(program: Pick<ProgramDetail, "semesters" | "totalCredits" | "plannedCredits">): FrameworkIssue[] {
+// tổng tín chỉ so với tổng của chương trình, nhóm tự chọn không đủ học phần để đạt số tín chỉ tối thiểu.
+export function frameworkIssues(program: Pick<ProgramDetail, "semesters" | "totalCredits" | "plannedCredits"> & { electiveGroups?: ProgramElectiveGroup[] }): FrameworkIssue[] {
   const semesterOf = new Map(program.semesters.flatMap((semester) => semester.courses.map((course) => [course.code, semester.semester] as const)));
   const issues: FrameworkIssue[] = [];
   for (const semester of program.semesters) {
@@ -165,5 +166,65 @@ export function frameworkIssues(program: Pick<ProgramDetail, "semesters" | "tota
   if (difference > 0) {
     issues.push({ kind: "credits-over", courseCode: null, message: `Khung nhiều hơn tổng ${program.totalCredits} tín chỉ của chương trình ${difference} tín chỉ.` });
   }
+  for (const group of program.electiveGroups ?? []) {
+    if (group.availableCredits < group.minCredits) {
+      issues.push({
+        kind: "elective-group-short",
+        courseCode: null,
+        message: `Nhóm tự chọn "${group.name}" yêu cầu ${group.minCredits} tín chỉ nhưng các học phần của nhóm chỉ có ${group.availableCredits} tín chỉ.`,
+      });
+    }
+  }
   return issues;
+}
+
+// ---------- Nhóm học phần tự chọn ----------
+
+export const ELECTIVE_GROUP_SCHEMA = z.object({
+  name: z.string().trim().min(1, "Chưa nhập tên nhóm").max(120, "Tối đa 120 ký tự"),
+  minCredits: z.int("Chưa nhập số tín chỉ").min(1, "Ít nhất 1 tín chỉ").max(60, "Tối đa 60 tín chỉ"),
+  courseCodes: z
+    .array(frameworkCourseCode)
+    .min(1, "Chọn ít nhất một học phần")
+    .max(40, "Tối đa 40 học phần mỗi nhóm")
+    .transform((codes) => [...new Set(codes)]),
+});
+
+export type ElectiveGroupInput = z.input<typeof ELECTIVE_GROUP_SCHEMA>;
+
+type GroupPlanEntry = { courseCode: string; groupId: string | null };
+
+// Học phần của nhóm phải có trong khung, là học phần tự chọn, không phải học phần điều kiện và chưa thuộc nhóm khác.
+// DB chặn thêm bằng trigger program_courses_elective_group_course.
+export function electiveGroupError(
+  plan: GroupPlanEntry[],
+  input: { groupId: string | null; courseCodes: string[] },
+  catalog: Map<string, Pick<Course, "code" | "type" | "isConditional">>,
+  groupNames: Map<string, string>,
+): string | null {
+  const entryOf = new Map(plan.map((entry) => [entry.courseCode, entry]));
+  for (const code of input.courseCodes) {
+    const entry = entryOf.get(code);
+    if (!entry) return `Học phần ${code} chưa có trong khung, thêm vào khung trước.`;
+    const course = catalog.get(code);
+    if (!course) return `Không có học phần ${code} trong danh mục.`;
+    if (course.isConditional) return `${code} là học phần điều kiện, không xếp vào nhóm tự chọn.`;
+    if (course.type !== "elective") return `${code} là học phần bắt buộc, chỉ học phần tự chọn mới xếp vào nhóm.`;
+    if (entry.groupId && entry.groupId !== input.groupId) return `${code} đã thuộc nhóm "${groupNames.get(entry.groupId) ?? "khác"}".`;
+  }
+  return null;
+}
+
+export type ElectiveRequirement = { id: string; name: string; minCredits: number; courses: { code: string; name: string; credits: number; equivalentCodes: string[] }[] };
+
+export type ElectiveProgress = { id: string; name: string; minCredits: number; earnedCredits: number; passedCodes: string[]; met: boolean };
+
+// Tín chỉ tích lũy từng nhóm tự chọn: học phần của nhóm đã học đạt (lần học cuối), kể cả qua học phần tương đương.
+// Một nguồn cho xét tốt nghiệp và trang tiến độ chương trình.
+export function electiveProgress(groups: ElectiveRequirement[], isPassed: (code: string) => boolean): ElectiveProgress[] {
+  return groups.map((group) => {
+    const passed = group.courses.filter((course) => isPassed(course.code) || course.equivalentCodes.some(isPassed));
+    const earnedCredits = passed.reduce((sum, course) => sum + course.credits, 0);
+    return { id: group.id, name: group.name, minCredits: group.minCredits, earnedCredits, passedCodes: passed.map((course) => course.code), met: earnedCredits >= group.minCredits };
+  });
 }

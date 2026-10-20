@@ -68,6 +68,24 @@ export function evaluateGraduation(input: GraduationInput, rules: GraduationRule
           ? "Đã học đạt mọi học phần bắt buộc của khung"
           : `Còn thiếu ${input.missingRequired.length} học phần: ${input.missingRequired.map((course) => `${course.code} ${course.name}`).join(", ")}`,
     },
+    {
+      key: "conditional",
+      label: "Đạt học phần điều kiện",
+      passed: input.program !== null && input.missingConditional.length === 0,
+      detail:
+        input.missingConditional.length === 0
+          ? "Đạt mọi học phần điều kiện của khung (giáo dục thể chất, quốc phòng và an ninh)"
+          : `Chưa đạt ${input.missingConditional.length} học phần: ${input.missingConditional.map((course) => `${course.code} ${course.name}`).join(", ")}`,
+    },
+    {
+      key: "electives",
+      label: "Đủ tín chỉ tự chọn",
+      passed: input.program !== null && input.electives.every((group) => group.earnedCredits >= group.minCredits),
+      detail:
+        input.electives.length === 0
+          ? "Khung không có nhóm tự chọn"
+          : input.electives.map((group) => `${group.name} ${group.earnedCredits}/${group.minCredits} tín chỉ`).join(", "),
+    },
     { key: "cpa", label: `CPA từ ${point(minCpa)}`, passed: input.cpa4 !== null && input.cpa4 >= minCpa, detail: `CPA ${point(input.cpa4)}` },
     { key: "failed", label: "Không nợ học phần", passed: input.failedCredits === 0, detail: input.failedCredits === 0 ? "Không nợ" : `Nợ ${input.failedCredits} tín chỉ (lần học cuối F)` },
     {

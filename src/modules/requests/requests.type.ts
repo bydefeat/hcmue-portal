@@ -113,5 +113,7 @@ export type RequestKindConfig = {
 export type RequestRules = {
   maxPerTerm: number;
   overloadMinCpa: number;
+  overloadExtraCredits: number;
   regradeWindowDays: number;
+  maxReserveTerms: number;
 };

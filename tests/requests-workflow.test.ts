@@ -166,8 +166,10 @@ describe("requests: hàm quyền thuần", () => {
   });
 
   test("điều kiện gửi đơn theo quy chế", () => {
-    const rules = { maxPerTerm: 25, overloadMinCpa: 2.5, regradeWindowDays: 7 };
+    const rules = { maxPerTerm: 25, overloadMinCpa: 2.5, overloadExtraCredits: 5, regradeWindowDays: 7, maxReserveTerms: 2 };
     assert.equal(overloadBlockedReason({ credits: 28, cpa4: 3.1 }, rules), null);
+    // Phần học vượt thêm đọc từ quy chế: thêm 3 thì 29 tín chỉ là quá.
+    assert.equal(overloadBlockedReason({ credits: 29, cpa4: 3.1 }, { ...rules, overloadExtraCredits: 3 })?.field, "credits");
     assert.equal(overloadBlockedReason({ credits: 28, cpa4: 2.1 }, rules)?.field, "kind");
     assert.equal(overloadBlockedReason({ credits: 25, cpa4: 3.1 }, rules)?.field, "credits");
     assert.equal(overloadBlockedReason({ credits: 31, cpa4: 3.1 }, { ...rules, maxPerTerm: 25 })?.field, "credits");
@@ -188,6 +190,7 @@ describe("requests: hàm quyền thuần", () => {
     // Mô tả lấy số từ quy chế, không ghi cứng.
     assert.match(requestKindDescription("overload", { ...rules, maxPerTerm: 24, overloadMinCpa: 2.8 }), /24 tín chỉ.*2,8/);
     assert.match(requestKindDescription("regrade", { ...rules, regradeWindowDays: 10 }), /10 ngày/);
+    assert.match(requestKindDescription("reserve", { ...rules, maxReserveTerms: 3 }), /tối đa 3 học kỳ/);
   });
 
   test("cột cuối kỳ tìm theo khóa hoặc nhãn, không phân định được thì null", () => {

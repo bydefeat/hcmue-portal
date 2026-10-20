@@ -39,6 +39,8 @@ export type RegulationSettings = {
     maxSummer: number;
     maxWhenWarned: number;
     overloadMinCpa: number;
+    // Học vượt được duyệt đăng ký tối đa maxPerTerm cộng số tín chỉ này.
+    overloadExtraCredits: number;
   };
   warning: {
     level1TermGpa: number;
@@ -58,6 +60,8 @@ export type RegulationSettings = {
     studyPlanReviewDays: number;
     regradeWindowDays: number;
     registrationClosingSoonHours: number;
+    // Tổng số học kỳ bảo lưu tối đa trong thời gian học (kiểm khi gửi đơn và khi duyệt đơn bảo lưu).
+    maxReserveTerms: number;
   };
   graduation: {
     // Khối lượng học lại vượt quá phần trăm này của tổng tín chỉ chương trình thì hạng tốt nghiệp bị giảm một mức.

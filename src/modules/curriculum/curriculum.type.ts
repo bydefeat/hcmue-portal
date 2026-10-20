@@ -16,6 +16,8 @@ export type Course = {
   corequisiteCodes: string[];
   equivalentCodes: string[];
   isActive: boolean;
+  // Học phần điều kiện (GDTC, GDQP-AN): Đạt/Không đạt, không tính điểm trung bình, tín chỉ tích lũy.
+  isConditional: boolean;
   description: string;
 };
 
@@ -56,10 +58,29 @@ export type ProgramSemester = {
   courses: Course[];
 };
 
+// Nhóm tự chọn của chương trình: tích lũy ít nhất minCredits tín chỉ trong các học phần của nhóm.
+export type ProgramElectiveGroup = {
+  id: string;
+  name: string;
+  minCredits: number;
+  courseCodes: string[];
+  // Tổng tín chỉ các học phần của nhóm, để so với số tối thiểu.
+  availableCredits: number;
+};
+
 export type ProgramDetail = Program & {
   semesters: ProgramSemester[];
+  // Tín chỉ đã xếp vào khung, không kể học phần điều kiện (không tính vào tổng tín chỉ của chương trình).
   plannedCredits: number;
+  conditionalCredits: number;
   creditsByBlock: { block: KnowledgeBlock; credits: number }[];
+  electiveGroups: ProgramElectiveGroup[];
+};
+
+export type ElectiveGroupFormValues = {
+  name: string;
+  minCredits: number;
+  courseCodes: string[];
 };
 
 export type CourseFormValues = {
@@ -76,6 +97,7 @@ export type CourseFormValues = {
   equivalentCodes: string[];
   description: string;
   isActive: boolean;
+  isConditional: boolean;
 };
 
 export type ProgramFormValues = {
@@ -94,7 +116,7 @@ export type ProgramCourseChange =
   | { kind: "remove"; courseCode: string }
   | { kind: "move"; courseCode: string; semester: number };
 
-export type FrameworkIssueKind = "prerequisite-order" | "prerequisite-missing" | "inactive-course" | "credits-short" | "credits-over";
+export type FrameworkIssueKind = "prerequisite-order" | "prerequisite-missing" | "inactive-course" | "credits-short" | "credits-over" | "elective-group-short";
 
 export type FrameworkIssue = {
   kind: FrameworkIssueKind;

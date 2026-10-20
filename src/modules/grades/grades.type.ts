@@ -39,6 +39,8 @@ export type TranscriptCourseInput = {
   score10: number | null;
   letter: LetterGrade | null;
   point4: number | null;
+  // Học phần điều kiện (GDTC, GDQP-AN): hiện Đạt/Không đạt, không tính điểm trung bình, tín chỉ tích lũy.
+  isConditional?: boolean;
 };
 
 // Một lần học của học phần trong bảng điểm. Điểm tính vào CPA và tín chỉ tích lũy là của lần học cuối (đã có điểm, học kỳ đã kết thúc);

@@ -41,6 +41,8 @@ const eligible: GraduationInput = {
   failedCredits: 0,
   retakeCredits: 0,
   missingRequired: [],
+  missingConditional: [],
+  electives: [],
   outstandingTuition: 0,
   disciplines: [],
   alreadyGraduated: false,

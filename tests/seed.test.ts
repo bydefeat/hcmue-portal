@@ -25,6 +25,7 @@ import { ANNOUNCEMENTS } from "@/modules/announcements/announcements.mock";
 import { announcements } from "@/modules/announcements/announcements.schema";
 import { AUDIT_LOG } from "@/modules/audit/audit.mock";
 import { auditLogs } from "@/modules/audit/audit.schema";
+import { conditionalResultSeeds, CONDITIONAL_COURSE_CODES } from "@/modules/curriculum/curriculum.mock";
 import { courses } from "@/modules/curriculum/curriculum.schema";
 import { NOTIFICATIONS } from "@/modules/notifications/notifications.mock";
 import { notifications } from "@/modules/notifications/notifications.schema";
@@ -227,8 +228,21 @@ describe("seed khớp dữ liệu mẫu: học phí, thông báo, nhật ký, c�
 describe("seed grades, graduation khớp dữ liệu mẫu", () => {
   test("mỗi học phần đã học trong bảng điểm mẫu là một dòng course_results, cùng điểm và học kỳ", async () => {
     const past = STUDENTS.flatMap((student, index) => mockTranscriptTerms(index).filter((term) => !term.isInProgress).map((term) => ({ student, term })));
+    // Cộng kết quả học phần điều kiện (GDTC, GDQP-AN) seed riêng ở học kỳ đầu, học kỳ thứ hai của mỗi sinh viên.
+    const conditional = STUDENTS.reduce(
+      (acc, student, index) =>
+        acc +
+        conditionalResultSeeds(
+          index,
+          mockTranscriptTerms(index)
+            .filter((term) => !term.isInProgress)
+            .map((term) => term.termId),
+          student.cohort,
+        ).length,
+      0,
+    );
     const [{ total }] = await db.select({ total: count() }).from(courseResults).where(eq(courseResults.source, "legacy"));
-    assert.equal(total, past.reduce((acc, { term }) => acc + term.courses.length, 0));
+    assert.equal(total, past.reduce((acc, { term }) => acc + term.courses.length, 0) + conditional);
     const index = STUDENTS.findIndex((student) => student.id === CURRENT_STUDENT_ID);
     const [first] = mockTranscriptTerms(index);
     const rows = await db
@@ -237,7 +251,10 @@ describe("seed grades, graduation khớp dữ liệu mẫu", () => {
       .innerJoin(courses, eq(courses.id, courseResults.courseId))
       .where(and(eq(courseResults.studentId, CURRENT_STUDENT_ID), eq(courseResults.termId, first.termId)));
     assert.deepEqual(
-      rows.map((row) => `${row.code}:${row.score10}:${row.letter}`).toSorted(),
+      rows
+        .filter((row) => !(CONDITIONAL_COURSE_CODES as readonly string[]).includes(row.code))
+        .map((row) => `${row.code}:${row.score10}:${row.letter}`)
+        .toSorted(),
       first.courses.map((course) => `${course.courseCode}:${course.score10}:${course.letter}`).toSorted(),
     );
   });

@@ -63,6 +63,27 @@ export function isPassing(course: { letter: string | null; point4: number | null
   return course.point4 !== null && course.letter !== null && course.letter !== "F";
 }
 
+// ---------- Học phần điều kiện (GDTC, GDQP-AN) ----------
+
+// Học phần điều kiện vẫn nhập điểm số, điểm chữ lưu như thường (Đạt khi không phải F, tức từ ngưỡng đạt của thang điểm quy chế)
+// nhưng không vào điểm trung bình học kỳ, CPA, tín chỉ tích lũy, tín chỉ nợ. Mọi phép tính tích lũy lọc qua hàm này.
+export function countsTowardAverage(course: { isConditional?: boolean }) {
+  return !course.isConditional;
+}
+
+export const CONDITIONAL_PASS_LABEL = "Đạt";
+export const CONDITIONAL_FAIL_LABEL = "Không đạt";
+
+// Ký hiệu hiện ở cột điểm chữ: học phần điều kiện ghi Đạt/Không đạt thay cho điểm chữ, điểm thang 4 để trống.
+export function resultMark(course: { letter: string | null; isConditional?: boolean }) {
+  if (!course.isConditional || course.letter === null) return course.letter ?? "";
+  return course.letter === "F" ? CONDITIONAL_FAIL_LABEL : CONDITIONAL_PASS_LABEL;
+}
+
+export function resultPoint4(course: { point4: number | null; isConditional?: boolean }) {
+  return course.isConditional ? null : course.point4;
+}
+
 // ---------- Bảng điểm, CPA, xếp loại ----------
 
 // Trung bình có trọng số tín chỉ, làm tròn 2 chữ số (nửa lên); chỉ tính học phần đã có điểm. Tính trên số nguyên (phần trăm điểm)
@@ -114,14 +135,15 @@ export function buildTranscript(terms: TranscriptTermInput[]): TranscriptTerm[] 
         latest.set(course.courseCode, { ...course, termIndex });
       }
     }
+    const graded = term.courses.filter(countsTowardAverage);
     return {
       ...term,
       courses,
-      attemptedCredits: term.courses.reduce((sum, course) => sum + course.credits, 0),
-      earnedCredits: term.isInProgress ? 0 : term.courses.filter(isPassing).reduce((sum, course) => sum + course.credits, 0),
-      gpa4: creditAverage(term.courses, "point4"),
-      gpa10: creditAverage(term.courses, "score10"),
-      cpa4: term.isInProgress ? null : creditAverage([...latest.values()], "point4"),
+      attemptedCredits: graded.reduce((sum, course) => sum + course.credits, 0),
+      earnedCredits: term.isInProgress ? 0 : graded.filter(isPassing).reduce((sum, course) => sum + course.credits, 0),
+      gpa4: creditAverage(graded, "point4"),
+      gpa10: creditAverage(graded, "score10"),
+      cpa4: term.isInProgress ? null : creditAverage([...latest.values()].filter(countsTowardAverage), "point4"),
     };
   });
   return rows.map((term, termIndex) => ({
@@ -130,9 +152,13 @@ export function buildTranscript(terms: TranscriptTermInput[]): TranscriptTerm[] 
   }));
 }
 
-// Ghi chú lần học trên bảng điểm: học lại, học cải thiện, lần đã bị lần sau thay thế (không tính tích lũy).
-export function attemptNote(course: Pick<TranscriptCourse, "retakeKind" | "replaced">) {
-  const notes = [course.retakeKind === "retake" ? "học lại" : course.retakeKind === "improve" ? "học cải thiện" : null, course.replaced ? "không tính tích lũy" : null].filter(Boolean);
+// Ghi chú lần học trên bảng điểm: học lại, học cải thiện, lần đã bị lần sau thay thế (không tính tích lũy), học phần điều kiện.
+export function attemptNote(course: Pick<TranscriptCourse, "retakeKind" | "replaced" | "isConditional">) {
+  const notes = [
+    course.isConditional ? "học phần điều kiện" : null,
+    course.retakeKind === "retake" ? "học lại" : course.retakeKind === "improve" ? "học cải thiện" : null,
+    course.replaced ? "không tính tích lũy" : null,
+  ].filter(Boolean);
   return notes.length > 0 ? ` (${notes.join(", ")})` : "";
 }
 
@@ -157,12 +183,12 @@ export function warningLevelOf(input: { hasCourses: boolean; cpa4: number; faile
 // (lần cuối F). Chưa có điểm thì Chưa xếp loại (standing null), không bị coi là Kém.
 export function computeStanding(studentId: string, transcript: TranscriptTerm[], rules: StandingRules): StudentStanding {
   const completed = transcript.filter((term) => !term.isInProgress);
-  const attempts = completed.flatMap((term) => term.courses.filter((course) => course.point4 !== null));
+  const attempts = completed.flatMap((term) => term.courses.filter((course) => course.point4 !== null && countsTowardAverage(course)));
   const latest = attempts.filter((course) => !course.replaced);
   const cpa4 = creditAverage(latest, "point4");
   const cpa10 = creditAverage(latest, "score10");
   const failedCredits = latest.filter((course) => course.letter === "F").reduce((sum, course) => sum + course.credits, 0);
-  const lastTerm = completed.filter((term) => term.courses.some((course) => course.point4 !== null)).at(-1);
+  const lastTerm = completed.filter((term) => term.courses.some((course) => course.point4 !== null && countsTowardAverage(course))).at(-1);
   const lastTermGpa4 = lastTerm?.gpa4 ?? null;
   return {
     studentId,

@@ -100,7 +100,13 @@ const lecturerActor = (lecturer: { displayName: string }, userId: string): Audit
 
 async function regulationRules() {
   const regulation = await getRegulation();
-  return { maxPerTerm: regulation.credits.maxPerTerm, overloadMinCpa: regulation.credits.overloadMinCpa, regradeWindowDays: regulation.workflow.regradeWindowDays };
+  return {
+    maxPerTerm: regulation.credits.maxPerTerm,
+    overloadMinCpa: regulation.credits.overloadMinCpa,
+    overloadExtraCredits: regulation.credits.overloadExtraCredits,
+    regradeWindowDays: regulation.workflow.regradeWindowDays,
+    maxReserveTerms: regulation.workflow.maxReserveTerms,
+  };
 }
 
 // Điều kiện gửi đơn theo quy chế, kiểm trong giao dịch (cả khi gửi lại đơn bị từ chối): phúc khảo khi điểm đã công bố và còn hạn.

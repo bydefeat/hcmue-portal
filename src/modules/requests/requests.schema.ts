@@ -169,3 +169,22 @@ export const requestCodeCounters = pgTable(
     check("request_code_counters_last_value_range", sql`${table.lastValue} BETWEEN 1 AND 99999`),
   ],
 );
+
+// Văn bản kết quả của đơn do hệ thống sinh khi đơn được duyệt (bảng điểm PDF của đơn cấp bảng điểm), khác minh chứng người gửi
+// nộp. Tệp nằm trong kho dưới khóa requests/<uuid> như minh chứng, tải qua route có kiểm quyền xem đơn.
+export const requestDocuments = pgTable(
+  "request_documents",
+  {
+    id: primaryId(),
+    requestId: uuid()
+      .notNull()
+      .references(() => academicRequests.id, { onDelete: "cascade" }),
+    title: text().notNull(),
+    fileName: text().notNull(),
+    contentType: text().notNull(),
+    sizeBytes: integer().notNull(),
+    storageKey: text().notNull().unique("request_documents_storage_key_unique"),
+    createdAt: createdAt(),
+  },
+  (table) => [index().on(table.requestId), check("request_documents_size_range", sql`${table.sizeBytes} BETWEEN 1 AND 20971520`)],
+);

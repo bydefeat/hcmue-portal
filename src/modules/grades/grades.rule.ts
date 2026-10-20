@@ -508,3 +508,111 @@ export function latestWarningTerm<T extends { semester: number; endDate: string 
 }
 
 export const ACADEMIC_WARNING_GENERATE_SCHEMA = z.object({ termId: z.uuid("Chọn học kỳ") });
+
+// ---------- Sửa điểm sau công bố, rút học phần, điểm I ----------
+
+// Kết quả học phần dạng chữ để ghi lịch sử sửa điểm: "7,5 (B)", ký hiệu "I (chờ thi bù...)", chưa có thì "Chưa có".
+export function resultText(result: { score10: number | null; letter: string | null } | null | undefined) {
+  if (!result?.letter) return "Chưa có";
+  if (result.score10 === null) return result.letter in RESULT_MARK_NOTE ? `${result.letter} (${RESULT_MARK_NOTE[result.letter as ResultMark]})` : result.letter;
+  return `${formatPoint(result.score10, 1)} (${result.letter})`;
+}
+
+// Hạn rút học phần: hết ngày thứ weeks * 7 kể từ ngày bắt đầu học kỳ (tính cả ngày bắt đầu).
+export function withdrawDeadline(termStart: string, weeks: number) {
+  return dayjs(termStart)
+    .add(weeks * 7 - 1, "day")
+    .format("YYYY-MM-DD");
+}
+
+// Rút học phần (nhận W): học kỳ chưa kết thúc, còn trong hạn của quy chế, lớp chưa công bố điểm. Kiểm khi gửi đơn và khi duyệt.
+export function withdrawBlockedReason(input: { termStart: string; termEnd: string; sheetStatus: string | null }, today: string, weeks: number) {
+  if (input.sheetStatus === "published") return "Lớp đã công bố điểm, không rút học phần được nữa.";
+  if (today > input.termEnd) return "Học kỳ đã kết thúc, không rút học phần được nữa.";
+  const deadline = withdrawDeadline(input.termStart, weeks);
+  if (today > deadline) return `Đã quá hạn rút học phần: quy chế cho rút trong ${weeks} tuần đầu học kỳ (đến hết ngày ${dayjs(deadline).format("DD/MM/YYYY")}).`;
+  return null;
+}
+
+// Điểm I quá hạn: học kỳ nhận I cộng thêm incompleteTerms học kỳ kế tiếp (theo ngày bắt đầu) đã kết thúc mà chưa có điểm thì chuyển F.
+// Học kỳ kế tiếp chưa có trong danh mục thì chưa tới hạn.
+export function overdueIncompletes<T extends { termId: string }>(results: T[], terms: { id: string; startDate: string; endDate: string }[], incompleteTerms: number, today: string) {
+  const ordered = terms.toSorted((a, b) => a.startDate.localeCompare(b.startDate));
+  const position = new Map(ordered.map((term, index) => [term.id, index]));
+  return results.filter((result) => {
+    const index = position.get(result.termId);
+    if (index === undefined) return false;
+    const deadlineTerm = ordered[index + incompleteTerms];
+    return deadlineTerm !== undefined && deadlineTerm.endDate < today;
+  });
+}
+
+// Đơn sửa điểm của giảng viên lưu phần chi tiết dạng chữ do server ghép lúc gửi ("Sinh viên": "Họ tên, 50.01.104.009",
+// "Cột điểm", "Điểm mới": "7,50"). Đọc lại để biết cột, sinh viên và điểm đề nghị khi duyệt bước cuối.
+export function gradeChangeTarget(details: { label: string; value: string }[]) {
+  const value = (label: string) => details.find((detail) => detail.label === label)?.value ?? null;
+  const student = value("Sinh viên");
+  const component = value("Cột điểm");
+  const proposed = value("Điểm mới");
+  const code = student?.split(",").at(-1)?.replace(/\D/g, "") ?? "";
+  const proposedScore = proposed === null ? Number.NaN : Number(proposed.replace(",", "."));
+  if (!component || code.length !== 10) return null;
+  return { studentCode: code, componentLabel: component, newScore: Number.isFinite(proposedScore) ? proposedScore : null };
+}
+
+const amendmentScore = z
+  .number("Chưa nhập điểm mới")
+  .min(0, "Điểm từ 0 đến 10")
+  .max(10, "Điểm từ 0 đến 10")
+  .refine((value) => Math.abs(Math.round(value * 100) - value * 100) < 1e-6, "Điểm lấy tối đa 2 chữ số thập phân");
+
+const amendmentReason = z.string("Chưa nhập lý do").trim().min(1, "Ghi lý do sửa điểm").max(500, "Tối đa 500 ký tự");
+
+// Giảng viên (lớp mình dạy, bảng điểm đã công bố) hoặc Phòng Đào tạo đề nghị sửa một cột điểm của một sinh viên.
+export const GRADE_AMENDMENT_PROPOSE_SCHEMA = z.object({
+  classSectionId: z.uuid("Chưa chọn lớp"),
+  studentId: z.uuid("Chưa chọn sinh viên"),
+  componentKey: z.string("Chưa chọn cột điểm").trim().min(1, "Chưa chọn cột điểm").max(40),
+  newScore: amendmentScore,
+  reason: amendmentReason,
+});
+
+export type GradeAmendmentProposeInput = z.input<typeof GRADE_AMENDMENT_PROPOSE_SCHEMA>;
+
+export const GRADE_AMENDMENT_DECIDE_SCHEMA = z
+  .object({
+    id: z.uuid(),
+    decision: z.enum(["approved", "rejected"]),
+    note: z.string().trim().max(500, "Tối đa 500 ký tự").default(""),
+  })
+  .refine((input) => input.decision === "approved" || input.note.length > 0, { path: ["note"], message: "Ghi lý do từ chối để người đề nghị biết" });
+
+export type GradeAmendmentDecideInput = z.input<typeof GRADE_AMENDMENT_DECIDE_SCHEMA>;
+
+// Kết quả bước cuối của đơn (Phòng Khảo thí, Phòng Đào tạo nhập khi duyệt), đọc từ effect của lần duyệt.
+export const REGRADE_EFFECT_SCHEMA = z.object({ newScore: amendmentScore }, "Nhập điểm sau phúc khảo trước khi duyệt");
+
+export const GRADE_CHANGE_EFFECT_SCHEMA = z.object({ newScore: amendmentScore.optional() }).default({});
+
+export const EXAM_POSTPONE_EFFECT_SCHEMA = z.object({ examKind: z.enum(["midterm", "final"]).optional() }).default({});
+
+export const CREDIT_TRANSFER_EFFECT_SCHEMA = z.object(
+  {
+    courses: z
+      .array(
+        z
+          .object({
+            courseId: z.uuid("Chưa chọn học phần"),
+            mode: z.enum(["transfer", "exemption"], "Chọn công nhận điểm hoặc miễn"),
+            score10: amendmentScore.nullable().optional(),
+          })
+          .refine((course) => course.mode === "exemption" || (course.score10 ?? null) !== null, { path: ["score10"], message: "Nhập điểm được công nhận" }),
+      )
+      .min(1, "Thêm ít nhất một học phần được công nhận hoặc miễn")
+      .max(30, "Tối đa 30 học phần mỗi đơn")
+      .refine((courses) => new Set(courses.map((course) => course.courseId)).size === courses.length, "Một học phần chỉ ghi một lần"),
+  },
+  "Nhập các học phần được công nhận hoặc miễn trước khi duyệt",
+);
+
+export type CreditTransferEffect = z.output<typeof CREDIT_TRANSFER_EFFECT_SCHEMA>;

@@ -11,6 +11,7 @@ import { user } from "@/modules/authentication/authentication.schema";
 import { classSections } from "@/modules/course-registration/course-registration.schema";
 import { faculties } from "@/modules/curriculum/curriculum.schema";
 import { examSessions } from "@/modules/exams/exams.schema";
+import { GRADE_REQUEST_HANDLERS } from "@/modules/grades/grades.request-effects";
 import { gradeComponents, gradeScores, gradeSheets } from "@/modules/grades/grades.schema";
 import { notifyLecturers, notifyUsers } from "@/modules/notifications/notifications.lib";
 import { calendarEvents } from "@/modules/settings/settings.schema";
@@ -296,12 +297,14 @@ export type ApprovedRequest = {
   classSectionId: string | null;
   details: RequestDetail[];
   actor: AuditActor;
+  // Phần người duyệt bước cuối nhập kèm (điểm sau phúc khảo, học phần công nhận...), handler tự kiểm bằng schema của mình.
+  effect?: unknown;
 };
 
 export type RequestApprovedHandler = (request: ApprovedRequest, tx: Transaction) => Promise<void>;
 
-// Chưa loại đơn nào có handler: kết quả đơn hiện chỉ là ghi nhận, cán bộ cập nhật dữ liệu bằng tay.
-export const REQUEST_APPROVED_HANDLERS: Partial<Record<RequestKind, RequestApprovedHandler>> = {};
+// Handler của từng module đăng ký ở file riêng của module đó; lỗi nghiệp vụ ném InputError để chặn lần duyệt kèm câu báo.
+export const REQUEST_APPROVED_HANDLERS: Partial<Record<RequestKind, RequestApprovedHandler>> = { ...GRADE_REQUEST_HANDLERS };
 
 export async function onRequestApproved(kind: RequestKind, request: ApprovedRequest, tx: Transaction) {
   await REQUEST_APPROVED_HANDLERS[kind]?.(request, tx);
@@ -317,6 +320,8 @@ export type StepDecision = {
   authorize: (context: StepContext) => string | null;
   // Phòng Đào tạo xử lý thay (bước của người khác): ghi rõ trên bước, lý do bắt buộc.
   onBehalf?: boolean;
+  // Phần nhập kèm khi duyệt bước cuối, chuyển cho handler kết quả đơn.
+  effect?: unknown;
 };
 
 const DECISION_VERB = { approved: "Đồng ý", rejected: "Không đồng ý", skipped: "Bỏ qua" } as const;
@@ -402,6 +407,7 @@ export async function decideStep(tx: Transaction, input: StepDecision) {
         classSectionId: request.classSectionId,
         details: request.details,
         actor: input.actor,
+        effect: input.effect,
       },
       tx,
     );

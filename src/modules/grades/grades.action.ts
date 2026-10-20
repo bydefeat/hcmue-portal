@@ -41,7 +41,7 @@ import {
 } from "@/modules/grades/grades.rule";
 import { academicWarnings, courseResults, gradeComponents, gradeScores, gradeSheets } from "@/modules/grades/grades.schema";
 import type { GradeComponent, GradeSheetStatus, WarningStatus } from "@/modules/grades/grades.type";
-import { examSessions } from "@/modules/exams/exams.schema";
+import { examDeferrals, examSessions } from "@/modules/exams/exams.schema";
 import { regulationAt } from "@/modules/settings/settings.lib";
 import { getCurrentLecturer, getCurrentStudent, getStudent } from "@/modules/users/users.query";
 import { administrativeClasses, lecturers, students } from "@/modules/users/users.schema";
@@ -186,10 +186,12 @@ export async function lockGradeSheet(classSectionId: string, options: { syllabus
           summary: `Chốt điểm ${section.code} dù khác đề cương đã công bố (${mismatches.join(" ")}). Lý do: ${syllabusReason}`,
         });
       }
-      const [[{ columns }], [{ students: enrolled }], [{ filled }]] = await Promise.all([
+      // Sinh viên đang được hoãn thi được để trống điểm (công bố thì nhận I), cùng cách đếm với trigger grade_sheets_status_flow.
+      const notDeferred = sql`NOT EXISTS (SELECT 1 FROM ${examDeferrals} WHERE ${examDeferrals.enrollmentId} = ${enrollments.id})`;
+      const [[{ columns }], [{ students: enrolled, required }], [{ filled }]] = await Promise.all([
         tx.select({ columns: sql<number>`count(*)::int` }).from(gradeComponents).where(eq(gradeComponents.gradeSheetId, sheet.id)),
         tx
-          .select({ students: sql<number>`count(*)::int` })
+          .select({ students: sql<number>`count(*)::int`, required: sql<number>`(count(*) FILTER (WHERE ${notDeferred}))::int` })
           .from(enrollments)
           .where(and(eq(enrollments.classSectionId, section.id), eq(enrollments.status, "enrolled"))),
         tx
@@ -197,10 +199,10 @@ export async function lockGradeSheet(classSectionId: string, options: { syllabus
           .from(gradeScores)
           .innerJoin(gradeComponents, eq(gradeComponents.id, gradeScores.gradeComponentId))
           .innerJoin(enrollments, and(eq(enrollments.id, gradeScores.enrollmentId), eq(enrollments.status, "enrolled")))
-          .where(eq(gradeComponents.gradeSheetId, sheet.id)),
+          .where(and(eq(gradeComponents.gradeSheetId, sheet.id), notDeferred)),
       ]);
       if (enrolled === 0) throw new GradeActionError("Lớp chưa có sinh viên nên chưa chốt được.");
-      const missing = columns * enrolled - filled;
+      const missing = columns * required - filled;
       if (missing > 0) throw new GradeActionError(`Còn ${missing} điểm chưa nhập nên chưa chốt được. Nhập đủ điểm rồi chốt lại.`);
       const [row] = await tx
         .update(gradeSheets)
@@ -340,6 +342,11 @@ export async function publishGradeSheets(classSectionIds: string[]): Promise<Act
           .where(inArray(gradeComponents.gradeSheetId, sheetIds)),
       ]);
       const scoreOf = new Map(scores.map((row) => [`${row.componentId}:${row.enrollmentId}`, row.score]));
+      const deferred = new Set(
+        roster.length === 0
+          ? []
+          : (await tx.select({ id: examDeferrals.enrollmentId }).from(examDeferrals).where(inArray(examDeferrals.enrollmentId, roster.map((entry) => entry.id)))).map((row) => row.id),
+      );
       const recordedAt = new Date();
       // Điểm chữ, thang 4 quy đổi theo bản quy chế áp dụng ngày công bố và lưu vào course_results; quy chế đổi sau không đổi điểm đã công bố.
       const { grading } = await regulationAt(tx);
@@ -350,8 +357,11 @@ export async function publishGradeSheets(classSectionIds: string[]): Promise<Act
           .map((entry) => {
             const row = Object.fromEntries(columns.map((column) => [column.key, scoreOf.get(`${column.id}:${entry.id}`) ?? null]));
             const total = weightedScore(columns, row, grading.roundingStep);
+            const base = { studentId: entry.studentId, courseId: entry.courseId, termId: entry.termId, enrollmentId: entry.id, source: "class" as const, recordedAt };
+            // Được hoãn thi mà chưa đủ điểm: nhận I (chưa hoàn thiện), thi bù có điểm thì đề nghị sửa điểm thay I bằng điểm thật.
+            if (total === null && deferred.has(entry.id)) return { ...base, score10: null, letter: "I", point4: null };
             if (total === null) throw new GradeActionError("Có bảng điểm còn ô trống, trả lại cho giảng viên nhập đủ trước khi công bố.");
-            return { studentId: entry.studentId, courseId: entry.courseId, termId: entry.termId, enrollmentId: entry.id, source: "class" as const, ...courseGrade(total, grading.scale), recordedAt };
+            return { ...base, ...courseGrade(total, grading.scale) };
           });
       });
       if (results.length > 0) {

@@ -1,5 +1,6 @@
 import "server-only";
 import { and, asc, desc, eq, inArray, isNotNull, lte, ne, or, sql } from "drizzle-orm";
+import { InputError } from "@/shared/libs/action.lib";
 import { db, type Transaction } from "@/shared/libs/db.lib";
 import { schoolToday } from "@/shared/libs/date.lib";
 import { isUuid } from "@/shared/libs/id.lib";
@@ -24,8 +25,9 @@ import { academicWarnings, courseResults, gradeComponents, gradeScores } from "@
 import type { CurrentWarning, ResultLetter, TranscriptTerm } from "@/modules/grades/grades.type";
 import { administrativeClasses, students } from "@/modules/users/users.schema";
 
-// Lỗi nghiệp vụ phát hiện trong giao dịch: hủy giao dịch và trả câu báo cho người dùng.
-export class GradeActionError extends Error {}
+// Lỗi nghiệp vụ phát hiện trong giao dịch: hủy giao dịch và trả câu báo cho người dùng. Là InputError để action của module khác
+// (duyệt đơn chạy handler của module điểm) cũng trả nguyên câu báo qua actionFailure.
+export class GradeActionError extends InputError {}
 
 type Executor = Transaction | typeof db;
 

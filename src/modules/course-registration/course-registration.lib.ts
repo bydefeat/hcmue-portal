@@ -252,7 +252,8 @@ async function gradeFactsOf(executor: Executor, student: RegistrationStudentFact
       .from(courseResults)
       .innerJoin(courses, eq(courses.id, courseResults.courseId))
       .innerJoin(terms, eq(terms.id, courseResults.termId))
-      .where(and(eq(courseResults.studentId, student.id), sql`${courseResults.letter} IS NOT NULL`))
+      // W (rút), I (chưa hoàn thiện) không phải lần học có kết quả; M (miễn) tính là đạt.
+      .where(and(eq(courseResults.studentId, student.id), sql`${courseResults.letter} IS NOT NULL AND ${courseResults.letter} NOT IN ('W', 'I')`))
       .orderBy(asc(terms.startDate)),
     executor
       .select({ totalCredits: programs.totalCredits })

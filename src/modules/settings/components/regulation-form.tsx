@@ -34,9 +34,25 @@ function SectionDescription({ children }: { children: React.ReactNode }) {
   return <p className="mb-4 max-w-prose text-sm text-pretty text-muted">{children}</p>;
 }
 
-function NumberField({ name, label, min, max, step = 1, suffix }: { name: (string | number)[]; label: string; min: number; max: number; step?: number; suffix?: string }) {
+function NumberField({
+  name,
+  label,
+  min,
+  max,
+  step = 1,
+  suffix,
+  extra,
+}: {
+  name: (string | number)[];
+  label: string;
+  min: number;
+  max: number;
+  step?: number;
+  suffix?: string;
+  extra?: string;
+}) {
   return (
-    <Form.Item name={name} label={label} rules={[{ required: true, message: `Chưa nhập ${label.toLowerCase()}` }]}>
+    <Form.Item name={name} label={label} extra={extra} rules={[{ required: true, message: `Chưa nhập ${label.toLowerCase()}` }]}>
       <InputNumber min={min} max={max} step={step} decimalSeparator="," suffix={suffix} className="w-full tabular-nums" />
     </Form.Item>
   );
@@ -151,6 +167,14 @@ export function RegulationForm({ regulation, versions }: RegulationFormProps) {
             <Form.Item name={["grading", "roundingStep"]} label="Làm tròn điểm học phần đến" extra="Điểm tổng kết làm tròn theo bước này rồi mới quy đổi điểm chữ; điểm dưới mức D là F (không đạt).">
               <Select options={ROUNDING_STEPS.map((step) => ({ value: step, label: String(step).replace(".", ",") }))} className="w-full" />
             </Form.Item>
+            <NumberField
+              name={["grading", "incompleteTerms"]}
+              label="Điểm I chuyển F sau"
+              min={1}
+              max={4}
+              suffix="học kỳ"
+              extra="Sinh viên được hoãn thi nhận điểm I khi công bố điểm; quá số học kỳ này mà chưa thi bù thì I chuyển F."
+            />
           </div>
         </SectionCard>
 
@@ -202,6 +226,7 @@ export function RegulationForm({ regulation, versions }: RegulationFormProps) {
             <NumberField name={["workflow", "studyPlanReviewDays"]} label="Cố vấn duyệt kế hoạch trong" min={1} max={14} suffix="ngày" />
             <NumberField name={["workflow", "regradeWindowDays"]} label="Nhận đơn phúc khảo trong" min={1} max={30} suffix="ngày" />
             <NumberField name={["workflow", "registrationClosingSoonHours"]} label="Báo đợt sắp đóng trước" min={1} max={168} suffix="giờ" />
+            <NumberField name={["workflow", "withdrawDeadlineWeeks"]} label="Hạn rút học phần (nhận W)" min={1} max={20} suffix="tuần từ đầu học kỳ" />
           </div>
         </SectionCard>
 

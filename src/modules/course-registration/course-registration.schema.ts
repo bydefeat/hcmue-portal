@@ -7,7 +7,8 @@ import { rooms } from "@/modules/facilities/facilities.schema";
 import { lecturers, students } from "@/modules/users/users.schema";
 
 export const classSectionStatusEnum = pgEnum("class_section_status", ["draft", "open", "cancelled"]);
-export const enrollmentStatusEnum = pgEnum("enrollment_status", ["enrolled", "dropped"]);
+// withdrawn: rút học phần sau đợt điều chỉnh (đơn rút học phần được duyệt), kết quả ghi W, học phí không hoàn.
+export const enrollmentStatusEnum = pgEnum("enrollment_status", ["enrolled", "dropped", "withdrawn"]);
 export const waitlistStatusEnum = pgEnum("waitlist_status", ["waiting", "promoted", "cancelled", "expired"]);
 export const holdKindEnum = pgEnum("hold_kind", ["tuition", "discipline", "documents", "academic-status", "advisor"]);
 export const registrationEventKindEnum = pgEnum("registration_event_kind", [
@@ -227,6 +228,7 @@ export const enrollments = pgTable(
     status: enrollmentStatusEnum().notNull().default("enrolled"),
     registeredAt: createdAt(),
     droppedAt: timestamp({ withTimezone: true }),
+    withdrawnAt: timestamp({ withTimezone: true }),
   },
   (table) => [
     foreignKey({
@@ -252,6 +254,8 @@ export const enrollments = pgTable(
     index().on(table.studentId, table.termId),
     index().on(table.labGroupId),
     check("enrollments_dropped_at_matches_status", sql`(${table.status} = 'dropped') = (${table.droppedAt} IS NOT NULL)`),
+    // So dạng text: giá trị enum mới chưa dùng được trong cùng giao dịch migration thêm nó.
+    check("enrollments_withdrawn_at_matches_status", sql`(${table.status}::text = 'withdrawn') = (${table.withdrawnAt} IS NOT NULL)`),
   ],
 );
 

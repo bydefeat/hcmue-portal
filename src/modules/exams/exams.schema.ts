@@ -4,6 +4,7 @@ import { createdAt, primaryId, timestamps } from "@/shared/libs/db-column.lib";
 import { user } from "@/modules/authentication/authentication.schema";
 import { classSections, enrollments, terms } from "@/modules/course-registration/course-registration.schema";
 import { rooms } from "@/modules/facilities/facilities.schema";
+import { academicRequests } from "@/modules/requests/requests.schema";
 import { lecturers } from "@/modules/users/users.schema";
 
 // makeup: ca thi bù cho sinh viên được hoãn thi (hoặc vắng thi có lý do) của một ca giữa kỳ, cuối kỳ.
@@ -149,7 +150,8 @@ export const examCandidates = pgTable(
 );
 
 // Sinh viên được hoãn thi một kỳ thi (giữa kỳ hoặc cuối kỳ) của lớp: không có trong danh sách thi của ca đó, chờ thi bù.
-// requestId để trống: đợt sau nối với đơn hoãn thi của module đơn từ.
+// requestId: đơn hoãn thi đã duyệt sinh ra dòng này; Phòng Khảo thí ghi trực tiếp thì để trống. Công bố bảng điểm thì sinh viên
+// đang được hoãn thi (chưa đủ điểm) nhận điểm I.
 export const examDeferrals = pgTable(
   "exam_deferrals",
   {
@@ -159,12 +161,13 @@ export const examDeferrals = pgTable(
       .references(() => enrollments.id, { onDelete: "cascade" }),
     kind: examKindEnum().notNull(),
     reason: text().notNull(),
-    requestId: uuid(),
+    requestId: uuid().references(() => academicRequests.id, { onDelete: "set null" }),
     decidedByUserId: uuid().references(() => user.id, { onDelete: "set null" }),
     decidedAt: createdAt(),
   },
   (table) => [
     unique("exam_deferrals_enrollment_id_kind_unique").on(table.enrollmentId, table.kind),
+    uniqueIndex("exam_deferrals_request_unique").on(table.requestId).where(sql`${table.requestId} IS NOT NULL`),
     index().on(table.decidedByUserId),
     check("exam_deferrals_kind", sql`${table.kind}::text <> 'makeup'`),
     check("exam_deferrals_reason_present", sql`length(btrim(${table.reason})) BETWEEN 1 AND 300`),

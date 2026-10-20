@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { dayjs, schoolTime } from "@/shared/libs/date.lib";
-import { formatPoint, STANDINGS } from "@/modules/grades/grades.constant";
+import { formatPoint, RESULT_MARK_NOTE, STANDINGS } from "@/modules/grades/grades.constant";
 import type {
   AcademicStanding,
   FacultyStandingSummary,
@@ -11,6 +11,7 @@ import type {
   GradeSheetStatus,
   GradingRules,
   LetterGrade,
+  ResultMark,
   StudentStanding,
   TranscriptCourse,
   TranscriptCourseInput,
@@ -59,7 +60,22 @@ export function courseGrade(score10: number, scale: GradingRules["scale"]) {
   return { score10, ...letterOf(score10, scale) };
 }
 
+// ---------- Ký hiệu W, I, M ----------
+
+// Lần học có kết quả: có điểm số, hoặc được miễn (M). W, I không phải kết quả: không tính điểm, không tính tín chỉ tích lũy và không
+// thay lần học trước đã có điểm.
+export function hasResult(course: { letter: string | null; point4: number | null }) {
+  return course.point4 !== null || course.letter === "M";
+}
+
+// Rút học phần: không tính vào khối lượng đăng ký của học kỳ (tín chỉ tối thiểu, tín chỉ đã học). Miễn không học trên lớp.
+export function countsAsAttempted(course: { letter: string | null }) {
+  return course.letter !== "W" && course.letter !== "M";
+}
+
+// Đạt: có điểm số khác F, hoặc được miễn (M tính tín chỉ tích lũy, không tính CPA).
 export function isPassing(course: { letter: string | null; point4: number | null }) {
+  if (course.letter === "M") return true;
   return course.point4 !== null && course.letter !== null && course.letter !== "F";
 }
 
@@ -77,9 +93,9 @@ export function creditAverage(courses: Pick<TranscriptCourseInput, "credits" | "
 
 // Lần học cuối (đã có điểm) của từng học phần trong danh sách các lần học đã xếp theo thời gian (học kỳ, rồi thời điểm ghi điểm).
 // Dùng cho mọi nơi cần "đã học đạt" hay điểm đang tính: CPA, tín chỉ tích lũy, nợ, tiên quyết khi đăng ký.
-export function latestAttempts<T extends { courseCode: string; point4: number | null }>(attempts: T[]): Map<string, T> {
+export function latestAttempts<T extends { courseCode: string; point4: number | null; letter?: string | null }>(attempts: T[]): Map<string, T> {
   const latest = new Map<string, T>();
-  for (const attempt of attempts) if (attempt.point4 !== null) latest.set(attempt.courseCode, attempt);
+  for (const attempt of attempts) if (hasResult({ letter: attempt.letter ?? null, point4: attempt.point4 })) latest.set(attempt.courseCode, attempt);
   return latest;
 }
 
@@ -88,7 +104,7 @@ export function latestGrades(terms: { isInProgress: boolean; courses: { courseCo
   const latest: Record<string, string> = {};
   for (const term of terms) {
     if (term.isInProgress) continue;
-    for (const course of term.courses) if (course.letter) latest[course.courseCode] = course.letter;
+    for (const course of term.courses) if (course.letter && course.letter !== "W" && course.letter !== "I") latest[course.courseCode] = course.letter;
   }
   return latest;
 }
@@ -103,12 +119,12 @@ export function buildTranscript(terms: TranscriptTermInput[]): TranscriptTerm[] 
     const courses = term.courses.map((course) => {
       const previous = previousLetters.get(course.courseCode) ?? [];
       const last = previous.at(-1);
-      if (course.point4 !== null) previousLetters.set(course.courseCode, [...previous, course.letter]);
+      if (hasResult(course)) previousLetters.set(course.courseCode, [...previous, course.letter]);
       return { ...course, attempt: previous.length + 1, retakeKind: previous.length === 0 ? null : last === "F" ? ("retake" as const) : ("improve" as const) };
     });
     if (!term.isInProgress) {
       for (const course of term.courses) {
-        if (course.point4 === null) continue;
+        if (!hasResult(course)) continue;
         const earlier = latest.get(course.courseCode);
         if (earlier) replaced.add(`${earlier.termIndex}:${course.courseCode}`);
         latest.set(course.courseCode, { ...course, termIndex });
@@ -117,7 +133,7 @@ export function buildTranscript(terms: TranscriptTermInput[]): TranscriptTerm[] 
     return {
       ...term,
       courses,
-      attemptedCredits: term.courses.reduce((sum, course) => sum + course.credits, 0),
+      attemptedCredits: term.courses.filter(countsAsAttempted).reduce((sum, course) => sum + course.credits, 0),
       earnedCredits: term.isInProgress ? 0 : term.courses.filter(isPassing).reduce((sum, course) => sum + course.credits, 0),
       gpa4: creditAverage(term.courses, "point4"),
       gpa10: creditAverage(term.courses, "score10"),
@@ -131,8 +147,12 @@ export function buildTranscript(terms: TranscriptTermInput[]): TranscriptTerm[] 
 }
 
 // Ghi chú lần học trên bảng điểm: học lại, học cải thiện, lần đã bị lần sau thay thế (không tính tích lũy).
-export function attemptNote(course: Pick<TranscriptCourse, "retakeKind" | "replaced">) {
-  const notes = [course.retakeKind === "retake" ? "học lại" : course.retakeKind === "improve" ? "học cải thiện" : null, course.replaced ? "không tính tích lũy" : null].filter(Boolean);
+export function attemptNote(course: Pick<TranscriptCourse, "retakeKind" | "replaced" | "letter">) {
+  const notes = [
+    course.retakeKind === "retake" ? "học lại" : course.retakeKind === "improve" ? "học cải thiện" : null,
+    course.replaced ? "không tính tích lũy" : null,
+    course.letter && course.letter in RESULT_MARK_NOTE ? RESULT_MARK_NOTE[course.letter as ResultMark] : null,
+  ].filter(Boolean);
   return notes.length > 0 ? ` (${notes.join(", ")})` : "";
 }
 
@@ -157,7 +177,7 @@ export function warningLevelOf(input: { hasCourses: boolean; cpa4: number; faile
 // (lần cuối F). Chưa có điểm thì Chưa xếp loại (standing null), không bị coi là Kém.
 export function computeStanding(studentId: string, transcript: TranscriptTerm[], rules: StandingRules): StudentStanding {
   const completed = transcript.filter((term) => !term.isInProgress);
-  const attempts = completed.flatMap((term) => term.courses.filter((course) => course.point4 !== null));
+  const attempts = completed.flatMap((term) => term.courses.filter(hasResult));
   const latest = attempts.filter((course) => !course.replaced);
   const cpa4 = creditAverage(latest, "point4");
   const cpa10 = creditAverage(latest, "score10");
@@ -488,3 +508,111 @@ export function latestWarningTerm<T extends { semester: number; endDate: string 
 }
 
 export const ACADEMIC_WARNING_GENERATE_SCHEMA = z.object({ termId: z.uuid("Chọn học kỳ") });
+
+// ---------- Sửa điểm sau công bố, rút học phần, điểm I ----------
+
+// Kết quả học phần dạng chữ để ghi lịch sử sửa điểm: "7,5 (B)", ký hiệu "I (chờ thi bù...)", chưa có thì "Chưa có".
+export function resultText(result: { score10: number | null; letter: string | null } | null | undefined) {
+  if (!result?.letter) return "Chưa có";
+  if (result.score10 === null) return result.letter in RESULT_MARK_NOTE ? `${result.letter} (${RESULT_MARK_NOTE[result.letter as ResultMark]})` : result.letter;
+  return `${formatPoint(result.score10, 1)} (${result.letter})`;
+}
+
+// Hạn rút học phần: hết ngày thứ weeks * 7 kể từ ngày bắt đầu học kỳ (tính cả ngày bắt đầu).
+export function withdrawDeadline(termStart: string, weeks: number) {
+  return dayjs(termStart)
+    .add(weeks * 7 - 1, "day")
+    .format("YYYY-MM-DD");
+}
+
+// Rút học phần (nhận W): học kỳ chưa kết thúc, còn trong hạn của quy chế, lớp chưa công bố điểm. Kiểm khi gửi đơn và khi duyệt.
+export function withdrawBlockedReason(input: { termStart: string; termEnd: string; sheetStatus: string | null }, today: string, weeks: number) {
+  if (input.sheetStatus === "published") return "Lớp đã công bố điểm, không rút học phần được nữa.";
+  if (today > input.termEnd) return "Học kỳ đã kết thúc, không rút học phần được nữa.";
+  const deadline = withdrawDeadline(input.termStart, weeks);
+  if (today > deadline) return `Đã quá hạn rút học phần: quy chế cho rút trong ${weeks} tuần đầu học kỳ (đến hết ngày ${dayjs(deadline).format("DD/MM/YYYY")}).`;
+  return null;
+}
+
+// Điểm I quá hạn: học kỳ nhận I cộng thêm incompleteTerms học kỳ kế tiếp (theo ngày bắt đầu) đã kết thúc mà chưa có điểm thì chuyển F.
+// Học kỳ kế tiếp chưa có trong danh mục thì chưa tới hạn.
+export function overdueIncompletes<T extends { termId: string }>(results: T[], terms: { id: string; startDate: string; endDate: string }[], incompleteTerms: number, today: string) {
+  const ordered = terms.toSorted((a, b) => a.startDate.localeCompare(b.startDate));
+  const position = new Map(ordered.map((term, index) => [term.id, index]));
+  return results.filter((result) => {
+    const index = position.get(result.termId);
+    if (index === undefined) return false;
+    const deadlineTerm = ordered[index + incompleteTerms];
+    return deadlineTerm !== undefined && deadlineTerm.endDate < today;
+  });
+}
+
+// Đơn sửa điểm của giảng viên lưu phần chi tiết dạng chữ do server ghép lúc gửi ("Sinh viên": "Họ tên, 50.01.104.009",
+// "Cột điểm", "Điểm mới": "7,50"). Đọc lại để biết cột, sinh viên và điểm đề nghị khi duyệt bước cuối.
+export function gradeChangeTarget(details: { label: string; value: string }[]) {
+  const value = (label: string) => details.find((detail) => detail.label === label)?.value ?? null;
+  const student = value("Sinh viên");
+  const component = value("Cột điểm");
+  const proposed = value("Điểm mới");
+  const code = student?.split(",").at(-1)?.replace(/\D/g, "") ?? "";
+  const proposedScore = proposed === null ? Number.NaN : Number(proposed.replace(",", "."));
+  if (!component || code.length !== 10) return null;
+  return { studentCode: code, componentLabel: component, newScore: Number.isFinite(proposedScore) ? proposedScore : null };
+}
+
+const amendmentScore = z
+  .number("Chưa nhập điểm mới")
+  .min(0, "Điểm từ 0 đến 10")
+  .max(10, "Điểm từ 0 đến 10")
+  .refine((value) => Math.abs(Math.round(value * 100) - value * 100) < 1e-6, "Điểm lấy tối đa 2 chữ số thập phân");
+
+const amendmentReason = z.string("Chưa nhập lý do").trim().min(1, "Ghi lý do sửa điểm").max(500, "Tối đa 500 ký tự");
+
+// Giảng viên (lớp mình dạy, bảng điểm đã công bố) hoặc Phòng Đào tạo đề nghị sửa một cột điểm của một sinh viên.
+export const GRADE_AMENDMENT_PROPOSE_SCHEMA = z.object({
+  classSectionId: z.uuid("Chưa chọn lớp"),
+  studentId: z.uuid("Chưa chọn sinh viên"),
+  componentKey: z.string("Chưa chọn cột điểm").trim().min(1, "Chưa chọn cột điểm").max(40),
+  newScore: amendmentScore,
+  reason: amendmentReason,
+});
+
+export type GradeAmendmentProposeInput = z.input<typeof GRADE_AMENDMENT_PROPOSE_SCHEMA>;
+
+export const GRADE_AMENDMENT_DECIDE_SCHEMA = z
+  .object({
+    id: z.uuid(),
+    decision: z.enum(["approved", "rejected"]),
+    note: z.string().trim().max(500, "Tối đa 500 ký tự").default(""),
+  })
+  .refine((input) => input.decision === "approved" || input.note.length > 0, { path: ["note"], message: "Ghi lý do từ chối để người đề nghị biết" });
+
+export type GradeAmendmentDecideInput = z.input<typeof GRADE_AMENDMENT_DECIDE_SCHEMA>;
+
+// Kết quả bước cuối của đơn (Phòng Khảo thí, Phòng Đào tạo nhập khi duyệt), đọc từ effect của lần duyệt.
+export const REGRADE_EFFECT_SCHEMA = z.object({ newScore: amendmentScore }, "Nhập điểm sau phúc khảo trước khi duyệt");
+
+export const GRADE_CHANGE_EFFECT_SCHEMA = z.object({ newScore: amendmentScore.optional() }).default({});
+
+export const EXAM_POSTPONE_EFFECT_SCHEMA = z.object({ examKind: z.enum(["midterm", "final"]).optional() }).default({});
+
+export const CREDIT_TRANSFER_EFFECT_SCHEMA = z.object(
+  {
+    courses: z
+      .array(
+        z
+          .object({
+            courseId: z.uuid("Chưa chọn học phần"),
+            mode: z.enum(["transfer", "exemption"], "Chọn công nhận điểm hoặc miễn"),
+            score10: amendmentScore.nullable().optional(),
+          })
+          .refine((course) => course.mode === "exemption" || (course.score10 ?? null) !== null, { path: ["score10"], message: "Nhập điểm được công nhận" }),
+      )
+      .min(1, "Thêm ít nhất một học phần được công nhận hoặc miễn")
+      .max(30, "Tối đa 30 học phần mỗi đơn")
+      .refine((courses) => new Set(courses.map((course) => course.courseId)).size === courses.length, "Một học phần chỉ ghi một lần"),
+  },
+  "Nhập các học phần được công nhận hoặc miễn trước khi duyệt",
+);
+
+export type CreditTransferEffect = z.output<typeof CREDIT_TRANSFER_EFFECT_SCHEMA>;

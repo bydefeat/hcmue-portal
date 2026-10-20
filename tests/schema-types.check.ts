@@ -14,8 +14,8 @@ import type { ExamFormat, ExamKind, ExamPaperStatus, ExamSessionStatus } from "@
 import type { examFormatEnum, examKindEnum, examPaperStatusEnum, examSessionStatusEnum } from "@/modules/exams/exams.schema";
 import type { RoomStatus, RoomType } from "@/modules/facilities/facilities.type";
 import type { roomStatusEnum, roomTypeEnum } from "@/modules/facilities/facilities.schema";
-import type { GradeSheetStatus, WarningStatus } from "@/modules/grades/grades.type";
-import type { gradeSheetStatusEnum, warningStatusEnum } from "@/modules/grades/grades.schema";
+import type { GradeAmendmentSource, GradeAmendmentStatus, GradeSheetStatus, WarningStatus } from "@/modules/grades/grades.type";
+import type { gradeAmendmentSourceEnum, gradeAmendmentStatusEnum, gradeSheetStatusEnum, warningStatusEnum } from "@/modules/grades/grades.schema";
 import type { MailKind, MailStatus } from "@/modules/mail/mail.type";
 import type { mailKindEnum, mailStatusEnum } from "@/modules/mail/mail.schema";
 import type { NotificationAudience, NotificationKind } from "@/modules/notifications/notifications.type";
@@ -60,6 +60,8 @@ export type SchemaMatchesFrontendTypes = [
   Assert<Same<Values<typeof roomTypeEnum>, RoomType>>,
   Assert<Same<Values<typeof gradeSheetStatusEnum>, GradeSheetStatus>>,
   Assert<Same<Values<typeof warningStatusEnum>, WarningStatus>>,
+  Assert<Same<Values<typeof gradeAmendmentSourceEnum>, GradeAmendmentSource>>,
+  Assert<Same<Values<typeof gradeAmendmentStatusEnum>, GradeAmendmentStatus>>,
   Assert<Same<Values<typeof mailKindEnum>, MailKind>>,
   Assert<Same<Values<typeof mailStatusEnum>, MailStatus>>,
   Assert<Same<Values<typeof notificationKindEnum>, NotificationKind>>,

@@ -134,6 +134,8 @@ export const DECIDE_STEP_SCHEMA = z
     step: z.int().min(0),
     decision: z.enum(["approved", "rejected"]),
     comment: z.string().trim().max(500, "Tối đa 500 ký tự"),
+    // Phần nhập kèm khi duyệt bước cuối (điểm sau phúc khảo...), handler kết quả đơn kiểm bằng schema riêng.
+    effect: z.record(z.string(), z.unknown()).optional(),
   })
   .refine((input) => input.decision === "approved" || input.comment.length > 0, {
     path: ["comment"],
@@ -424,6 +426,7 @@ export const SUPERVISE_STEP_SCHEMA = z.object({
   step: z.int().min(0),
   decision: z.enum(["approved", "rejected", "skipped"], "Chưa chọn cách xử lý"),
   reason: note(500, "Ghi lý do xử lý thay"),
+  effect: z.record(z.string(), z.unknown()).optional(),
 });
 
 export type SuperviseStepInput = z.input<typeof SUPERVISE_STEP_SCHEMA>;

@@ -32,6 +32,8 @@ export type RegulationSettings = {
     // Bước làm tròn điểm tổng kết học phần (thang 10): 0,1, 0,5 hoặc 1.
     roundingStep: 0.1 | 0.5 | 1;
     standing: StandingThresholds;
+    // Điểm I (chưa hoàn thiện, do hoãn thi) quá số học kỳ này kể từ học kỳ nhận I mà chưa có điểm thì chuyển thành F.
+    incompleteTerms: number;
   };
   credits: {
     minPerTerm: number;
@@ -58,6 +60,8 @@ export type RegulationSettings = {
     studyPlanReviewDays: number;
     regradeWindowDays: number;
     registrationClosingSoonHours: number;
+    // Rút học phần (nhận W) trong số tuần này kể từ ngày bắt đầu học kỳ.
+    withdrawDeadlineWeeks: number;
   };
   graduation: {
     // Khối lượng học lại vượt quá phần trăm này của tổng tín chỉ chương trình thì hạng tốt nghiệp bị giảm một mức.

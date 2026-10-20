@@ -4,6 +4,7 @@ import { env } from "@/shared/libs/env.lib";
 import { publishDueAnnouncements } from "@/modules/announcements/announcements.lib";
 import { purgeOldAuditLogs } from "@/modules/audit/audit.lib";
 import { sweepSignInFailures } from "@/modules/authentication/authentication.lockout";
+import { convertOverdueIncompletes } from "@/modules/grades/grade-amendments.lib";
 import { runAcademicWarningsJob } from "@/modules/grades/grades.lib";
 import { runMailOutboxJob } from "@/modules/mail/mail.lib";
 import { purgeOldNotifications } from "@/modules/notifications/notifications.lib";
@@ -29,6 +30,8 @@ const JOBS: Record<string, () => Promise<Record<string, number>>> = {
   "orphan-files": async () => ({ ...(await sweepOrphanRequestFiles()), ...(await sweepOrphanExamFiles()) }),
   // Cảnh báo học vụ của học kỳ chính vừa kết thúc; chạy lặp lại không sinh trùng. Nên chạy mỗi ngày.
   "academic-warnings": runAcademicWarningsJob,
+  // Điểm I quá số học kỳ quy chế cho phép mà chưa có điểm thi bù thì chuyển F, báo sinh viên; chạy lặp lại không chuyển trùng. Mỗi ngày.
+  "incomplete-grades": () => convertOverdueIncompletes(),
   // Gửi thư trong hàng đợi chưa đi được (lỗi Resend, tiến trình chết giữa chừng), lùi lịch thư lỗi, xóa thư đã gửi quá 30 ngày.
   // Nên chạy mỗi 1 đến 5 phút: lịch gửi lại ngắn nhất là 1 phút.
   "mail-outbox": runMailOutboxJob,

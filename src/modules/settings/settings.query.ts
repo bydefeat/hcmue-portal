@@ -232,7 +232,7 @@ export async function getReportTable(reportKey: string, termId: string, faculty:
             result?.failedCredits ?? 0,
             decimal(result?.cpa4 ?? null),
             decimal(result?.cpa10 ?? null),
-            result ? STANDING_LABEL[toStanding(result.cpa4, regulation.grading.standing)] : UNRANKED_LABEL,
+            result && result.cpa4 !== null ? STANDING_LABEL[toStanding(result.cpa4, regulation.grading.standing)] : UNRANKED_LABEL,
           ];
         }),
       };

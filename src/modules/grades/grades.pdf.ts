@@ -1,7 +1,7 @@
 import "server-only";
 import { formatDate, formatDateTime } from "@/shared/libs/date.lib";
 import { buildPdf } from "@/shared/libs/pdf.lib";
-import { formatPoint, standingLabel } from "@/modules/grades/grades.constant";
+import { formatPoint, RESULT_MARK_LEGEND, standingLabel } from "@/modules/grades/grades.constant";
 import { attemptNote, letterOf, weightedScore } from "@/modules/grades/grades.rule";
 import type { GradeComponent, GradingRules, ScoreRow, StudentStanding, TranscriptTerm } from "@/modules/grades/grades.type";
 
@@ -55,6 +55,7 @@ export function transcriptPdf(student: TranscriptStudent, terms: TranscriptTerm[
         text: `Tổng số tín chỉ tích lũy: ${standing.earnedCredits}. Điểm trung bình tích lũy: ${formatPoint(standing.cpa4) || "chưa có"}. Xếp loại: ${standingLabel(standing.standing)}.`,
       },
       { type: "paragraph", size: 8.5, text: "Học phần học lại hoặc học cải thiện: điểm tính vào điểm trung bình tích lũy là điểm của lần học cuối." },
+      { type: "paragraph", size: 8.5, text: RESULT_MARK_LEGEND },
       { type: "paragraph", size: 8.5, text: "Bảng điểm tra cứu từ cổng thông tin đào tạo, dùng để tham khảo. Bản có giá trị xác nhận do Phòng Đào tạo cấp." },
     ],
   });

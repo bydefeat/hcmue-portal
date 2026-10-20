@@ -4,7 +4,7 @@ import { and, eq, gte, inArray, lte, ne } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db, type Transaction } from "@/shared/libs/db.lib";
 import { actionError, actionFailure, actionOk, parseInput, type ActionFailure, type ActionResult } from "@/shared/libs/action.lib";
-import { dayjs, formatDate, weekdayOf } from "@/shared/libs/date.lib";
+import { dayjs, formatDate, schoolToday, weekdayOf } from "@/shared/libs/date.lib";
 import { isUuid } from "@/shared/libs/id.lib";
 import { readFile } from "@/shared/libs/storage.lib";
 import { formatStudentCode } from "@/shared/libs/student-code.lib";
@@ -12,11 +12,12 @@ import { weekdayLabel } from "@/shared/constants/period.constant";
 import { requireSession } from "@/modules/authentication/authentication.query";
 import { auditActorOf, type AuditActor } from "@/modules/audit/audit.lib";
 import { requirePermission } from "@/modules/access/access.query";
-import { classSections, enrollments, sectionMeetings } from "@/modules/course-registration/course-registration.schema";
+import { classSections, enrollments, sectionMeetings, terms } from "@/modules/course-registration/course-registration.schema";
 import { courses, majors } from "@/modules/curriculum/curriculum.schema";
 import { rooms } from "@/modules/facilities/facilities.schema";
 // CPA và tham số quy chế đọc từ đúng nguồn của module điểm, quy chế (không tự tính lại ở đây).
 import { getStudentStandings } from "@/modules/grades/grades.query";
+import { withdrawBlockedReason } from "@/modules/grades/grades.rule";
 import { getRegulation } from "@/modules/settings/settings.query";
 import { getCurrentLecturer, getCurrentStudent } from "@/modules/users/users.query";
 import { administrativeClasses, lecturers, students } from "@/modules/users/users.schema";
@@ -100,11 +101,16 @@ const lecturerActor = (lecturer: { displayName: string }, userId: string): Audit
 
 async function regulationRules() {
   const regulation = await getRegulation();
-  return { maxPerTerm: regulation.credits.maxPerTerm, overloadMinCpa: regulation.credits.overloadMinCpa, regradeWindowDays: regulation.workflow.regradeWindowDays };
+  return {
+    maxPerTerm: regulation.credits.maxPerTerm,
+    overloadMinCpa: regulation.credits.overloadMinCpa,
+    regradeWindowDays: regulation.workflow.regradeWindowDays,
+    withdrawDeadlineWeeks: regulation.workflow.withdrawDeadlineWeeks,
+  };
 }
 
 // Điều kiện gửi đơn theo quy chế, kiểm trong giao dịch (cả khi gửi lại đơn bị từ chối): phúc khảo khi điểm đã công bố và còn hạn.
-async function checkSectionEligibility(tx: Transaction, kind: RequestKind, classSectionId: string, rules: { regradeWindowDays: number }) {
+async function checkSectionEligibility(tx: Transaction, kind: RequestKind, classSectionId: string, rules: { regradeWindowDays: number; withdrawDeadlineWeeks: number }) {
   if (kind === "regrade") {
     const blocked = regradeBlockedReason(await gradeSheetStatus(tx, classSectionId), new Date(), rules.regradeWindowDays);
     if (blocked) throw new RequestError(blocked, "section");
@@ -112,6 +118,17 @@ async function checkSectionEligibility(tx: Transaction, kind: RequestKind, class
   if (kind === "grade-change") {
     const blocked = gradeChangeSheetBlockedReason((await gradeSheetStatus(tx, classSectionId))?.status ?? null);
     if (blocked) throw new RequestError(blocked, "classId");
+  }
+  // Rút học phần: trong số tuần đầu học kỳ theo quy chế (duyệt bước cuối kiểm lại một lần nữa).
+  if (kind === "withdraw") {
+    const [term] = await tx
+      .select({ startDate: terms.startDate, endDate: terms.endDate })
+      .from(classSections)
+      .innerJoin(terms, eq(terms.id, classSections.termId))
+      .where(eq(classSections.id, classSectionId));
+    const sheet = await gradeSheetStatus(tx, classSectionId);
+    const blocked = term ? withdrawBlockedReason({ termStart: term.startDate, termEnd: term.endDate, sheetStatus: sheet?.status ?? null }, schoolToday(), rules.withdrawDeadlineWeeks) : null;
+    if (blocked) throw new RequestError(blocked, "section");
   }
 }
 
@@ -367,6 +384,7 @@ export async function superviseRequestStep(requestId: string, input: SuperviseSt
         decision: parsed.data.decision,
         comment: parsed.data.reason,
         onBehalf: true,
+        effect: parsed.data.effect,
         actor: auditActorOf(viewer),
         authorize: (context) => superviseDeniedReason(access, context.faculty),
       }),

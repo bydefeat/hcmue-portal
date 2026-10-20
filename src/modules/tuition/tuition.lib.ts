@@ -33,13 +33,14 @@ async function priceOf(tx: Executor, studentId: string, termId: string) {
   return row ?? null;
 }
 
+// Học phần đã rút (W) vẫn tính học phí: quy chế không hoàn học phí khi rút sau đợt điều chỉnh.
 async function enrolledCredits(tx: Executor, studentId: string, termId: string) {
   const [row] = await tx
     .select({ credits: sql<number>`coalesce(sum(${courses.credits}), 0)`.mapWith(Number) })
     .from(enrollments)
     .innerJoin(courses, eq(courses.id, enrollments.courseId))
     .innerJoin(classSections, eq(classSections.id, enrollments.classSectionId))
-    .where(and(eq(enrollments.studentId, studentId), eq(enrollments.termId, termId), eq(enrollments.status, "enrolled"), ne(classSections.status, "cancelled")));
+    .where(and(eq(enrollments.studentId, studentId), eq(enrollments.termId, termId), inArray(enrollments.status, ["enrolled", "withdrawn"]), ne(classSections.status, "cancelled")));
   return row?.credits ?? 0;
 }
 

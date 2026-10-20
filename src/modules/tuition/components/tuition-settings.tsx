@@ -39,8 +39,9 @@ export function TuitionSettings({ rates, fees, terms, majors, canManage }: Tuiti
   const router = useRouter();
   const [messageApi, messageHolder] = message.useMessage();
   const [isSaving, startSaving] = useTransition();
-  const [rateOpen, setRateOpen] = useState(false);
-  const [feeOpen, setFeeOpen] = useState(false);
+  // Giá trị đang sửa (null là đóng); form mở mới mỗi lần nên nhận giá trị qua initialValues.
+  const [rateOpen, setRateOpen] = useState<Partial<RateForm> | null>(null);
+  const [feeOpen, setFeeOpen] = useState<Partial<FeeForm> | null>(null);
   const [finalizing, setFinalizing] = useState<TermTuitionStatus | null>(null);
   const [dueDate, setDueDate] = useState<Dayjs | null>(null);
   const [rateForm] = Form.useForm<RateForm>();
@@ -80,10 +81,7 @@ export function TuitionSettings({ rates, fees, terms, majors, canManage }: Tuiti
                 type="text"
                 aria-label={`Sửa đơn giá ${row.majorName} ${yearText(row.academicYear)}`}
                 icon={<Pen size={14} aria-hidden className="text-zinc-500" />}
-                onClick={() => {
-                  rateForm.setFieldsValue({ academicYear: row.academicYear, majorCode: row.majorCode, pricePerCredit: row.pricePerCredit, note: row.note });
-                  setRateOpen(true);
-                }}
+                onClick={() => setRateOpen({ academicYear: row.academicYear, majorCode: row.majorCode, pricePerCredit: row.pricePerCredit, note: row.note })}
               />
             ),
           },
@@ -109,10 +107,7 @@ export function TuitionSettings({ rates, fees, terms, majors, canManage }: Tuiti
                 type="text"
                 aria-label={`Sửa khoản thu ${row.label}`}
                 icon={<Pen size={14} aria-hidden className="text-zinc-500" />}
-                onClick={() => {
-                  feeForm.setFieldsValue(row);
-                  setFeeOpen(true);
-                }}
+                onClick={() => setFeeOpen(row)}
               />
             ),
           },
@@ -165,10 +160,7 @@ export function TuitionSettings({ rates, fees, terms, majors, canManage }: Tuiti
           canManage ? (
             <Button
               icon={<Plus size={16} aria-hidden className="text-zinc-500" />}
-              onClick={() => {
-                rateForm.resetFields();
-                setRateOpen(true);
-              }}
+              onClick={() => setRateOpen({})}
             >
               Thêm đơn giá
             </Button>
@@ -185,11 +177,7 @@ export function TuitionSettings({ rates, fees, terms, majors, canManage }: Tuiti
           canManage ? (
             <Button
               icon={<Plus size={16} aria-hidden className="text-zinc-500" />}
-              onClick={() => {
-                feeForm.resetFields();
-                feeForm.setFieldsValue({ isMandatory: true });
-                setFeeOpen(true);
-              }}
+              onClick={() => setFeeOpen({ isMandatory: true })}
             >
               Thêm khoản thu
             </Button>
@@ -200,25 +188,25 @@ export function TuitionSettings({ rates, fees, terms, majors, canManage }: Tuiti
       </SectionCard>
 
       <Modal
-        open={rateOpen}
+        open={rateOpen !== null}
         title="Đơn giá tín chỉ"
         okText="Lưu"
         cancelText="Hủy"
         confirmLoading={isSaving}
         onOk={() => rateForm.submit()}
-        onCancel={() => setRateOpen(false)}
+        onCancel={() => setRateOpen(null)}
         mask={{ closable: false }}
         destroyOnHidden
-        forceRender
       >
         <Form
           form={rateForm}
+          initialValues={rateOpen ?? undefined}
           layout="vertical"
           onFinish={(values) =>
             run(
               () => saveTuitionRate({ ...values, note: values.note ?? "" }),
               () => {
-                setRateOpen(false);
+                setRateOpen(null);
                 messageApi.success("Đã lưu đơn giá. Hóa đơn tạm tính áp dụng từ lần cập nhật tới; hóa đơn đã chốt giữ nguyên.");
               },
               rateForm,
@@ -243,25 +231,25 @@ export function TuitionSettings({ rates, fees, terms, majors, canManage }: Tuiti
       </Modal>
 
       <Modal
-        open={feeOpen}
+        open={feeOpen !== null}
         title="Khoản thu cố định"
         okText="Lưu"
         cancelText="Hủy"
         confirmLoading={isSaving}
         onOk={() => feeForm.submit()}
-        onCancel={() => setFeeOpen(false)}
+        onCancel={() => setFeeOpen(null)}
         mask={{ closable: false }}
         destroyOnHidden
-        forceRender
       >
         <Form
           form={feeForm}
+          initialValues={feeOpen ?? undefined}
           layout="vertical"
           onFinish={(values) =>
             run(
               () => saveTuitionFee(values),
               () => {
-                setFeeOpen(false);
+                setFeeOpen(null);
                 messageApi.success("Đã lưu khoản thu.");
               },
               feeForm,

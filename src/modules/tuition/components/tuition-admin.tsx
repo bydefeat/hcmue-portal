@@ -390,7 +390,7 @@ export function TuitionAdmin({ invoices, terms, termId, initialQuery, studentHre
                 title={`Sinh viên nộp thừa ${formatMoney(detail.refundDue)}`}
                 description="Số phải nộp giảm sau khi đã nộp (hủy lớp, giảm tín chỉ, miễn giảm). Hoàn lại cho sinh viên rồi ghi nhận ở đây."
                 action={
-                  <Button size="small" onClick={() => { refundForm.resetFields(); refundForm.setFieldsValue({ amount: detail.refundDue }); setAdjusting("refund"); }}>
+                  <Button size="small" onClick={() => setAdjusting("refund")}>
                     Ghi đã hoàn
                   </Button>
                 }
@@ -460,11 +460,7 @@ export function TuitionAdmin({ invoices, terms, termId, initialQuery, studentHre
             {!isRecording && (
               <Button
                 className="w-fit"
-                onClick={() => {
-                  discountForm.resetFields();
-                  discountForm.setFieldsValue({ amount: detail.discount, reason: detail.discountReason });
-                  setAdjusting("discount");
-                }}
+                onClick={() => setAdjusting("discount")}
               >
                 {detail.discount > 0 ? "Sửa miễn giảm" : "Miễn giảm"}
               </Button>
@@ -529,7 +525,7 @@ export function TuitionAdmin({ invoices, terms, termId, initialQuery, studentHre
         mask={{ closable: false }}
         destroyOnHidden
       >
-        <Form form={discountForm} layout="vertical" onFinish={saveDiscount}>
+        <Form form={discountForm} layout="vertical" onFinish={saveDiscount} initialValues={detail ? { amount: detail.discount, reason: detail.discountReason } : undefined}>
           <Form.Item name="amount" label="Số tiền miễn giảm" rules={[{ required: true, message: "Chưa nhập số tiền" }]} extra="Nhập 0 để bỏ miễn giảm.">
             <InputNumber<number>
               min={0}
@@ -557,7 +553,7 @@ export function TuitionAdmin({ invoices, terms, termId, initialQuery, studentHre
         mask={{ closable: false }}
         destroyOnHidden
       >
-        <Form form={refundForm} layout="vertical" onFinish={saveRefund}>
+        <Form form={refundForm} layout="vertical" onFinish={saveRefund} initialValues={detail ? { amount: detail.refundDue } : undefined}>
           <Form.Item name="amount" label="Số tiền đã hoàn" rules={[{ required: true, message: "Chưa nhập số tiền" }]} extra={detail ? `Tối đa ${formatMoney(detail.refundDue)} (số nộp thừa).` : undefined}>
             <InputNumber<number>
               min={1000}

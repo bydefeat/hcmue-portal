@@ -25,7 +25,13 @@ export const EXAM_PAPER_STATUS: Record<ExamPaperStatus, StatusMeta> = {
   "not-submitted": { label: "Chưa nộp đề", tone: "warning" },
   submitted: { label: "Đã nộp, chờ duyệt", tone: "neutral" },
   approved: { label: "Đề đã duyệt", tone: "success" },
+  returned: { label: "Bị trả lại, cần nộp lại", tone: "danger" },
 };
+
+// Lý do trả lại đề (DB chặn bằng exam_sessions_paper_return_reason).
+export const EXAM_RETURN_REASON_MAX = 500;
+
+export const LECTURER_EXAMS_HREF = "/lecturer/exams";
 
 export const PROCTORS_PER_ROOM = 2;
 
@@ -62,6 +68,10 @@ export const EXAMS_CONSTRAINT_MESSAGE: Partial<Record<string, string>> = {
   exam_sessions_duration_range: "Thời gian làm bài phải từ 15 đến 240 phút.",
   exam_sessions_paper_fields: "Đề thi đã nộp phải có đủ tệp đề, tệp đáp án và thời điểm nộp; đề chưa nộp thì không có tệp.",
   exam_sessions_paper_size_range: "Mỗi tệp đề thi, đáp án từ 1 byte đến 20 MB.",
+  exam_sessions_paper_review_fields: "Đề đã duyệt hoặc bị trả lại phải có thời điểm xét; đề chưa xét thì không có người duyệt.",
+  exam_sessions_paper_return_reason: "Đề bị trả lại phải có lý do (tối đa 500 ký tự); đề không bị trả lại thì không có lý do.",
+  exam_sessions_paper_locked: "Đề thi đã được duyệt nên đã khóa, không nộp lại hay đổi trạng thái được.",
+  exam_sessions_paper_reviewed_by_user_id_user_id_fk: "Tài khoản người duyệt đề không còn trong hệ thống.",
   exam_sessions_paper_storage_key_unique: "Tệp đề thi bị trùng khóa lưu trữ. Nộp lại.",
   exam_sessions_answer_key_storage_key_unique: "Tệp đáp án bị trùng khóa lưu trữ. Nộp lại.",
   exam_sessions_class_section_id_kind_unique: "Lớp này đã có ca thi cùng loại (giữa kỳ hoặc cuối kỳ).",

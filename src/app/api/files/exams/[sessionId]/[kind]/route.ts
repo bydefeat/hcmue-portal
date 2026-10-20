@@ -1,4 +1,4 @@
-import { fileErrorResponse, fileResponse, readFile } from "@/shared/libs/storage.lib";
+import { fileErrorResponse, fileResponse, openFile } from "@/shared/libs/storage.lib";
 import { getSession } from "@/modules/authentication/authentication.query";
 import { getExamPaperFile } from "@/modules/exams/exams.query";
 import type { ExamPaperFileKind } from "@/modules/exams/exams.type";
@@ -12,7 +12,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ ses
   if (!KINDS.includes(kind as ExamPaperFileKind)) return fileErrorResponse(404, "Không tìm thấy tệp");
   const file = await getExamPaperFile(sessionId, kind as ExamPaperFileKind);
   if (!file) return fileErrorResponse(404, "Không tìm thấy tệp");
-  const data = await readFile(file.storageKey);
-  if (!data) return fileErrorResponse(404, "Tệp không còn trong kho lưu trữ");
-  return fileResponse(data, file);
+  const content = await openFile(file.storageKey);
+  if (!content) return fileErrorResponse(404, "Tệp không còn trong kho lưu trữ");
+  return fileResponse(content, file);
 }

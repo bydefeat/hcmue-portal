@@ -7,13 +7,23 @@ import { Magnifier, Pen } from "defeat-icons-react";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { PageHeader } from "@/shared/components/ui/page-header";
 import { StatusTag } from "@/shared/components/ui/status-tag";
-import { dayjs, formatDate } from "@/shared/libs/date.lib";
-import { EXAM_FORMAT_LABEL, EXAM_FORMAT_OPTIONS, EXAM_PAPER_STATUS, EXAM_STATUS, examConflicts, PROCTORS_PER_ROOM } from "@/modules/exams/exams.constant";
+import { dayjs, formatDate, formatDateTime } from "@/shared/libs/date.lib";
+import {
+  EXAM_FORMAT_LABEL,
+  EXAM_FORMAT_OPTIONS,
+  EXAM_KIND_LABEL,
+  EXAM_PAPER_STATUS,
+  EXAM_RETURN_REASON_MAX,
+  EXAM_STATUS,
+  examConflicts,
+  PROCTORS_PER_ROOM,
+} from "@/modules/exams/exams.constant";
+import { paperReviewBlockedReason } from "@/modules/exams/exams.rule";
 import type { ExamFormat, ExamKind, ExamPaperStatus, ExamSession } from "@/modules/exams/exams.type";
 import { paginationItemRender } from "@/shared/constants/antd.constant";
 import { toFormFields } from "@/shared/libs/form.lib";
 import { normalizeSearch } from "@/shared/libs/search.lib";
-import { publishExamSessions, updateExamSession } from "@/modules/exams/exams.action";
+import { approveExamPaper, publishExamSessions, returnExamPaper, updateExamSession } from "@/modules/exams/exams.action";
 import { ExamPaperLinks } from "@/modules/exams/components/exam-paper-links";
 
 export type ExamRoomOption = { id: string; code: string; examCapacity: number; isAvailable: boolean };
@@ -31,6 +41,11 @@ type EditValues = { date: Dayjs; startTime: string; roomId: string; format: Exam
 
 const START_TIMES = ["07:30", "09:30", "13:30", "15:30", "17:30"];
 
+// Chỉ xét được đề của khoa trong phạm vi (server chỉ trả tệp đề cho các ca đó).
+const canReview = (row: ExamSession) => row.papers.length > 0 && paperReviewBlockedReason(row) === null;
+
+const paperLabel = (row: ExamSession) => `${EXAM_KIND_LABEL[row.kind].toLowerCase()} lớp ${row.classCode}`;
+
 export function AdminExamSchedule({ termId, sessions, rooms, proctors, header }: AdminExamScheduleProps) {
   const [messageApi, contextHolder] = message.useMessage();
   const [modal, modalContextHolder] = Modal.useModal();
@@ -43,6 +58,10 @@ export function AdminExamSchedule({ termId, sessions, rooms, proctors, header }:
   const [form] = Form.useForm<EditValues>();
   const [isSaving, startSaving] = useTransition();
   const editing = rows.find((row) => row.id === editingId) ?? null;
+  const [returningId, setReturningId] = useState<string | null>(null);
+  const [returnForm] = Form.useForm<{ reason: string }>();
+  const [isReturning, startReturning] = useTransition();
+  const returning = rows.find((row) => row.id === returningId) ?? null;
 
   useEffect(() => {
     if (!editing) return;
@@ -61,6 +80,8 @@ export function AdminExamSchedule({ termId, sessions, rooms, proctors, header }:
   const capacityOf = (code: string) => rooms.find((room) => room.code === code)?.examCapacity ?? 0;
   const drafts = ofKind.filter((row) => row.status === "draft");
   const missingPapers = ofKind.filter((row) => row.paperStatus === "not-submitted" && row.status !== "done").length;
+  const awaitingReview = ofKind.filter(canReview).length;
+  const replaceRow = (next: ExamSession) => setRows((current) => current.map((row) => (row.id === next.id ? next : row)));
 
   const visible = ofKind.filter(
     (row) =>
@@ -122,6 +143,72 @@ export function AdminExamSchedule({ termId, sessions, rooms, proctors, header }:
       },
     });
 
+  const approve = (row: ExamSession) =>
+    modal.confirm({
+      title: `Duyệt đề ${paperLabel(row)}?`,
+      content: "Đề thi và đáp án sẽ bị khóa, giảng viên không nộp lại được nữa. Giảng viên nhận thông báo ngay.",
+      okText: "Duyệt đề",
+      okButtonProps: { danger: true },
+      cancelText: "Hủy",
+      mask: { closable: false },
+      onOk: async () => {
+        const result = await approveExamPaper({ examSessionId: row.id }).catch(() => null);
+        if (!result) {
+          messageApi.error("Chưa duyệt được, kiểm tra kết nối rồi thử lại.");
+          return;
+        }
+        if (!result.ok) {
+          messageApi.error(result.message);
+          return;
+        }
+        replaceRow(result.data);
+        messageApi.success(`Đã duyệt đề ${paperLabel(row)}`);
+      },
+    });
+
+  const submitReturn = (values: { reason: string }) => {
+    if (!returning) return;
+    const row = returning;
+    startReturning(async () => {
+      const result = await returnExamPaper({ examSessionId: row.id, reason: values.reason }).catch(() => null);
+      if (!result) {
+        messageApi.error("Chưa trả lại được, kiểm tra kết nối rồi thử lại.");
+        return;
+      }
+      if (!result.ok) {
+        returnForm.setFields(toFormFields(result.fieldErrors));
+        messageApi.error(result.message);
+        return;
+      }
+      replaceRow(result.data);
+      setReturningId(null);
+      messageApi.success(`Đã trả lại đề ${paperLabel(row)}, giảng viên nhận thông báo kèm lý do`);
+    });
+  };
+
+  const paperReview = (row: ExamSession) => (
+    <>
+      {row.paperStatus === "returned" && row.paperReview?.returnReason && (
+        <span className="max-w-56 text-xs text-pretty text-rose-700">Lý do trả lại: {row.paperReview.returnReason}</span>
+      )}
+      {row.paperStatus === "approved" && row.paperReview && (
+        <span className="text-xs text-muted tabular-nums">
+          {row.paperReview.reviewerName ?? "Phòng Khảo thí"} duyệt {formatDateTime(row.paperReview.reviewedAt)}
+        </span>
+      )}
+      {canReview(row) && (
+        <span className="flex gap-1">
+          <Button size="small" onClick={() => approve(row)} aria-label={`Duyệt đề ${paperLabel(row)}`}>
+            Duyệt
+          </Button>
+          <Button size="small" onClick={() => setReturningId(row.id)} aria-label={`Trả lại đề ${paperLabel(row)}`}>
+            Trả lại
+          </Button>
+        </span>
+      )}
+    </>
+  );
+
   const columns: TableColumnsType<ExamSession> = [
     {
       title: "Ngày thi",
@@ -150,6 +237,11 @@ export function AdminExamSchedule({ termId, sessions, rooms, proctors, header }:
           <span className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted tabular-nums md:hidden">
             <StatusTag status={EXAM_STATUS[row.status]} />
             {formatDate(row.date)}, {row.startTime} · {row.room}
+          </span>
+          <span className="mt-1 flex flex-col items-start gap-1 md:hidden">
+            <StatusTag status={EXAM_PAPER_STATUS[row.paperStatus]} />
+            <ExamPaperLinks examSessionId={row.id} papers={row.papers} />
+            {paperReview(row)}
           </span>
         </span>
       ),
@@ -195,12 +287,13 @@ export function AdminExamSchedule({ termId, sessions, rooms, proctors, header }:
     {
       title: "Đề thi",
       key: "paperStatus",
-      width: 150,
+      width: 200,
       responsive: ["md"],
       render: (_, row) => (
         <span className="flex flex-col items-start gap-1">
           <StatusTag status={EXAM_PAPER_STATUS[row.paperStatus]} />
           <ExamPaperLinks examSessionId={row.id} papers={row.papers} />
+          {paperReview(row)}
         </span>
       ),
     },
@@ -274,7 +367,7 @@ export function AdminExamSchedule({ termId, sessions, rooms, proctors, header }:
           />
         </div>
         <p className="text-xs text-muted tabular-nums">
-          {ofKind.length} ca thi · {conflicts.length} xung đột · {missingPapers} ca chưa có đề
+          {ofKind.length} ca thi · {conflicts.length} xung đột · {missingPapers} ca chưa có đề · {awaitingReview} đề chờ duyệt
         </p>
         <Table
           rowKey="id"
@@ -285,6 +378,32 @@ export function AdminExamSchedule({ termId, sessions, rooms, proctors, header }:
           pagination={{ itemRender: paginationItemRender, pageSize: 25, hideOnSinglePage: true }}
           locale={{ emptyText: <EmptyState illustration="search" title="Không có ca thi khớp bộ lọc" /> }}
         />
+        <Modal
+          open={returning !== null}
+          title={returning ? `Trả lại đề ${paperLabel(returning)}` : ""}
+          okText="Trả lại đề"
+          cancelText="Hủy"
+          onOk={() => returnForm.submit()}
+          confirmLoading={isReturning}
+          onCancel={() => setReturningId(null)}
+          mask={{ closable: false }}
+          destroyOnHidden
+        >
+          {returning && (
+            <Form form={returnForm} layout="vertical" onFinish={submitReturn}>
+              <p className="mb-3 text-sm text-pretty text-muted">
+                {returning.courseName}
+                {returning.lecturerName ? `, ${returning.lecturerName}` : ""}. Giảng viên thấy lý do và nộp lại đề; đề quay về chờ duyệt.
+              </p>
+              <div className="mb-4">
+                <ExamPaperLinks examSessionId={returning.id} papers={returning.papers} />
+              </div>
+              <Form.Item name="reason" label="Lý do trả lại" rules={[{ required: true, whitespace: true, message: "Chưa nhập lý do trả lại" }]}>
+                <Input.TextArea autoSize={{ minRows: 3, maxRows: 6 }} maxLength={EXAM_RETURN_REASON_MAX} showCount placeholder="Ví dụ: đáp án câu 3 chưa có thang điểm chi tiết" />
+              </Form.Item>
+            </Form>
+          )}
+        </Modal>
         <Drawer
           open={editing !== null}
           onClose={() => setEditingId(null)}

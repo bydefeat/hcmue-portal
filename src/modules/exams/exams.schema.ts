@@ -9,7 +9,8 @@ import { lecturers } from "@/modules/users/users.schema";
 export const examKindEnum = pgEnum("exam_kind", ["midterm", "final"]);
 export const examFormatEnum = pgEnum("exam_format", ["written", "multiple-choice", "practical", "oral", "project"]);
 export const examSessionStatusEnum = pgEnum("exam_session_status", ["draft", "published", "done"]);
-export const examPaperStatusEnum = pgEnum("exam_paper_status", ["not-submitted", "submitted", "approved"]);
+// returned: Phòng Khảo thí trả lại đề kèm lý do, giảng viên nộp lại; approved: đề bị khóa, không đổi tệp được nữa.
+export const examPaperStatusEnum = pgEnum("exam_paper_status", ["not-submitted", "submitted", "approved", "returned"]);
 
 export const examSessions = pgTable(
   "exam_sessions",
@@ -42,6 +43,10 @@ export const examSessions = pgTable(
     answerKeyContentType: text(),
     answerKeySizeBytes: integer(),
     paperSubmittedAt: timestamp({ withTimezone: true }),
+    // Lần duyệt hoặc trả lại gần nhất; nộp lại thì xóa (lịch sử ở nhật ký thao tác).
+    paperReviewedByUserId: uuid().references(() => user.id, { onDelete: "set null" }),
+    paperReviewedAt: timestamp({ withTimezone: true }),
+    paperReturnReason: text(),
     ...timestamps(),
   },
   (table) => [
@@ -53,6 +58,17 @@ export const examSessions = pgTable(
       "exam_sessions_paper_fields",
       sql`num_nonnulls(${table.paperStorageKey}, ${table.paperFileName}, ${table.paperContentType}, ${table.paperSizeBytes}, ${table.answerKeyStorageKey}, ${table.answerKeyFileName}, ${table.answerKeyContentType}, ${table.answerKeySizeBytes}, ${table.paperSubmittedAt}) = CASE WHEN ${table.paperStatus} = 'not-submitted' THEN 0 ELSE 9 END`,
     ),
+    // So sánh dạng text: giá trị enum mới thêm (returned) chưa dùng được trong cùng giao dịch migration. Đề duyệt trước khi
+    // có cột người duyệt (dữ liệu cũ) được phép thiếu thời điểm duyệt.
+    check(
+      "exam_sessions_paper_review_fields",
+      sql`(${table.paperStatus}::text IN ('approved', 'returned') OR (${table.paperReviewedAt} IS NULL AND ${table.paperReviewedByUserId} IS NULL)) AND (${table.paperStatus}::text <> 'returned' OR ${table.paperReviewedAt} IS NOT NULL) AND (${table.paperReviewedByUserId} IS NULL OR ${table.paperReviewedAt} IS NOT NULL)`,
+    ),
+    check(
+      "exam_sessions_paper_return_reason",
+      sql`(${table.paperStatus}::text = 'returned') = (${table.paperReturnReason} IS NOT NULL) AND (${table.paperReturnReason} IS NULL OR length(btrim(${table.paperReturnReason})) BETWEEN 1 AND 500)`,
+    ),
+    index().on(table.paperReviewedByUserId),
     check("exam_sessions_paper_size_range", sql`${table.paperSizeBytes} BETWEEN 1 AND 20971520 AND ${table.answerKeySizeBytes} BETWEEN 1 AND 20971520`),
   ],
 );

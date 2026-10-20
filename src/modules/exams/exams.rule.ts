@@ -1,8 +1,8 @@
 import { z } from "zod";
 import { dayjs } from "@/shared/libs/date.lib";
 import { checkUpload } from "@/shared/libs/upload.lib";
-import { EXAM_PAPER_LIMIT, PROCTORS_PER_ROOM } from "@/modules/exams/exams.constant";
-import type { ExamPaperFileKind } from "@/modules/exams/exams.type";
+import { EXAM_PAPER_LIMIT, EXAM_RETURN_REASON_MAX, PROCTORS_PER_ROOM } from "@/modules/exams/exams.constant";
+import type { ExamPaperFileKind, ExamPaperStatus, ExamSessionStatus } from "@/modules/exams/exams.type";
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -77,6 +77,36 @@ export function checkExamPaperFiles(files: Record<ExamPaperFileKind, ExamPaperUp
   }
   if (checked.paper && checked["answer-key"]) return { ok: true, files: { paper: checked.paper, "answer-key": checked["answer-key"] } };
   return { ok: false, fieldErrors };
+}
+
+// Phòng Khảo thí duyệt đề (khóa đề) hoặc trả lại kèm lý do để giảng viên nộp lại.
+export const EXAM_PAPER_APPROVE_SCHEMA = z.object({
+  examSessionId: z.uuid("Ca thi không hợp lệ"),
+});
+
+export type ExamPaperApproveInput = z.input<typeof EXAM_PAPER_APPROVE_SCHEMA>;
+
+export const EXAM_PAPER_RETURN_SCHEMA = z.object({
+  examSessionId: z.uuid("Ca thi không hợp lệ"),
+  reason: z.string("Chưa nhập lý do trả lại").trim().min(1, "Chưa nhập lý do trả lại").max(EXAM_RETURN_REASON_MAX, `Tối đa ${EXAM_RETURN_REASON_MAX} ký tự`),
+});
+
+export type ExamPaperReturnInput = z.input<typeof EXAM_PAPER_RETURN_SCHEMA>;
+
+// Chỉ xét đề đang chờ duyệt (đã nộp hoặc vừa nộp lại) của ca chưa thi. Trả câu báo khi không xét được, null khi được.
+export function paperReviewBlockedReason(exam: { status: ExamSessionStatus; paperStatus: ExamPaperStatus }) {
+  if (exam.status === "done") return "Ca thi đã diễn ra, không xét đề nữa.";
+  if (exam.paperStatus === "not-submitted") return "Giảng viên chưa nộp đề.";
+  if (exam.paperStatus === "approved") return "Đề đã được duyệt trước đó.";
+  if (exam.paperStatus === "returned") return "Đề đã bị trả lại, đang chờ giảng viên nộp lại.";
+  return null;
+}
+
+// Giảng viên nộp (lại) được khi ca chưa thi và đề chưa duyệt; đề bị trả lại thì nộp lại được.
+export const PAPER_SUBMITTABLE_STATUSES = ["not-submitted", "submitted", "returned"] as const satisfies readonly ExamPaperStatus[];
+
+export function canSubmitPaper(exam: { status: ExamSessionStatus; paperStatus: ExamPaperStatus }) {
+  return exam.status !== "done" && (PAPER_SUBMITTABLE_STATUSES as readonly ExamPaperStatus[]).includes(exam.paperStatus);
 }
 
 export const PROCTOR_SWAP_SCHEMA = z.object({

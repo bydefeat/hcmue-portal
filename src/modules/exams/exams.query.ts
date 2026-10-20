@@ -5,6 +5,7 @@ import { db } from "@/shared/libs/db.lib";
 import { isUuid } from "@/shared/libs/id.lib";
 import { formatStudentCode } from "@/shared/libs/student-code.lib";
 import { requireSession } from "@/modules/authentication/authentication.query";
+import { user as accounts } from "@/modules/authentication/authentication.schema";
 import { can, inScope } from "@/modules/access/access.constant";
 import { getViewer, requirePermission } from "@/modules/access/access.query";
 import { classSections, enrollments } from "@/modules/course-registration/course-registration.schema";
@@ -21,6 +22,7 @@ import type { ExamAttendance, ExamEligibilityRow, ExamPaperFile, ExamPaperFileKi
 const teacher = alias(lecturers, "exam_teacher");
 const requester = alias(lecturers, "swap_requester");
 const substitute = alias(lecturers, "swap_substitute");
+const reviewer = alias(accounts, "paper_reviewer");
 
 const displayName = (table: { title: AnyPgColumn; fullName: AnyPgColumn }) => sql<string>`${table.title} || ' ' || ${table.fullName}`;
 
@@ -52,6 +54,9 @@ async function examRows(where: SQL, showPapers: (row: { lecturerId: string | nul
       paperSizeBytes: examSessions.paperSizeBytes,
       answerKeyFileName: examSessions.answerKeyFileName,
       answerKeySizeBytes: examSessions.answerKeySizeBytes,
+      reviewerName: reviewer.name,
+      paperReviewedAt: examSessions.paperReviewedAt,
+      paperReturnReason: examSessions.paperReturnReason,
     })
     .from(examSessions)
     .innerJoin(classSections, eq(classSections.id, examSessions.classSectionId))
@@ -59,6 +64,7 @@ async function examRows(where: SQL, showPapers: (row: { lecturerId: string | nul
     .innerJoin(faculties, eq(faculties.id, courses.facultyId))
     .innerJoin(rooms, eq(rooms.id, examSessions.roomId))
     .leftJoin(teacher, eq(teacher.id, classSections.lecturerId))
+    .leftJoin(reviewer, eq(reviewer.id, examSessions.paperReviewedByUserId))
     .where(where)
     .orderBy(asc(examSessions.date), asc(examSessions.startTime), asc(classSections.code));
   if (rows.length === 0) return [];
@@ -93,11 +99,14 @@ async function examRows(where: SQL, showPapers: (row: { lecturerId: string | nul
     if (row.answerKeyFileName && row.answerKeySizeBytes) files.push({ kind: "answer-key", fileName: row.answerKeyFileName, sizeBytes: row.answerKeySizeBytes });
     return files;
   };
-  return rows.map(({ paperFileName: _a, paperSizeBytes: _b, answerKeyFileName: _c, answerKeySizeBytes: _d, ...row }, index) => ({
+  const reviewOf = (row: (typeof rows)[number]) =>
+    showPapers(row) && row.paperReviewedAt ? { reviewerName: row.reviewerName, reviewedAt: row.paperReviewedAt.toISOString(), returnReason: row.paperReturnReason } : null;
+  return rows.map(({ paperFileName: _a, paperSizeBytes: _b, answerKeyFileName: _c, answerKeySizeBytes: _d, reviewerName: _e, paperReviewedAt: _f, paperReturnReason: _g, ...row }, index) => ({
     ...row,
     paperDeadline: row.paperDeadline.toISOString(),
     paperSubmittedAt: row.paperSubmittedAt?.toISOString() ?? null,
     papers: papersOf(rows[index]),
+    paperReview: reviewOf(rows[index]),
     proctors: proctors.filter((proctor) => proctor.examId === row.id).map(({ examId: _examId, ...proctor }) => proctor),
     swapRequests: swaps.filter((swap) => swap.examId === row.id).map(({ examId: _examId, createdAt, ...swap }) => ({ ...swap, createdAt: createdAt.toISOString() })),
   }));

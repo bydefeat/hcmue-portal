@@ -27,6 +27,9 @@ export async function seedExams(tx: Transaction, context: SeedContext) {
       const isSubmitted = exam.paperStatus !== "not-submitted";
       const deadline = dayjs(exam.paperDeadline);
       const { paper, answerKey } = files[index];
+      // Đề đã nộp: nộp 2 ngày trước hạn, nhưng không sau hôm nay; đề đã xét: xét sau khi nộp 1 ngày, không sau hôm nay.
+      const submittedAt = isSubmitted ? new Date(Math.min(deadline.subtract(2, "day").valueOf(), dayjs().subtract(1, "hour").valueOf())) : null;
+      const reviewedAt = submittedAt && exam.paperReview ? new Date(Math.min(submittedAt.valueOf() + 24 * 60 * 60 * 1000, dayjs().subtract(10, "minute").valueOf())) : null;
       return {
         id: exam.id,
         termId: exam.termId,
@@ -48,8 +51,10 @@ export async function seedExams(tx: Transaction, context: SeedContext) {
         answerKeyFileName: answerKey?.fileName ?? null,
         answerKeyContentType: answerKey ? "application/pdf" : null,
         answerKeySizeBytes: answerKey?.data.byteLength ?? null,
-        // Đề đã nộp: nộp 2 ngày trước hạn, nhưng không sau hôm nay.
-        paperSubmittedAt: isSubmitted ? new Date(Math.min(deadline.subtract(2, "day").valueOf(), dayjs().subtract(1, "hour").valueOf())) : null,
+        paperSubmittedAt: submittedAt,
+        paperReviewedByUserId: reviewedAt ? context.adminUserId : null,
+        paperReviewedAt: reviewedAt,
+        paperReturnReason: exam.paperReview?.returnReason ?? null,
       };
     }),
   );

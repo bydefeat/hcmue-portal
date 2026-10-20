@@ -2,7 +2,7 @@ export type ExamKind = "midterm" | "final";
 
 export type ExamFormat = "written" | "multiple-choice" | "practical" | "oral" | "project";
 
-export type ExamPaperStatus = "not-submitted" | "submitted" | "approved";
+export type ExamPaperStatus = "not-submitted" | "submitted" | "approved" | "returned";
 
 export type ExamSessionStatus = "draft" | "published" | "done";
 
@@ -34,7 +34,15 @@ export type ExamSession = {
   paperSubmittedAt: string | null;
   // Chỉ có với giảng viên dạy lớp và Phòng Khảo thí; sinh viên, cán bộ coi thi nhận mảng rỗng.
   papers: ExamPaperFile[];
+  // Lần duyệt hoặc trả lại gần nhất của Phòng Khảo thí; cùng điều kiện hiện như `papers`, chưa xét thì null.
+  paperReview: ExamPaperReview | null;
   swapRequests: ExamSwapRequest[];
+};
+
+export type ExamPaperReview = {
+  reviewerName: string | null;
+  reviewedAt: string;
+  returnReason: string | null;
 };
 
 export type ExamPaperFileKind = "paper" | "answer-key";

@@ -41,12 +41,11 @@ test.describe("nhập điểm", () => {
     const headers = Array.from(sheet.getRow(headerRow).values as unknown[], (value) => String(value ?? ""));
     const finalColumn = headers.findIndex((value) => value.startsWith("Cuối kỳ"));
     expect(finalColumn).toBeGreaterThan(0);
-    let target = 0;
-    sheet.eachRow((row, number) => {
-      if (number > headerRow && String(row.getCell(1).value) === "49.01.104.101") target = number;
-    });
-    expect(target).toBeGreaterThan(0);
-    // Sửa điểm cuối kỳ của Lý Tuấn Bảo trong tệp đã xuất rồi nhập lại.
+    // Sinh viên đầu tiên của danh sách (danh sách lớp seed theo điều kiện đăng ký nên không cố định một MSSV).
+    const target = headerRow + 1;
+    const studentName = String(sheet.getRow(target).getCell(2).value ?? "");
+    expect(studentName.length).toBeGreaterThan(0);
+    // Sửa điểm cuối kỳ của sinh viên đó trong tệp đã xuất rồi nhập lại.
     sheet.getRow(target).getCell(finalColumn).value = 8.5;
     const edited = Buffer.from(await book.xlsx.writeBuffer());
 
@@ -58,7 +57,7 @@ test.describe("nhập điểm", () => {
     await expect(page.getByText(/Đã lưu nháp lúc/)).toBeVisible();
 
     await page.reload();
-    await expect(page.getByRole("spinbutton", { name: "Cuối kỳ của Lý Tuấn Bảo" })).toHaveValue("8,50");
+    await expect(page.getByRole("spinbutton", { name: `Cuối kỳ của ${studentName}` })).toHaveValue("8,50");
   });
 });
 

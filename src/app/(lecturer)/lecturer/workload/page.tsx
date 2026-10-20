@@ -9,7 +9,8 @@ import {
 import type { ClassSectionView, LecturerWorkload } from "@/modules/course-registration/course-registration.type";
 import { DEFAULT_NORM_HOURS, periodsPerWeekOf, sectionStandardHours } from "@/modules/course-registration/teaching-assignment.rule";
 import { LecturerSurveyResults } from "@/modules/surveys/components/lecturer-survey-results";
-import { getFacultySurveyAverage, getLecturerSurvey, getSurveyResultsForLecturer } from "@/modules/surveys/surveys.query";
+import { LecturerSurveySelect } from "@/modules/surveys/components/lecturer-survey-select";
+import { getFacultySurveyAverage, getLecturerSurvey, getLecturerSurveys, getSurveyResultsForLecturer } from "@/modules/surveys/surveys.query";
 import { getCurrentLecturer } from "@/modules/users/users.query";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { MeterBar } from "@/shared/components/ui/meter-bar";
@@ -64,16 +65,17 @@ function TermLoad({ title, workload, sections }: { title: string; workload: Lect
   );
 }
 
-export default async function Page() {
-  const [lecturer, currentTerm, targetTerm] = await Promise.all([getCurrentLecturer(), getCurrentTerm(), getRegistrationTargetTerm()]);
-  const [currentLoads, targetLoads, currentSections, targetSections, survey, mine, facultyAverage] = await Promise.all([
+export default async function Page({ searchParams }: { searchParams: Promise<{ survey?: string }> }) {
+  const [{ survey: surveyId }, lecturer, currentTerm, targetTerm] = await Promise.all([searchParams, getCurrentLecturer(), getCurrentTerm(), getRegistrationTargetTerm()]);
+  const [currentLoads, targetLoads, currentSections, targetSections, surveys, survey, mine, facultyAverage] = await Promise.all([
     getLecturerWorkloads(currentTerm.id),
     getLecturerWorkloads(targetTerm.id),
     getLecturerClassSections(lecturer.id, currentTerm.id),
     getLecturerClassSections(lecturer.id, targetTerm.id),
-    getLecturerSurvey(),
-    getSurveyResultsForLecturer(),
-    getFacultySurveyAverage(),
+    getLecturerSurveys(),
+    getLecturerSurvey(surveyId),
+    getSurveyResultsForLecturer(surveyId),
+    getFacultySurveyAverage(surveyId),
   ]);
   const current = currentLoads.find((entry) => entry.lecturerId === lecturer.id);
   const target = targetLoads.find((entry) => entry.lecturerId === lecturer.id);
@@ -111,8 +113,12 @@ export default async function Page() {
               Lớp học phần
             </Link>
           </div>
+          {survey && surveys.length > 1 && (
+            <LecturerSurveySelect value={survey.id} options={surveys.map((entry) => ({ value: entry.id, label: `${entry.title} (${entry.termName})` }))} />
+          )}
           <p className="max-w-prose text-sm text-pretty text-muted">
             {survey ? `${survey.title}, ${survey.termName} (đã đóng). ` : ""}Kết quả hiện sau khi đợt khảo sát đóng, chỉ lớp có từ 5 phiếu; chỉ giảng viên, khoa và Phòng Đào tạo xem được.
+            {surveys.length > 1 ? " Chọn đợt để xem lại kết quả các đợt trước." : ""}
           </p>
           <LecturerSurveyResults results={mine} questions={survey?.questions ?? []} facultyAverage={facultyAverage} />
         </section>

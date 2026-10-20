@@ -65,3 +65,9 @@ export function weightedOverall(rows: { responses: number; overall: number }[]) 
   const responses = rows.reduce((sum, row) => sum + row.responses, 0);
   return responses > 0 ? rows.reduce((sum, row) => sum + row.overall * row.responses, 0) / responses : 0;
 }
+
+// Đợt khảo sát giảng viên đang xem: đợt được chọn nếu nằm trong danh sách được xem, không thì đợt đầu (mới nhất). Id lạ, đợt chưa
+// đóng hay chưa xáo phiếu không có trong danh sách nên không lộ kết quả sớm.
+export function pickSurvey<T extends { id: string }>(rows: T[], id: string | undefined): T | null {
+  return rows.find((row) => row.id === id) ?? rows[0] ?? null;
+}

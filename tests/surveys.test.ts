@@ -10,11 +10,11 @@ import { user } from "@/modules/authentication/authentication.schema";
 import { enrollments } from "@/modules/course-registration/course-registration.schema";
 import { notifications } from "@/modules/notifications/notifications.schema";
 import { SURVEYS_CONSTRAINT_MESSAGE } from "@/modules/surveys/surveys.constant";
-import { recordSurveySubmission, remindNonRespondents, saveSurvey, sealSurvey, setSurveyOpen, SurveyInputError } from "@/modules/surveys/surveys.lib";
+import { recordSurveySubmission, remindNonRespondents, saveSurvey, sealedSurveyIdsForLecturer, sealSurvey, setSurveyOpen, SurveyInputError } from "@/modules/surveys/surveys.lib";
 import { MIDTERM_SURVEY, SURVEY } from "@/modules/surveys/surveys.mock";
-import { answerProblems, responseRate, summarizeScores, SURVEY_SAVE_SCHEMA, SURVEY_SUBMIT_SCHEMA, weightedOverall } from "@/modules/surveys/surveys.rule";
+import { answerProblems, pickSurvey, responseRate, summarizeScores, SURVEY_SAVE_SCHEMA, SURVEY_SUBMIT_SCHEMA, weightedOverall } from "@/modules/surveys/surveys.rule";
 import { surveyAnswers, surveyQuestions, surveyResponses, surveys, surveySubmissions } from "@/modules/surveys/surveys.schema";
-import { CURRENT_STUDENT_ID } from "@/modules/users/users.mock";
+import { CURRENT_LECTURER_ID, CURRENT_STUDENT_ID } from "@/modules/users/users.mock";
 import { students } from "@/modules/users/users.schema";
 
 after(() => db.$client.end());
@@ -130,6 +130,31 @@ describe("surveys: phiếu ẩn danh", () => {
     const rows = await db.select({ id: surveys.id, sealedAt: surveys.sealedAt }).from(surveys);
     assert.ok(rows.find((row) => row.id === MIDTERM_SURVEY.id)?.sealedAt);
     assert.equal(rows.find((row) => row.id === SURVEY.id)?.sealedAt, null);
+  });
+});
+
+describe("surveys: giảng viên xem lại các đợt đã đóng", () => {
+  test("chỉ đợt đã đóng, đã xáo phiếu và có lớp của giảng viên trong học kỳ; mới nhất trước; chọn id ngoài danh sách thì về đợt mới nhất", async () => {
+    await inRollback(async (tx) => {
+      const [{ termId }] = await tx.select({ termId: surveys.termId }).from(surveys).where(eq(surveys.id, MIDTERM_SURVEY.id));
+      const day = 86_400_000;
+      const [older, unsealed, otherTerm] = await tx
+        .insert(surveys)
+        .values([
+          { termId, title: "Đợt cũ thử", opensAt: new Date(Date.now() - 60 * day), closesAt: new Date(Date.now() - 50 * day), sealedAt: new Date(Date.now() - 49 * day) },
+          { termId, title: "Đợt chưa xáo thử", opensAt: new Date(Date.now() - 40 * day), closesAt: new Date(Date.now() - 39 * day) },
+          { termId: sql`(SELECT id FROM terms WHERE NOT EXISTS (SELECT 1 FROM class_sections cs WHERE cs.term_id = terms.id) LIMIT 1)`, title: "Học kỳ không dạy thử", opensAt: new Date(Date.now() - 30 * day), closesAt: new Date(Date.now() - 29 * day), sealedAt: new Date(Date.now() - 28 * day) },
+        ])
+        .returning({ id: surveys.id });
+      const ids = await sealedSurveyIdsForLecturer(tx, CURRENT_LECTURER_ID);
+      assert.deepEqual(ids, [MIDTERM_SURVEY.id, older.id]);
+      assert.ok(!ids.includes(unsealed.id) && !ids.includes(otherTerm.id) && !ids.includes(SURVEY.id));
+      const rows = ids.map((id) => ({ id }));
+      assert.equal(pickSurvey(rows, older.id)?.id, older.id);
+      assert.equal(pickSurvey(rows, unsealed.id)?.id, MIDTERM_SURVEY.id);
+      assert.equal(pickSurvey(rows, undefined)?.id, MIDTERM_SURVEY.id);
+      assert.equal(pickSurvey([], older.id), null);
+    });
   });
 });
 

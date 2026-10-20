@@ -8,7 +8,8 @@ import { requirePermission } from "@/modules/access/access.query";
 import { classSections, enrollments, terms } from "@/modules/course-registration/course-registration.schema";
 import { courses, faculties } from "@/modules/curriculum/curriculum.schema";
 import { MIN_RESPONSES_FOR_LECTURER } from "@/modules/surveys/surveys.constant";
-import { summarizeScores } from "@/modules/surveys/surveys.rule";
+import { sealedSurveyIdsForLecturer } from "@/modules/surveys/surveys.lib";
+import { pickSurvey, summarizeScores } from "@/modules/surveys/surveys.rule";
 import { surveyAnswers, surveyQuestions, surveyResponses, surveys, surveySubmissions } from "@/modules/surveys/surveys.schema";
 import { lecturers } from "@/modules/users/users.schema";
 import { getCurrentLecturer, getCurrentStudent } from "@/modules/users/users.query";
@@ -128,28 +129,34 @@ export async function getSurveyResults(surveyId: string): Promise<SectionSurveyR
   return survey ? sectionResults(survey) : [];
 }
 
-// Đợt gần nhất giảng viên được xem kết quả: đã đóng và đã xáo phiếu.
-const lastSealedSurvey = cache(async (): Promise<Survey | null> => {
-  const [survey] = await surveyRows(and(lte(surveys.closesAt, sql`now()`), isNotNull(surveys.sealedAt)), 1);
-  return survey ?? null;
+const sealedSurveysFor = cache(async (lecturerId: string): Promise<Survey[]> => {
+  const ids = await sealedSurveyIdsForLecturer(db, lecturerId);
+  return ids.length > 0 ? surveyRows(inArray(surveys.id, ids)) : [];
 });
 
-export async function getLecturerSurvey() {
-  await getCurrentLecturer();
-  return lastSealedSurvey();
+const lecturerSurveyOf = cache(async (lecturerId: string, surveyId: string | undefined) => pickSurvey(await sealedSurveysFor(lecturerId), surveyId));
+
+export async function getLecturerSurveys() {
+  const lecturer = await getCurrentLecturer();
+  return sealedSurveysFor(lecturer.id);
 }
 
-// Kết quả các lớp của giảng viên đang đăng nhập: chỉ sau khi đợt đóng (và đã xáo phiếu), chỉ lớp đủ số phiếu tối thiểu.
-export async function getSurveyResultsForLecturer(): Promise<SectionSurveyResult[]> {
+export async function getLecturerSurvey(surveyId?: string) {
   const lecturer = await getCurrentLecturer();
-  const survey = await lastSealedSurvey();
+  return lecturerSurveyOf(lecturer.id, surveyId);
+}
+
+// Kết quả các lớp của giảng viên đang đăng nhập trong đợt đang xem: chỉ sau khi đợt đóng (và đã xáo phiếu), chỉ lớp đủ số phiếu tối thiểu.
+export async function getSurveyResultsForLecturer(surveyId?: string): Promise<SectionSurveyResult[]> {
+  const lecturer = await getCurrentLecturer();
+  const survey = await lecturerSurveyOf(lecturer.id, surveyId);
   return survey ? sectionResults(survey, eq(classSections.lecturerId, lecturer.id), MIN_RESPONSES_FOR_LECTURER) : [];
 }
 
-// Điểm chung trung bình các lớp của khoa giảng viên (lớp đủ số phiếu) ở đợt đã đóng, để giảng viên so sánh.
-export async function getFacultySurveyAverage(): Promise<number | null> {
+// Điểm chung trung bình các lớp của khoa giảng viên (lớp đủ số phiếu) ở đợt đang xem, để giảng viên so sánh.
+export async function getFacultySurveyAverage(surveyId?: string): Promise<number | null> {
   const lecturer = await getCurrentLecturer();
-  const survey = await lastSealedSurvey();
+  const survey = await lecturerSurveyOf(lecturer.id, surveyId);
   if (!survey) return null;
   const facultyCourses = db
     .select({ id: courses.id })

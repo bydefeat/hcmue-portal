@@ -1,5 +1,5 @@
 import "server-only";
-import { and, asc, eq, isNull, lte, ne, notExists, sql } from "drizzle-orm";
+import { and, asc, desc, eq, isNotNull, isNull, lte, ne, notExists, sql } from "drizzle-orm";
 import type { z } from "zod";
 import { db, type Transaction } from "@/shared/libs/db.lib";
 import { formatDateTime } from "@/shared/libs/date.lib";
@@ -69,6 +69,22 @@ export async function sealSurvey(tx: Transaction, surveyId: string) {
   await tx.execute(sql`DROP TABLE survey_seal_map`);
   await tx.update(surveys).set({ sealedAt: sql`now()` }).where(eq(surveys.id, surveyId));
   return { responses: removed.count };
+}
+
+// Các đợt giảng viên được xem kết quả (mới nhất trước): đã đóng, đã xáo phiếu và giảng viên có dạy lớp trong học kỳ của đợt.
+export async function sealedSurveyIdsForLecturer(executor: Transaction | typeof db, lecturerId: string) {
+  const rows = await executor
+    .select({ id: surveys.id })
+    .from(surveys)
+    .where(
+      and(
+        lte(surveys.closesAt, sql`now()`),
+        isNotNull(surveys.sealedAt),
+        sql`EXISTS (SELECT 1 FROM ${classSections} WHERE ${classSections.termId} = ${surveys.termId} AND ${classSections.lecturerId} = ${lecturerId})`,
+      ),
+    )
+    .orderBy(desc(surveys.opensAt));
+  return rows.map((row) => row.id);
 }
 
 // Tác vụ định kỳ surveys: xáo phiếu các đợt vừa đóng (mỗi đợt một giao dịch). Nên chạy mỗi giờ.

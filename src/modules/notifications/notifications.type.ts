@@ -15,6 +15,5 @@ export type AppNotification = {
 
 export type NotificationPage = {
   items: AppNotification[];
-  // Con trỏ để tải trang kế tiếp; null là đã hết.
   nextCursor: string | null;
 };

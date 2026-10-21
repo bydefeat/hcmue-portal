@@ -39,8 +39,6 @@ function revalidateGraduation() {
   revalidatePath("/administrator/reports");
 }
 
-// Hội đồng công nhận: chỉ sinh viên đủ mọi điều kiện (đánh giá lại trên server), mỗi người một dự thảo quyết định công nhận tốt nghiệp
-// kèm hạng tốt nghiệp đã xét giảm hạng; ghi nhật ký từng hồ sơ.
 export async function approveGraduation(studentIds: string[]): Promise<ActionResult<{ studentIds: string[] }>> {
   const viewer = await requirePermission("graduation.manage");
   const parsed = parseInput(GRADUATION_APPROVE_SCHEMA, { studentIds });
@@ -75,7 +73,6 @@ export async function approveGraduation(studentIds: string[]): Promise<ActionRes
             setWhere: eq(graduationRecords.status, "pending"),
           })
           .returning({ id: graduationRecords.id, studentId: graduationRecords.studentId });
-        // Người khác vừa công nhận trước: hủy cả lượt để không sinh quyết định thừa.
         if (!record) throw new GraduationActionError(`Hồ sơ của ${candidate.fullName} vừa được xử lý, tải lại trang.`);
         await recordAudit(tx, {
           actor: auditActorOf(viewer),
@@ -98,7 +95,6 @@ export async function approveGraduation(studentIds: string[]): Promise<ActionRes
   }
 }
 
-// Xuất .xlsx đúng danh sách đang lọc trên trang (theo thứ tự đang hiện); điều kiện đánh giá lại trên server trong phạm vi người xem.
 export async function exportGraduationCandidates(studentIds: string[]): Promise<ActionResult<{ fileName: string; base64: string; mimeType: string }>> {
   const viewer = await requirePermission("graduation.manage");
   const parsed = parseInput(GRADUATION_EXPORT_SCHEMA, { studentIds });
@@ -110,7 +106,6 @@ export async function exportGraduationCandidates(studentIds: string[]): Promise<
   return actionOk({ fileName: `xet-tot-nghiep-${schoolToday().replaceAll("-", "")}.xlsx`, base64: buffer.toString("base64"), mimeType: XLSX_MIME });
 }
 
-// Mở đợt xét mới hoặc sửa tên, khóa của đợt đang mở (dữ liệu chung toàn trường). Chỉ một đợt mở một lúc (graduation_rounds_single_open).
 export async function saveGraduationRound(input: GraduationRoundInput): Promise<ActionResult<GraduationRound>> {
   const viewer = await requireSchoolWidePermission("graduation.manage");
   const parsed = parseInput(GRADUATION_ROUND_SCHEMA, input);
@@ -145,7 +140,6 @@ export async function saveGraduationRound(input: GraduationRoundInput): Promise<
   return round ? actionOk(round) : actionError("Đã lưu nhưng chưa đọc lại được, tải lại trang.");
 }
 
-// Đóng đợt xét đang mở: trang xét tốt nghiệp không còn danh sách cho tới khi mở đợt mới; hồ sơ đã công nhận giữ nguyên.
 export async function closeGraduationRound(): Promise<ActionResult<null>> {
   const viewer = await requireSchoolWidePermission("graduation.manage");
   try {
@@ -164,8 +158,6 @@ export async function closeGraduationRound(): Promise<ActionResult<null>> {
   return actionOk(null);
 }
 
-// Phòng Đào tạo nhập, xác nhận chứng chỉ ngoại ngữ (kèm bậc) và tin học vào hồ sơ xét tốt nghiệp của sinh viên trong phạm vi khoa.
-// Hồ sơ đã công nhận hoặc đã tốt nghiệp không sửa nữa.
 export async function saveGraduationCertificates(input: GraduationCertificatesInput): Promise<ActionResult<GraduationCandidate | null>> {
   const viewer = await requirePermission("graduation.manage");
   const parsed = parseInput(GRADUATION_CERTIFICATES_SCHEMA, input);
@@ -207,7 +199,6 @@ export async function saveGraduationCertificates(input: GraduationCertificatesIn
     return failure(error);
   }
   revalidateGraduation();
-  // Trả lại kết quả xét mới của sinh viên để bảng cập nhật ngay.
   const { candidates } = await loadGraduationCandidates(viewer);
   return actionOk(candidates.find((candidate) => candidate.studentId === studentId) ?? null);
 }

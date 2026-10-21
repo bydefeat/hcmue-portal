@@ -15,8 +15,6 @@ function isTrustedProxy(address: string) {
   return trustedProxies.check(address, isIP(address) === 6 ? "ipv6" : "ipv4");
 }
 
-// IP người dùng theo cùng cách better-auth dùng cho rate limit: đọc header tin cậy; có danh sách proxy thì đi từ phải sang trái,
-// bỏ các hop là proxy; không có thì chỉ nhận header đúng một IP (chuỗi nhiều IP có thể do client tự gửi nên không tin).
 export function clientIpFrom(headers: Headers) {
   const hops = (headers.get(env.DEFEAT_TRUSTED_IP_HEADER) ?? "")
     .split(",")

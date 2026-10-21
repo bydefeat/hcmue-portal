@@ -27,7 +27,6 @@ type TeachingAssignmentBoardProps = {
   lecturers: AssignableLecturer[];
   terms: { id: string; name: string }[];
   termId: string;
-  // Định mức giờ chuẩn theo học hàm, học vị (bảng lecturer_load_norms).
   norms: Record<string, number>;
 };
 

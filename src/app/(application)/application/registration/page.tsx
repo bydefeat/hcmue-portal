@@ -38,7 +38,6 @@ export default async function Page() {
     getInvoices(student.id),
   ]);
 
-  // Cùng nguồn với server: điểm lần học cuối, đợt áp dụng (đang mở > sắp mở > vừa đóng), hạn mức tính bởi creditLimitsFor.
   const passedGrades = lastAttemptGrades(transcript);
   const prerequisites = Object.fromEntries(courses.map((course) => [course.code, course.prerequisiteCodes]));
   const corequisites = Object.fromEntries(courses.map((course) => [course.code, course.corequisiteCodes]));
@@ -55,7 +54,6 @@ export default async function Page() {
     targetEnrollments.filter((entry) => entry.labGroupId).map((entry) => [entry.section.id, entry.labGroupId as string]),
   );
 
-  // Mọi khóa đang có hiệu lực (cán bộ đặt, kể cả khóa học phí) và khóa tính từ hóa đơn học kỳ hiện tại, cùng điều kiện server chặn.
   const currentInvoice = invoices.find((invoice) => invoice.termId === currentTerm.id);
   const tuition = tuitionBlockOf(currentInvoice, currentTerm.shortName);
   const tuitionHold: RegistrationHold | null =

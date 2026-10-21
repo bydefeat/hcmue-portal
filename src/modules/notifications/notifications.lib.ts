@@ -12,9 +12,7 @@ export type NotificationMessage = {
   kind: NotificationKind;
   title: string;
   body: string;
-  // Đường dẫn trong cổng của người nhận (/application/... cho sinh viên, /lecturer/... cho giảng viên).
   href: string;
-  // Bỏ trống thì lấy giờ DB lúc ghi.
   createdAt?: Date;
 };
 
@@ -31,7 +29,6 @@ const COLUMNS = {
   readAt: notifications.readAt,
 };
 
-// Con trỏ trang: thời điểm tạo và id của dòng cuối trang trước ("2026-10-19T08:00:00.000Z|<uuid>").
 function afterCursor(cursor: string | undefined): SQL | undefined {
   if (!cursor) return undefined;
   const [at, id] = cursor.split("|");
@@ -42,7 +39,6 @@ function afterCursor(cursor: string | undefined): SQL | undefined {
 
 export type NotificationQuery = { cursor?: string; kind?: NotificationKind; unreadOnly?: boolean; limit?: number };
 
-// Một trang thông báo của một tài khoản ở một cổng (query kiểm phiên rồi gọi hàm này với tài khoản đang đăng nhập).
 export async function notificationPage(executor: Executor, userId: string, audience: NotificationAudience, query: NotificationQuery = {}): Promise<NotificationPage> {
   const limit = Math.min(Math.max(query.limit ?? NOTIFICATION_PAGE_SIZE, 1), 100);
   const rows = await executor
@@ -72,7 +68,6 @@ export async function unreadNotificationCount(executor: Executor, userId: string
   return row?.total ?? 0;
 }
 
-// Tiêu đề và nội dung cắt bớt cho vừa chuông thông báo; nội dung do người dùng nhập (lý do, nhận xét) có thể dài.
 const TITLE_MAX = 200;
 const BODY_MAX = 1000;
 
@@ -80,8 +75,6 @@ function clip(value: string, max: number) {
   return value.length > max ? `${value.slice(0, max - 1)}…` : value;
 }
 
-// Ghi thông báo trong cùng transaction với thao tác: thao tác rollback thì thông báo cũng mất, không báo việc chưa xảy ra.
-// Người nhận thấy ở chuông và trang Thông báo của cổng tương ứng; cần email thì nơi gọi xếp thư riêng bằng enqueueMail.
 export async function notifyUsers(tx: Executor, userIds: string[], audience: NotificationAudience, message: NotificationMessage) {
   const recipients = [...new Set(userIds)];
   if (recipients.length === 0) return;
@@ -98,8 +91,6 @@ export async function notifyUsers(tx: Executor, userIds: string[], audience: Not
   );
 }
 
-// Báo cho sinh viên trên cổng sinh viên. Sinh viên chưa kích hoạt tài khoản cổng (students.userId trống) thì bỏ qua;
-// trả về id sinh viên đã nhận để nơi gọi biết bao nhiêu người chưa nhận được.
 export async function notifyStudents(tx: Executor, studentIds: string[], message: NotificationMessage): Promise<string[]> {
   const ids = [...new Set(studentIds)];
   if (ids.length === 0) return [];
@@ -114,7 +105,6 @@ export async function notifyStudents(tx: Executor, studentIds: string[], message
   return recipients.map((recipient) => recipient.id);
 }
 
-// Tác vụ notifications-cleanup: xóa thông báo đã đọc quá lâu và thông báo chưa đọc quá rất lâu, để bảng không phình mãi.
 export async function purgeOldNotifications(executor: Executor = db, now = new Date()) {
   const cutoff = notificationPurgeCutoffs(now, NOTIFICATION_READ_RETENTION_DAYS, NOTIFICATION_UNREAD_RETENTION_DAYS);
   const removed = await executor
@@ -129,7 +119,6 @@ export async function purgeOldNotifications(executor: Executor = db, now = new D
   return { notificationsRemoved: removed.length };
 }
 
-// Báo cho giảng viên trên cổng giảng viên; giảng viên chưa có tài khoản cổng thì bỏ qua. Trả về id giảng viên đã nhận.
 export async function notifyLecturers(tx: Executor, lecturerIds: string[], message: NotificationMessage): Promise<string[]> {
   const ids = [...new Set(lecturerIds)];
   if (ids.length === 0) return [];

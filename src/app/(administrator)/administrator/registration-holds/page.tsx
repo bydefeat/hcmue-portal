@@ -10,7 +10,6 @@ import { getStudents } from "@/modules/users/users.query";
 export const metadata: Metadata = { title: "Khóa đăng ký" };
 
 export default async function Page() {
-  // Phòng Đào tạo quản lý mọi loại khóa; Phòng Kế hoạch - Tài chính (tuition.manage) đặt, gỡ khóa học phí.
   const viewer = await getViewer();
   if (!can(viewer, "registration.manage") && !can(viewer, "tuition.manage")) forbidden();
   const manageableKinds = can(viewer, "registration.manage") ? HOLD_KIND_OPTIONS.map((option) => option.value) : (["tuition"] as const).slice();

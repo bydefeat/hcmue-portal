@@ -19,7 +19,6 @@ export const syllabi = pgTable(
     description: text().notNull().default(""),
     references: text().array().notNull().default(sql`'{}'::text[]`),
     publishedAt: timestamp({ withTimezone: true }),
-    // Phiên bản cách tính điểm: đề cương đã công bố mà đổi đánh giá thì tăng phiên bản, bản cũ lưu ở syllabus_revisions.
     version: smallint().notNull().default(1),
     ...timestamps(),
   },
@@ -29,7 +28,6 @@ export const syllabi = pgTable(
   ],
 );
 
-// Bản cách tính điểm cũ của đề cương đã công bố (trước mỗi lần đổi), kèm lý do đổi.
 export const syllabusRevisions = pgTable(
   "syllabus_revisions",
   {
@@ -113,7 +111,6 @@ export const classAnnouncements = pgTable(
     sendEmail: boolean().notNull().default(false),
     status: classAnnouncementStatusEnum().notNull().default("published"),
     publishAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
-    // Lúc đã báo sinh viên (chuông + email nếu bật). Trống là chưa báo: bài hẹn giờ chờ tác vụ class-announcements.
     notifiedAt: timestamp({ withTimezone: true }),
     ...timestamps(),
   },

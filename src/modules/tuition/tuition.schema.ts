@@ -22,8 +22,6 @@ export const tuitionInvoices = pgTable(
     dueDate: date({ mode: "string" }).notNull(),
     discount: money().notNull().default(0),
     discountReason: text().notNull().default(""),
-    // Hóa đơn tạm tính (null) cập nhật theo đăng ký; Phòng Kế hoạch - Tài chính chốt học phí học kỳ thì đổi thành chính thức,
-    // sau đó thay đổi đăng ký thêm dòng điều chỉnh thay vì sửa dòng đã chốt.
     finalizedAt: timestamp({ withTimezone: true }),
     finalizedByLabel: text(),
     ...timestamps(),
@@ -37,7 +35,6 @@ export const tuitionInvoices = pgTable(
   ],
 );
 
-// Học phí theo tín chỉ, khoản thu cố định, điều chỉnh sau chốt (đơn giá âm khi giảm tín chỉ).
 export const invoiceLineKindEnum = pgEnum("invoice_line_kind", ["tuition", "fee", "adjustment"]);
 
 export const invoiceLines = pgTable(
@@ -63,7 +60,6 @@ export const invoiceLines = pgTable(
   ],
 );
 
-// Nguồn ghi nhận: ngân hàng tự gạch nợ (chưa tích hợp), nhập sao kê, cán bộ ghi tay. Không có giá trị mặc định: nơi ghi phải nói rõ nguồn.
 export const paymentSourceEnum = pgEnum("payment_source", ["bank-sync", "statement", "manual"]);
 
 export const payments = pgTable(
@@ -82,7 +78,6 @@ export const payments = pgTable(
     createdAt: createdAt(),
     recordedByUserId: uuid().references(() => user.id, { onDelete: "set null" }),
     recordedByLabel: text().notNull(),
-    // Ghi nhầm thì hủy kèm lý do, không xóa dòng: còn dấu vết để đối chiếu với sao kê.
     voidedAt: timestamp({ withTimezone: true }),
     voidedByUserId: uuid().references(() => user.id, { onDelete: "set null" }),
     voidedByLabel: text(),
@@ -92,7 +87,6 @@ export const payments = pgTable(
     index().on(table.invoiceId, table.paidAt),
     index().on(table.recordedByUserId),
     index().on(table.voidedByUserId),
-    // Mã giao dịch ngân hàng chỉ ghi một lần; khoản đã hủy (ghi nhầm hóa đơn) thì ghi lại được cho đúng hóa đơn.
     uniqueIndex("payments_reference_unique").on(table.reference).where(sql`${table.voidedAt} IS NULL`),
     check("payments_amount_positive", sql`${table.amount} > 0`),
     check("payments_reference_not_blank", sql`btrim(${table.reference}) <> ''`),
@@ -129,7 +123,6 @@ export const tuitionFees = pgTable(
   (table) => [unique("tuition_fees_academic_year_code_unique").on(table.academicYear, table.code), check("tuition_fees_amount_non_negative", sql`${table.amount} >= 0`)],
 );
 
-// Hoàn học phí khi số đã nộp vượt số phải nộp (hủy lớp, rút học phần sau khi đã nộp). Chỉ ghi nhận đã hoàn, không chuyển tiền tự động.
 export const tuitionRefunds = pgTable(
   "tuition_refunds",
   {

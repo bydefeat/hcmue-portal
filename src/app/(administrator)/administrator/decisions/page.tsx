@@ -8,7 +8,6 @@ import { getMajors } from "@/modules/curriculum/curriculum.query";
 
 export const metadata: Metadata = { title: "Quyết định sinh viên" };
 
-// Người lập (decisions.manage) và người ký (decisions.sign) cùng làm việc trên trang này, mỗi người thấy nút của phần việc mình.
 export default async function Page() {
   const viewer = await getViewer();
   const canManage = can(viewer, "decisions.manage");

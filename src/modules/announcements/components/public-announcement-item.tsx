@@ -14,7 +14,6 @@ export function deadlineHint(deadline: string | null, withTime = false) {
   return { text: `Hạn ${when}`, className: "text-muted", type: "info" as const };
 }
 
-// basePath: trang công khai (/announcements) hoặc trang thông báo trong cổng sinh viên, giảng viên.
 export function PublicAnnouncementItem({ announcement, basePath = "/announcements" }: { announcement: Announcement; basePath?: string }) {
   const hint = deadlineHint(announcement.deadline);
   return (

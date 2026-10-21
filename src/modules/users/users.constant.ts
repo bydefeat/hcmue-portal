@@ -27,14 +27,12 @@ export const ACCOUNT_STATUS_OPTIONS = Object.entries(ACCOUNT_STATUS).map(([value
 
 export const LECTURER_TITLES = ["ThS.", "TS.", "PGS.TS.", "GS.TS."];
 
-// Vai trò trên cổng giảng viên; "Quản trị" là giảng viên được cấp vai trò quản trị ở trang Phân quyền.
 export const LECTURER_ROLES = [
   { value: "lecturer", label: "Giảng viên" },
   { value: "advisor", label: "Cố vấn học tập" },
   { value: "admin", label: "Có vai trò quản trị" },
 ];
 
-// Các hàm dựng options cho Select: danh mục ngành, khoa, khóa đọc từ DB ở page rồi truyền xuống.
 export function majorOptions(majors: MajorRef[]) {
   return majors.map((major) => ({ value: major.code, label: major.name, faculty: major.faculty }));
 }
@@ -51,14 +49,11 @@ export function cohortOptions(cohorts: number[]) {
   return cohorts.map((cohort) => ({ value: cohort, label: `Khóa ${cohort}` }));
 }
 
-// Khóa đang có lớp sinh hoạt cộng thêm khóa kế tiếp (tân sinh viên chưa có lớp nào).
 export function withNextCohort(cohorts: number[]) {
   if (cohorts.length === 0) return [];
   return [...new Set([...cohorts, Math.max(...cohorts) + 1])].toSorted((a, b) => a - b);
 }
 
-// Gợi ý lớp sinh hoạt: lớp đã có của ngành và khóa; chưa có thì mượn mẫu tên lớp cùng ngành ở khóa khác
-// ("49.01.CNTT.A" → "52.01.CNTT.A/B/C").
 export function classSuggestions(classes: ClassRef[], cohort?: number, majorCode?: string) {
   if (!cohort || !majorCode) return [];
   const sameMajor = classes.filter((entry) => entry.majorCode === majorCode);
@@ -103,7 +98,6 @@ export const DISCIPLINE_LEVEL_LABEL: Record<DisciplineLevel, string> = {
   suspension: "Đình chỉ học tập có thời hạn",
 };
 
-// Câu bổ sung cho Điều 1 của quyết định (bản xem trước, PDF): hình thức kỷ luật, ngành và lớp mới khi chuyển ngành.
 export function decisionDetail(decision: Pick<StudentDecision, "disciplineLevel" | "targetClassName" | "targetMajorName">) {
   if (decision.disciplineLevel) return ` Hình thức kỷ luật: ${DISCIPLINE_LEVEL_LABEL[decision.disciplineLevel].toLowerCase()}.`;
   if (decision.targetClassName) return ` Sinh viên chuyển sang học ngành ${decision.targetMajorName ?? ""}, lớp ${decision.targetClassName}.`;

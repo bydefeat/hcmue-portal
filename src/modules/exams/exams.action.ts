@@ -92,7 +92,6 @@ async function readBack(id: string): Promise<ActionResult<ExamSession>> {
   return exam ? actionOk(exam) : actionError("Ca thi không còn trong lịch, tải lại trang.");
 }
 
-// Phòng Khảo thí tạo một ca thi: giữa kỳ, cuối kỳ cho cả lớp, hoặc ca thi bù cho danh sách sinh viên của một ca gốc.
 export async function createExamSession(input: ExamSessionCreateInput): Promise<ActionResult<ExamSession>> {
   const viewer = await requirePermission("exams.manage");
   const parsed = parseInput(EXAM_SESSION_CREATE_SCHEMA, input);
@@ -106,8 +105,6 @@ export async function createExamSession(input: ExamSessionCreateInput): Promise<
   return readBack(id);
 }
 
-// Phòng Khảo thí sửa ngày giờ, thời lượng, hạn nộp đề, phòng, hình thức, cán bộ coi thi của ca chưa thi. Ca đã công bố thì báo
-// sinh viên, giảng viên và cán bộ coi thi (cả người bị gỡ) về thay đổi.
 export async function updateExamSession(input: ExamSessionUpdateInput): Promise<ActionResult<ExamSession>> {
   const viewer = await requirePermission("exams.manage");
   const parsed = parseInput(EXAM_SESSION_UPDATE_SCHEMA, input);
@@ -121,7 +118,6 @@ export async function updateExamSession(input: ExamSessionUpdateInput): Promise<
   return readBack(id);
 }
 
-// Xóa ca thi chưa diễn ra. Ca đã công bố thì phải có lý do và báo mọi người liên quan.
 export async function deleteExamSession(input: { id: string; reason?: string | null }): Promise<ActionResult<{ id: string }>> {
   const viewer = await requirePermission("exams.manage");
   const parsed = parseInput(EXAM_SESSION_DELETE_SCHEMA, input);
@@ -158,9 +154,6 @@ export async function deleteExamSession(input: { id: string; reason?: string | n
   return actionOk({ id });
 }
 
-// Sinh hàng loạt ca cuối kỳ (dự kiến) cho các lớp mở chưa có ca: xếp lớp đông trước vào ngày, giờ thi sớm nhất còn đủ phòng,
-// đủ 2 cán bộ coi thi mỗi phòng (cùng khoa, không dạy lớp đó, không trùng ca hay giờ dạy) và không trùng lịch thi của sinh viên.
-// Lớp không xếp được thì báo lại để xếp tay.
 export async function generateFinalExams(input: ExamGenerateInput): Promise<ActionResult<{ created: number; skipped: string[]; fromSyllabus: number }>> {
   const viewer = await requirePermission("exams.manage");
   const parsed = parseInput(EXAM_GENERATE_SCHEMA, input);
@@ -175,8 +168,6 @@ export async function generateFinalExams(input: ExamGenerateInput): Promise<Acti
   return actionOk(result);
 }
 
-// Công bố mọi ca dự kiến cùng loại của học kỳ trong phạm vi khoa: ca phải đủ phòng cho thí sinh và đủ 2 cán bộ coi thi mỗi
-// phòng, không trùng phòng hay cán bộ. Xếp lại số báo danh theo danh sách lớp mới nhất, báo sinh viên, giảng viên, cán bộ coi thi.
 export async function publishExamSessions(input: ExamPublishInput): Promise<ActionResult<{ ids: string[]; notifiedStudents: number }>> {
   const viewer = await requirePermission("exams.manage");
   const parsed = parseInput(EXAM_PUBLISH_SCHEMA, input);
@@ -191,7 +182,6 @@ export async function publishExamSessions(input: ExamPublishInput): Promise<Acti
   return actionOk(result);
 }
 
-// Cho sinh viên vắng quá ngưỡng được dự thi khi có minh chứng: lưu lý do cùng người quyết định, ghi nhật ký, báo sinh viên.
 export async function allowExamDespiteAbsence(input: EligibilityOverrideInput): Promise<ActionResult<{ enrollmentId: string; reason: string }>> {
   const viewer = await requirePermission("exams.manage");
   const parsed = parseInput(ELIGIBILITY_OVERRIDE_SCHEMA, input);
@@ -224,7 +214,6 @@ export async function allowExamDespiteAbsence(input: EligibilityOverrideInput): 
   return actionOk({ enrollmentId, reason });
 }
 
-// Thu hồi quyết định cho dự thi (minh chứng không hợp lệ): giữ lịch sử, ghi nhật ký, báo sinh viên.
 export async function revokeExamOverride(input: EligibilityRevokeInput): Promise<ActionResult<{ enrollmentId: string }>> {
   const viewer = await requirePermission("exams.manage");
   const parsed = parseInput(ELIGIBILITY_REVOKE_SCHEMA, input);
@@ -286,8 +275,6 @@ async function enrollmentInScope(tx: Transaction, viewer: Viewer, enrollmentId: 
   return enrollment;
 }
 
-// Ghi nhận sinh viên được hoãn một kỳ thi: rời danh sách thi (và phòng) của ca đó, chờ thi bù. Ca đã diễn ra thì vẫn ghi (vắng
-// thi có lý do được thi bù).
 export async function deferExam(input: ExamDeferralInput): Promise<ActionResult<{ id: string }>> {
   const viewer = await requirePermission("exams.manage");
   const parsed = parseInput(EXAM_DEFERRAL_SCHEMA, input);
@@ -329,8 +316,6 @@ export async function deferExam(input: ExamDeferralInput): Promise<ActionResult<
   return actionOk({ id });
 }
 
-// Giảng viên nộp đề và đáp án (FormData, xem readExamPaperForm) cho ca thi của lớp mình dạy, trước hạn và trước giờ thi. Nộp lại
-// thì tệp cũ bị xóa sau khi giao dịch ghi tệp mới thành công.
 export async function submitExamPaper(formData: FormData): Promise<ActionResult<{ id: string; paperStatus: ExamPaperStatus; paperSubmittedAt: string; papers: ExamPaperFile[] }>> {
   const lecturer = await getCurrentLecturer();
   const form = readExamPaperForm(formData);
@@ -358,7 +343,6 @@ export async function submitExamPaper(formData: FormData): Promise<ActionResult<
   } catch (error) {
     return failure(error);
   }
-  // Tệp của lần nộp trước: xóa sau khi commit; xóa không được thì tác vụ dọn tệp mồ côi xóa sau.
   await deleteFiles(result.replaced);
   revalidatePath("/lecturer/exams");
   revalidatePath("/administrator/exams");
@@ -382,7 +366,6 @@ async function reviewExamPaper(viewer: Viewer, examSessionId: string, decision: 
   return readBack(examSessionId);
 }
 
-// Phòng Khảo thí duyệt đúng bản đề đã xem (thời điểm nộp): đề bị khóa, giảng viên không nộp lại được.
 export async function approveExamPaper(input: ExamPaperApproveInput): Promise<ActionResult<ExamSession>> {
   const viewer = await requirePermission("exams.review");
   const parsed = parseInput(EXAM_PAPER_APPROVE_SCHEMA, input);
@@ -390,7 +373,6 @@ export async function approveExamPaper(input: ExamPaperApproveInput): Promise<Ac
   return reviewExamPaper(viewer, parsed.data.examSessionId, { decision: "approve", paperSubmittedAt: parsed.data.paperSubmittedAt });
 }
 
-// Phòng Khảo thí trả lại đề kèm lý do: giảng viên thấy lý do và nộp lại.
 export async function returnExamPaper(input: ExamPaperReturnInput): Promise<ActionResult<ExamSession>> {
   const viewer = await requirePermission("exams.review");
   const parsed = parseInput(EXAM_PAPER_RETURN_SCHEMA, input);
@@ -398,7 +380,6 @@ export async function returnExamPaper(input: ExamPaperReturnInput): Promise<Acti
   return reviewExamPaper(viewer, parsed.data.examSessionId, { decision: "return", reason: parsed.data.reason, paperSubmittedAt: parsed.data.paperSubmittedAt });
 }
 
-// Mở khóa đề đã duyệt khi phát hiện lỗi: đề chuyển "bị trả lại", giảng viên nộp lại.
 export async function unlockExamPaper(input: ExamPaperUnlockInput): Promise<ActionResult<ExamSession>> {
   const viewer = await requirePermission("exams.review");
   const parsed = parseInput(EXAM_PAPER_UNLOCK_SCHEMA, input);
@@ -411,7 +392,6 @@ export async function unlockExamPaper(input: ExamPaperUnlockInput): Promise<Acti
   return readBack(parsed.data.examSessionId);
 }
 
-// Giảng viên đang coi một ca chưa thi đề nghị đổi cho đồng nghiệp cùng khoa; Phòng Khảo thí nhận thông báo và chấp nhận hay từ chối.
 export async function requestProctorSwap(input: ProctorSwapInput): Promise<ActionResult<{ examSessionId: string }>> {
   const lecturer = await getCurrentLecturer();
   const parsed = parseInput(PROCTOR_SWAP_SCHEMA, input);
@@ -450,7 +430,6 @@ export async function requestProctorSwap(input: ProctorSwapInput): Promise<Actio
   return actionOk({ examSessionId });
 }
 
-// Phòng Khảo thí chấp nhận hoặc từ chối đề nghị đổi ca coi thi.
 export async function decideProctorSwapRequest(input: ProctorSwapDecideInput): Promise<ActionResult<ExamSession>> {
   const viewer = await requirePermission("exams.manage");
   const parsed = parseInput(PROCTOR_SWAP_DECIDE_SCHEMA, input);
@@ -469,7 +448,6 @@ export async function decideProctorSwapRequest(input: ProctorSwapDecideInput): P
   return readBack(examSessionId);
 }
 
-// Danh sách phòng thi (thí sinh theo phòng, số báo danh) bản PDF để in: Phòng Khảo thí, giảng viên dạy lớp, cán bộ coi thi.
 export async function exportExamRosterPdf(examSessionId: string): Promise<ActionResult<{ fileName: string; base64: string; mimeType: string }>> {
   if (!isUuid(examSessionId)) return actionError("Ca thi không hợp lệ.");
   const roster = await getExamRoster(examSessionId);
@@ -488,14 +466,12 @@ export async function exportExamRosterPdf(examSessionId: string): Promise<Action
   return actionOk({ fileName: `danh-sach-thi-${exam.classCode}-${exam.kind}.pdf`, base64: bytesToBase64(bytes), mimeType: PDF_MIME });
 }
 
-// Danh sách thí sinh để xem trên trang (cùng quyền với bản PDF).
 export async function loadExamRoster(examSessionId: string) {
   if (!isUuid(examSessionId)) return actionError("Ca thi không hợp lệ.");
   const roster = await getExamRoster(examSessionId);
   return roster ? actionOk(roster.rows) : actionError("Ca thi không còn hoặc bạn không có quyền xem danh sách thi.");
 }
 
-// Sinh viên đang học lớp (chọn người thi bù, hoãn thi).
 export async function listSectionStudents(classSectionId: string) {
   if (!isUuid(classSectionId)) return actionError("Lớp học phần không hợp lệ.");
   return actionOk(await getSectionStudents(classSectionId));

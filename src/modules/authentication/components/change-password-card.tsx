@@ -9,7 +9,6 @@ import { NEW_PASSWORD_RULES, authErrorMessage } from "@/modules/authentication/a
 
 type PasswordValues = { currentPassword: string; newPassword: string; confirmPassword: string };
 
-// Đổi mật khẩu khi đang đăng nhập: cần mật khẩu hiện tại, đổi xong thì đăng xuất các thiết bị khác.
 export function ChangePasswordCard() {
   const [messageApi, contextHolder] = message.useMessage();
   const [form] = Form.useForm<PasswordValues>();

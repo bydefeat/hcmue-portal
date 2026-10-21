@@ -6,7 +6,6 @@ import { otpFor, serverLogSize } from "./support/otp";
 
 test.use(asRole("admin"));
 
-// Mở drawer/menu bằng nút trên trang vừa tải: bấm lại tới khi `opened` hiện (lần bấm trước khi hydrate không có tác dụng).
 async function openWith(trigger: Locator, opened: Locator) {
   await expect(async () => {
     if (!(await opened.isVisible())) await trigger.click({ timeout: 2000 });
@@ -14,13 +13,11 @@ async function openWith(trigger: Locator, opened: Locator) {
   }).toPass({ timeout: 30_000 });
 }
 
-// Ô lọc của bảng là input có kiểm soát: gõ trước khi hydrate thì chữ hiện ra nhưng bảng không lọc.
 async function fillFilter(field: Locator, text: string) {
   await waitForHydration(field);
   await field.fill(text);
 }
 
-// Tích ô chọn của một dòng bảng antd tới khi ô thật sự được chọn.
 async function selectRow(row: Locator) {
   const checkbox = row.getByRole("checkbox");
   await expect(async () => {
@@ -30,7 +27,6 @@ async function selectRow(row: Locator) {
 }
 
 test("thêm sinh viên, cấp tài khoản, sinh viên tự kích hoạt bằng mã gửi qua email", async ({ page, browser }) => {
-  // MSSV, email, tên riêng của e2e (seed chỉ có số thứ tự dưới 200); global setup seed lại DB nên mỗi lần chạy đều trống.
   const serial = String(900 + (Date.now() % 100)).padStart(3, "0");
   const code = `51.01.104.${serial}`;
   const email = `5101104${serial}@student.hcmue.edu.vn`;
@@ -49,7 +45,6 @@ test("thêm sinh viên, cấp tài khoản, sinh viên tự kích hoạt bằng 
   await chooseOption(page, form.getByLabel("Khóa", { exact: true }), "Khóa 51");
   await form.getByLabel("Lớp sinh hoạt").fill("51.01.CNTT.A");
   await form.getByLabel("Lớp sinh hoạt").press("Escape");
-  // Email trường tự sinh theo MSSV, không nhập.
   await expect(form.getByLabel("Email trường")).toHaveValue(email);
   await expect(form.getByLabel("Cấp tài khoản và gửi thư kích hoạt")).toBeChecked();
   await form.getByRole("button", { name: "Thêm sinh viên" }).click();
@@ -59,7 +54,6 @@ test("thêm sinh viên, cấp tài khoản, sinh viên tự kích hoạt bằng 
   const row = page.getByRole("row").filter({ hasText: fullName });
   await expect(row).toContainText("Chưa kích hoạt");
 
-  // Kích hoạt bằng mã OTP: đọc mã từ thư in ra log server (`next dev`), không có thì thay mã trong DB (xem support/otp.ts).
   const student = await openAnonymous(browser);
   await student.goto(`/authentication/forgot-password?email=${encodeURIComponent(email)}&activate=1`);
   await expect(student.getByRole("heading", { name: "Kích hoạt tài khoản" })).toBeVisible();
@@ -96,7 +90,6 @@ test("khóa rồi mở khóa tài khoản", async ({ page, browser }) => {
     await fillFilter(page.getByLabel("Tìm sinh viên"), account.code);
     await selectRow(row);
   };
-  // Menu thả xuống "Tài khoản khác": bấm mục trực tiếp trên phần tử (rê chuột qua vùng khác thì menu đóng trước khi bấm).
   const chooseAccountAction = async (name: string) => {
     const item = page.getByRole("menuitem", { name, exact: true });
     await openWith(page.getByRole("button", { name: "Tài khoản khác" }), item);
@@ -106,7 +99,6 @@ test("khóa rồi mở khóa tài khoản", async ({ page, browser }) => {
   await page.goto("/administrator/users/students");
   await selectStudent();
   await chooseAccountAction("Khóa tài khoản");
-  // Nút của hộp xác nhận có khi bấm trượt lúc hộp đang hiện dần: bấm tới khi hộp đóng (antd chặn gọi onOk hai lần).
   const confirm = dialog(page, "Khóa tài khoản của 1 sinh viên?");
   await expect(async () => {
     if (await confirm.isVisible()) await confirm.getByRole("button", { name: "Khóa tài khoản" }).click({ timeout: 2000 });
@@ -132,7 +124,6 @@ test("khóa rồi mở khóa tài khoản", async ({ page, browser }) => {
 });
 
 test("mở lớp học phần", async ({ page }) => {
-  // Số thứ tự lớp từ 50 trở lên để không trùng lớp seed; global setup seed lại DB mỗi lần chạy.
   const number = 50 + (Date.now() % 40);
   await page.goto("/administrator/class-sections");
   const form = dialog(page, /^Mở lớp học phần, /);
@@ -141,7 +132,6 @@ test("mở lớp học phần", async ({ page }) => {
   await form.getByLabel("Số thứ tự lớp").fill(String(number));
   await form.getByLabel("Sĩ số tối đa").fill("40");
   await form.getByLabel("Sĩ số tối thiểu").fill("10");
-  // Buổi tối Chủ nhật để không trùng phòng với lớp seed.
   await chooseOption(page, form.getByLabel("Thứ", { exact: true }), "Chủ nhật");
   await chooseOption(page, form.getByLabel("Phòng", { exact: true }), /.+/);
   await chooseOption(page, form.getByLabel("Từ tiết"), /^Tiết 10 /);
@@ -158,8 +148,6 @@ test("mở lớp học phần", async ({ page }) => {
 test("duyệt rồi công bố điểm một lớp", async ({ page }) => {
   await page.goto("/administrator/grade-publishing");
   const row = page.getByRole("row").filter({ has: page.getByRole("button", { name: "COMP1070.01 Phát triển ứng dụng web" }) });
-  // Bấm trước khi trang gắn sự kiện thì không có gì xảy ra: chờ hydrate rồi bấm một lần. Không bấm lại theo thông báo: server dev có
-  // khi trả lời sau vài giây, lần bấm lại rơi vào lúc nút đã biến mất và thông báo đã qua.
   const approve = row.getByRole("button", { name: "Duyệt", exact: true });
   await waitForHydration(approve);
   await approve.click();
@@ -175,7 +163,6 @@ test("duyệt rồi công bố điểm một lớp", async ({ page }) => {
 });
 
 test("ghi một khoản nộp học phí", async ({ page }) => {
-  // Mã tham chiếu riêng của e2e (mỗi mã chỉ ghi được một lần).
   const reference = `E2E${Date.now()}`;
   await page.goto("/administrator/tuition");
   await chooseOption(page, page.getByLabel("Trạng thái"), "Chưa nộp");
@@ -187,7 +174,6 @@ test("ghi một khoản nộp học phí", async ({ page }) => {
 
   await detail.getByRole("button", { name: "Ghi thanh toán" }).click();
   await detail.getByLabel("Số tiền").fill("1000000");
-  // Ô ngày có giờ (định dạng DD/MM/YYYY HH:mm): gõ đúng định dạng rồi Enter để xác nhận, thay cho nút OK của bảng chọn.
   const paidAt = detail.getByLabel("Thời điểm nộp");
   const paidAtText = `${vietnamDate(-1)} 08:00`;
   await paidAt.click();
@@ -228,7 +214,6 @@ test("xuất báo cáo .xlsx và đọc được bằng exceljs", async ({ page 
 test("theo dõi đăng ký: gửi nhắc sinh viên chưa đăng ký", async ({ page }) => {
   await page.goto("/administrator/registration-monitor");
   const table = page.getByRole("table").filter({ has: page.getByRole("columnheader", { name: "Nhắc" }) });
-  // Lớp 48.01.TOAN có cả sinh viên đã có tài khoản (tài khoản e2e cấp thêm) lẫn chưa có: chọn mỗi loại một người.
   await fillFilter(page.getByLabel("Tìm sinh viên"), "48.01.101");
   const withAccount = table.getByRole("row").filter({ hasText: "Chưa nhắc" }).first();
   const withoutAccount = table.getByRole("row").filter({ hasText: "Chưa có tài khoản" }).first();
@@ -236,7 +221,6 @@ test("theo dõi đăng ký: gửi nhắc sinh viên chưa đăng ký", async ({ 
   await selectRow(withAccount);
   await selectRow(withoutAccount);
   await page.getByRole("button", { name: "Gửi nhắc (2)" }).click();
-  // Số thư gửi được tùy cấu hình thư của server (chế độ start dùng khóa Resend giả nên thư không gửi được).
   await expect(
     toast(page, /^Đã nhắc đăng ký: 1 sinh viên nhận thông báo trên cổng; \d sinh viên được gửi thư tới email trường; 1 sinh viên chưa có tài khoản cổng nên chỉ nhận thư/),
   ).toBeVisible();

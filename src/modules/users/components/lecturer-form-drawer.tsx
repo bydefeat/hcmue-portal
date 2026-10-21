@@ -12,7 +12,6 @@ type LecturerFormDrawerProps = {
   lecturer: Lecturer | null;
   faculties: string[];
   onClose: () => void;
-  // Trả lỗi theo ô khi server từ chối, để drawer gắn vào đúng ô.
   onSubmit: (values: LecturerFormValues, options: { provisionAccount: boolean }) => Promise<Record<string, string> | undefined>;
 };
 

@@ -2,7 +2,6 @@ import type { CellValue, Workbook } from "exceljs";
 
 export const XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 
-// Nạp exceljs khi cần: phía trình duyệt chỉ tải thư viện lúc người dùng chọn tệp .xlsx.
 async function newWorkbook(): Promise<Workbook> {
   const loaded = await import("exceljs");
   const ExcelJS = (loaded as unknown as { default?: typeof loaded }).default ?? loaded;
@@ -13,7 +12,6 @@ function pad(value: number) {
   return String(value).padStart(2, "0");
 }
 
-// exceljs đọc ô ngày của Excel thành Date theo UTC mang đúng giờ ghi trên ô (Excel không lưu múi giờ).
 function dateText(date: Date) {
   const day = `${pad(date.getUTCDate())}/${pad(date.getUTCMonth() + 1)}/${date.getUTCFullYear()}`;
   const hasTime = date.getUTCHours() + date.getUTCMinutes() + date.getUTCSeconds() > 0;
@@ -32,7 +30,6 @@ export function cellText(value: CellValue): string {
   return "";
 }
 
-// Trang tính đầu tiên thành mảng dòng chữ, bỏ dòng trống; cột trống ở giữa giữ chỗ để thứ tự cột không lệch.
 export async function readSpreadsheet(data: ArrayBuffer | Uint8Array): Promise<string[][]> {
   const workbook = await newWorkbook();
   await workbook.xlsx.load(data as ArrayBuffer);
@@ -49,15 +46,12 @@ export async function readSpreadsheet(data: ArrayBuffer | Uint8Array): Promise<s
 
 export type SpreadsheetColumn = { header: string; width?: number; text?: boolean };
 
-// Ô số kèm định dạng hiển thị của Excel ("0.00", "0.0%"); giá trị vẫn là số.
 export type SpreadsheetCell = string | number | null | { value: number; numFmt: string };
 
 function cellLength(cell: SpreadsheetCell) {
   return String(cell !== null && typeof cell === "object" ? cell.value : (cell ?? "")).length;
 }
 
-// Một trang tính: tiêu đề in đậm, cố định hàng tiêu đề, bật lọc. Ô số giữ kiểu số để Excel cộng, sắp xếp được;
-// cột `text` (mã số, điện thoại) định dạng chữ để Excel không bỏ số 0 ở đầu.
 export async function buildSpreadsheet(sheetName: string, columns: SpreadsheetColumn[], rows: SpreadsheetCell[][]): Promise<Uint8Array<ArrayBuffer>> {
   const workbook = await newWorkbook();
   const sheet = workbook.addWorksheet(sheetName.slice(0, 31), { views: [{ state: "frozen", ySplit: 1 }] });

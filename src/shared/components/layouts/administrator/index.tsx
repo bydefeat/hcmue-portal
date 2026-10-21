@@ -27,9 +27,7 @@ type AdministratorLayoutProps = {
   user: MenuUser;
   termLabel: string;
   permissions: string[];
-  // Vai trò theo khoa (false) không thấy mục chỉ dành cho phạm vi toàn trường.
   schoolWide: boolean;
-  // Liên kết chuyển cổng (giảng viên kiêm quản trị), thêm vào menu tài khoản.
   portalLinks?: NavItem[];
   searchEntries: SearchEntry[];
   notifications: BellItem[];

@@ -14,7 +14,6 @@ import { lecturers, students } from "@/modules/users/users.schema";
 import type { SeedContext } from "./context";
 import { samplePdf } from "./sample-file";
 
-// Tệp đề, đáp án mẫu: PDF nhỏ "Tệp mẫu", khóa tất định theo id ca thi để seed lại thì ghi đè đúng tệp.
 function samplePaper(exam: ExamSeed, kind: ExamPaperFileKind) {
   const meta = exam.papers.find((paper) => paper.kind === kind);
   if (!meta) return null;
@@ -23,11 +22,8 @@ function samplePaper(exam: ExamSeed, kind: ExamPaperFileKind) {
 
 type Placed = { exam: ExamSeed; roomIds: string[]; proctorIds: string[] };
 
-// Lịch thi của học kỳ hiện tại: ca thi, phòng (đủ sức chứa thi theo sĩ số thật), 2 cán bộ coi thi mỗi phòng cùng khoa với học
-// phần (không dạy lớp đó, không coi hai ca chồng giờ), thí sinh và số báo danh; một sinh viên được hoãn thi và ca thi bù.
 export async function seedExams(tx: Transaction, context: SeedContext) {
   const files = EXAM_SESSIONS.map((exam) => ({ paper: samplePaper(exam, "paper"), answerKey: samplePaper(exam, "answer-key") }));
-  // DB vừa bị xóa sạch nên tệp nộp ở lần chạy trước không còn ca thi nào trỏ tới.
   await deleteFiles((await listFiles("exams")).map((entry) => entry.key));
   await Promise.all(files.flatMap(({ paper, answerKey }) => [paper, answerKey]).filter((file) => file !== null).map((file) => putFile(file.key, file.data)));
   await tx.insert(examSessions).values(
@@ -35,7 +31,6 @@ export async function seedExams(tx: Transaction, context: SeedContext) {
       const isSubmitted = exam.paperStatus !== "not-submitted";
       const deadline = dayjs(exam.paperDeadline);
       const { paper, answerKey } = files[index];
-      // Đề đã nộp: nộp 2 ngày trước hạn, nhưng không sau hôm nay; đề đã xét: xét sau khi nộp 1 ngày, không sau hôm nay.
       const submittedAt = isSubmitted ? new Date(Math.min(deadline.subtract(2, "day").valueOf(), dayjs().subtract(1, "hour").valueOf())) : null;
       const reviewedAt = submittedAt && exam.paperReview ? new Date(Math.min(submittedAt.valueOf() + 24 * 60 * 60 * 1000, dayjs().subtract(10, "minute").valueOf())) : null;
       return {
@@ -67,7 +62,6 @@ export async function seedExams(tx: Transaction, context: SeedContext) {
     }),
   );
 
-  // Sinh viên đang học từng lớp, theo mã để chọn người hoãn thi tất định.
   const sectionIds = [...new Set(EXAM_SESSIONS.map((exam) => exam.classSectionId))];
   const roster = await tx
     .select({ enrollmentId: enrollments.id, classSectionId: enrollments.classSectionId, studentId: enrollments.studentId, fullName: students.fullName, code: students.code })
@@ -125,7 +119,6 @@ export async function seedExams(tx: Transaction, context: SeedContext) {
           Number(b.facultyId === section.facultyId) - Number(a.facultyId === section.facultyId) ||
           (load.get(a.id) ?? 0) - (load.get(b.id) ?? 0),
       )
-      // Giảng viên 0 chỉ coi các ca được đánh dấu, để lịch coi thi mẫu gọn.
       .filter((person) => person.id !== currentLecturer || exam.featureCurrentLecturer);
     const proctorIds = pool.slice(0, chosen.length * PROCTORS_PER_ROOM).map((person) => person.id);
     for (const id of proctorIds) load.set(id, (load.get(id) ?? 0) + 1);
@@ -146,7 +139,6 @@ export async function seedExams(tx: Transaction, context: SeedContext) {
   });
   for (let start = 0; start < candidateRows.length; start += 1000) await tx.insert(examCandidates).values(candidateRows.slice(start, start + 1000));
 
-  // Đề nghị đổi ca đang chờ: ca coi thi sắp tới đầu tiên của giảng viên 0, đổi cho đồng nghiệp cùng khoa chưa coi ca chồng giờ.
   const upcoming = placed.find((entry) => entry.proctorIds.includes(currentLecturer) && entry.exam.status === "published");
   if (upcoming) {
     const me = staff.find((person) => person.id === currentLecturer)!;

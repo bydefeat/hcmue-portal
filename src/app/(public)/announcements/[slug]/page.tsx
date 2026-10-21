@@ -18,7 +18,6 @@ export default async function Page({ params }: PageProps) {
   const announcement = await getPublishedAnnouncement(slug);
   if (!announcement) notFound();
   const related = (await getPublishedAnnouncements()).filter((entry) => entry.id !== announcement.id && entry.category === announcement.category).slice(0, 3);
-  // Lượt xem tăng sau khi trả trang, không làm chậm trang.
   after(() => recordAnnouncementView(announcement.id).catch((error: unknown) => console.error("[announcements] Không ghi được lượt xem:", error)));
   return <AnnouncementDetail announcement={announcement} related={related} back={{ href: "/announcements", label: "Thông báo đào tạo" }} />;
 }

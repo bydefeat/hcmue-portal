@@ -8,13 +8,8 @@ import type * as ActionLib from "@/shared/libs/action.lib";
 import type * as StorageLib from "@/shared/libs/storage.lib";
 import type * as VirusScanLib from "@/shared/libs/virus-scan.lib";
 
-// ---- máy chủ giả lập dùng trong file này ----
 
-// clamd giả lập trong test: hiểu lệnh zINSTREAM/nINSTREAM (khúc <độ dài 4 byte big-endian><dữ liệu>, kết thúc bằng khúc 0),
-// ghép lại toàn bộ dữ liệu, có chuỗi EICAR thì trả "stream: Eicar-Test-Signature FOUND", không thì "stream: OK".
-// Chế độ "silent" nhận hết nhưng không trả lời (giả clamd treo), "drop" đóng kết nối ngay (giả clamd sập giữa chừng).
 
-// Chuỗi kiểm thử chuẩn EICAR, ghép từ hai nửa để chính file test không bị phần mềm diệt virus trên máy dev xóa.
 const EICAR = ["X5O!P%@AP[4\\PZX54(P^)7CC)7}$", "EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*"].join("");
 
 type FakeClamd = {
@@ -77,8 +72,6 @@ async function startFakeClamd(): Promise<FakeClamd> {
 }
 
 
-// Quét virus khi tải lên với clamd giả (tests/support/fake-clamd.ts). Kho tệp trỏ vào thư mục tạm riêng; biến môi trường
-// đặt trước khi nạp env.lib nên phải import động.
 let clamd: FakeClamd;
 let directory = "";
 let storage: typeof StorageLib;
@@ -171,7 +164,6 @@ describe("virus-scan: tải lên qua withStoredFiles", () => {
     assert.deepEqual(await storedFiles(), []);
     assert.equal(warn.mock.callCount(), 1);
     assert.match(String(warn.mock.calls[0].arguments[1]), /Eicar-Test-Signature/);
-    // Server action trả nguyên câu báo cho form.
     assert.deepEqual(action.actionFailure(error), { ok: false, message: error.message, fieldErrors: undefined });
   });
 

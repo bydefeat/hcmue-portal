@@ -10,7 +10,6 @@ const courseCodes = z
   .max(20, "Tối đa 20 học phần")
   .transform((codes) => [...new Set(codes)]);
 
-// Dùng chung cho form và server action; DB còn chặn thêm bằng courses_credit_split, course_relations_not_self.
 export const COURSE_SCHEMA = z
   .object({
     code: z
@@ -59,22 +58,17 @@ export const PROGRAM_SCHEMA = z.object({
 
 export type ProgramInput = z.input<typeof PROGRAM_SCHEMA>;
 
-// Khung chỉ xếp hai học kỳ chính mỗi năm. Mô hình khung (program_courses) không có học kỳ hè: học kỳ hè dùng để học lại,
-// học vượt nên không cộng thêm. DB giới hạn tối đa 12 học kỳ và không vượt số năm đào tạo × 2.
 const PROGRAM_MAX_SEMESTER = 12;
 
 export function programSemesterLimit(durationYears: number) {
   return Math.min(PROGRAM_MAX_SEMESTER, durationYears * 2);
 }
 
-// Chương trình đã ngừng áp dụng là trạng thái cuối: không mở lại (sinh viên khóa cũ đã xét theo khung đó). Muốn dùng lại thì tạo
-// chương trình mới. DB chặn thêm bằng trigger programs_archived_final.
 export function programStatusChangeError(from: ProgramStatus, to: ProgramStatus) {
   if (from === "archived" && to !== "archived") return "Chương trình đã ngừng áp dụng, không mở lại được. Tạo chương trình mới nếu cần áp dụng lại.";
   return null;
 }
 
-// Chương trình ngừng áp dụng chỉ xem; DB chặn thêm bằng trigger program_courses_program_archived.
 export function isProgramEditable(status: ProgramStatus) {
   return status !== "archived";
 }
@@ -100,7 +94,6 @@ export type ProgramCourseChangeInput = z.input<typeof PROGRAM_COURSE_CHANGE_SCHE
 
 export type FrameworkPlanEntry = { courseCode: string; semester: number };
 
-// Kiểm một thay đổi trên khung đang có, trả câu lỗi hoặc null. Server gọi lại trong giao dịch với dữ liệu mới nhất.
 export function frameworkChangeError(
   plan: FrameworkPlanEntry[],
   change: ProgramCourseChange,
@@ -133,8 +126,6 @@ export function applyFrameworkChange(plan: FrameworkPlanEntry[], change: Program
   return plan.map((entry) => (entry.courseCode === change.courseCode ? { ...entry, semester: change.semester } : entry));
 }
 
-// Điểm cần xem lại của khung, chỉ cảnh báo chứ không chặn lưu: tiên quyết phải xếp ở học kỳ trước, học phần ngừng mở,
-// tổng tín chỉ so với tổng của chương trình, nhóm tự chọn không đủ học phần để đạt số tín chỉ tối thiểu.
 export function frameworkIssues(program: Pick<ProgramDetail, "semesters" | "totalCredits" | "plannedCredits"> & { electiveGroups?: ProgramElectiveGroup[] }): FrameworkIssue[] {
   const semesterOf = new Map(program.semesters.flatMap((semester) => semester.courses.map((course) => [course.code, semester.semester] as const)));
   const issues: FrameworkIssue[] = [];
@@ -178,7 +169,6 @@ export function frameworkIssues(program: Pick<ProgramDetail, "semesters" | "tota
   return issues;
 }
 
-// ---------- Nhóm học phần tự chọn ----------
 
 export const ELECTIVE_GROUP_SCHEMA = z.object({
   name: z.string().trim().min(1, "Chưa nhập tên nhóm").max(120, "Tối đa 120 ký tự"),
@@ -194,8 +184,6 @@ export type ElectiveGroupInput = z.input<typeof ELECTIVE_GROUP_SCHEMA>;
 
 type GroupPlanEntry = { courseCode: string; groupId: string | null };
 
-// Học phần của nhóm phải có trong khung, là học phần tự chọn, không phải học phần điều kiện và chưa thuộc nhóm khác.
-// DB chặn thêm bằng trigger program_courses_elective_group_course.
 export function electiveGroupError(
   plan: GroupPlanEntry[],
   input: { groupId: string | null; courseCodes: string[] },
@@ -219,8 +207,6 @@ export type ElectiveRequirement = { id: string; name: string; minCredits: number
 
 export type ElectiveProgress = { id: string; name: string; minCredits: number; earnedCredits: number; passedCodes: string[]; met: boolean };
 
-// Tín chỉ tích lũy từng nhóm tự chọn: học phần của nhóm đã học đạt (lần học cuối), kể cả qua học phần tương đương.
-// Một nguồn cho xét tốt nghiệp và trang tiến độ chương trình.
 export function electiveProgress(groups: ElectiveRequirement[], isPassed: (code: string) => boolean): ElectiveProgress[] {
   return groups.map((group) => {
     const passed = group.courses.filter((course) => isPassed(course.code) || course.equivalentCodes.some(isPassed));

@@ -22,8 +22,6 @@ type SectionWaitlist = { section: ClassSectionView; entries: WaitlistEntryRow[] 
 
 const NETWORK_ERROR = "Chưa thực hiện được, kiểm tra kết nối rồi thử lại.";
 
-// Danh sách chờ theo lớp: hệ thống tự xếp người đầu danh sách đủ điều kiện khi lớp có chỗ (hủy, đổi lớp, tăng sĩ số); ở đây Phòng Đào
-// tạo xem thứ tự, chạy lại việc xếp (ví dụ vừa gỡ khóa cho người đầu danh sách) hoặc đưa một sinh viên ra khỏi danh sách kèm lý do.
 export function RegistrationWaitlist({ sections, entries }: { sections: ClassSectionView[]; entries: WaitlistEntryRow[] }) {
   const router = useRouter();
   const [messageApi, contextHolder] = message.useMessage();

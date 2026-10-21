@@ -20,9 +20,6 @@ export type StudentProgram = { id: string; code: string; name: string; degree: s
 
 const programKey = (majorId: string, cohort: number) => `${majorId}:${cohort}`;
 
-// Chương trình đào tạo áp dụng cho sinh viên: chương trình đang áp dụng (active) của đúng ngành có khóa của sinh viên trong
-// program_cohorts. Mỗi ngành, khóa chỉ có một chương trình đang áp dụng (trigger programs_single_active_cohort). Một nguồn cho
-// xét tốt nghiệp, kế hoạch học tập và các trang của sinh viên.
 export async function programsOf(executor: Executor, students: { majorId: string; cohort: number }[]): Promise<Map<string, StudentProgram>> {
   const majorIds = [...new Set(students.map((student) => student.majorId))];
   if (majorIds.length === 0) return new Map();
@@ -86,18 +83,14 @@ async function frameworkCoursesOf(executor: Executor, programIds: string[], kind
   return result;
 }
 
-// Học phần bắt buộc trong khung của từng chương trình (không kể học phần điều kiện, xét riêng), kèm học phần tương đương
-// (học đạt học phần tương đương cũng được tính).
 export function requiredCoursesOf(executor: Executor, programIds: string[]): Promise<Map<string, ProgramRequirement[]>> {
   return frameworkCoursesOf(executor, programIds, "required");
 }
 
-// Học phần điều kiện (GDTC, GDQP-AN) trong khung: xét tốt nghiệp yêu cầu đạt đủ, không tính tín chỉ tích lũy.
 export function conditionalCoursesOf(executor: Executor, programIds: string[]): Promise<Map<string, ProgramRequirement[]>> {
   return frameworkCoursesOf(executor, programIds, "conditional");
 }
 
-// Nhóm tự chọn của từng chương trình kèm học phần (và học phần tương đương), để xét đủ tín chỉ từng nhóm.
 export async function electiveGroupsOf(executor: Executor, programIds: string[]): Promise<Map<string, ElectiveRequirement[]>> {
   const ids = [...new Set(programIds)];
   if (ids.length === 0) return new Map();
@@ -124,7 +117,6 @@ export async function electiveGroupsOf(executor: Executor, programIds: string[])
   return result;
 }
 
-// Lỗi nghiệp vụ khi sửa khung: hủy giao dịch, câu báo đưa thẳng cho người dùng.
 export class FrameworkError extends Error {}
 
 function changeSummary(change: ProgramCourseChange, from: number | undefined) {
@@ -133,8 +125,6 @@ function changeSummary(change: ProgramCourseChange, from: number | undefined) {
   return `Chuyển ${change.courseCode} từ học kỳ ${from} sang học kỳ ${change.semester}`;
 }
 
-// Sửa khung chương trình trong giao dịch của nơi gọi: khóa dòng chương trình để hai người sửa cùng lúc không chen nhau,
-// kiểm lại trạng thái, phạm vi khoa và ràng buộc với dữ liệu mới nhất, ghi nhật ký cùng giao dịch.
 export async function applyProgramCourseChange(
   tx: Transaction,
   input: { programId: string; change: ProgramCourseChange; actor: AuditActor; faculty: string | null },
@@ -191,7 +181,6 @@ export async function applyProgramCourseChange(
   return { summary };
 }
 
-// Chương trình đang sửa: khóa dòng, kiểm phạm vi khoa và trạng thái (dùng chung cho khung và nhóm tự chọn).
 async function lockEditableProgram(tx: Transaction, programId: string, faculty: string | null) {
   const [program] = await tx
     .select({ id: programs.id, name: programs.name, status: programs.status, faculty: faculties.name })
@@ -208,8 +197,6 @@ async function lockEditableProgram(tx: Transaction, programId: string, faculty: 
 
 const codeList = (codes: string[]) => (codes.length > 0 ? codes.toSorted().join(", ") : "Không có");
 
-// Thêm hoặc sửa một nhóm tự chọn: tên, số tín chỉ tối thiểu, danh sách học phần (gắn elective_group_id trên khung).
-// Học phần bỏ khỏi nhóm trở thành tự chọn tự do của khung.
 export async function saveElectiveGroup(
   tx: Transaction,
   input: { programId: string; groupId: string | null; values: ElectiveGroupFormValues; actor: AuditActor; faculty: string | null },
@@ -269,7 +256,6 @@ export async function saveElectiveGroup(
   return row.id;
 }
 
-// Xóa nhóm tự chọn: học phần của nhóm vẫn ở trong khung (thành tự chọn tự do), chỉ bỏ yêu cầu tín chỉ của nhóm.
 export async function deleteElectiveGroup(tx: Transaction, input: { programId: string; groupId: string; actor: AuditActor; faculty: string | null }) {
   const program = await lockEditableProgram(tx, input.programId, input.faculty);
   const [group] = await tx

@@ -10,8 +10,6 @@ const CODE = /^([A-Z]{2})-(\d{4})-(\d{5})$/;
 
 const date = (value: string | null) => (value ? new Date(value) : null);
 
-// Đơn từ: đơn, các bước duyệt (giữ nguyên trạng thái, hạn, người xử lý của mock), tệp minh chứng và bộ đếm mã đơn.
-// Mỗi minh chứng mẫu là một tệp PDF nhỏ "Tệp mẫu" ghi vào kho tệp, khóa theo id của mock nên seed lại thì ghi đè đúng tệp cũ.
 export async function seedRequests(tx: Transaction, context: SeedContext) {
   await tx.insert(academicRequests).values(
     REQUESTS.map((request) => ({
@@ -35,11 +33,9 @@ export async function seedRequests(tx: Transaction, context: SeedContext) {
       position: index + 1,
       role: step.role,
       label: step.label,
-      // Bước cố vấn chỉ lưu người xử lý khi đã xử lý; chưa xử lý thì đi theo cố vấn hiện tại của lớp.
       assigneeLecturerId: step.role === "lecturer" || (step.role === "advisor" && step.actedAt) ? step.assigneeId : null,
       status: step.status,
       dueAt: date(step.dueAt),
-      // Người xử lý trong mock là cán bộ chưa có tài khoản, trừ giảng viên có tài khoản seed.
       actorUserId: step.actedAt && step.assigneeId === CURRENT_LECTURER_ID ? context.lecturerUserId : null,
       actorName: step.actedAt ? step.actorName : null,
       actedAt: date(step.actedAt),
@@ -62,11 +58,9 @@ export async function seedRequests(tx: Transaction, context: SeedContext) {
       };
     }),
   );
-  // DB vừa bị xóa sạch nên tệp tải lên ở lần chạy trước không còn dòng nào trỏ tới.
   await deleteFiles((await listFiles("requests")).map((entry) => entry.key));
   await Promise.all(files.map((file) => putFile(file.storageKey, file.data)));
   if (files.length > 0) await tx.insert(requestAttachments).values(files.map(({ data: _data, ...file }) => file));
-  // Bộ đếm bắt đầu từ số lớn nhất đã dùng để đơn mới gửi nối tiếp mã của dữ liệu mẫu.
   const counters = new Map<string, { prefix: string; year: number; lastValue: number }>();
   for (const request of REQUESTS) {
     const [, prefix, year, value] = CODE.exec(request.code)!;

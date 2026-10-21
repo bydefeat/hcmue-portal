@@ -5,8 +5,6 @@ import { createdAt, primaryId } from "@/shared/libs/db-column.lib";
 export const mailStatusEnum = pgEnum("mail_status", ["pending", "sending", "sent", "failed"]);
 export const mailKindEnum = pgEnum("mail_kind", ["account-activation", "registration-reminder", "class-announcement", "announcement"]);
 
-// Hàng đợi thư: ghi cùng transaction với thao tác sinh ra thư, gửi sau commit và gửi lại khi lỗi.
-// Mỗi dòng một người nhận để thử lại riêng từng người, không lộ địa chỉ của nhau.
 export const mailOutbox = pgTable(
   "mail_outbox",
   {
@@ -19,7 +17,6 @@ export const mailOutbox = pgTable(
     status: mailStatusEnum().notNull().default("pending"),
     attempts: integer().notNull().default(0),
     lastError: text(),
-    // Thư pending: lúc được gửi; thư sending: hết hạn giữ chỗ, quá giờ này coi như tiến trình gửi đã chết và lấy lại.
     nextAttemptAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
     createdAt: createdAt(),
     sentAt: timestamp({ withTimezone: true }),

@@ -29,15 +29,11 @@ async function insertChunks<T>(rows: T[], insert: (chunk: T[]) => Promise<unknow
   for (let start = 0; start < rows.length; start += size) await insert(rows.slice(start, start + size));
 }
 
-// Bảng điểm các kỳ đã học của 600 sinh viên mẫu (course_results, nguồn "legacy" vì không có lớp học phần các kỳ cũ),
-// bảng điểm lớp học phần kỳ hiện tại (grade_sheets, grade_components, grade_scores), cảnh báo học vụ.
 export async function seedGrades(tx: Transaction, context: SeedContext) {
-  // STUDENTS[index] là sinh viên mockId(`student:${index}`).
   const transcripts = STUDENTS.map((student, index) => ({ student, index, terms: mockTranscriptTerms(index).filter((term) => !term.isInProgress) }));
 
   const termById = new Map([...context.termByKey.values()].map((term) => [term.id, term]));
 
-  // Tên và số tín chỉ lấy theo danh mục học phần (nguồn duy nhất), điểm lấy theo dữ liệu mẫu.
   const results: (typeof courseResults.$inferInsert)[] = [];
   const warnings: (typeof academicWarnings.$inferInsert)[] = [];
   for (const { student, index, terms } of transcripts) {
@@ -64,8 +60,6 @@ export async function seedGrades(tx: Transaction, context: SeedContext) {
         });
       });
     }
-    // Cùng cách tính với syncAcademicWarnings (grades.lib): sinh viên có kết quả trong học kỳ xét và chưa tốt nghiệp,
-    // nên bấm "Sinh cảnh báo" cho học kỳ này trên dữ liệu mẫu không tạo thêm hay đổi cảnh báo nào.
     const rules = standingRulesOf(REGULATION_RULES);
     const previousTermId = context.termByKey.get(PREVIOUS_WARNING_TERM_KEY)!.id;
     const previousPosition = catalogTerms.findIndex((term) => term.termId === previousTermId);
@@ -82,7 +76,6 @@ export async function seedGrades(tx: Transaction, context: SeedContext) {
       warnings.push({ ...warning, id: meta.id, studentId: student.id, termId: warningTermId, status: meta.status, createdAt: new Date(meta.createdAt) });
     }
   }
-  // Học phần điều kiện (GDTC, GDQP-AN) không tính điểm trung bình nên thêm riêng, không làm đổi CPA, cảnh báo ở trên.
   for (const { student, index, terms } of transcripts) {
     for (const entry of conditionalResultSeeds(index, terms.map((term) => term.termId), student.cohort)) {
       const recordedAt = dayjs(termById.get(entry.termId)!.endDate).add(7, "day").hour(8);
@@ -100,7 +93,6 @@ export async function seedGrades(tx: Transaction, context: SeedContext) {
   await insertChunks(results, (chunk) => tx.insert(courseResults).values(chunk));
   await insertChunks(warnings, (chunk) => tx.insert(academicWarnings).values(chunk));
 
-  // Mọi lớp đang mở của kỳ hiện tại đều có bảng điểm; danh sách lớp lấy từ enrollments.
   const sections = CLASS_SECTIONS.filter((section) => section.termId === CURRENT_TERM.id && section.status === "open");
   const roster = await tx
     .select({ id: enrollments.id, studentId: enrollments.studentId, classSectionId: enrollments.classSectionId, courseId: enrollments.courseId })
@@ -148,7 +140,6 @@ export async function seedGrades(tx: Transaction, context: SeedContext) {
   }
   await insertChunks(scores, (chunk) => tx.insert(gradeScores).values(chunk));
 
-  // Đi đúng quy trình như trigger grade_sheets_status_flow yêu cầu: nháp → chốt → duyệt hoặc trả lại → công bố.
   const steps: Record<GradeSheetStatus, GradeSheetStatus[]> = {
     draft: [],
     locked: ["locked"],

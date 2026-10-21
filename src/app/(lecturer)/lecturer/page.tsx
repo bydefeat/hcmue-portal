@@ -46,7 +46,6 @@ function deadlineText(deadline: string) {
 
 export default async function Page() {
   const [lecturer, term, regulation] = await Promise.all([getCurrentLecturer(), getCurrentTerm(), getRegulation()]);
-  // Cố vấn duyệt kế hoạch trong số ngày quy chế quy định.
   const reviewDays = regulation.workflow.studyPlanReviewDays;
   const sections = await getLecturerClassSections(lecturer.id, term.id);
   const summaries = await getGradeSheetSummaries(sections.map((section) => section.id));
@@ -58,7 +57,6 @@ export default async function Page() {
     getExamsForLecturer(lecturer.id),
     lecturer.isAdvisor ? getAppointments(lecturer.id) : Promise.resolve([]),
   ]);
-  // Chỉ đơn đang chờ ở bước của chính giảng viên (quyền tính ở server, cùng hàm với action duyệt).
   const waitingRequests = assignedRequests.filter((request) => request.can.decide);
   const overdueRequests = waitingRequests.filter((request) => request.isOverdue).length;
   const upcomingProctoring = exams

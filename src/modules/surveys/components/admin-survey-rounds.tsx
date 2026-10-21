@@ -21,7 +21,6 @@ type Props = {
 
 type Values = { termId: string; title: string; period: [Dayjs, Dayjs]; questions: { group: string; text: string }[] };
 
-// Chọn đợt khảo sát để xem (cả đợt cũ) và, với người có quyền, tạo, sửa, mở, đóng đợt, nhắc sinh viên chưa làm.
 export function AdminSurveyRounds({ surveys, selected, terms, canManage }: Props) {
   const router = useRouter();
   const [messageApi, contextHolder] = message.useMessage();

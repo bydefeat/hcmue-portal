@@ -11,7 +11,6 @@ export const metadata: Metadata = { title: "Thông báo lớp" };
 export default async function Page({ params }: { params: Promise<{ classId: string }> }) {
   const { classId } = await params;
   await requireTaughtClass(classId);
-  // Gọi bù tác vụ báo bài hẹn giờ cho riêng lớp này (sau khi trả trang), để không phụ thuộc hoàn toàn vào bộ hẹn giờ ngoài.
   after(() => publishDueClassAnnouncements({ classSectionId: classId }).catch((error: unknown) => console.error("[teaching] Không báo được bài hẹn giờ:", error)));
   const [section, announcements] = await Promise.all([getClassSection(classId), getClassAnnouncements(classId)]);
   if (!section || !announcements) notFound();

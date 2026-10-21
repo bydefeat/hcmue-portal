@@ -28,7 +28,6 @@ export default async function Page() {
       standingLabel: standingLabel(standing.standing),
       warning: warning ? WARNING_LEVEL[warning.level] : null,
       plan: plan ? STUDY_PLAN_STATUS[plan.status] : null,
-      // Cần chú ý: đang bị cảnh báo chính thức, hoặc điểm hiện có đã dưới ngưỡng cảnh báo (dự báo), hoặc kế hoạch chờ duyệt.
       needsAttention: warning !== undefined || standing.warningLevel > 0 || plan?.status === "pending",
     };
   });

@@ -180,7 +180,6 @@ export function StudentRequestCenter({ requests, requester, sections, rules, ini
   const [messageApi, contextHolder] = message.useMessage();
   const [rows, setRows] = useState(requests);
   const [open, setOpen] = useState(false);
-  // Danh sách dựng lại khi thêm đơn (key theo số đơn): giữ đơn đang mở ở đây để mở lại đơn vừa gửi lại.
   const [openId, setOpenId] = useState(initialOpenId);
 
   return (

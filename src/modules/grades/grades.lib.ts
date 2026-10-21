@@ -25,13 +25,10 @@ import { academicWarnings, courseResults, gradeComponents, gradeScores } from "@
 import type { CurrentWarning, ResultLetter, TranscriptTerm } from "@/modules/grades/grades.type";
 import { administrativeClasses, students } from "@/modules/users/users.schema";
 
-// Lỗi nghiệp vụ phát hiện trong giao dịch: hủy giao dịch và trả câu báo cho người dùng. Là InputError để action của module khác
-// (duyệt đơn chạy handler của module điểm) cũng trả nguyên câu báo qua actionFailure.
 export class GradeActionError extends InputError {}
 
 type Executor = Transaction | typeof db;
 
-// Danh sách lớp (sinh viên đang học) dùng cho xuất và nhập tệp bảng điểm, xếp theo tên như danh sách lớp trên trang nhập điểm.
 export async function sectionRoster(executor: Executor, classSectionId: string) {
   const rows = await executor
     .select({ studentId: students.id, code: students.code, fullName: students.fullName })
@@ -43,9 +40,6 @@ export async function sectionRoster(executor: Executor, classSectionId: string) 
     .toSorted((a, b) => a.fullName.split(" ").at(-1)!.localeCompare(b.fullName.split(" ").at(-1)!, "vi") || a.fullName.localeCompare(b.fullName, "vi"));
 }
 
-// Thay bộ cột điểm của một bảng điểm còn sửa được. Cột giữ lại giữ key nên điểm đã nhập còn nguyên; cột bỏ mất luôn điểm
-// (nơi gọi phải xác nhận trước). Thứ tự cột có unique không hoãn được nên dời cột giữ ra xa trước rồi mới đặt vị trí cuối.
-// Tổng trọng số kiểm ở trigger grade_components_weights_total_100 lúc commit.
 export async function replaceGradeComponents(
   tx: Transaction,
   input: { gradeSheetId: string; components: { key: string | null; label: string; weight: number }[]; confirmDropScores: boolean },
@@ -89,7 +83,6 @@ export async function replaceGradeComponents(
   return { before, after, removed: plan.removed.length, created: plan.created.length };
 }
 
-// ---------- Bảng điểm, kết quả tích lũy, cảnh báo chính thức (dùng chung cho grades, graduation, settings) ----------
 
 const ID_CHUNK = 2000;
 
@@ -100,11 +93,8 @@ function chunked<T>(items: T[], size = ID_CHUNK) {
 }
 
 export type TranscriptOptions = {
-  // Học kỳ hiện tại: đánh dấu đang học (không tính CPA, không thay thế lần học trước).
   currentTermId?: string | null;
-  // Chỉ lấy kết quả các học kỳ bắt đầu không sau ngày này (báo cáo theo học kỳ, xét cảnh báo một học kỳ).
   upToTermStart?: string;
-  // Thêm học phần đang đăng ký của học kỳ hiện tại chưa có điểm (trang bảng điểm sinh viên).
   withOngoing?: boolean;
 };
 
@@ -118,8 +108,6 @@ const transcriptCourse = (row: { courseCode: string; courseName: string; credits
   ...(row.isConditional ? { isConditional: true } : {}),
 });
 
-// Bảng điểm theo kỳ của nhiều sinh viên, một nguồn cho trang sinh viên, xét cảnh báo, xét tốt nghiệp, báo cáo: các kỳ có kết quả học phần
-// (xếp theo ngày bắt đầu học kỳ, rồi thời điểm ghi điểm), cộng kỳ hiện tại lấy từ đăng ký nếu cần. Lấy theo danh sách id, chia lô.
 export async function loadTranscripts(executor: Executor, studentIds: string[], options: TranscriptOptions = {}): Promise<Map<string, TranscriptTerm[]>> {
   const ids = [...new Set(studentIds.filter(isUuid))];
   const transcripts = new Map<string, TranscriptTerm[]>();
@@ -185,7 +173,6 @@ export async function loadTranscripts(executor: Executor, studentIds: string[], 
     const result = resultByEnrollment.get(row.enrollmentId);
     termOf(row.studentId, current!, row.termName, row.termStart).courses.push(transcriptCourse({ ...row, score10: result?.score10 ?? null, letter: result?.letter ?? null, point4: result?.point4 ?? null }));
   }
-  // Kết quả của đăng ký đang học đã ghép vào dòng đăng ký ở trên; kết quả W của đăng ký đã rút vẫn hiện riêng.
   const ongoingIds = new Set(ongoing.map((row) => row.enrollmentId));
   for (const row of results) {
     if (row.termId === current && row.enrollmentId && options.withOngoing && ongoingIds.has(row.enrollmentId)) continue;
@@ -198,9 +185,6 @@ export async function loadTranscripts(executor: Executor, studentIds: string[], 
   return transcripts;
 }
 
-// Kết quả tích lũy (lần học cuối của mỗi học phần) tính trong SQL cho báo cáo toàn trường, không nạp từng dòng điểm:
-// CPA làm tròn 2 chữ số như creditAverage, tín chỉ tích lũy (lần cuối đạt), tín chỉ nợ (lần cuối F). Cùng quy tắc ký hiệu với
-// hasResult: W, I không phải lần học có kết quả; M là lần cuối, tính tín chỉ, không tính CPA (cpa null nếu chỉ có M).
 export async function cumulativeResults(executor: Executor, options: { upToTermStart?: string; excludeCurrent?: boolean } = {}) {
   const latest = executor
     .selectDistinctOn([courseResults.studentId, courseResults.courseId], {
@@ -216,7 +200,6 @@ export async function cumulativeResults(executor: Executor, options: { upToTermS
     .where(
       and(
         or(isNotNull(courseResults.point4), eq(courseResults.letter, "M")),
-        // Học phần điều kiện không tính CPA, tín chỉ tích lũy (countsTowardAverage trong grades.rule).
         eq(courses.isConditional, false),
         options.upToTermStart ? lte(terms.startDate, options.upToTermStart) : undefined,
         options.excludeCurrent ? eq(terms.isCurrent, false) : undefined,
@@ -237,9 +220,6 @@ export async function cumulativeResults(executor: Executor, options: { upToTermS
   return new Map(rows.map(({ studentId, ...row }) => [studentId, row]));
 }
 
-// Cảnh báo chính thức đang có hiệu lực: học kỳ gần nhất có cảnh báo đã ban hành (đã gửi thông báo hoặc đã gặp sinh viên), lấy cảnh báo
-// đã ban hành của sinh viên trong học kỳ đó. Cảnh báo mới sinh chưa gửi chưa có hiệu lực; học kỳ sau đã ban hành mà sinh viên không bị
-// cảnh báo thì hết cảnh báo. Dùng cho hạn mức tín chỉ (đăng ký, kế hoạch học tập) và mọi chỗ hiện "đang bị cảnh báo".
 export async function currentWarnings(executor: Executor, studentIds?: string[]): Promise<Map<string, CurrentWarning>> {
   const ids = studentIds?.filter(isUuid);
   if (ids && ids.length === 0) return new Map();
@@ -264,7 +244,6 @@ export async function currentWarnings(executor: Executor, studentIds?: string[])
   return new Map(rows.map((row) => [row.studentId, { level: row.level as 1 | 2 | 3, termId: issued.termId, termName: issued.termName }]));
 }
 
-// Mức cảnh báo chính thức của một sinh viên (0 là không bị cảnh báo), cho hạn mức tín chỉ khi đăng ký học phần.
 export async function currentWarningLevel(executor: Executor, studentId: string): Promise<0 | 1 | 2 | 3> {
   return (await currentWarnings(executor, [studentId])).get(studentId)?.level ?? 0;
 }
@@ -281,9 +260,6 @@ export type WarningSyncResult = {
   advisorsNotified: number;
 };
 
-// Tính cảnh báo học vụ sau một học kỳ đã kết thúc từ course_results (mọi kỳ đến hết học kỳ đó, lần học cuối của mỗi học phần) theo
-// ngưỡng của bản quy chế đang áp dụng ngày xét, cho sinh viên có kết quả trong học kỳ và chưa tốt nghiệp. Chạy lại được: unique (sinh viên, học kỳ) và khóa theo học kỳ để hai lần chạy cùng lúc
-// không chen nhau; cảnh báo đã gửi thông báo hoặc đã gặp sinh viên giữ nguyên. Cố vấn nhận thông báo khi lớp có cảnh báo mới.
 export async function syncAcademicWarnings(tx: Transaction, termId: string, options: { notify?: boolean; today?: string } = {}): Promise<WarningSyncResult> {
   const today = options.today ?? schoolToday();
   const [term] = await tx.select({ id: terms.id, name: terms.name, semester: terms.semester, startDate: terms.startDate, endDate: terms.endDate }).from(terms).where(eq(terms.id, termId));
@@ -376,7 +352,6 @@ export async function syncAcademicWarnings(tx: Transaction, termId: string, opti
   };
 }
 
-// Tác vụ định kỳ: xét cảnh báo cho học kỳ chính vừa kết thúc. Gọi nhiều lần trong ngày cũng không sinh trùng.
 export async function runAcademicWarningsJob(): Promise<Record<string, number>> {
   const today = schoolToday();
   const term = latestWarningTerm(await db.select({ id: terms.id, semester: terms.semester, endDate: terms.endDate }).from(terms), today);

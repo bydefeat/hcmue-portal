@@ -46,7 +46,6 @@ export default async function Page() {
     getProgramOf(student.majorCode, student.cohort),
     getRegulation(),
   ]);
-  // Cảnh báo chính thức (đã gửi thông báo), không phải dự báo theo điểm hiện có.
   const warning = warnings[student.id];
   const timetable = pickTimetable(enrollments);
   const [{ exams }, invoices] = await Promise.all([getStudentExams(term.id), getInvoices(student.id)]);

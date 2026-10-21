@@ -23,7 +23,6 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ t
   ]);
   const campuses = await getCampuses();
   const campusOf = new Map(campuses.map((campus) => [campus.id, campus.name]));
-  // Phòng bảo trì không xếp lớp được (server cũng chặn): để cuối danh sách, không chọn được.
   const roomOptions = rooms
     .toSorted((a, b) => Number(a.status !== "active") - Number(b.status !== "active"))
     .map((room) => ({ id: room.id, code: room.code, campus: campusOf.get(room.campusId) ?? "", capacity: room.capacity, isLab: room.type === "lab", inMaintenance: room.status !== "active" }));

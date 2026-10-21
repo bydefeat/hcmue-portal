@@ -15,8 +15,6 @@ import type { SeedContext } from "./context";
 const CURRENT_TERM_KEY = "hk1-2026";
 const TARGET_TERM_KEY = "hk2-2026";
 
-// Khóa học phí mẫu (REGISTRATION_HOLDS) phải khớp hóa đơn: sinh viên còn nợ đúng học kỳ ghi trong lý do khóa.
-// share là phần còn nợ trên tổng hóa đơn, amount là số còn nợ cố định.
 const HOLD_DEBTS: { index: number; termKey: string; share?: number; amount?: number }[] = [
   { index: 29, termKey: "hk2-2025", share: 0.6 },
   { index: 130, termKey: "hk1-2025", share: 1 },
@@ -27,8 +25,6 @@ async function insertChunked<T>(rows: T[], insert: (chunk: T[]) => Promise<unkno
   for (let start = 0; start < rows.length; start += 500) await insert(rows.slice(start, start + 500));
 }
 
-// Đơn giá tín chỉ và khoản thu cố định theo năm học, rồi hóa đơn từng học kỳ: học kỳ đã qua tính theo bảng điểm mẫu,
-// học kỳ hiện tại tính theo số tín chỉ đăng ký thật trong enrollments.
 export async function seedTuition(tx: Transaction, context: SeedContext) {
   await tx.insert(tuitionRates).values(
     TUITION_YEARS.flatMap((academicYear) =>
@@ -98,7 +94,6 @@ export async function seedTuition(tx: Transaction, context: SeedContext) {
     if (hold) await tx.update(registrationHolds).set({ reason: `${hold.reason}: ${formatMoney(debt)}` }).where(eq(registrationHolds.id, hold.id));
   }
 
-  // Học kỳ đang nhận đăng ký: hóa đơn tạm tính lập bằng đúng hàm chạy sau mỗi lần đăng ký.
   const target = context.termByKey.get(TARGET_TERM_KEY)!;
   const registered = await tx.selectDistinct({ studentId: enrollments.studentId }).from(enrollments).where(and(eq(enrollments.termId, target.id), eq(enrollments.status, "enrolled")));
   for (const { studentId } of registered) await syncTermInvoice(tx, studentId, target.id);

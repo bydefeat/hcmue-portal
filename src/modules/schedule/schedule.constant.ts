@@ -15,7 +15,6 @@ export const ATTENDANCE_OPTIONS = (Object.keys(ATTENDANCE_STATUS) as AttendanceS
 
 export const ABSENCE_LIMIT_RATIO = 0.2;
 
-// Trạng thái tính là vắng khi xét điều kiện dự thi (vắng có phép vẫn tính).
 export const ABSENCE_STATUSES: readonly AttendanceStatus[] = ["absent", "excused"];
 
 export const SCHEDULE_CONSTRAINT_MESSAGE: Partial<Record<string, string>> = {

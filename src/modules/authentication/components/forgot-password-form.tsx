@@ -16,7 +16,6 @@ function EmailText({ email }: { email: string }) {
   return <span className="font-medium whitespace-nowrap text-foreground">{email}</span>;
 }
 
-// Email sinh viên chứa MSSV nên suy ra được tên đăng nhập; email cán bộ thì không.
 function studentCodeOf(email: string) {
   return isStudentEmail(email) ? formatStudentCode(email.split("@")[0]) : undefined;
 }
@@ -25,8 +24,6 @@ function ErrorAlert({ message }: { message: string | null }) {
   return message ? <Alert type="error" showIcon title={message} className="mb-6" /> : null;
 }
 
-// Một luồng cho cả "Quên mật khẩu" và "Kích hoạt tài khoản" lần đầu: tài khoản do trường cấp có mật khẩu ngẫu nhiên không ai biết,
-// người dùng nhận mã qua email trường rồi tự đặt mật khẩu.
 export function ForgotPasswordForm({ defaultEmail, isActivation = false }: { defaultEmail?: string; isActivation?: boolean }) {
   const router = useRouter();
   const [step, setStep] = useState<Step>("email");
@@ -191,7 +188,6 @@ export function ForgotPasswordForm({ defaultEmail, isActivation = false }: { def
             })
           }
         >
-          {/* Trình quản lý mật khẩu lưu theo tên đăng nhập (mã số), không theo email; mã cán bộ không suy ra được từ email thì bỏ trống. */}
           {studentCodeOf(email) && <input type="text" name="username" autoComplete="username" value={studentCodeOf(email)} readOnly hidden />}
           <Form.Item name="password" label="Mật khẩu mới" extra="Ít nhất 8 ký tự" rules={NEW_PASSWORD_RULES}>
             <Input.Password autoFocus autoComplete="new-password" placeholder="Tạo mật khẩu" />

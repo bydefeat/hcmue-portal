@@ -137,7 +137,6 @@ export function AppointmentBoard({ appointments, advisees, notes: initialNotes }
     });
   };
 
-  // Giá trị đầu đặt qua initialValues của Form (modal mở mới mỗi lần), không setFieldsValue khi Form chưa gắn.
   const openRecord = (appointment: Appointment) => setCompleting(appointment);
 
   const openMove = (appointment: Appointment) => setMoving(appointment);

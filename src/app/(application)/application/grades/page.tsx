@@ -17,7 +17,6 @@ export const metadata: Metadata = { title: "Kết quả học tập" };
 
 export default async function Page() {
   const student = await getCurrentStudent();
-  // Bảng điểm (kèm kỳ đang học lấy từ đăng ký) và xếp loại dùng chung một lần đọc DB trong request.
   const [program, transcript, [standing], warnings] = await Promise.all([
     getProgramOf(student.majorCode, student.cohort),
     getTranscript(student.id),

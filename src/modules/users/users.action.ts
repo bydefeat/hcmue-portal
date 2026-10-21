@@ -87,12 +87,10 @@ function failure(error: unknown) {
   return actionFailure(error, USERS_CONSTRAINT_MESSAGE);
 }
 
-// Danh sách thay đổi cho nhật ký: chỉ các trường khác nhau.
 function diff(fields: [label: string, before: string, after: string][]): AuditChange[] {
   return fields.filter(([, before, after]) => before !== after).map(([field, before, after]) => ({ field, before, after }));
 }
 
-// Lớp sinh hoạt theo mã; chưa có thì tạo mới cho ngành và khóa của sinh viên, có rồi thì phải đúng ngành và khóa.
 async function classIdFor(tx: Transaction, className: string, majorCode: string, cohort: number) {
   const [major] = await tx
     .select({ id: majors.id, faculty: faculties.name })
@@ -109,7 +107,6 @@ async function classIdFor(tx: Transaction, className: string, majorCode: string,
   return { classId: created.id, faculty: major.faculty };
 }
 
-// Email trường luôn sinh từ MSSV; tình trạng học tập không ghi ở đây (chỉ quyết định hoặc quản trị hệ thống sửa).
 function studentColumns(values: z.output<typeof STUDENT_SCHEMA>, classId: string) {
   return {
     fullName: values.fullName,
@@ -125,8 +122,6 @@ function studentColumns(values: z.output<typeof STUDENT_SCHEMA>, classId: string
 const ENTITY_OF = { student: "student", lecturer: "lecturer", staff: "staff" } as const;
 const KIND_OF_ROLE = { student: "student", lecturer: "lecturer", admin: "staff" } as const;
 
-// Ghi nhật ký cấp tài khoản và xếp thư kích hoạt trong cùng transaction: rollback thì không còn dòng nhật ký hay thư nào.
-// Trả id thư để gửi ngay sau commit.
 async function recordCreatedAccounts(tx: Transaction, actor: AuditActor, created: NewAccount[]) {
   for (const entry of created) {
     await recordAudit(tx, {
@@ -141,7 +136,6 @@ async function recordCreatedAccounts(tx: Transaction, actor: AuditActor, created
   return queueActivationMails(tx, created);
 }
 
-// Gọi sau commit: thư đã nằm trong hàng đợi, gửi ngay sau khi trả phản hồi; lỗi thì tác vụ mail-outbox gửi lại.
 function sendQueuedMails(mailIds: string[]): MailOutcome | null {
   deliverMailSoon(mailIds);
   return mailIds.length > 0 ? { queued: mailIds.length } : null;
@@ -172,14 +166,12 @@ export async function saveStudent(
   let mailIds: string[] = [];
   try {
     ({ studentId, mailIds } = await db.transaction(async (tx) => {
-      // Sửa hồ sơ: khoa hiện tại của sinh viên cũng phải trong phạm vi, không thì chuyển được sinh viên khoa khác về khoa mình.
       const [current] = id ? await lockAccountProfiles(tx, "student", [id]) : [];
       if (id && !current) throw new InputError("code", "Sinh viên không còn tồn tại, tải lại trang.");
       if (current && !inScope(viewer, current.faculty)) throw new InputError("majorCode", "Sinh viên thuộc khoa khác, bạn không sửa được hồ sơ này");
       const before = id ? await studentSnapshot(tx, id) : null;
       const { classId, faculty } = await classIdFor(tx, values.className, values.majorCode, values.cohort);
       if (!inScope(viewer, faculty)) throw new InputError("majorCode", "Ngành thuộc khoa khác, bạn không quản lý hồ sơ này");
-      // MSSV không đổi sau khi tạo vì đã gắn với điểm, đăng ký và tài khoản đăng nhập; email trường theo MSSV đã lưu.
       const columns = studentColumns(values, classId);
       const [row] = id
         ? await tx
@@ -226,7 +218,6 @@ export async function saveStudent(
     : actionError("Đã lưu nhưng chưa đọc lại được, tải lại trang.");
 }
 
-// Nhập nhiều sinh viên một lần: một dòng lỗi thì không dòng nào được ghi, để file nhập lại không bị trùng nửa chừng.
 export async function importStudents(
   inputs: StudentInput[],
   options: { provisionAccounts?: boolean } = {},
@@ -266,7 +257,6 @@ export async function importStudents(
         });
       }
       if (!options.provisionAccounts) return { ids: inserted, created: [], mailIds: [] };
-      // MSSV, email trùng tài khoản cũ thì hồ sơ vẫn được nhập, chỉ không cấp tài khoản; bảng hiện "Chưa cấp".
       const result = await createAccounts(tx, await lockAccountProfiles(tx, "student", inserted), hashes);
       return { ids: inserted, created: result.created, mailIds: await recordCreatedAccounts(tx, auditActorOf(viewer), result.created) };
     }));
@@ -283,8 +273,6 @@ export async function importStudents(
   });
 }
 
-// Sửa tình trạng học tập không qua quyết định: chỉ quản trị hệ thống, để sửa dữ liệu sai; bắt buộc lý do, ghi nhật ký từng sinh viên.
-// Nghiệp vụ thường (bảo lưu, thôi học, tốt nghiệp...) đi qua trang Quyết định sinh viên.
 export async function overrideStudentsStatus(input: StatusOverrideInput): Promise<ActionResult<{ updated: number }>> {
   const viewer = await requirePermission("students.manage");
   if (!isSystemAdmin(viewer)) return actionError("Tình trạng học tập đổi qua quyết định sinh viên. Chỉ quản trị hệ thống sửa tay được để chữa dữ liệu sai.");
@@ -361,8 +349,6 @@ export async function saveLecturer(
             .values({ ...values, code, facultyId: facultyRow.id })
             .returning({ id: lecturers.id, userId: lecturers.userId, code: lecturers.code });
       if (!row) return null;
-      // Mã giảng viên (cũng là tên đăng nhập) không đổi sau khi tạo: ô mã khóa khi sửa và câu update không ghi cột code.
-      // Email công vụ nhận mã kích hoạt, đặt lại mật khẩu: đổi ở hồ sơ thì đổi luôn email của tài khoản.
       await syncAccountProfile(tx, row.userId, { name: `${values.title} ${values.fullName}`, email: values.email });
       await recordAudit(tx, {
         actor: auditActorOf(viewer),
@@ -405,8 +391,6 @@ const OUT_OF_SCOPE = "Có hồ sơ thuộc khoa khác, bạn không quản lý t
 
 type Skipped = { profile: AccountProfile; reason: string };
 
-// Quyền theo loại hồ sơ, đọc trước khi parse vì phải biết loại mới biết cần quyền nào; loại sai thì parse chặn ngay sau.
-// Tài khoản cán bộ (cổng quản trị) chỉ người phân quyền phạm vi toàn trường quản lý.
 async function requireAccountManager(input: { kind?: unknown } | null | undefined): Promise<Viewer> {
   if (input?.kind === "staff") return requireSchoolWidePermission("access.manage");
   return requirePermission(input?.kind === "lecturer" ? "lecturers.manage" : "students.manage");
@@ -425,8 +409,6 @@ async function batchResult(kind: AccountKind, ids: string[], changed: number, ma
   });
 }
 
-// Cấp tài khoản cho các hồ sơ đã chọn; hồ sơ đã có tài khoản thì bỏ qua. Thư kích hoạt gửi sau khi commit.
-// Cán bộ cấp tài khoản sau khi tạo thì tài khoản chưa có vai trò "admin" cho tới khi được cấp vai trò ở trang Phân quyền.
 export async function provisionAccounts(input: AccountBatchInput): Promise<ActionResult<AccountBatchResult>> {
   const viewer = await requireAccountManager(input);
   const parsed = parseInput(ACCOUNT_BATCH_SCHEMA, input);
@@ -441,7 +423,6 @@ export async function provisionAccounts(input: AccountBatchInput): Promise<Actio
     const outcome = await db.transaction(async (tx) => {
       const profiles = await lockAccountProfiles(tx, kind, ids);
       if (outOfScope(viewer, kind, profiles)) return null;
-      // Hồ sơ vừa được người khác cấp giữa lúc đọc và lúc khóa dòng: createAccounts chỉ tạo cho dòng còn trống, thiếu mật khẩu thì báo thử lại.
       const result = await createAccounts(tx, profiles, hashes);
       if (kind === "staff") await clearRoleWithoutAssignment(tx, result.created);
       const queued = await recordCreatedAccounts(tx, auditActorOf(viewer), result.created);
@@ -459,8 +440,6 @@ export async function provisionAccounts(input: AccountBatchInput): Promise<Actio
   return batchResult(kind, ids, created.length, mail, skipped);
 }
 
-// Tài khoản cán bộ chỉ mang vai trò "admin" khi có ít nhất một phân quyền; chưa có thì để trống,
-// trang 403 hướng dẫn liên hệ quản trị thay vì vòng lặp vào cổng quản trị.
 async function clearRoleWithoutAssignment(tx: Transaction, created: NewAccount[]) {
   if (created.length === 0) return;
   await tx
@@ -469,7 +448,6 @@ async function clearRoleWithoutAssignment(tx: Transaction, created: NewAccount[]
     .where(inArray(users.id, created.map((entry) => entry.userId)));
 }
 
-// Gửi lại thư kích hoạt cho tài khoản đã cấp mà chưa từng đăng nhập.
 export async function resendActivation(input: AccountBatchInput): Promise<ActionResult<AccountBatchResult>> {
   const viewer = await requireAccountManager(input);
   const parsed = parseInput(ACCOUNT_BATCH_SCHEMA, input);
@@ -515,8 +493,6 @@ export async function resendActivation(input: AccountBatchInput): Promise<Action
   return batchResult(kind, ids, targets.length, mail, skipped);
 }
 
-// Khóa: chặn đăng nhập và thu hồi mọi phiên đang mở. Mở khóa: đăng nhập lại được bằng mật khẩu cũ.
-// Tài khoản giữ vai trò quản trị cao hơn người khóa (quản trị hệ thống...) chỉ quản trị hệ thống khóa, mở được.
 export async function setAccountLock(input: AccountBatchInput & { locked: boolean }): Promise<ActionResult<AccountBatchResult>> {
   const viewer = await requireAccountManager(input);
   const parsed = parseInput(ACCOUNT_BATCH_SCHEMA.extend({ locked: z.boolean() }), input);
@@ -570,8 +546,6 @@ export async function setAccountLock(input: AccountBatchInput & { locked: boolea
   return batchResult(kind, ids, changed.length, null, skipped);
 }
 
-// Cán bộ mới (Phòng Đào tạo, văn phòng khoa...). Chọn vai trò thì cấp ngay trong cùng transaction và tài khoản mang vai trò "admin";
-// không chọn thì tài khoản chưa vào được cổng quản trị cho tới khi được cấp vai trò ở trang Phân quyền.
 export async function createStaffMember(input: StaffInput): Promise<ActionResult<{ id: string; name: string; hasAccount: boolean; roleName: string | null; mail: MailOutcome | null }>> {
   const viewer = await requireSchoolWidePermission("access.manage");
   const parsed = parseInput(STAFF_SCHEMA, input);
@@ -640,7 +614,6 @@ async function grantInitialRole(tx: Transaction, viewer: Viewer, userId: string,
   return roleLabel;
 }
 
-// Sửa họ tên, đơn vị, email công vụ của cán bộ; mã cán bộ (tên đăng nhập) không đổi.
 export async function updateStaffMember(id: string, input: StaffUpdateInput): Promise<ActionResult<StaffMember>> {
   const viewer = await requireSchoolWidePermission("access.manage");
   if (!isUuid(id)) return actionError("Cán bộ không còn tồn tại, tải lại trang.");
@@ -676,7 +649,6 @@ export async function updateStaffMember(id: string, input: StaffUpdateInput): Pr
   return staff ? actionOk(staff) : actionError("Đã lưu nhưng chưa đọc lại được, tải lại trang.");
 }
 
-// Phân công cố vấn: giảng viên cùng khoa với lớp, đang giảng dạy (không nghỉ phép); báo giảng viên được phân công.
 export async function assignAdvisor(className: string, lecturerId: string | null): Promise<ActionResult> {
   const viewer = await requirePermission("advisors.assign");
   if (lecturerId !== null && !isUuid(lecturerId)) return actionError("Giảng viên không còn tồn tại, tải lại trang.");
@@ -815,7 +787,6 @@ export async function deleteDecision(id: string): Promise<ActionResult> {
   return actionOk();
 }
 
-// Người lập trình ký (decisions.manage); người ký riêng (decisions.sign) ký, trả lại, thu hồi.
 export async function submitDecision(id: string): Promise<ActionResult<StudentDecision>> {
   const viewer = await requirePermission("decisions.manage");
   if (!isUuid(id)) return actionError("Quyết định không còn tồn tại, tải lại trang.");
@@ -864,7 +835,6 @@ export async function revokeDecision(id: string, reason: string): Promise<Action
   return decisionResult(id);
 }
 
-// Quyết định bản PDF để in, lưu hồ sơ: cùng quyền và phạm vi khoa với trang Quyết định sinh viên (người lập hoặc người ký).
 export async function downloadDecisionPdf(id: string): Promise<ActionResult<{ fileName: string; base64: string; mimeType: string }>> {
   const viewer = await getViewer();
   if (!can(viewer, "decisions.manage") && !can(viewer, "decisions.sign")) forbidden();

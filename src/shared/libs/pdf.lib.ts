@@ -9,7 +9,6 @@ export const PDF_MIME = "application/pdf";
 export const SCHOOL_NAME = "Trường Đại học Sư phạm Thành phố Hồ Chí Minh";
 
 export type PdfCell = string | number | null;
-// minWidth (pt) cho cột để trống cho người in tự ghi (ghi chú, chữ ký).
 export type PdfColumn = { header: string; align?: "left" | "center" | "right"; minWidth?: number };
 export type PdfRun = { text: string; bold?: boolean };
 
@@ -17,23 +16,18 @@ export type PdfBlock =
   | { type: "paragraph"; text: string | PdfRun[]; align?: "left" | "center" | "right" | "justify"; bold?: boolean; size?: number }
   | { type: "fields"; items: { label: string; value: string }[] }
   | { type: "table"; columns: PdfColumn[]; rows: PdfCell[][]; caption?: string; emptyText?: string }
-  // Khối ký bên phải: dòng nơi, ngày (chữ thường), chức danh (in đậm), khoảng trống ký rồi tên người ký.
   | { type: "signature"; place?: string; lines: string[]; name?: string }
   | { type: "space"; height?: number };
 
 export type PdfDocumentInput = {
   title: string;
   subtitle?: string;
-  // Cơ quan chủ quản trên tên trường, đơn vị phát hành dưới tên trường ("Phòng Đào tạo"), số văn bản dưới cùng khối trái.
   parent?: string;
   unit?: string;
   reference?: string;
-  // Văn bản hành chính (bảng điểm, quyết định) có quốc hiệu bên phải, kèm dòng nơi, ngày ban hành nếu có.
   motto?: boolean;
   dateLine?: string;
-  // Văn bản có ngày ban hành riêng thì không in dòng "Ngày xuất" dưới tiêu đề.
   hideExportedAt?: boolean;
-  // Mặc định: khổ ngang khi có bảng trên 6 cột.
   landscape?: boolean;
   exportedAt?: Date;
   blocks: PdfBlock[];
@@ -43,7 +37,6 @@ const FONT_DIRECTORY = path.join(process.cwd(), "src/shared/assets/fonts");
 const REGULAR = "Inter";
 const BOLD = "Inter-SemiBold";
 
-// Nạp font một lần cho cả tiến trình. Font Inter (OFL) đủ dấu tiếng Việt; font chuẩn của PDF (Helvetica) thì không.
 let fontFiles: Promise<{ regular: Buffer; bold: Buffer }> | null = null;
 function loadFonts() {
   fontFiles ??= Promise.all([readFile(path.join(FONT_DIRECTORY, "Inter-Regular.otf")), readFile(path.join(FONT_DIRECTORY, "Inter-SemiBold.otf"))])
@@ -70,7 +63,6 @@ function cellText(value: PdfCell) {
   return typeof value === "number" ? String(value) : value;
 }
 
-// Cột căn phải khi mọi ô có giá trị đều là số (kể cả "8,5", "12,5%").
 export function isNumericColumn(rows: PdfCell[][], index: number) {
   let seen = false;
   for (const row of rows) {
@@ -108,7 +100,6 @@ class Layout {
     return this.doc.font(bold ? BOLD : REGULAR).fontSize(size);
   }
 
-  // Ghi chữ trong khung cố định: luôn truyền height để pdfkit không tự sang trang giữa chừng.
   text(value: string, x: number, y: number, options: PDFKit.Mixins.TextOptions & { width: number }) {
     this.doc.fillColor(COLOR.text).text(value, x, y, { lineGap: LINE_GAP, height: this.bottom - y + 1, ...options });
   }
@@ -177,7 +168,6 @@ function drawParagraph(layout: Layout, block: Extract<PdfBlock, { type: "paragra
   const size = block.size ?? BODY_SIZE;
   const runs = typeof block.text === "string" ? [{ text: block.text, bold: block.bold }] : block.text;
   const plain = runs.map((run) => run.text).join("");
-  // Đo bằng font đậm cho chắc (đậm rộng hơn), đoạn dài hơn phần còn lại của trang thì sang trang mới.
   const height = layout.heightOf(plain, layout.width, runs.some((run) => run.bold), size);
   layout.ensure(Math.min(height, (layout.bottom - MARGIN.top) / 2));
   runs.forEach((run, index) => {
@@ -208,7 +198,6 @@ function drawFields(layout: Layout, items: { label: string; value: string }[]) {
   layout.y += 6;
 }
 
-// Độ rộng cột: cột ngắn (số, mã) giữ vừa nội dung, phần còn lại chia cho cột chữ dài theo độ dài nội dung, chữ dài tự xuống dòng.
 function columnWidths(layout: Layout, columns: PdfColumn[], rows: string[][]) {
   const natural = columns.map((column, index) => {
     const header = layout.font(true, TABLE_SIZE).widthOfString(column.header);
@@ -271,7 +260,6 @@ function drawTable(layout: Layout, block: Extract<PdfBlock, { type: "table" }>) 
   const headerHeight = rowHeight(headerCells, true);
   const firstRowHeight = rows[0] ? rowHeight(rows[0], false) : 0;
   const captionHeight = block.caption ? layout.heightOf(block.caption, layout.width, true, BODY_SIZE) + 4 : 0;
-  // Tiêu đề bảng đi cùng hàng tiêu đề và ít nhất một dòng, không bị bỏ lại cuối trang.
   layout.ensure(captionHeight + headerHeight + firstRowHeight);
   if (block.caption) {
     layout.font(true, BODY_SIZE);
@@ -319,7 +307,6 @@ function drawSignature(layout: Layout, block: Extract<PdfBlock, { type: "signatu
   layout.y += 8;
 }
 
-// Chân trang ghi sau khi đã biết tổng số trang (bufferPages); hạ lề dưới tạm thời để chữ ở vùng lề không đẩy sang trang mới.
 function drawFooters(doc: Doc, title: string) {
   const range = doc.bufferedPageRange();
   for (let index = range.start; index < range.start + range.count; index++) {
@@ -335,8 +322,6 @@ function drawFooters(doc: Doc, title: string) {
   }
 }
 
-// Tài liệu PDF khổ A4 (ngang khi bảng nhiều cột): tên trường, tên tài liệu, phạm vi, ngày xuất; bảng lặp hàng tiêu đề mỗi trang,
-// chữ dài tự xuống dòng trong ô, cột số căn phải; chân trang "Trang x/y".
 export async function buildPdf(input: PdfDocumentInput): Promise<Uint8Array<ArrayBuffer>> {
   const fonts = await loadFonts();
   const landscape = input.landscape ?? input.blocks.some((block) => block.type === "table" && block.columns.length > 6);
@@ -347,7 +332,6 @@ export async function buildPdf(input: PdfDocumentInput): Promise<Uint8Array<Arra
     margins: MARGIN,
     bufferPages: true,
     autoFirstPage: true,
-    // Font mặc định là Inter thay vì Helvetica: không phải nạp tệp font chuẩn (kiểu khai báo chỉ ghi đường dẫn, pdfkit nhận cả Buffer).
     font: fonts.regular as unknown as string,
     lang: "vi-VN",
     displayTitle: true,
@@ -377,7 +361,6 @@ export async function buildPdf(input: PdfDocumentInput): Promise<Uint8Array<Arra
   return new Uint8Array(buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength) as ArrayBuffer);
 }
 
-// Một bảng dữ liệu (báo cáo): tiêu đề, phạm vi, hàng tiêu đề, các dòng.
 export function buildTablePdf(input: { title: string; subtitle?: string; header: string[]; rows: PdfCell[][]; unit?: string; exportedAt?: Date }) {
   return buildPdf({
     title: input.title,

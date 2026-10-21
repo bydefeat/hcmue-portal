@@ -11,8 +11,6 @@ import type { StudyPlan, StudyPlanTerm } from "@/modules/study-plan/study-plan.t
 import { getCurrentStudent } from "@/modules/users/users.query";
 import { administrativeClasses, students } from "@/modules/users/users.schema";
 
-// Kế hoạch đang dùng (is_active) của sinh viên, học phần nhóm theo học kỳ theo thứ tự thời gian.
-// Tín chỉ và học kỳ mục tiêu tính theo học kỳ đầu tiên của kế hoạch, như cố vấn xét duyệt.
 async function planRows(where?: SQL): Promise<StudyPlan[]> {
   const plans = await db
     .select({
@@ -77,7 +75,6 @@ async function planRows(where?: SQL): Promise<StudyPlan[]> {
   });
 }
 
-// Sinh viên chỉ xem được kế hoạch của chính mình; giảng viên, cán bộ xem theo danh sách được truyền vào.
 async function visibleStudentIds(studentIds: string[]) {
   const session = await requireSession();
   const valid = studentIds.filter(isUuid);

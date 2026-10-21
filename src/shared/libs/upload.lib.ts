@@ -1,5 +1,3 @@
-// Kiểm tệp tải lên (hàm thuần, dùng được ở cả client và server). Kiểu tệp lưu xuống DB lấy từ danh sách này theo nội dung tệp,
-// không lấy kiểu trình duyệt gửi lên, để tệp HTML đổi đuôi .pdf không được phục vụ lại dưới dạng HTML.
 
 export type UploadKind = "pdf" | "png" | "jpeg" | "docx";
 
@@ -9,7 +7,6 @@ export const UPLOAD_KINDS: Record<UploadKind, UploadKindSpec> = {
   pdf: { label: "PDF", extensions: ["pdf"], contentType: "application/pdf", signatures: [[0x25, 0x50, 0x44, 0x46, 0x2d]] },
   png: { label: "PNG", extensions: ["png"], contentType: "image/png", signatures: [[0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]] },
   jpeg: { label: "JPG", extensions: ["jpg", "jpeg"], contentType: "image/jpeg", signatures: [[0xff, 0xd8, 0xff]] },
-  // .docx là tệp zip: chỉ kiểm được chữ ký zip, không phân biệt với zip khác.
   docx: {
     label: "Word (.docx)",
     extensions: ["docx"],
@@ -31,7 +28,6 @@ export function extensionOf(fileName: string) {
   return dot > 0 ? fileName.slice(dot + 1).toLowerCase() : "";
 }
 
-// Thuộc tính `accept` của ô chọn tệp.
 export function acceptOf(kinds: readonly UploadKind[]) {
   return kinds.flatMap((kind) => UPLOAD_KINDS[kind].extensions.map((extension) => `.${extension}`)).join(",");
 }
@@ -44,16 +40,13 @@ export function matchesSignature(kind: UploadKind, head: Uint8Array) {
   return UPLOAD_KINDS[kind].signatures.some((signature) => signature.every((byte, index) => head[index] === byte));
 }
 
-// Bỏ ký tự điều khiển, gạch chéo (tên tệp từ Windows có thể kèm đường dẫn), khoảng trắng thừa; giữ dấu tiếng Việt.
 export function cleanFileName(name: string) {
   const base = name.split(/[\\/]/).at(-1) ?? "";
-  // oxlint-disable-next-line no-control-regex
-  return base.normalize("NFC").replace(/[\u0000-\u001f\u007f]/g, "").replace(/\s+/g, " ").trim().slice(0, 200);
+  return base.normalize("NFC").replace(/\p{Cc}/gu, "").replace(/\s+/g, " ").trim().slice(0, 200);
 }
 
 export type UploadCheck = { ok: true; name: string; kind: UploadKind; contentType: string } | { ok: false; message: string };
 
-// Một tệp hợp lệ khi: có tên, đuôi thuộc danh sách cho phép, không rỗng, không quá giới hạn, và đầu tệp đúng chữ ký của đuôi đó.
 export function checkUpload(file: { name: string; size: number; head: Uint8Array }, options: { kinds: readonly UploadKind[]; maxBytes: number }): UploadCheck {
   const name = cleanFileName(file.name);
   if (!name) return { ok: false, message: "Tệp không có tên, đổi tên rồi chọn lại." };
@@ -66,13 +59,11 @@ export function checkUpload(file: { name: string; size: number; head: Uint8Array
   return { ok: true, name, kind, contentType: UPLOAD_KINDS[kind].contentType };
 }
 
-// Kiểm ở trình duyệt trước khi gửi (đọc 16 byte đầu), server kiểm lại y hệt.
 export async function inspectFile(file: Blob & { name: string }, options: { kinds: readonly UploadKind[]; maxBytes: number }) {
   const head = new Uint8Array(await file.slice(0, 16).arrayBuffer());
   return checkUpload({ name: file.name, size: file.size, head }, options);
 }
 
-// Content-Disposition theo RFC 6266/5987: `filename` chỉ ASCII cho trình duyệt cũ, `filename*` mã hóa UTF-8 giữ dấu tiếng Việt.
 export function contentDisposition(fileName: string, type: "attachment" | "inline" = "attachment") {
   const name = cleanFileName(fileName) || "tep";
   const ascii =

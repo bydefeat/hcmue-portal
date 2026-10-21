@@ -161,7 +161,6 @@ async function accounts(tx: Transaction) {
   };
 }
 
-// Lớp kiểm thử ở học kỳ xa (2032), hai sinh viên, bảng điểm hai cột; publish: chốt, duyệt, công bố như quy trình thật.
 async function makeClass(tx: Transaction, options: { publish?: boolean; publishedAt?: Date; deferFirst?: boolean } = {}) {
   const [course] = await tx.select().from(courses).where(eq(courses.code, "COMP1070"));
   const [major] = await tx.select().from(majors).limit(1);
@@ -205,7 +204,6 @@ async function makeClass(tx: Transaction, options: { publish?: boolean; publishe
     ])
     .returning();
   if (options.deferFirst) await tx.insert(examDeferrals).values({ enrollmentId: roster[0].id, kind: "final", reason: "Ốm" });
-  // Sinh viên 1: 6 và 7 (tổng 6,6 C+); sinh viên 2: 8 và 9. Sinh viên 1 hoãn thi thì bỏ trống cuối kỳ.
   await tx.insert(gradeScores).values([
     { gradeComponentId: components[0].id, enrollmentId: roster[0].id, score: 6 },
     ...(options.deferFirst ? [] : [{ gradeComponentId: components[1].id, enrollmentId: roster[0].id, score: 7 }]),
@@ -295,7 +293,6 @@ describe("grades: sửa điểm sau công bố", () => {
         GRADES_CONSTRAINT_MESSAGE.grade_amendments_not_self_approved,
       );
       const decided = await decideGradeAmendment(tx, { id, decision: "approved", note: "", actor: admin });
-      // 6 x 40% + 9 x 60% = 7,8 (B) theo quy chế áp dụng ngày công bố.
       assert.equal(decided.resultAfter, "7,8 (B)");
       const [score] = await tx.select({ score: gradeScores.score }).from(gradeScores).where(and(eq(gradeScores.enrollmentId, roster[0].id), eq(gradeScores.gradeComponentId, components[1].id)));
       assert.equal(score.score, 9);
@@ -357,7 +354,6 @@ describe("grades: sửa điểm sau công bố", () => {
       const { lecturer, admin } = await accounts(tx);
       const { id } = await proposeGradeAmendment(tx, { classSectionId: section.id, studentId: people[0].id, componentKey: "final", newScore: 6, reason: "Nhập nhầm", source: "grade-change", requester: lecturer });
       await decideGradeAmendment(tx, { id, decision: "approved", note: "", actor: admin });
-      // 6 x 40% + 6 x 60% = 6,0: thang ngày công bố (A từ 5) ra A, thang hiện hành ra C.
       const result = await resultOf(tx, roster[0].id);
       assert.deepEqual([result.score10, result.letter], [6, "A"]);
     });

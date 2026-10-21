@@ -33,7 +33,6 @@ type AdminStudentRegistrationProps = {
   actorName: string;
 };
 
-// Điều kiện học vụ Phòng Đào tạo được bỏ qua khi có căn cứ (cùng danh sách với server, adminRegisterStudent).
 const OVERRIDABLE: RegistrationIssueKind[] = ["audience", "prerequisite", "corequisite", "credits", "passed", "in-progress"];
 
 const NETWORK_ERROR = "Chưa thực hiện được, kiểm tra kết nối rồi thử lại.";
@@ -87,7 +86,6 @@ export function AdminStudentRegistration({
       })
     : [];
   const blockingIssues = issues.filter((issue) => issue.blocking && issue.kind !== "lab");
-  // Sĩ số, chỗ dành riêng, trùng lịch, lớp hủy: không bỏ qua được. Điều kiện học vụ và khóa đăng ký: bỏ qua khi ghi căn cứ.
   const hardIssues = blockingIssues.filter((issue) => !OVERRIDABLE.includes(issue.kind));
   const needsOverride = blockingIssues.some((issue) => OVERRIDABLE.includes(issue.kind)) || blocking.length > 0;
   const needsLab = Boolean(selected && selected.labGroups.length > 0);

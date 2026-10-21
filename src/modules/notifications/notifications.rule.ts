@@ -25,7 +25,6 @@ export const NOTIFICATION_PAGE_SCHEMA = z.object({
 
 export type NotificationPageInput = z.input<typeof NOTIFICATION_PAGE_SCHEMA>;
 
-// Ngưỡng xóa của tác vụ dọn: thông báo đã đọc cũ hơn readDays, chưa đọc cũ hơn unreadDays.
 export function notificationPurgeCutoffs(now: Date, readDays: number, unreadDays: number) {
   const day = 24 * 3_600_000;
   return { read: new Date(now.getTime() - readDays * day), unread: new Date(now.getTime() - unreadDays * day) };

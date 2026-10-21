@@ -26,7 +26,6 @@ type AttendanceSheetProps = {
 
 const STATUS_KEYS = Object.keys(ATTENDANCE_STATUS) as AttendanceStatus[];
 
-// So theo ngày học (chuỗi YYYY-MM-DD) với hôm nay theo giờ Việt Nam do server tính, không theo giờ máy người dùng.
 function isEditable(session: AttendanceSession, today: string) {
   return session.date <= today;
 }
@@ -54,7 +53,6 @@ export function AttendanceSheet({ book, students, absenceLimitPercent = ABSENCE_
   const session = book.sessions.find((entry) => entry.id === sessionId);
   const editable = session ? isEditable(session, book.today) : false;
   const current = (sessionId && records[sessionId]) || {};
-  // Buổi thực hành chỉ gồm sinh viên của nhóm; buổi đã học là buổi đã lưu điểm danh.
   const attends = (entry: AttendanceSession, studentId: string) => entry.labGroupId === null || book.labGroupOf[studentId] === entry.labGroupId;
   const sessionStudents = session ? students.filter((student) => attends(session, student.studentId)) : [];
 

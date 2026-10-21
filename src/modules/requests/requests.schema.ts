@@ -34,10 +34,7 @@ export const academicRequests = pgTable(
     facultyId: uuid()
       .notNull()
       .references(() => faculties.id, { onDelete: "restrict" }),
-    // Lớp học phần của đơn (rút học phần, phúc khảo, hoãn thi, sửa điểm, nghỉ dạy): bước giảng viên đi theo giảng viên hiện tại
-    // của lớp, đợt sau dùng để cho kết quả đơn tác động lên dữ liệu của lớp.
     classSectionId: uuid().references(() => classSections.id, { onDelete: "set null" }),
-    // Đơn gửi lại sau khi bị từ chối trỏ về đơn cũ; mỗi đơn chỉ gửi lại được một lần.
     resubmittedFromId: uuid().references((): AnyPgColumn => academicRequests.id, { onDelete: "set null" }),
     subject: text().notNull(),
     details: jsonb().$type<RequestDetailField[]>().notNull().default(sql`'[]'::jsonb`),
@@ -67,24 +64,17 @@ export const requestSteps = pgTable(
     position: smallint().notNull(),
     role: stepRoleEnum().notNull(),
     label: text().notNull(),
-    // Bước "giảng viên" (chấm phúc khảo, xác nhận hoãn thi) lưu giảng viên dạy lớp lúc gửi; chưa xử lý thì đi theo giảng viên
-    // hiện tại của lớp. Bước cố vấn để trống (suy ra từ cố vấn hiện tại của lớp sinh hoạt), chỉ ghi khi đã xử lý hoặc Phòng Đào
-    // tạo chuyển người xử lý (reassigned_at). Bước của khoa, phòng giao cho đơn vị theo quyền requests.step.*.
     assigneeLecturerId: uuid().references(() => lecturers.id, { onDelete: "restrict" }),
     status: stepStatusEnum().notNull().default("waiting"),
     dueAt: timestamp({ withTimezone: true }),
     actorUserId: uuid().references(() => user.id, { onDelete: "set null" }),
-    // Tên người xử lý lúc duyệt, giữ lại kể cả khi tài khoản đổi tên hoặc bị xóa.
     actorName: text(),
     actedAt: timestamp({ withTimezone: true }),
     comment: text(),
-    // Phòng Đào tạo (quyền requests.supervise) xử lý thay hoặc bỏ qua bước của người khác: lý do ghi ở comment.
     onBehalf: boolean().notNull().default(false),
-    // Chuyển người xử lý: người được chuyển giữ cố định, không đi theo cố vấn hay giảng viên lớp nữa.
     reassignedAt: timestamp({ withTimezone: true }),
     reassignedByName: text(),
     reassignReason: text(),
-    // Đã nhắc sắp hết hạn, đã báo quá hạn (tác vụ request-sla); chuyển người xử lý hoặc bước mới đến lượt thì đặt lại.
     dueSoonNotifiedAt: timestamp({ withTimezone: true }),
     overdueNotifiedAt: timestamp({ withTimezone: true }),
   },
@@ -109,8 +99,6 @@ export const requestSteps = pgTable(
   ],
 );
 
-// Người xử lý yêu cầu bổ sung minh chứng ở bước đang chờ: đơn ở trạng thái "cần bổ sung", bước dừng tính hạn cho tới khi người
-// gửi bổ sung (thêm tệp, ghi chú) thì bước đến lượt lại với hạn mới. Mỗi đơn có tối đa một yêu cầu đang mở.
 export const requestSupplements = pgTable(
   "request_supplements",
   {
@@ -148,15 +136,12 @@ export const requestAttachments = pgTable(
     fileName: text().notNull(),
     contentType: text().notNull(),
     sizeBytes: integer().notNull(),
-    // Tên tệp gốc chỉ để hiện và đặt tên khi tải xuống; nội dung nằm trong kho tệp (storage.lib) dưới khóa do server sinh.
     storageKey: text().notNull().unique("request_attachments_storage_key_unique"),
     uploadedAt: createdAt(),
   },
   (table) => [index().on(table.requestId), check("request_attachments_size_range", sql`${table.sizeBytes} BETWEEN 1 AND 10485760`)],
 );
 
-// Bộ đếm mã đơn theo tiền tố và năm (DT-2026-01255). Tăng bằng INSERT ... ON CONFLICT DO UPDATE trong giao dịch tạo đơn:
-// dòng đếm bị khóa tới khi giao dịch xong nên hai người gửi cùng lúc không trùng số, giao dịch hỏng thì số không bị nhảy.
 export const requestCodeCounters = pgTable(
   "request_code_counters",
   {
@@ -170,8 +155,6 @@ export const requestCodeCounters = pgTable(
   ],
 );
 
-// Văn bản kết quả của đơn do hệ thống sinh khi đơn được duyệt (bảng điểm PDF của đơn cấp bảng điểm), khác minh chứng người gửi
-// nộp. Tệp nằm trong kho dưới khóa requests/<uuid> như minh chứng, tải qua route có kiểm quyền xem đơn.
 export const requestDocuments = pgTable(
   "request_documents",
   {

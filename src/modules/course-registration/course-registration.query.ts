@@ -66,7 +66,6 @@ export const getRegistrationTargetTerm = cache(async (): Promise<Term> => {
   return all.find((entry) => entry.isRegistrationTarget) ?? (await getCurrentTerm());
 });
 
-// Số sinh viên được đăng ký (đang học, thuộc khóa của đợt) và số đã đăng ký ít nhất một lớp trong học kỳ.
 async function periodRows(where?: SQL): Promise<RegistrationPeriod[]> {
   const periods = await db.select().from(registrationPeriods).where(where).orderBy(asc(registrationPeriods.opensAt));
   if (periods.length === 0) return [];
@@ -103,7 +102,6 @@ async function periodRows(where?: SQL): Promise<RegistrationPeriod[]> {
   }));
 }
 
-// Đợt "sắp đóng" khi còn dưới số giờ của quy chế đang áp dụng (workflow.registrationClosingSoonHours).
 export async function getRegistrationPeriods(termId?: string) {
   await requireSession();
   if (termId !== undefined && !isUuid(termId)) return [];
@@ -117,7 +115,6 @@ export async function getActiveRegistrationPeriods() {
   return rows.map((period) => periodState(period, regulation.workflow.registrationClosingSoonHours)).filter((period) => period.state === "open" || period.state === "closing");
 }
 
-// Toàn bộ lớp của một học kỳ. Xung đột phòng và giảng viên tính trên cả học kỳ (mọi khoa) nên luôn tải theo học kỳ rồi mới lọc.
 async function loadTermSections(termId: string): Promise<ClassSectionView[]> {
   if (!isUuid(termId)) return [];
   const sections = await loadSections(db, eq(classSections.termId, termId));
@@ -139,7 +136,6 @@ export async function getClassSection(id: string) {
   return (await termSections(row.termId)).find((section) => section.id === id) ?? null;
 }
 
-// Đọc lại lớp ngay sau khi ghi trong server action: bỏ qua cache của request vì cache còn giữ bản trước khi ghi.
 export async function readClassSectionAfterWrite(id: string) {
   await requireSession();
   const [row] = await db.select({ termId: classSections.termId }).from(classSections).where(eq(classSections.id, id));
@@ -168,7 +164,6 @@ export async function getClassRoster(sectionId: string): Promise<RosterEntry[]> 
     .innerJoin(students, eq(students.id, enrollments.studentId))
     .innerJoin(administrativeClasses, eq(administrativeClasses.id, students.administrativeClassId))
     .where(and(eq(enrollments.classSectionId, sectionId), eq(enrollments.status, "enrolled")));
-  // Danh sách lớp xếp theo tên rồi họ đệm như sổ điểm danh.
   return rows
     .map((row) => ({ ...row, studentCode: formatStudentCode(row.studentCode), registeredAt: row.registeredAt.toISOString() }))
     .toSorted((a, b) => a.fullName.split(" ").at(-1)!.localeCompare(b.fullName.split(" ").at(-1)!, "vi") || a.fullName.localeCompare(b.fullName, "vi"));
@@ -206,7 +201,6 @@ export async function getStudentEnrollments(studentId: string, termId: string): 
     .filter((entry) => entry.section && entry.section.status !== "cancelled");
 }
 
-// Vị trí của sinh viên trong danh sách chờ từng lớp của học kỳ (1 là người kế tiếp được xếp).
 export async function getStudentWaitlist(studentId: string, termId: string): Promise<Record<string, number>> {
   await requireSession();
   if (!isUuid(studentId) || !isUuid(termId)) return {};
@@ -226,8 +220,6 @@ export async function getStudentWaitlist(studentId: string, termId: string): Pro
   return positions;
 }
 
-// Lịch sử đăng ký của sinh viên trong học kỳ, mới nhất trước. Đăng ký có từ trước khi ghi sự kiện (dữ liệu nhập ban đầu)
-// được hiện thành một mốc "Đăng ký" theo thời điểm đăng ký.
 export async function getRegistrationEvents(studentId: string, termId: string): Promise<RegistrationEvent[]> {
   await requireSession();
   if (!isUuid(studentId) || !isUuid(termId)) return [];
@@ -286,7 +278,6 @@ export async function getLoadNorms(): Promise<Record<string, number>> {
   return Object.fromEntries(rows.map((row) => [row.title, row.normHours]));
 }
 
-// Giờ chuẩn của mọi giảng viên trong học kỳ, cùng hàm với trang phân công giảng dạy (computeWorkloads).
 export async function getLecturerWorkloads(termId: string): Promise<LecturerWorkload[]> {
   await requireSession();
   const [people, norms, sections] = await Promise.all([
@@ -351,7 +342,6 @@ export async function getRegistrationHolds(studentId?: string): Promise<Registra
   }));
 }
 
-// Nhịp đăng ký của học kỳ đang đăng ký, đếm từ nhật ký thao tác thật (không có dịch vụ hàng chờ riêng).
 export async function getRegistrationQueueStatus(termId: string): Promise<RegistrationActivity | null> {
   await requirePermission("registration.manage");
   if (!isUuid(termId)) return null;
@@ -360,7 +350,6 @@ export async function getRegistrationQueueStatus(termId: string): Promise<Regist
 
 export const REGISTRATION_REMINDER_HREF = "/application/registration";
 
-// Sinh viên đang học thuộc khóa của một đợt đang mở mà chưa có lớp nào trong học kỳ, kèm lần nhắc gần nhất kể từ khi đợt mở.
 export async function getUnregisteredStudents(termId: string): Promise<UnregisteredStudent[]> {
   await requireSession();
   if (!isUuid(termId)) return [];
@@ -426,7 +415,6 @@ export async function getUnregisteredStudents(termId: string): Promise<Unregiste
   });
 }
 
-// Học kỳ kèm số lớp, số đợt đăng ký, đếm bằng SQL (không tải lớp chỉ để đếm).
 export async function getTermOverview() {
   await requireSession();
   return db
@@ -441,7 +429,6 @@ export async function getTermOverview() {
     .orderBy(asc(terms.startDate));
 }
 
-// Hạn mức tín chỉ của sinh viên ở học kỳ đăng ký, cùng hàm với server (creditLimitsFor), kèm mức cảnh báo học vụ đã ban hành.
 export async function getCreditLimits(studentId: string, termId: string) {
   await requireSession();
   const regulation = await getRegulation();
@@ -463,7 +450,6 @@ export type WaitlistRow = {
   createdAt: string;
 };
 
-// Danh sách chờ đang hiệu lực của các lớp trong học kỳ, theo thứ tự vào chờ, cho trang theo dõi đăng ký.
 export async function getTermWaitlists(termId: string): Promise<WaitlistRow[]> {
   await requirePermission("registration.manage");
   if (!isUuid(termId)) return [];

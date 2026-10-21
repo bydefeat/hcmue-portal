@@ -9,7 +9,6 @@ import { toFormFields } from "@/shared/libs/form.lib";
 
 type RoundValues = { name: string; cohorts: number[] };
 
-// Đợt xét tốt nghiệp đang mở: tên đợt (ghi vào quyết định công nhận) và các khóa được xét. Chỉ cán bộ toàn trường sửa được.
 export function GraduationRoundForm({ round, cohorts, canManage }: { round: GraduationRound | null; cohorts: number[]; canManage: boolean }) {
   const router = useRouter();
   const [messageApi, contextHolder] = message.useMessage();

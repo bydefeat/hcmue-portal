@@ -5,8 +5,6 @@ import { terms } from "@/modules/course-registration/course-registration.schema"
 import { academicRequests } from "@/modules/requests/requests.schema";
 import { students } from "@/modules/users/users.schema";
 
-// Hạn mức tín chỉ riêng của một sinh viên trong một học kỳ, sinh khi đơn học vượt được duyệt. Tách khỏi
-// course-registration.schema vì trỏ tới đơn từ (requests.schema đã trỏ ngược tới lớp học phần).
 export const creditOverrides = pgTable(
   "credit_overrides",
   {

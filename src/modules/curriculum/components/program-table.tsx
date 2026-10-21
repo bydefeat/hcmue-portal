@@ -24,10 +24,8 @@ function cohortText(cohorts: number[]) {
 type ProgramTableProps = {
   programs: ProgramSummary[];
   majors: Major[];
-  // Các khóa đang có lớp sinh hoạt, đọc từ DB.
   cohorts: number[];
   header: { title: string; description?: React.ReactNode };
-  // Cán bộ theo khoa chỉ sửa chương trình của khoa mình (server kiểm lại).
   scopeFaculty?: string | null;
 };
 

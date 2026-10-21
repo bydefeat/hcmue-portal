@@ -41,13 +41,10 @@ function mailNote(mail: MailOutcome | null) {
 
 type StudentTableProps = {
   students: StudentRow[];
-  // Danh mục ngành (trong phạm vi người xem) và các khóa đang có lớp, page đọc từ DB.
   majors: MajorRef[];
   cohorts: number[];
   header: { title: string; description?: React.ReactNode };
-  // students.manage: thêm, nhập, sửa hồ sơ, thao tác tài khoản. Không có thì bảng chỉ để xem.
   canManage: boolean;
-  // Quản trị hệ thống: sửa tay tình trạng học tập (kèm lý do) khi dữ liệu sai; nghiệp vụ thường đi qua quyết định.
   canOverrideStatus: boolean;
 };
 
@@ -70,7 +67,6 @@ export function StudentTable({ students, majors, cohorts, header, canManage, can
   const [overrideForm] = Form.useForm<OverrideValues>();
   const facultyFilterOptions = useMemo(() => facultyOptions(facultiesOf(majors)), [majors]);
   const cohortFilterOptions = useMemo(() => cohortOptions(cohorts), [cohorts]);
-  // Thêm mới hoặc nhập file được chọn cả khóa kế tiếp (tân sinh viên chưa có lớp).
   const enrollableCohorts = useMemo(() => withNextCohort(cohorts), [cohorts]);
   const importCatalog = useMemo(() => ({ majorCodes: majors.map((major) => major.code), cohorts: enrollableCohorts }), [majors, enrollableCohorts]);
   const classes = useMemo(

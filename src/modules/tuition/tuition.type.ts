@@ -21,7 +21,6 @@ export type Payment = {
 export type TuitionInvoice = {
   id: string;
   termId: string;
-  // "hk1-2026": dùng trong nội dung chuyển khoản.
   termKey: string;
   termName: string;
   issuedAt: string;
@@ -30,18 +29,15 @@ export type TuitionInvoice = {
   discount: number;
   discountReason: string;
   total: number;
-  // Đã nộp sau khi trừ phần đã hoàn.
   paid: number;
   refunded: number;
   payments: Payment[];
-  // Tạm tính (false): cập nhật theo đăng ký, chưa quá hạn được; chính thức sau khi Phòng Kế hoạch - Tài chính chốt học phí.
   isFinal: boolean;
 };
 
 export type TuitionInvoiceView = TuitionInvoice & {
   status: InvoiceStatus;
   balance: number;
-  // Số đã nộp vượt số phải nộp (hủy lớp, giảm tín chỉ sau khi nộp): cần hoàn cho sinh viên.
   refundDue: number;
   daysToDue: number;
 };
@@ -54,7 +50,6 @@ export type CourseCharge = {
 
 export type PaymentSource = "bank-sync" | "statement" | "manual";
 
-// Khoản thanh toán như cán bộ thấy: kèm nguồn, người ghi và thông tin hủy nếu ghi nhầm.
 export type PaymentRecord = Payment & {
   invoiceId: string;
   source: PaymentSource;
@@ -122,7 +117,6 @@ export type TuitionFeeRow = {
   isMandatory: boolean;
 };
 
-// Tình trạng chốt học phí của một học kỳ cho trang quản trị.
 export type TermTuitionStatus = {
   termId: string;
   termName: string;
@@ -132,7 +126,6 @@ export type TermTuitionStatus = {
 };
 
 export type StatementLine = {
-  // Số dòng trong tệp (dòng tiêu đề tính là một dòng) để cán bộ tìm lại trong Excel.
   line: number;
   paidAt: string;
   reference: string;
@@ -140,9 +133,6 @@ export type StatementLine = {
   content: string;
 };
 
-// matched: khớp hóa đơn và đúng số còn nợ; partial: khớp nhưng ít hơn số còn nợ (ghi được khi cán bộ chọn);
-// over: nhiều hơn số còn nợ (không ghi, xử lý hoàn tiền); duplicate: mã giao dịch đã ghi hoặc lặp trong tệp;
-// unmatched: nội dung không ra hóa đơn nào; invalid: dòng thiếu hoặc sai dữ liệu.
 export type StatementStatus = "matched" | "partial" | "over" | "duplicate" | "unmatched" | "invalid";
 
 export type StatementPreviewRow = {
@@ -163,6 +153,5 @@ export type StatementPreviewRow = {
 export type StatementPreview = {
   fileName: string;
   rows: StatementPreviewRow[];
-  // Dòng không có số tiền ghi có (khoản chi, số dư) được bỏ qua.
   skipped: number;
 };

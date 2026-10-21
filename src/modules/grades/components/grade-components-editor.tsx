@@ -11,9 +11,7 @@ type EditableComponent = { key: string | null; label: string; weight: number | n
 type GradeComponentsEditorProps = {
   open: boolean;
   components: GradeComponent[];
-  // Cột theo đề cương đã công bố của lớp, null nếu đề cương chưa công bố.
   suggested: GradeComponent[] | null;
-  // Số điểm đã nhập của từng cột, để hỏi lại trước khi xóa cột có điểm.
   scoredCount: Record<string, number>;
   onCancel: () => void;
   onSave: (components: { key: string | null; label: string; weight: number }[], confirmDropScores: boolean) => Promise<string | null>;

@@ -10,8 +10,6 @@ import type { ClassSectionFormValues, ClassSectionView } from "@/modules/course-
 
 export type SectionCourseOption = { code: string; name: string; credits: number; faculty: string };
 export type SectionLecturerOption = { id: string; displayName: string; faculty: string };
-// Phòng chọn theo id: mã phòng có thể trùng giữa các cơ sở nên nhãn kèm cơ sở và sức chứa. Phòng bảo trì vẫn có trong danh sách
-// (để lớp đang xếp ở đó hiện đúng nhãn) nhưng không chọn được.
 export type SectionRoomOption = { id: string; code: string; campus: string; capacity: number; isLab: boolean; inMaintenance: boolean };
 
 type ClassSectionFormDrawerProps = {
@@ -22,10 +20,8 @@ type ClassSectionFormDrawerProps = {
   lecturers: SectionLecturerOption[];
   rooms: SectionRoomOption[];
   majors: { code: string; name: string }[];
-  // Các khóa đang có lớp sinh hoạt, đọc từ DB.
   cohorts: number[];
   onClose: () => void;
-  // Trả lỗi theo ô khi server từ chối, để drawer gắn vào đúng ô.
   onSubmit: (values: ClassSectionFormValues) => Promise<Record<string, string> | undefined>;
 };
 
@@ -78,7 +74,6 @@ export function ClassSectionFormDrawer({ open, section, termName, courses, lectu
   }));
   const firstRoom = rooms.find((room) => !room.inMaintenance);
   const majorOptions = majors.map((major) => ({ value: major.code, label: major.name }));
-  // Giữ cả khóa lớp đang lưu (có thể khóa đó không còn lớp sinh hoạt) để ô chọn vẫn hiện nhãn.
   const savedCohorts = section ? [...(section.audience?.cohorts ?? []), ...section.reservedSeats.flatMap((seat) => seat.cohorts)] : [];
   const cohortOptions = [...new Set([...cohorts, ...savedCohorts])]
     .toSorted((a, b) => a - b)
@@ -159,7 +154,6 @@ export function ClassSectionFormDrawer({ open, section, termName, courses, lectu
             <Select
               options={CLASS_SECTION_STATUS_OPTIONS.map((option) => ({
                 ...option,
-                // Lớp có sinh viên không về nháp; lớp mới không tạo ở trạng thái đã hủy; lớp đã hủy không mở lại.
                 disabled:
                   (option.value === "draft" && (section?.enrolled ?? 0) > 0) ||
                   (option.value === "cancelled" && !section) ||

@@ -30,7 +30,6 @@ type StudyPlanEditorProps = {
   pool: StudyPlanCourse[];
   passedGrades: Record<string, string>;
   prerequisites: Record<string, string[]>;
-  // Hạn mức tín chỉ từng học kỳ theo quy chế (học kỳ hè, sinh viên đang bị cảnh báo có hạn mức riêng); server kiểm lại khi gửi.
   limits: Record<string, { min: number; max: number }>;
   limitNote: string;
   advisorName: string | null;

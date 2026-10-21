@@ -24,18 +24,13 @@ export type TranscriptTermInput = Pick<TranscriptTerm, "termId" | "termName" | "
 
 export type WarningThresholds = RegulationSettings["warning"];
 
-// Tham số quy chế cần để xếp loại và xét cảnh báo.
 export type StandingRules = { standing: StandingThresholds; warning: WarningThresholds };
 
 export function standingRulesOf(rules: { grading: { standing: StandingThresholds }; warning: WarningThresholds }): StandingRules {
   return { standing: rules.grading.standing, warning: rules.warning };
 }
 
-// ---------- Quy đổi điểm học phần ----------
 
-// Điểm tổng kết học phần theo trọng số, làm tròn theo bước của quy chế (0,1, 0,5 hoặc 1), thiếu một cột thì chưa có điểm.
-// Điểm thành phần tối đa 2 chữ số thập phân, trọng số là phần trăm nguyên nên tổng tính bằng số nguyên (phần vạn điểm) và làm tròn
-// trên số nguyên: tránh lệch do số thực (0,02 / 0,30 / 6,43 với 10/30/60% là đúng 3,95 nên lên 4,0, không phải 3,9).
 export function weightedScore(components: GradeComponent[], row: Record<string, number | null>, roundingStep: number) {
   if (components.some((component) => row[component.key] === null || row[component.key] === undefined)) return null;
   const units = components.reduce((sum, component) => sum + Math.round((row[component.key] as number) * 100) * component.weight, 0);
@@ -43,57 +38,44 @@ export function weightedScore(components: GradeComponent[], row: Record<string, 
   return (Math.floor((units + step / 2) / step) * step) / 10000;
 }
 
-// Công thức Excel tương ứng: làm tròn tổng về 6 chữ số trước để bỏ sai số cộng dồn của số thực trong Excel, rồi làm tròn theo bước.
 export function roundingFormula(weightedSum: string, roundingStep: number) {
   const perPoint = Math.round(1 / roundingStep);
   return perPoint === 10 ? `ROUND(ROUND(${weightedSum},6)/100,1)` : `ROUND(ROUND(${weightedSum},6)/100*${perPoint},0)/${perPoint}`;
 }
 
-// Điểm chữ của một điểm tổng kết theo thang điểm của quy chế (ngưỡng giảm dần, mức cuối từ 0).
 export function letterOf(score10: number, scale: GradingRules["scale"]) {
   const step = scale.find((entry) => score10 >= entry.min) ?? scale.at(-1)!;
   return { letter: step.letter as LetterGrade, point4: step.point4 };
 }
 
-// Điểm tổng kết (thang 10) đổi sang điểm chữ và thang 4, lưu vào course_results lúc công bố theo bản quy chế đang áp dụng.
 export function courseGrade(score10: number, scale: GradingRules["scale"]) {
   return { score10, ...letterOf(score10, scale) };
 }
 
-// ---------- Ký hiệu W, I, M ----------
 
-// Lần học có kết quả: có điểm số, hoặc được miễn (M). W, I không phải kết quả: không tính điểm, không tính tín chỉ tích lũy và không
-// thay lần học trước đã có điểm.
 export function hasResult(course: { letter: string | null; point4: number | null }) {
   return course.point4 !== null || course.letter === "M";
 }
 
-// Rút học phần: không tính vào khối lượng đăng ký của học kỳ (tín chỉ tối thiểu, tín chỉ đã học). Miễn không học trên lớp.
 export function countsAsAttempted(course: { letter: string | null }) {
   return course.letter !== "W" && course.letter !== "M";
 }
 
-// Đạt: có điểm số khác F, hoặc được miễn (M tính tín chỉ tích lũy, không tính CPA).
 export function isPassing(course: { letter: string | null; point4: number | null }) {
   if (course.letter === "M") return true;
   return course.point4 !== null && course.letter !== null && course.letter !== "F";
 }
 
-// ---------- Học phần điều kiện (GDTC, GDQP-AN) ----------
 
-// Học phần điều kiện vẫn nhập điểm số, điểm chữ lưu như thường (Đạt khi không phải F, tức từ ngưỡng đạt của thang điểm quy chế)
-// nhưng không vào điểm trung bình học kỳ, CPA, tín chỉ tích lũy, tín chỉ nợ. Mọi phép tính tích lũy lọc qua hàm này.
 export function countsTowardAverage(course: { isConditional?: boolean }) {
   return !course.isConditional;
 }
 
-// Ghi chú dưới bảng điểm (trang, bản in, PDF).
 export const CONDITIONAL_COURSE_NOTE = "Học phần điều kiện (giáo dục thể chất, quốc phòng và an ninh) ghi Đạt/Không đạt, không tính điểm trung bình và tín chỉ tích lũy";
 
 export const CONDITIONAL_PASS_LABEL = "Đạt";
 export const CONDITIONAL_FAIL_LABEL = "Không đạt";
 
-// Ký hiệu hiện ở cột điểm chữ: học phần điều kiện ghi Đạt/Không đạt thay cho điểm chữ, điểm thang 4 để trống.
 export function resultMark(course: { letter: string | null; isConditional?: boolean }) {
   if (!course.isConditional || course.letter === null) return course.letter ?? "";
   return course.letter === "F" ? CONDITIONAL_FAIL_LABEL : CONDITIONAL_PASS_LABEL;
@@ -103,10 +85,7 @@ export function resultPoint4(course: { point4: number | null; isConditional?: bo
   return course.isConditional ? null : course.point4;
 }
 
-// ---------- Bảng điểm, CPA, xếp loại ----------
 
-// Trung bình có trọng số tín chỉ, làm tròn 2 chữ số (nửa lên); chỉ tính học phần đã có điểm. Tính trên số nguyên (phần trăm điểm)
-// để khớp round(..., 2) của Postgres trên kiểu numeric.
 export function creditAverage(courses: Pick<TranscriptCourseInput, "credits" | "point4" | "score10">[], key: "point4" | "score10") {
   const graded = courses.filter((course) => course[key] !== null);
   const credits = graded.reduce((sum, course) => sum + course.credits, 0);
@@ -115,15 +94,12 @@ export function creditAverage(courses: Pick<TranscriptCourseInput, "credits" | "
   return Math.floor((2 * total + credits) / (2 * credits)) / 100;
 }
 
-// Lần học cuối (đã có điểm) của từng học phần trong danh sách các lần học đã xếp theo thời gian (học kỳ, rồi thời điểm ghi điểm).
-// Dùng cho mọi nơi cần "đã học đạt" hay điểm đang tính: CPA, tín chỉ tích lũy, nợ, tiên quyết khi đăng ký.
 export function latestAttempts<T extends { courseCode: string; point4: number | null; letter?: string | null }>(attempts: T[]): Map<string, T> {
   const latest = new Map<string, T>();
   for (const attempt of attempts) if (hasResult({ letter: attempt.letter ?? null, point4: attempt.point4 })) latest.set(attempt.courseCode, attempt);
   return latest;
 }
 
-// Điểm chữ lần học cuối của từng học phần ở các học kỳ đã kết thúc (có thể là F: đang nợ). Thay cho điểm cao nhất của các lần học.
 export function latestGrades(terms: { isInProgress: boolean; courses: { courseCode: string; letter: string | null }[] }[]): Record<string, string> {
   const latest: Record<string, string> = {};
   for (const term of terms) {
@@ -133,8 +109,6 @@ export function latestGrades(terms: { isInProgress: boolean; courses: { courseCo
   return latest;
 }
 
-// GPA từng kỳ (theo các học phần học trong kỳ) và CPA tích lũy đến hết kỳ đó theo lần học cuối của mỗi học phần. Kỳ đang học
-// không có CPA và không thay thế lần học trước. Mỗi dòng ghi lần học thứ mấy và đã bị lần sau thay thế chưa.
 export function buildTranscript(terms: TranscriptTermInput[]): TranscriptTerm[] {
   const previousLetters = new Map<string, (string | null)[]>();
   const latest = new Map<string, TranscriptCourseInput & { termIndex: number }>();
@@ -171,7 +145,6 @@ export function buildTranscript(terms: TranscriptTermInput[]): TranscriptTerm[] 
   }));
 }
 
-// Ghi chú lần học trên bảng điểm: học lại, học cải thiện, lần đã bị lần sau thay thế (không tính tích lũy), học phần điều kiện, W/I/M.
 export function attemptNote(course: Pick<TranscriptCourse, "retakeKind" | "replaced" | "letter" | "isConditional">) {
   const notes = [
     course.isConditional ? "học phần điều kiện" : null,
@@ -199,8 +172,6 @@ export function warningLevelOf(input: { hasCourses: boolean; cpa4: number; faile
   return 0;
 }
 
-// Kết quả tích lũy chỉ tính các kỳ đã kết thúc và lần học cuối của mỗi học phần: CPA, tín chỉ tích lũy (lần cuối đạt), tín chỉ nợ
-// (lần cuối F). Chưa có điểm thì Chưa xếp loại (standing null), không bị coi là Kém.
 export function computeStanding(studentId: string, transcript: TranscriptTerm[], rules: StandingRules): StudentStanding {
   const completed = transcript.filter((term) => !term.isInProgress);
   const attempts = completed.flatMap((term) => term.courses.filter((course) => hasResult(course) && countsTowardAverage(course)));
@@ -223,7 +194,6 @@ export function computeStanding(studentId: string, transcript: TranscriptTerm[],
   };
 }
 
-// Lý do cảnh báo ghi theo ngưỡng của bản quy chế đã dùng để xét.
 export function warningReasons(standing: Pick<StudentStanding, "cpa4" | "lastTermGpa4" | "failedCredits">, thresholds: WarningThresholds) {
   const reasons: string[] = [];
   const cpa4 = standing.cpa4 ?? 0;
@@ -239,7 +209,6 @@ export function warningReasons(standing: Pick<StudentStanding, "cpa4" | "lastTer
   return reasons;
 }
 
-// Ngưỡng cảnh báo hiện trên trang danh sách cảnh báo, viết từ quy chế đang áp dụng.
 export function warningRules(thresholds: WarningThresholds) {
   return [
     `Mức 1: ĐTB học kỳ dưới ${formatPoint(thresholds.level1TermGpa, 1)} hoặc nợ từ ${thresholds.level1FailedCredits} tín chỉ trở lên`,
@@ -249,7 +218,6 @@ export function warningRules(thresholds: WarningThresholds) {
   ];
 }
 
-// Tổng hợp xếp loại theo khoa. Sinh viên chưa có điểm không vào phân bố và CPA trung bình; cảnh báo đếm theo cảnh báo chính thức.
 export function summarizeStandings(entries: { faculty: string; standing: Pick<StudentStanding, "cpa4" | "standing">; warned: boolean }[]): FacultyStandingSummary[] {
   const summary = new Map<string, FacultyStandingSummary & { cpaTotal: number }>();
   for (const { faculty, standing, warned } of entries) {
@@ -276,10 +244,7 @@ export function summarizeStandings(entries: { faculty: string; standing: Pick<St
   return [...summary.values()].map(({ cpaTotal, ...entry }) => ({ ...entry, averageCpa: entry.total > 0 ? Math.round(cpaTotal / entry.total) / 100 : 0 }));
 }
 
-// ---------- Bảng điểm lớp: hạn nhập, trạng thái ----------
 
-// Hạn nhập điểm theo quy chế: gradeEntryDays ngày sau ngày thi cuối kỳ của lớp, lớp chưa có lịch thi thì sau ngày kết thúc học kỳ;
-// hết hạn lúc 23:59 giờ Việt Nam.
 export function gradeEntryDeadline(input: { finalExamDate: string | null; termEnd: string }, gradeEntryDays: number) {
   return schoolTime(input.finalExamDate ?? input.termEnd)
     .add(gradeEntryDays, "day")
@@ -290,7 +255,6 @@ export function gradeEntryDeadline(input: { finalExamDate: string | null; termEn
     .toISOString();
 }
 
-// Trạng thái hiển thị: bảng điểm chưa chốt thì suy từ hạn nhập so với hiện tại, "sắp hết hạn" theo số ngày nhắc của quy chế.
 export function sheetState(status: GradeSheetStatus, deadline: string, dueSoonDays: number, now = dayjs()): GradeSheetState {
   if (status === "published" || status === "approved" || status === "locked" || status === "returned") return status;
   if (now.isAfter(deadline)) return "overdue";
@@ -318,7 +282,6 @@ const score = z
   .max(10, "Điểm từ 0 đến 10")
   .refine((value) => Math.abs(Math.round(value * 100) - value * 100) < 1e-6, "Điểm lấy tối đa 2 chữ số thập phân");
 
-// Dùng chung cho bảng nhập điểm và server action; DB còn chặn bằng grade_scores_range và grade_scores_sheet_locked.
 export const GRADE_SCORES_SAVE_SCHEMA = z.object({
   classSectionId: z.uuid(),
   changes: z
@@ -350,8 +313,6 @@ export const WARNING_ADVANCE_SCHEMA = z.object({ id: z.uuid(), from: z.enum(["ne
 
 export const MAX_GRADE_COMPONENTS = 8;
 
-// Cột điểm gửi lên khi sửa: key của cột đang có (giữ nguyên điểm), null là cột mới. DB chặn thêm bằng grade_components_weights_total_100
-// (kiểm lúc commit) và grade_components_sheet_locked.
 export const GRADE_COMPONENTS_SAVE_SCHEMA = z.object({
   classSectionId: z.uuid(),
   components: z
@@ -372,7 +333,6 @@ export const GRADE_COMPONENTS_SAVE_SCHEMA = z.object({
 
 export type GradeComponentsSaveInput = z.input<typeof GRADE_COMPONENTS_SAVE_SCHEMA>;
 
-// Khóa của cột mới sinh từ tên cột (không dấu), thêm số nếu trùng với cột đang có.
 export function componentKey(label: string, taken: Set<string>) {
   const base =
     label
@@ -391,7 +351,6 @@ export function componentKey(label: string, taken: Set<string>) {
 type ExistingComponent = { id: string; key: string };
 type NextComponent = { key: string | null; label: string; weight: number };
 
-// Chia danh sách cột mới thành cột bỏ, cột giữ (đổi tên, trọng số, thứ tự) và cột thêm. Cột giữ giữ nguyên key nên điểm đã nhập còn nguyên.
 export function planComponentChanges(existing: ExistingComponent[], next: NextComponent[]) {
   const byKey = new Map(existing.map((component) => [component.key, component]));
   const unknown = next.filter((component) => component.key !== null && !byKey.has(component.key)).map((component) => component.key!);
@@ -419,8 +378,6 @@ export type ScoreChange = { studentId: string; key: string; score: number | null
 
 const digitsOf = (code: string) => code.replace(/\D/g, "");
 
-// Đọc bảng điểm theo mẫu đã xuất (CSV hoặc Excel, đã đổi thành ma trận chữ): dòng đầu là tiêu đề, cột 1 MSSV, cột 2 họ tên,
-// rồi các cột điểm theo đúng thứ tự của bảng điểm. Ô trống thì giữ điểm đang có; dòng lỗi ghi rõ số dòng.
 export function parseScoreMatrix(matrix: string[][], components: { key: string; label: string }[], students: ScoreMatrixStudent[]) {
   const [header, ...rows] = matrix;
   const errors: string[] = [];
@@ -456,10 +413,8 @@ export function parseScoreMatrix(matrix: string[][], components: { key: string; 
   return { changes, errors };
 }
 
-// Server action nhận tối đa 1 MB (mặc định của Next); bảng điểm một lớp chỉ vài chục KB.
 export const GRADE_IMPORT_MAX_BYTES = 900 * 1024;
 
-// Cảnh báo học vụ của một sinh viên sau một học kỳ theo ngưỡng quy chế, null nếu không dưới ngưỡng.
 export function academicWarningOf(standing: StudentStanding, thresholds: WarningThresholds) {
   if (standing.warningLevel === 0 || standing.cpa4 === null) return null;
   return {
@@ -471,15 +426,12 @@ export function academicWarningOf(standing: StudentStanding, thresholds: Warning
   };
 }
 
-// Số học kỳ chính liên tiếp (tính lùi từ học kỳ cuối của danh sách) sinh viên bị cảnh báo.
 export function consecutiveWarnings(mainTermIds: string[], warnedTermIds: Set<string>) {
   let count = 0;
   for (let index = mainTermIds.length - 1; index >= 0 && warnedTermIds.has(mainTermIds[index]); index -= 1) count += 1;
   return count;
 }
 
-// Đề xuất xét buộc thôi học: bị cảnh báo đủ số học kỳ chính liên tiếp theo quy chế, hoặc cảnh báo mức 3 ở học kỳ đang xét.
-// Chỉ là danh sách cho Phòng Đào tạo xem xét; quyết định buộc thôi học lập ở mục Quyết định sinh viên.
 export function expulsionReasons(input: { consecutive: number; level: number }, thresholds: WarningThresholds) {
   const reasons: string[] = [];
   if (input.consecutive >= thresholds.expelAfterWarnings) reasons.push(`Bị cảnh báo ${input.consecutive} học kỳ chính liên tiếp (quy chế: ${thresholds.expelAfterWarnings})`);
@@ -501,8 +453,6 @@ function sameWarning(stored: StoredWarning, computed: ComputedWarning) {
   );
 }
 
-// Sinh lại cảnh báo một học kỳ: thêm sinh viên mới dưới ngưỡng; cảnh báo chưa xử lý thì cập nhật theo điểm mới, bỏ nếu nay đã đạt;
-// cảnh báo đã gửi thông báo hoặc đã gặp sinh viên thì giữ nguyên.
 export function planWarningSync(stored: StoredWarning[], computed: ComputedWarning[]) {
   const storedOf = new Map(stored.map((warning) => [warning.studentId, warning]));
   const computedOf = new Map(computed.map((warning) => [warning.studentId, warning]));
@@ -524,7 +474,6 @@ export function planWarningSync(stored: StoredWarning[], computed: ComputedWarni
   return { create, update, remove, unchanged, handled };
 }
 
-// Học kỳ để xét cảnh báo: học kỳ chính (1, 2) đã kết thúc gần nhất. Học kỳ hè chỉ học lại, học vượt nên không xét riêng.
 export function isWarningTerm(term: { semester: number; endDate: string }, today: string) {
   return term.semester !== 3 && term.endDate < today;
 }
@@ -535,23 +484,19 @@ export function latestWarningTerm<T extends { semester: number; endDate: string 
 
 export const ACADEMIC_WARNING_GENERATE_SCHEMA = z.object({ termId: z.uuid("Chọn học kỳ") });
 
-// ---------- Sửa điểm sau công bố, rút học phần, điểm I ----------
 
-// Kết quả học phần dạng chữ để ghi lịch sử sửa điểm: "7,5 (B)", ký hiệu "I (chờ thi bù...)", chưa có thì "Chưa có".
 export function resultText(result: { score10: number | null; letter: string | null } | null | undefined) {
   if (!result?.letter) return "Chưa có";
   if (result.score10 === null) return result.letter in RESULT_MARK_NOTE ? `${result.letter} (${RESULT_MARK_NOTE[result.letter as ResultMark]})` : result.letter;
   return `${formatPoint(result.score10, 1)} (${result.letter})`;
 }
 
-// Hạn rút học phần: hết ngày thứ weeks * 7 kể từ ngày bắt đầu học kỳ (tính cả ngày bắt đầu).
 export function withdrawDeadline(termStart: string, weeks: number) {
   return dayjs(termStart)
     .add(weeks * 7 - 1, "day")
     .format("YYYY-MM-DD");
 }
 
-// Rút học phần (nhận W): học kỳ chưa kết thúc, còn trong hạn của quy chế, lớp chưa công bố điểm. Kiểm khi gửi đơn và khi duyệt.
 export function withdrawBlockedReason(input: { termStart: string; termEnd: string; sheetStatus: string | null }, today: string, weeks: number) {
   if (input.sheetStatus === "published") return "Lớp đã công bố điểm, không rút học phần được nữa.";
   if (today > input.termEnd) return "Học kỳ đã kết thúc, không rút học phần được nữa.";
@@ -560,8 +505,6 @@ export function withdrawBlockedReason(input: { termStart: string; termEnd: strin
   return null;
 }
 
-// Điểm I quá hạn: học kỳ nhận I cộng thêm incompleteTerms học kỳ kế tiếp (theo ngày bắt đầu) đã kết thúc mà chưa có điểm thì chuyển F.
-// Học kỳ kế tiếp chưa có trong danh mục thì chưa tới hạn.
 export function overdueIncompletes<T extends { termId: string }>(results: T[], terms: { id: string; startDate: string; endDate: string }[], incompleteTerms: number, today: string) {
   const ordered = terms.toSorted((a, b) => a.startDate.localeCompare(b.startDate));
   const position = new Map(ordered.map((term, index) => [term.id, index]));
@@ -573,8 +516,6 @@ export function overdueIncompletes<T extends { termId: string }>(results: T[], t
   });
 }
 
-// Đơn sửa điểm của giảng viên lưu phần chi tiết dạng chữ do server ghép lúc gửi ("Sinh viên": "Họ tên, 50.01.104.009",
-// "Cột điểm", "Điểm mới": "7,50"). Đọc lại để biết cột, sinh viên và điểm đề nghị khi duyệt bước cuối.
 export function gradeChangeTarget(details: { label: string; value: string }[]) {
   const value = (label: string) => details.find((detail) => detail.label === label)?.value ?? null;
   const student = value("Sinh viên");
@@ -594,7 +535,6 @@ const amendmentScore = z
 
 const amendmentReason = z.string("Chưa nhập lý do").trim().min(1, "Ghi lý do sửa điểm").max(500, "Tối đa 500 ký tự");
 
-// Giảng viên (lớp mình dạy, bảng điểm đã công bố) hoặc Phòng Đào tạo đề nghị sửa một cột điểm của một sinh viên.
 export const GRADE_AMENDMENT_PROPOSE_SCHEMA = z.object({
   classSectionId: z.uuid("Chưa chọn lớp"),
   studentId: z.uuid("Chưa chọn sinh viên"),
@@ -615,7 +555,6 @@ export const GRADE_AMENDMENT_DECIDE_SCHEMA = z
 
 export type GradeAmendmentDecideInput = z.input<typeof GRADE_AMENDMENT_DECIDE_SCHEMA>;
 
-// Kết quả bước cuối của đơn (Phòng Khảo thí, Phòng Đào tạo nhập khi duyệt), đọc từ effect của lần duyệt.
 export const REGRADE_EFFECT_SCHEMA = z.object({ newScore: amendmentScore }, "Nhập điểm sau phúc khảo trước khi duyệt");
 
 export const GRADE_CHANGE_EFFECT_SCHEMA = z.object({ newScore: amendmentScore.optional() }).default({});

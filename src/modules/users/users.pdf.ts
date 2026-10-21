@@ -4,7 +4,6 @@ import { buildPdf, type PdfBlock } from "@/shared/libs/pdf.lib";
 import { DECISION_KIND_LABEL, DECISION_STATUS, decisionDetail } from "@/modules/users/users.constant";
 import type { StudentDecision } from "@/modules/users/users.type";
 
-// Quyết định sinh viên theo cùng thể thức với bản xem trước: chưa ký hoặc đã thu hồi thì ghi rõ để bản in không bị dùng nhầm.
 export function decisionPdf(decision: StudentDecision) {
   const notice: PdfBlock[] =
     decision.status === "signed"

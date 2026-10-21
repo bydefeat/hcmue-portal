@@ -72,7 +72,6 @@ function revalidateCurriculum() {
 
 const relationText = (codes: string[]) => (codes.length > 0 ? codes.join(", ") : "Không có");
 
-// Cán bộ theo khoa chỉ thêm, sửa học phần của khoa mình (cả khoa đang quản lý lẫn khoa sau khi sửa).
 export async function saveCourse(id: string | null, input: CourseInput): Promise<ActionResult<Course>> {
   const viewer = await requirePermission("curriculum.manage");
   if (id !== null && !isUuid(id)) return actionError("Học phần không còn trong danh mục, tải lại trang.");
@@ -87,7 +86,6 @@ export async function saveCourse(id: string | null, input: CourseInput): Promise
   try {
     courseId = await db.transaction(async (tx) => {
       const facultyId = await facultyIdOf(tx, faculty);
-      // Mã học phần không đổi sau khi tạo vì đã gắn với điểm, đăng ký và chương trình.
       const [row] = id
         ? await tx.update(courses).set({ ...values, facultyId }).where(eq(courses.id, id)).returning({ id: courses.id })
         : await tx.insert(courses).values({ ...values, code, facultyId }).returning({ id: courses.id });
@@ -126,8 +124,6 @@ export async function saveCourse(id: string | null, input: CourseInput): Promise
   return course ? actionOk(course) : actionError("Đã lưu nhưng chưa đọc lại được, tải lại trang.");
 }
 
-// Cán bộ theo khoa chỉ sửa chương trình của ngành thuộc khoa mình. Chương trình đã ngừng áp dụng không mở lại được; mỗi ngành, khóa
-// chỉ một chương trình đang áp dụng (DB chặn thêm bằng trigger programs_archived_final, programs_single_active_cohort).
 export async function saveProgram(id: string | null, input: ProgramInput): Promise<ActionResult<ProgramSummary>> {
   const viewer = await requirePermission("curriculum.manage");
   if (id !== null && !isUuid(id)) return actionError("Chương trình không còn trong danh mục, tải lại trang.");
@@ -191,7 +187,6 @@ export async function saveProgram(id: string | null, input: ProgramInput): Promi
   return program ? actionOk(program) : actionError("Đã lưu nhưng chưa đọc lại được, tải lại trang.");
 }
 
-// Thêm, bỏ, chuyển học kỳ một học phần trong khung; trả khung mới đọc lại từ DB.
 export async function changeProgramCourses(programId: string, input: ProgramCourseChangeInput): Promise<ActionResult<ProgramDetail>> {
   const viewer = await requirePermission("curriculum.manage");
   if (!isUuid(programId)) return actionError("Chương trình không còn trong danh mục, tải lại trang.");
@@ -208,7 +203,6 @@ export async function changeProgramCourses(programId: string, input: ProgramCour
   return program ? actionOk(program) : actionError("Đã lưu nhưng chưa đọc lại được, tải lại trang.");
 }
 
-// Thêm (groupId null) hoặc sửa nhóm tự chọn của khung; trả khung mới đọc lại từ DB.
 export async function saveProgramElectiveGroup(programId: string, groupId: string | null, input: ElectiveGroupInput): Promise<ActionResult<ProgramDetail>> {
   const viewer = await requirePermission("curriculum.manage");
   if (!isUuid(programId) || (groupId !== null && !isUuid(groupId))) return actionError("Chương trình hoặc nhóm không còn trong danh mục, tải lại trang.");

@@ -14,7 +14,6 @@ import { paginationItemRender } from "@/shared/constants/antd.constant";
 
 export type AuditFilters = { q?: string; actor?: string; action?: AuditAction; entityType?: AuditEntityType; entityId?: string; from?: string; to?: string };
 
-// Lọc và phân trang ở server: mỗi thay đổi bộ lọc đổi tham số trên đường dẫn, trang tải lại đúng phần nhật ký cần xem.
 export function AuditLogTable({ page, filters }: { page: AuditPage; filters: AuditFilters }) {
   const router = useRouter();
   const pathname = usePathname();

@@ -11,7 +11,6 @@ import type { MeetingNote } from "@/modules/advising/advising.type";
 
 type Values = { topic: string; content: string; followUp?: string };
 
-// Lịch sử ghi chú cố vấn của một sinh viên (từ buổi hẹn và ghi chú độc lập), thêm ghi chú không cần buổi hẹn.
 export function AdvisingNotePanel({ studentId, notes: initial }: { studentId: string; notes: MeetingNote[] }) {
   const [messageApi, contextHolder] = message.useMessage();
   const [notes, setNotes] = useState(initial);

@@ -4,7 +4,6 @@ import { asRole, chooseOption, dialog, expect, freshIp, signIn, test, toast, wai
 
 test.use(asRole("student"));
 
-// PDF nhỏ hợp lệ (chữ ký %PDF- ở đầu tệp là thứ server kiểm).
 const SAMPLE_PDF = Buffer.from("%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj 2 0 obj<</Type/Pages/Kids[]/Count 0>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF\n");
 
 test("tổng quan hiện điểm, tín chỉ, lịch học hôm nay", async ({ page }) => {
@@ -34,7 +33,6 @@ test("thời khóa biểu theo tuần và xuất lịch .ics", async ({ page }) 
 test.describe("đăng ký học phần", () => {
   test("đăng ký một lớp hợp lệ rồi hủy", async ({ page }) => {
     await page.goto("/application/registration");
-    // Thẻ lớp trong danh sách (có thanh sĩ số), khác dòng cùng mã trong giỏ "Lớp đã chọn".
     const row = page.getByRole("listitem").filter({ has: page.getByRole("progressbar", { name: "Đã đăng ký MATH2001.01" }) });
     const basket = page.getByRole("complementary").filter({ hasText: "Lớp đã chọn" });
     await row.getByRole("button", { name: "Chọn lớp" }).click();
@@ -44,7 +42,6 @@ test.describe("đăng ký học phần", () => {
     await expect(toast(page, /Đã đăng ký 1 lớp/)).toBeVisible();
     await expect(row).toContainText("Đã đăng ký");
 
-    // Tải lại vẫn còn: chỗ đã giữ ở DB.
     await page.reload();
     const registered = basket.getByRole("listitem").filter({ hasText: "MATH2001.01" });
     await expect(registered).toContainText("Đã đăng ký");
@@ -83,7 +80,6 @@ test("kết quả học tập theo học kỳ", async ({ page }) => {
 test("học phí hiện số phải nộp và nội dung chuyển khoản", async ({ page }) => {
   await page.goto("/application/tuition");
   await expect(page.getByRole("heading", { name: "Học kỳ 1, năm học 2026-2027", level: 2 })).toBeVisible();
-  // Có cả hóa đơn tạm tính của học kỳ đang đăng ký: kiểm dòng tổng của học kỳ hiện tại.
   await expect(page.getByRole("listitem").filter({ hasText: "Tổng phải nộp" }).filter({ hasText: "7.503.600 đ" })).toBeVisible();
   await expect(page.getByRole("row", { name: /Nội dung/ }).filter({ hasText: "HP 5001104009 HK1-2026" })).toBeVisible();
 });
@@ -154,7 +150,6 @@ test("thông báo: đánh dấu đã đọc hết, tải lại vẫn đã đọc
   await page.goto("/application/notifications");
   const examNotice = page.getByRole("link", { name: /Lịch thi giữa kỳ đã có/ });
   await expect(examNotice).toHaveAccessibleName(/chưa đọc/);
-  // Giao diện đổi ngay khi bấm; chờ server lưu xong rồi mới tải lại.
   const saved = waitForAction(page);
   await page.getByRole("button", { name: "Đánh dấu đã đọc hết" }).click();
   await expect(examNotice).not.toHaveAccessibleName(/chưa đọc/);
@@ -184,7 +179,6 @@ test("đổi mật khẩu rồi đổi lại", async ({ page }) => {
   await page.waitForURL("**/application/dashboard");
   await change(PASSWORD, changed);
 
-  // Phiên hiện tại vẫn dùng được; đăng nhập lại phải bằng mật khẩu mới.
   await page.context().clearCookies();
   await signIn(page, account.code, changed);
   await page.waitForURL("**/application/dashboard");

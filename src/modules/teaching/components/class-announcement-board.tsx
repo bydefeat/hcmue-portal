@@ -85,7 +85,6 @@ export function ClassAnnouncementBoard({ announcements, classSectionId, classCod
       const saved = result.data;
       setRows((current) => (editing ? current.map((row) => (row.id === saved.id ? saved : row)) : [saved, ...current]));
       setIsOpen(false);
-      // Chỉ lần báo đầu tiên (đăng mới, bỏ hẹn giờ, hoặc bài hẹn giờ tới giờ) mới báo sinh viên; sửa bài đã báo thì không báo lại.
       if (saved.status === "scheduled") messageApi.success(`Đã hẹn đăng lúc ${formatDateTime(saved.publishAt)}. Sinh viên nhận thông báo${saved.sendEmail ? " và email" : ""} khi tới giờ.`);
       else if (editing?.notifiedAt) messageApi.success("Đã lưu thông báo");
       else messageApi.success(`Đã đăng thông báo cho lớp ${classCode}, sinh viên nhận thông báo trên cổng${saved.sendEmail ? " và qua email trường" : ""}`);

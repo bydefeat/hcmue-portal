@@ -13,7 +13,6 @@ import { SectionCard } from "@/shared/components/ui/section-card";
 
 export const metadata: Metadata = { title: "Lịch sử và phiếu đăng ký" };
 
-// Mặc định là học kỳ đang nhận đăng ký (phiếu sinh viên vừa đăng ký); chọn được học kỳ hiện tại và các học kỳ trước.
 export default async function Page({ searchParams }: { searchParams: Promise<{ term?: string }> }) {
   const [{ term: termParam }, student, terms, targetTerm] = await Promise.all([searchParams, getCurrentStudent(), getTerms(), getRegistrationTargetTerm()]);
   const term = terms.find((entry) => entry.id === termParam) ?? targetTerm;
@@ -21,7 +20,6 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ t
   const timetable = pickTimetable(enrollments);
   const confirmedAt = receiptConfirmedAt(periods, student.cohort, events, term.startDate);
   const verificationCode = receiptVerificationCode(student.id, term.id, timetable.map(({ section }) => section.id));
-  // Các học kỳ tới học kỳ đang nhận đăng ký, mới nhất trước.
   const choices = terms
     .filter((entry) => entry.startDate <= targetTerm.startDate)
     .toSorted((a, b) => b.startDate.localeCompare(a.startDate))

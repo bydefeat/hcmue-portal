@@ -8,16 +8,11 @@ import { s3DeleteObject, s3GetObject, s3ListObjects, s3PutObject, type S3Config 
 import { contentDisposition } from "@/shared/libs/upload.lib";
 import { assertCleanUpload } from "@/shared/libs/virus-scan.lib";
 
-// Kho tệp tải lên. Nơi gọi chỉ biết khóa (`requests/<uuid>`), không biết tệp nằm ở đâu: DEFEAT_STORAGE_DRIVER=local ghi đĩa
-// cục bộ dưới DEFEAT_STORAGE_DIRECTORY, =s3 ghi vào bucket S3/R2/MinIO (khóa đối tượng trùng khóa lưu trữ).
 
-// requests: minh chứng đơn từ; exams: đề thi, đáp án; reports: tệp báo cáo đã xuất (Excel, PDF, CSV) để tải lại đúng tệp lúc xuất.
 export type StorageNamespace = "requests" | "exams" | "reports";
 
 const NAMESPACES: readonly StorageNamespace[] = ["requests", "exams", "reports"];
 
-// Khóa luôn do server sinh: thư mục cố định + uuid. Không có dấu chấm, gạch chéo ngược hay tên tệp của người dùng nên không thoát
-// ra ngoài thư mục lưu trữ được.
 const KEY = /^(requests|exams|reports)\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 export class StorageKeyError extends Error {
@@ -41,7 +36,6 @@ function checkedKey(key: string) {
   return key;
 }
 
-// Nội dung tệp dạng luồng, để route tải xuống không phải đọc cả tệp vào bộ nhớ.
 export type OpenedFile = { body: ReadableStream<Uint8Array>; size: number };
 
 export type StoredEntry = { key: string; modifiedAt: Date };
@@ -60,7 +54,6 @@ function root() {
 function pathOf(key: string) {
   const base = root();
   const target = path.resolve(base, checkedKey(key));
-  // Phòng thủ thêm: khóa đã qua regex nhưng vẫn kiểm đường dẫn cuối nằm trong thư mục gốc.
   if (!target.startsWith(base + path.sep)) throw new StorageKeyError(key);
   return target;
 }
@@ -68,7 +61,6 @@ function pathOf(key: string) {
 const isMissing = (error: unknown) => (error as NodeJS.ErrnoException | null)?.code === "ENOENT";
 
 const localDriver: StorageDriver = {
-  // Ghi ra tệp tạm rồi đổi tên: người đọc không bao giờ thấy tệp ghi dở.
   async put(key, data) {
     const target = pathOf(key);
     await mkdir(path.dirname(target), { recursive: true });
@@ -91,7 +83,6 @@ const localDriver: StorageDriver = {
     }
     try {
       const { size } = await handle.stat();
-      // Luồng tự đóng tệp khi đọc xong hoặc khi người tải hủy giữa chừng.
       return { body: Readable.toWeb(handle.createReadStream()) as ReadableStream<Uint8Array>, size };
     } catch (error) {
       await handle.close();
@@ -140,7 +131,6 @@ function s3Driver(config: S3Config): StorageDriver {
 
 let selected: StorageDriver | null = null;
 
-// env.lib đã bắt buộc đủ biến S3 khi driver là s3.
 function driver() {
   selected ??=
     env.DEFEAT_STORAGE_DRIVER === "s3"
@@ -160,7 +150,6 @@ export async function putFile(key: string, data: Uint8Array) {
   await driver().put(checkedKey(key), data);
 }
 
-// Không có tệp thì trả null để route tải xuống trả 404.
 export async function openFile(key: string): Promise<OpenedFile | null> {
   return driver().open(checkedKey(key));
 }
@@ -176,9 +165,6 @@ export async function deleteFile(key: string) {
 
 const DELETE_CONCURRENCY = 8;
 
-// Xóa nhiều tệp, không ném lỗi: dùng để dọn sau khi giao dịch hỏng hoặc sau khi thay tệp. Tệp xóa không được thì tác vụ
-// dọn tệp mồ côi (sweepOrphanFiles) xóa lần sau. Mỗi lúc chỉ xóa vài tệp để dọn hàng nghìn tệp trên S3 không mở hàng nghìn
-// kết nối cùng lúc.
 export async function deleteFiles(keys: string[]) {
   const queue = [...keys];
   const worker = async () => {
@@ -193,12 +179,8 @@ export async function deleteFiles(keys: string[]) {
   await Promise.all(Array.from({ length: Math.min(DELETE_CONCURRENCY, queue.length) }, worker));
 }
 
-// `name` (tên tệp gốc) chỉ để câu báo khi quét virus nêu đúng tệp.
 export type StoredFile = { key: string; data: Uint8Array; name?: string };
 
-// Quét virus mọi tệp (khi đã cấu hình clamd), ghi tệp, rồi mới chạy giao dịch ghi DB (không giữ giao dịch mở trong lúc ghi
-// kho). Tệp nhiễm hoặc chưa quét được thì không ghi gì cả. Giao dịch hoặc lần ghi nào hỏng thì xóa mọi tệp vừa ghi rồi ném
-// lỗi tiếp. Tiến trình chết giữa chừng vẫn có thể để lại tệp không dòng DB nào trỏ tới: tác vụ dọn tệp mồ côi xóa các tệp đó.
 export async function withStoredFiles<T>(files: StoredFile[], work: () => Promise<T>): Promise<T> {
   for (const file of files) await assertCleanUpload(file);
   const keys = files.map((file) => file.key);
@@ -221,8 +203,6 @@ export async function listFiles(namespace: StorageNamespace): Promise<StoredEntr
   return driver().list(namespace);
 }
 
-// Xóa tệp trong kho không còn dòng DB nào trỏ tới. Chỉ xóa tệp cũ hơn `graceMs` để không đụng tệp vừa ghi mà giao dịch
-// của nó chưa commit.
 export async function sweepOrphanFiles(namespace: StorageNamespace, isReferenced: (keys: string[]) => Promise<Set<string>>, graceMs = 60 * 60 * 1000) {
   const cutoff = Date.now() - graceMs;
   const candidates = (await listFiles(namespace)).filter((entry) => entry.modifiedAt.getTime() < cutoff).map((entry) => entry.key);
@@ -233,8 +213,6 @@ export async function sweepOrphanFiles(namespace: StorageNamespace, isReferenced
   return orphans.length;
 }
 
-// Trả tệp cho route tải xuống: tên tệp gốc giữ dấu tiếng Việt, kiểu tệp đã kiểm lúc tải lên, không cho trình duyệt đoán kiểu
-// và không lưu bộ nhớ đệm dùng chung (tệp riêng tư). Nhận cả luồng từ openFile (tệp trên S3 đi thẳng qua app, không lộ URL bucket).
 export function fileResponse(content: Uint8Array | OpenedFile, file: { fileName: string; contentType: string }) {
   const isBytes = content instanceof Uint8Array;
   const size = isBytes ? content.byteLength : content.size;

@@ -15,7 +15,6 @@ const UNASSIGNED = { label: "Chưa có cố vấn", tone: "warning" } as const;
 type AdvisorAssignmentTableProps = {
   assignments: AdvisorAssignment[];
   lecturers: Pick<Lecturer, "id" | "displayName" | "faculty" | "status">[];
-  // Khoa và khóa cho ô lọc, page lấy từ các lớp sinh hoạt trong phạm vi.
   faculties: string[];
   cohorts: number[];
 };

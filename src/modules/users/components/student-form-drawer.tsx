@@ -16,7 +16,6 @@ type StudentFormDrawerProps = {
   cohorts: number[];
   classes: ClassRef[];
   onClose: () => void;
-  // Trả lỗi theo ô khi server từ chối, để drawer gắn vào đúng ô.
   onSubmit: (values: StudentFormValues, options: { provisionAccount: boolean }) => Promise<Record<string, string> | undefined>;
 };
 
@@ -60,7 +59,6 @@ export function StudentFormDrawer({ open, student, majors, cohorts, classes, onC
         onFinish={({ provisionAccount, ...values }) =>
           startTransition(async () => {
             const fieldErrors = await onSubmit(
-              // Ô điện thoại để trống thì antd trả undefined; server cần chuỗi.
               { ...values, phone: values.phone ?? "", personalEmail: values.personalEmail ?? "", code: formatStudentCode(values.code), dateOfBirth: values.dateOfBirth?.format("YYYY-MM-DD") ?? "" },
               { provisionAccount: !isEdit && provisionAccount === true },
             );

@@ -15,7 +15,6 @@ import { requirePermission } from "@/modules/access/access.query";
 import { classSections, enrollments, sectionMeetings, terms } from "@/modules/course-registration/course-registration.schema";
 import { courses, majors } from "@/modules/curriculum/curriculum.schema";
 import { rooms } from "@/modules/facilities/facilities.schema";
-// CPA và tham số quy chế đọc từ đúng nguồn của module điểm, quy chế (không tự tính lại ở đây).
 import { getStudentStandings } from "@/modules/grades/grades.query";
 import { withdrawBlockedReason } from "@/modules/grades/grades.rule";
 import { getRegulation } from "@/modules/settings/settings.query";
@@ -86,7 +85,6 @@ function revalidateRequests() {
   }
 }
 
-// Đọc nội dung tệp rồi kiểm: Next đã chặn thân request quá bodySizeLimit nên đọc hết vào bộ nhớ không quá giới hạn đó.
 async function readAttachments(files: File[]): Promise<{ ok: true; files: AttachmentFile[] } | ActionFailure> {
   const uploads = await Promise.all(files.map(async (file) => ({ name: file.name, data: new Uint8Array(await file.arrayBuffer()) })));
   const checked = checkAttachments(uploads.map((upload) => ({ name: upload.name, size: upload.data.byteLength, head: upload.data.subarray(0, 16) })));
@@ -114,7 +112,6 @@ async function regulationRules() {
   };
 }
 
-// Điều kiện gửi đơn theo quy chế, kiểm trong giao dịch (cả khi gửi lại đơn bị từ chối): phúc khảo khi điểm đã công bố và còn hạn.
 async function checkSectionEligibility(tx: Transaction, kind: RequestKind, classSectionId: string, rules: { regradeWindowDays: number; withdrawDeadlineWeeks: number }) {
   if (kind === "regrade") {
     const blocked = regradeBlockedReason(await gradeSheetStatus(tx, classSectionId), new Date(), rules.regradeWindowDays);
@@ -124,7 +121,6 @@ async function checkSectionEligibility(tx: Transaction, kind: RequestKind, class
     const blocked = gradeChangeSheetBlockedReason((await gradeSheetStatus(tx, classSectionId))?.status ?? null);
     if (blocked) throw new RequestError(blocked, "classId");
   }
-  // Rút học phần: trong số tuần đầu học kỳ theo quy chế (duyệt bước cuối kiểm lại một lần nữa).
   if (kind === "withdraw") {
     const [term] = await tx
       .select({ startDate: terms.startDate, endDate: terms.endDate })
@@ -137,8 +133,6 @@ async function checkSectionEligibility(tx: Transaction, kind: RequestKind, class
   }
 }
 
-// Bảo lưu: tổng số học kỳ đã bảo lưu, đang xin và xin thêm không vượt workflow.maxReserveTerms. Khóa theo sinh viên để hai đơn
-// gửi cùng lúc không cùng lọt; lúc duyệt đơn còn kiểm lại (users.request-effects).
 async function checkReserveLimit(tx: Transaction, studentId: string, details: RequestDetail[], maxReserveTerms: number) {
   await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${`reserve:${studentId}`}))`);
   const used = await reserveTermsUsed(tx, studentId, { includeInFlight: true });
@@ -146,7 +140,6 @@ async function checkReserveLimit(tx: Transaction, studentId: string, details: Re
   if (blocked) throw new RequestError(blocked, "duration");
 }
 
-// Nhận FormData: ô "input" là JSON của form (StudentRequestInput), các ô "files" là tệp minh chứng.
 export async function createStudentRequest(formData: FormData): Promise<ActionResult<RequestView>> {
   const student = await getCurrentStudent();
   const { user } = await requireSession();
@@ -272,7 +265,6 @@ async function teachingLeaveContent(
   };
 }
 
-// Nhận FormData như createStudentRequest, ô "input" là LecturerRequestInput.
 export async function createLecturerRequest(formData: FormData): Promise<ActionResult<RequestView>> {
   const lecturer = await getCurrentLecturer();
   const { user } = await requireSession();
@@ -312,7 +304,6 @@ export async function createLecturerRequest(formData: FormData): Promise<ActionR
             .innerJoin(students, eq(students.id, enrollments.studentId))
             .where(and(eq(enrollments.classSectionId, section.id), eq(enrollments.studentId, values.studentId), eq(enrollments.status, "enrolled")));
           if (!student) throw new RequestError("Sinh viên không có trong danh sách lớp.", "studentId");
-          // Nhãn cột và điểm cũ đọc từ bảng điểm của lớp, không tin giá trị form gửi lên.
           const current = await currentComponentScore(tx, { classSectionId: section.id, enrollmentId: student.enrollmentId, componentKey: values.componentKey });
           const blocked = gradeChangeBlockedReason(current.component, current.score, values.newScore);
           if (blocked) throw new RequestError(blocked.message, blocked.field);
@@ -349,7 +340,6 @@ export async function createLecturerRequest(formData: FormData): Promise<ActionR
   return reloaded(requestId, "own");
 }
 
-// Cổng giảng viên: cố vấn duyệt bước cố vấn của sinh viên lớp mình, giảng viên xử lý bước giảng viên được giao (cả bước được chuyển).
 export async function decideAsLecturer(requestId: string, input: DecideStepInput): Promise<ActionResult<RequestView>> {
   const lecturer = await getCurrentLecturer();
   const { user } = await requireSession();
@@ -368,7 +358,6 @@ export async function decideAsLecturer(requestId: string, input: DecideStepInput
   return reloaded(requestId, "lecturer");
 }
 
-// Cổng quản trị: bước của khoa, Phòng Đào tạo, Phòng Khảo thí theo quyền requests.step.* của vai trò đang dùng, trong phạm vi khoa.
 export async function decideAsOffice(requestId: string, input: DecideStepInput): Promise<ActionResult<RequestView>> {
   const viewer = await requirePermission("requests.process");
   if (!isUuid(requestId)) return actionError(MISSING);
@@ -384,7 +373,6 @@ export async function decideAsOffice(requestId: string, input: DecideStepInput):
   return reloaded(requestId, "office");
 }
 
-// Phòng Đào tạo xử lý thay bước bất kỳ đang chờ (kể cả bước cố vấn kẹt vì lớp không còn cố vấn): đồng ý, từ chối hoặc bỏ qua, ghi lý do.
 export async function superviseRequestStep(requestId: string, input: SuperviseStepInput): Promise<ActionResult<RequestView>> {
   const viewer = await requirePermission("requests.supervise");
   if (!isUuid(requestId)) return actionError(MISSING);
@@ -411,7 +399,6 @@ export async function superviseRequestStep(requestId: string, input: SuperviseSt
   return reloaded(requestId, "office");
 }
 
-// Phòng Đào tạo chuyển bước cố vấn, giảng viên chưa xử lý cho giảng viên khác.
 export async function reassignRequestStep(requestId: string, input: ReassignStepInput): Promise<ActionResult<RequestView>> {
   const viewer = await requirePermission("requests.supervise");
   if (!isUuid(requestId)) return actionError(MISSING);
@@ -427,7 +414,6 @@ export async function reassignRequestStep(requestId: string, input: ReassignStep
   return reloaded(requestId, "office");
 }
 
-// Người xử lý bước đang chờ (ở cổng của mình) yêu cầu người gửi bổ sung minh chứng.
 export async function askForSupplement(requestId: string, portal: "lecturer" | "office", input: SupplementRequestInput): Promise<ActionResult<RequestView>> {
   if (!isUuid(requestId)) return actionError(MISSING);
   let actor: AuditActor;
@@ -453,7 +439,6 @@ async function requesterActor(): Promise<AuditActor> {
   return { userId: user.id, name: user.name, role: roles.includes("student") ? "Sinh viên" : "Giảng viên" };
 }
 
-// Người gửi bổ sung minh chứng theo yêu cầu. FormData: ô "input" là SupplementSubmitInput, các ô "files" là tệp.
 export async function submitRequestSupplement(formData: FormData): Promise<ActionResult<RequestView>> {
   const actor = await requesterActor();
   const form = readRequestForm(formData);
@@ -477,8 +462,6 @@ export async function submitRequestSupplement(formData: FormData): Promise<Actio
   return reloaded(request.id, "own");
 }
 
-// Gửi lại đơn bị từ chối: đơn mới cùng loại, nội dung, lớp học phần, kế thừa minh chứng đã chọn (chép sang khóa lưu trữ mới để
-// hai đơn không dùng chung tệp), trỏ về đơn cũ. Điều kiện gửi đơn theo quy chế được kiểm lại như gửi mới.
 export async function resubmitRequest(formData: FormData): Promise<ActionResult<RequestView>> {
   const actor = await requesterActor();
   const form = readRequestForm(formData);

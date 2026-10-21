@@ -19,9 +19,7 @@ import { advisingAppointments, advisingNotes, appointmentStudents } from "@/modu
 import type { StudentAdvisor, StudentAppointment } from "@/modules/advising/advising.type";
 import { administrativeClasses, lecturers, students } from "@/modules/users/users.schema";
 
-// Hàm không kiểm phiên: query gọi sau khi đã xác định sinh viên đang đăng nhập (test gọi thẳng với id).
 
-// Buổi hẹn sinh viên được mời. Không chọn cột note: đó là ghi chép của cố vấn, buổi hẹn nhóm có thể nhắc tới sinh viên khác.
 export async function studentAppointments(studentId: string): Promise<StudentAppointment[]> {
   if (!isUuid(studentId)) return [];
   const rows = await db
@@ -55,7 +53,6 @@ export async function studentAppointments(studentId: string): Promise<StudentApp
     )
     .groupBy(appointmentStudents.appointmentId);
   const countOf = new Map(invitees.map((row) => [row.appointmentId, row.total]));
-  // Buổi nhóm: sinh viên vắng thấy "Bạn vắng" dù buổi đã gặp với người khác.
   return rows.map(({ advisorTitle, advisorName, attendance, ...row }) => ({
     ...row,
     status: row.status === "done" && attendance === "absent" ? "missed" : row.status,
@@ -65,7 +62,6 @@ export async function studentAppointments(studentId: string): Promise<StudentApp
   }));
 }
 
-// Cố vấn của lớp sinh hoạt sinh viên đang thuộc; lớp chưa được phân công cố vấn thì null.
 export async function studentAdvisor(studentId: string): Promise<StudentAdvisor | null> {
   if (!isUuid(studentId)) return null;
   const [row] = await db
@@ -87,7 +83,6 @@ export async function studentAdvisor(studentId: string): Promise<StudentAdvisor 
   return { ...contact, displayName: `${title} ${fullName}` };
 }
 
-// --- Ghi của cố vấn (dùng chung cho server action và test) ---
 
 export class AdvisingError extends Error {
   constructor(
@@ -102,7 +97,6 @@ const STUDENT_APPOINTMENT_HREF = "/application/advising";
 
 const whenOf = (date: string, startTime: string) => `${startTime.slice(0, 5)} ngày ${formatDate(date)}`;
 
-// Sinh viên đang được giảng viên này cố vấn (lớp sinh hoạt được phân công, chưa tốt nghiệp) trong danh sách cho trước.
 export async function adviseesAmong(tx: Transaction, lecturerId: string, studentIds: string[]) {
   if (studentIds.length === 0) return new Set<string>();
   const rows = await tx
@@ -113,7 +107,6 @@ export async function adviseesAmong(tx: Transaction, lecturerId: string, student
   return new Set(rows.map((row) => row.id));
 }
 
-// Cố vấn không có hai buổi "đã hẹn" chồng giờ (khóa theo cố vấn để hai lần đặt song song không cùng lọt).
 async function assertAdvisorFree(tx: Transaction, advisorId: string, slot: { date: string; startTime: string; durationMinutes: number }, exceptId?: string) {
   await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${`advising:${advisorId}`}, 0))`);
   const sameDay = await tx
@@ -154,8 +147,6 @@ async function ownScheduled(tx: Transaction, advisorId: string, id: string) {
   return { ...row, startTime: row.startTime.slice(0, 5) };
 }
 
-// Ghi nhận buổi đã diễn ra (đã tới giờ hẹn): có mặt, vắng theo TỪNG sinh viên được mời; ghi chú vào hồ sơ chỉ cho người có
-// mặt và còn thuộc lớp mình cố vấn.
 export async function recordAppointmentOutcome(tx: Transaction, advisorId: string, input: z.output<typeof APPOINTMENT_OUTCOME_SCHEMA>) {
   const appointment = await ownScheduled(tx, advisorId, input.id);
   if (appointmentStart(appointment).isAfter(dayjs())) throw new AdvisingError("Buổi hẹn chưa diễn ra, chưa ghi nhận được. Muốn đổi giờ thì dời lịch.");
@@ -186,7 +177,6 @@ export async function recordAppointmentOutcome(tx: Transaction, advisorId: strin
   return { status, noteIds: rows.map((row) => row.id) };
 }
 
-// Dời buổi hẹn chưa diễn ra sang giờ khác (không trùng buổi khác), báo từng sinh viên được mời.
 export async function rescheduleAppointment(tx: Transaction, advisor: { id: string; displayName: string }, input: z.output<typeof APPOINTMENT_RESCHEDULE_SCHEMA>) {
   const appointment = await ownScheduled(tx, advisor.id, input.id);
   if (!appointmentStart(input).isAfter(dayjs())) throw new AdvisingError("Giờ hẹn mới đã qua, chọn giờ khác.", "startTime");
@@ -208,7 +198,6 @@ export async function rescheduleAppointment(tx: Transaction, advisor: { id: stri
   );
 }
 
-// Hủy buổi hẹn còn "đã hẹn" của chính mình, báo từng sinh viên được mời.
 export async function cancelAppointmentFor(tx: Transaction, advisor: { id: string; displayName: string }, id: string) {
   const appointment = await ownScheduled(tx, advisor.id, id);
   await tx.update(advisingAppointments).set({ status: "cancelled" }).where(eq(advisingAppointments.id, id));
@@ -225,7 +214,6 @@ export async function cancelAppointmentFor(tx: Transaction, advisor: { id: strin
   );
 }
 
-// Ghi chú cố vấn độc lập cho sinh viên mình cố vấn.
 export async function addAdvisingNote(tx: Transaction, advisorId: string, input: z.output<typeof ADVISING_NOTE_SCHEMA>) {
   const advisees = await adviseesAmong(tx, advisorId, [input.studentId]);
   if (!advisees.has(input.studentId)) throw new AdvisingError("Chỉ ghi chú được cho sinh viên thuộc lớp bạn cố vấn.", "studentId");

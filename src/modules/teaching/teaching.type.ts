@@ -33,7 +33,6 @@ export type Syllabus = {
   assessments: SyllabusAssessment[];
   references: string[];
   version: number;
-  // Các bản cách tính điểm cũ (mới nhất trước), chỉ có khi đề cương đã công bố rồi đổi đánh giá.
   revisions: SyllabusRevision[];
 };
 
@@ -55,7 +54,6 @@ export type ClassAnnouncement = {
   sendEmail: boolean;
   status: ClassAnnouncementStatus;
   publishAt: string;
-  // Lúc đã báo sinh viên; trống là bài hẹn giờ chưa tới giờ hoặc chưa được tác vụ nền báo.
   notifiedAt: string | null;
   author: string;
   readCount: number;

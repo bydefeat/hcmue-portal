@@ -7,9 +7,6 @@ import { academicRequests, requestSteps } from "@/modules/requests/requests.sche
 
 type Executor = Transaction | typeof db;
 
-// Số học kỳ bảo lưu sinh viên đã dùng: đơn bảo lưu đã duyệt (theo thời gian xin trong đơn), cộng đơn đang xử lý nếu xét lúc gửi đơn
-// (để không gửi chồng nhiều đơn vượt quy chế), cộng quyết định bảo lưu lập tay (không từ đơn) đã ký, mỗi quyết định tính một học kỳ.
-// Dùng chung cho lúc gửi đơn (requests.action) và lúc duyệt đơn (users.request-effects).
 export async function reserveTermsUsed(executor: Executor, studentId: string, options: { excludeRequestId?: string; includeInFlight: boolean }) {
   const rejected = executor
     .select({ id: requestSteps.id })
@@ -41,7 +38,6 @@ export async function reserveTermsUsed(executor: Executor, studentId: string, op
           eq(studentDecisions.studentId, studentId),
           eq(studentDecisions.kind, "reserve"),
           eq(studentDecisions.status, "signed"),
-          // Quyết định lập từ đơn ghi mã đơn ở phần căn cứ, đã tính theo đơn ở trên.
           notLike(studentDecisions.basis, "%DT-____-_____%"),
         ),
       ),

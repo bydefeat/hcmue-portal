@@ -18,7 +18,6 @@ type RegistrationPeriodListProps = {
   periods: RegistrationPeriodView[];
   cohorts: number[];
   regulationCredits: { minPerTerm: number; maxPerTerm: number };
-  // Đợt đăng ký là dữ liệu toàn trường: vai trò theo khoa chỉ xem.
   canManage: boolean;
 };
 

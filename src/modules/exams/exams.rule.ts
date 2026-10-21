@@ -8,7 +8,6 @@ import type { ExamConflict, ExamFormat, ExamPaperFileKind, ExamPaperStatus, Exam
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const FORMATS = ["written", "multiple-choice", "practical", "oral", "project"] as const;
 
-// Giờ bắt đầu thi (giờ Việt Nam) của ca.
 export function examStartsAt(date: string, startTime: string) {
   return schoolTime(`${date}T${startTime.slice(0, 5)}`);
 }
@@ -30,8 +29,6 @@ const ROOM = z.object({
     .max(MAX_PROCTORS_PER_ROOM, `Mỗi phòng tối đa ${MAX_PROCTORS_PER_ROOM} cán bộ coi thi`),
 });
 
-// Ngày giờ, thời lượng, hạn nộp đề, phòng thi và cán bộ coi thi của một ca (dùng khi tạo và khi sửa). Ngày không rơi vào chủ
-// nhật; giờ bắt đầu là một trong các ca thi của trường; hạn nộp đề trước giờ thi; một cán bộ chỉ coi một phòng.
 const SLOT = z.object({
   date: z
     .string("Chưa chọn ngày")
@@ -50,7 +47,6 @@ const SLOT = z.object({
       const ids = rooms.flatMap((room) => room.proctorIds);
       return new Set(ids).size === ids.length;
     }, "Một cán bộ chỉ coi một phòng trong ca"),
-  // Lý do khi vẫn lưu dù trùng lịch thi của sinh viên hoặc trùng giờ dạy của cán bộ coi thi (cảnh báo mềm).
   overrideReason: OPTIONAL_REASON,
 });
 
@@ -64,7 +60,6 @@ export const EXAM_SESSION_UPDATE_SCHEMA = SLOT.extend({ id: z.uuid("Ca thi khôn
 
 export type ExamSessionUpdateInput = z.input<typeof EXAM_SESSION_UPDATE_SCHEMA>;
 
-// Tạo ca: giữa kỳ, cuối kỳ cho cả lớp; ca thi bù trỏ về ca gốc và có danh sách đăng ký thi bù.
 export const EXAM_SESSION_CREATE_SCHEMA = SLOT.extend({
   classSectionId: z.uuid("Chưa chọn lớp học phần"),
   kind: z.enum(["midterm", "final", "makeup"], "Chưa chọn loại ca thi"),
@@ -81,8 +76,6 @@ export type ExamSessionCreateInput = z.input<typeof EXAM_SESSION_CREATE_SCHEMA>;
 
 export const EXAM_SESSION_DELETE_SCHEMA = z.object({ id: z.uuid("Ca thi không hợp lệ"), reason: OPTIONAL_REASON });
 
-// Hình thức thi cuối kỳ theo đề cương: bài đánh giá cuối kỳ (khóa "final" hoặc tên có "cuối kỳ"), đọc hình thức từ ô "Hình thức"
-// tự nhập ("Tự luận 90 phút", "Trắc nghiệm trên máy"...). Không có bài cuối kỳ hay không nhận ra hình thức thì null (dùng mặc định).
 const FORMAT_WORDS: [ExamFormat, RegExp][] = [
   ["multiple-choice", /trac nghiem/],
   ["oral", /van dap/],
@@ -98,7 +91,6 @@ export function finalExamFormatOf(assessments: { key: string; label: string; met
   return FORMAT_WORDS.find(([, words]) => words.test(method))?.[0] ?? null;
 }
 
-// Sinh hàng loạt ca cuối kỳ cho các lớp mở chưa có ca: xếp vào các ngày trong khoảng, các giờ thi của trường.
 export const EXAM_GENERATE_SCHEMA = z
   .object({
     termId: z.uuid(),
@@ -106,7 +98,6 @@ export const EXAM_GENERATE_SCHEMA = z
     toDate: z.string("Chọn ngày kết thúc").regex(DATE, "Ngày không hợp lệ"),
     durationMinutes: z.int("Nhập thời lượng").min(15, "Ít nhất 15 phút").max(240, "Tối đa 240 phút"),
     paperDaysBefore: z.int().min(1, "Ít nhất 1 ngày").max(30, "Tối đa 30 ngày").default(7),
-    // Hình thức cho lớp chưa có đề cương đã công bố hoặc đề cương không ghi rõ hình thức thi cuối kỳ.
     defaultFormat: z.enum(FORMATS, "Chưa chọn hình thức").default("written"),
   })
   .refine((value) => value.fromDate <= value.toDate, { path: ["toDate"], message: "Ngày kết thúc phải sau ngày bắt đầu" })
@@ -147,7 +138,6 @@ export const EXAM_PAPER_SUBMIT_SCHEMA = z.object({
   examSessionId: z.uuid("Ca thi không hợp lệ"),
 });
 
-// Form nộp đề đi qua FormData: ô "examSessionId", tệp ở ô "paper" (đề thi) và "answer-key" (đáp án, thang điểm).
 export function readExamPaperForm(formData: FormData) {
   const fileOf = (name: ExamPaperFileKind) => {
     const entry = formData.get(name);
@@ -162,7 +152,6 @@ export type ExamPaperCheck =
   | { ok: true; files: Record<ExamPaperFileKind, { name: string; contentType: string }> }
   | { ok: false; fieldErrors: Partial<Record<ExamPaperFileKind, string>> };
 
-// Đủ hai tệp, mỗi tệp là PDF thật (đuôi và chữ ký đầu tệp) không quá 20 MB. Báo lỗi riêng cho từng tệp.
 export function checkExamPaperFiles(files: Record<ExamPaperFileKind, ExamPaperUpload | null>): ExamPaperCheck {
   const fieldErrors: Partial<Record<ExamPaperFileKind, string>> = {};
   const checked: Partial<Record<ExamPaperFileKind, { name: string; contentType: string }>> = {};
@@ -180,7 +169,6 @@ export function checkExamPaperFiles(files: Record<ExamPaperFileKind, ExamPaperUp
   return { ok: false, fieldErrors };
 }
 
-// Duyệt đề kèm thời điểm nộp của bản người duyệt đã mở: giảng viên nộp lại trong lúc đó thì từ chối, người duyệt phải xem bản mới.
 export const EXAM_PAPER_APPROVE_SCHEMA = z.object({
   examSessionId: z.uuid("Ca thi không hợp lệ"),
   paperSubmittedAt: z.iso.datetime({ offset: true, message: "Thiếu phiên bản đề đã xem" }),
@@ -202,7 +190,6 @@ export const EXAM_PAPER_RETURN_SCHEMA = z.object({
 
 export type ExamPaperReturnInput = z.input<typeof EXAM_PAPER_RETURN_SCHEMA>;
 
-// Mở khóa đề đã duyệt khi phát hiện lỗi: đề chuyển sang "bị trả lại" kèm lý do, giảng viên nộp lại.
 export const EXAM_PAPER_UNLOCK_SCHEMA = z.object({
   examSessionId: z.uuid("Ca thi không hợp lệ"),
   reason: RETURN_REASON,
@@ -212,7 +199,6 @@ export type ExamPaperUnlockInput = z.input<typeof EXAM_PAPER_UNLOCK_SCHEMA>;
 
 type PaperState = { status: ExamSessionStatus; paperStatus: ExamPaperStatus; hasStarted: boolean };
 
-// Chỉ xét đề đang chờ duyệt (đã nộp hoặc vừa nộp lại) của ca chưa thi. Trả câu báo khi không xét được, null khi được.
 export function paperReviewBlockedReason(exam: PaperState) {
   if (exam.status === "done" || exam.hasStarted) return "Ca thi đã diễn ra, không xét đề nữa.";
   if (exam.paperStatus === "not-submitted") return "Giảng viên chưa nộp đề.";
@@ -221,11 +207,8 @@ export function paperReviewBlockedReason(exam: PaperState) {
   return null;
 }
 
-// Giảng viên nộp (lại) được khi ca chưa thi và đề chưa duyệt; đề bị trả lại thì nộp lại được.
 export const PAPER_SUBMITTABLE_STATUSES = ["not-submitted", "submitted", "returned"] as const satisfies readonly ExamPaperStatus[];
 
-// Câu báo khi giảng viên không nộp được đề, null khi được. Quá hạn nộp thì không nộp lần đầu hay thay bản đang chờ duyệt;
-// đề bị trả lại thì vẫn nộp lại được tới giờ thi (Phòng Khảo thí đã trả lại, đang chờ bản sửa).
 export function paperSubmitBlockedReason(exam: PaperState & { paperDeadline: string }, now = dayjs()) {
   if (exam.status === "done" || exam.hasStarted) return "Ca thi đã diễn ra, không nộp đề được nữa.";
   if (!(PAPER_SUBMITTABLE_STATUSES as readonly ExamPaperStatus[]).includes(exam.paperStatus)) return "Đề đã được duyệt nên đã khóa.";
@@ -253,13 +236,11 @@ export const PROCTOR_SWAP_DECIDE_SCHEMA = z.object({
 
 export type ProctorSwapDecideInput = z.input<typeof PROCTOR_SWAP_DECIDE_SCHEMA>;
 
-// --- Thời gian, xung đột ---
 
 const minutesOf = (time: string) => Number(time.slice(0, 2)) * 60 + Number(time.slice(3, 5));
 
 export type TimeSlot = { date: string; startTime: string; durationMinutes: number };
 
-// Hai khoảng thời gian cùng ngày chồng nhau (không tính chạm mép: ca 07:30-09:00 và 09:00-10:30 không trùng).
 export function slotsOverlap(a: TimeSlot, b: TimeSlot) {
   if (a.date !== b.date) return false;
   const aStart = minutesOf(a.startTime);
@@ -275,8 +256,6 @@ export type ConflictSession = TimeSlot & {
   proctors: { id: string; name: string }[];
 };
 
-// Xung đột của một ca với các ca khác trong học kỳ: trùng phòng, trùng cán bộ coi thi (chặn hẳn) và số sinh viên thi cả hai ca
-// (cảnh báo mềm, sinh viên phải thi bù một trong hai). studentsShared[id] là số sinh viên chung với ca id.
 export function examConflicts(target: ConflictSession, others: ConflictSession[], studentsShared: Record<string, number> = {}): ExamConflict[] {
   const conflicts: ExamConflict[] = [];
   for (const other of others) {
@@ -291,21 +270,16 @@ export function examConflicts(target: ConflictSession, others: ConflictSession[]
   return conflicts;
 }
 
-// --- Chia thí sinh vào phòng ---
 
 const givenName = (name: string) => name.trim().split(/\s+/).at(-1) ?? "";
 
-// Tên người Việt xếp theo tên (chữ cuối), rồi họ đệm, rồi mã sinh viên.
 export function byVietnameseName(a: { fullName: string; code: string }, b: { fullName: string; code: string }) {
   return givenName(a.fullName).localeCompare(givenName(b.fullName), "vi") || a.fullName.localeCompare(b.fullName, "vi") || a.code.localeCompare(b.code);
 }
 
-// Xếp thí sinh (đã theo thứ tự) lần lượt vào các phòng theo sức chứa thi; số báo danh đánh liên tục từ 1. Thiếu chỗ thì trả số
-// người chưa có chỗ (không xếp ai).
 export function assignCandidates<T>(candidates: T[], rooms: { id: string; examCapacity: number }[]) {
   const capacity = rooms.reduce((sum, room) => sum + room.examCapacity, 0);
   if (candidates.length > capacity) return { ok: false as const, shortfall: candidates.length - capacity, capacity };
-  // Chia đều để các phòng không lệch nhau quá nhiều (phòng sau không chỉ còn vài người), nhưng không vượt sức chứa từng phòng.
   const assigned: { candidate: T; roomId: string; candidateNumber: number }[] = [];
   let remaining = candidates.length;
   let remainingCapacity = capacity;
@@ -322,15 +296,11 @@ export function assignCandidates<T>(candidates: T[], rooms: { id: string; examCa
   return { ok: true as const, assigned, capacity };
 }
 
-// --- Điều kiện dự thi ---
 
-// Cấm thi khi số tiết vắng (gồm vắng có phép) VƯỢT QUÁ ngưỡng phần trăm trên tổng số tiết kế hoạch của học phần. Tính trên tổng
-// kế hoạch nên đầu học kỳ vắng vài buổi chưa bị kết luận cấm thi.
 export function isBannedFromExam(absentPeriods: number, plannedPeriods: number, limitPercent: number) {
   return plannedPeriods > 0 && absentPeriods * 100 > limitPercent * plannedPeriods;
 }
 
-// Vắng thêm ngần này tiết nữa thì bị cấm thi (0 là đã bị cấm), để cảnh báo sớm.
 export function periodsLeftBeforeBan(absentPeriods: number, plannedPeriods: number, limitPercent: number) {
   if (plannedPeriods <= 0) return null;
   const allowed = Math.floor((limitPercent * plannedPeriods) / 100);

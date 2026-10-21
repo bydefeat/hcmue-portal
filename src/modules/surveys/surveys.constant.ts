@@ -15,13 +15,10 @@ export const SURVEY_STATUS: Record<SurveyStatus, StatusMeta> = {
   closed: { label: "Đã đóng", tone: "neutral" },
 };
 
-// Điểm chung dưới ngưỡng này thì khoa cần trao đổi với giảng viên. Đặt ở đây (không ở component client) để trang server so sánh được.
 export const LOW_SCORE = 3.5;
 
-// Giảng viên chỉ xem kết quả lớp có từ ngần này phiếu, để không đoán được ai đánh giá (phiếu khảo sát hứa với sinh viên).
 export const MIN_RESPONSES_FOR_LECTURER = 5;
 
-// Nhắc sinh viên chưa làm khảo sát cách nhau ít nhất ngần này giờ.
 export const SURVEY_REMIND_GAP_HOURS = 24;
 
 export const STUDENT_SURVEYS_HREF = "/application/surveys";

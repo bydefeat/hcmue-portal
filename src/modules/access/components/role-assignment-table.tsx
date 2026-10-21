@@ -40,7 +40,6 @@ export function RoleAssignmentTable({ assignments, roles, faculties, candidates,
   }, [open, form]);
 
   const roleName = (id: string) => roles.find((role) => role.id === id)?.name ?? id;
-  // Người theo khoa chỉ cấp vai trò theo khoa không có quyền phân quyền, trong đúng khoa của mình.
   const grantableRoles = viewerFaculty === null ? roles : roles.filter((role) => role.scope === "faculty" && !isPrivilegedRole(role));
   const facultyChoices = viewerFaculty === null ? faculties : [viewerFaculty];
 

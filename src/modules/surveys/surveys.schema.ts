@@ -15,9 +15,7 @@ export const surveys = pgTable(
     title: text().notNull(),
     opensAt: timestamp({ withTimezone: true }).notNull(),
     closesAt: timestamp({ withTimezone: true }).notNull(),
-    // Lúc đã xáo lại phiếu sau khi đóng đợt (xem sealSurvey): từ đó giảng viên mới xem được kết quả.
     sealedAt: timestamp({ withTimezone: true }),
-    // Lần nhắc sinh viên chưa làm gần nhất, để không nhắc dồn dập.
     remindedAt: timestamp({ withTimezone: true }),
     createdByUserId: uuid().references(() => user.id, { onDelete: "set null" }),
     ...timestamps(),
@@ -63,7 +61,6 @@ export const surveySubmissions = pgTable(
   (table) => [primaryKey({ columns: [table.surveyId, table.classSectionId, table.studentId] }), index().on(table.classSectionId), index().on(table.studentId)],
 );
 
-// Phiếu trả lời ẩn danh: id ngẫu nhiên (uuid v4, không mang thời điểm), không cột thời gian, không khóa tới sinh viên.
 export const surveyResponses = pgTable(
   "survey_responses",
   {

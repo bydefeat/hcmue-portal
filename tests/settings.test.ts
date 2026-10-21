@@ -49,7 +49,6 @@ describe("settings: quy chế đào tạo", () => {
     const at = await regulationAt(db, "2024-01-01");
     assert.equal(at.version, "2023.1");
     assert.equal((await regulationAt(db, "2026-10-20")).version, REGULATION.version);
-    // Trước bản sớm nhất thì lấy bản sớm nhất.
     assert.equal((await regulationAt(db, "2000-01-01")).version, "2021.1");
   });
 
@@ -69,7 +68,6 @@ describe("settings: quy chế đào tạo", () => {
       { field: "Giảm hạng khi bị kỷ luật từ mức", before: "Cảnh cáo", after: "Đình chỉ học tập có thời hạn" },
       { field: "Hạng tốt nghiệp bị giảm", before: "Xuất sắc, Giỏi", after: "Xuất sắc" },
     ]);
-    // Bản cũ thiếu tham số mới vẫn so được.
     const { graduation: _graduation, ...older } = rules;
     assert.ok(regulationChanges(older as typeof rules, rules).some((change) => change.field === "Chuẩn ngoại ngữ tối thiểu" && change.before === "Không có"));
     assert.deepEqual(regulationChanges(rules, rules), []);
@@ -109,7 +107,6 @@ describe("settings: ràng buộc ở DB", () => {
   });
 
   test("báo cáo đã xong phải có tệp và số dòng", async () => {
-    // Seed không có lịch sử xuất (mỗi lần xuất lưu tệp thật): báo cáo đã xong mà thiếu tệp bị chặn ngay khi ghi.
     const error = await db
       .insert(reportExports)
       .values({ reportKey: "moet", status: "done", rowCount: 1, fileName: "moet.csv", contentType: "text/csv", sizeBytes: 1, finishedAt: new Date() })
@@ -128,7 +125,6 @@ describe("settings: xuất báo cáo Excel", () => {
     assert.equal(reportFileName("registration", "hk1-2026", "xlsx"), "registration-hk1-2026.xlsx");
     assert.equal(reportFileName("registration", "hk1-2026", "pdf"), "registration-hk1-2026.pdf");
     assert.equal(reportFileName("registration", "hk1-2026", undefined), "registration-hk1-2026.csv");
-    // Báo cáo số liệu hiện tại không ghi mã học kỳ mà ghi ngày xuất.
     assert.equal(reportFileName("moet", null, "xlsx", "2026-10-20"), "moet-2026-10-20.xlsx");
     assert.equal(reportCellText({ value: 0.853, text: "85,3%", numFmt: "0.0%" }), "85,3%");
     assert.equal(reportCellText(42), 42);

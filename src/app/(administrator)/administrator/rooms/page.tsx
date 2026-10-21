@@ -18,7 +18,6 @@ export default async function Page() {
     for (const meeting of section.meetings) {
       bookings[meeting.room] = [...(bookings[meeting.room] ?? []), { code: section.code, courseName: section.courseName, ...meeting }];
     }
-    // Nhóm thực hành cũng chiếm phòng.
     for (const group of section.labGroups) {
       bookings[group.meeting.room] = [...(bookings[group.meeting.room] ?? []), { code: group.code, courseName: `${section.courseName} (thực hành)`, ...group.meeting }];
     }

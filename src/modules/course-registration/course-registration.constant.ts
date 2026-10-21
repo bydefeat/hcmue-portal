@@ -15,7 +15,6 @@ import type {
   SectionAudience,
 } from "@/modules/course-registration/course-registration.type";
 
-// Mặc định khi chưa đọc được quy chế; số giờ "sắp đóng" thật lấy từ quy chế (workflow.registrationClosingSoonHours).
 export const DEFAULT_CLOSING_SOON_HOURS = 48;
 
 export const REGISTRATION_PERIOD_STATE: Record<RegistrationPeriodState, StatusMeta> = {
@@ -47,8 +46,6 @@ export function allMeetings(section: Pick<ClassSection, "meetings" | "labGroups"
   return [...section.meetings, ...section.labGroups.map((group) => group.meeting)];
 }
 
-// Trùng phòng và trùng giờ giảng viên (giảng viên dạy cả buổi lý thuyết lẫn nhóm thực hành của lớp), cùng tiêu chí với server khi lưu
-// lớp, phân công giảng viên. Phải truyền đủ lớp của cả học kỳ (mọi khoa) để không sót trùng phòng với lớp khoa khác.
 export function conflictsOf(section: Pick<ClassSection, "id" | "status" | "lecturerId" | "meetings" | "labGroups">, siblings: Pick<ClassSection, "id" | "code" | "status" | "lecturerId" | "meetings" | "labGroups">[]): ClassConflict[] {
   if (section.status === "cancelled") return [];
   const conflicts: ClassConflict[] = [];

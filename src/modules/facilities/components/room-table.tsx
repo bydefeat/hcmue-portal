@@ -21,7 +21,6 @@ type RoomTableProps = {
   campuses: Campus[];
   bookings: Record<string, RoomBooking[]>;
   termName: string;
-  // Danh mục phòng là dữ liệu toàn trường: vai trò theo khoa chỉ xem lịch phòng (server cũng chặn).
   canManage: boolean;
 };
 

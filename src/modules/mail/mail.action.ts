@@ -11,8 +11,6 @@ import { deliverMailSoon } from "@/modules/mail/mail.lib";
 import { MAIL_RETRY_SCHEMA, type MailRetryInput } from "@/modules/mail/mail.rule";
 import { mailOutbox } from "@/modules/mail/mail.schema";
 
-// Gửi lại thư lỗi (đã ngừng thử hoặc đang chờ gửi lại): đếm lại số lần thử từ đầu và gửi ngay sau khi trả phản hồi.
-// Thư đang gửi dở không đụng tới để không gửi trùng.
 export async function retryMail(input: MailRetryInput): Promise<ActionResult<{ retried: number }>> {
   const viewer = await requireSchoolWidePermission("settings.manage");
   const parsed = parseInput(MAIL_RETRY_SCHEMA, input);

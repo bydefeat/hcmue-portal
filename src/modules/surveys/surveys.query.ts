@@ -51,14 +51,12 @@ async function surveyRows(where: SQL | undefined, limit?: number): Promise<Surve
   }));
 }
 
-// Đợt khảo sát sinh viên đang làm: đợt mở gần nhất (đã mở) của học kỳ hiện tại.
 export const getSurvey = cache(async (): Promise<Survey | null> => {
   await requireSession();
   const [survey] = await surveyRows(and(eq(terms.isCurrent, true), lte(surveys.opensAt, sql`now()`)), 1);
   return survey ?? null;
 });
 
-// Mọi đợt khảo sát (mới nhất trước) cho Phòng Đào tạo, khoa: xem đợt cũ, quản lý đợt sắp tới.
 export async function getSurveys(): Promise<Survey[]> {
   await requirePermission("surveys.view");
   return surveyRows(undefined);
@@ -66,8 +64,6 @@ export async function getSurveys(): Promise<Survey[]> {
 
 const lecturerName = sql<string | null>`CASE WHEN ${lecturers.id} IS NULL THEN NULL ELSE ${lecturers.title} || ' ' || ${lecturers.fullName} END`;
 
-// Kết quả tổng hợp theo lớp từ các phiếu ẩn danh. Mặc định gồm cả lớp chưa có phiếu (để tỉ lệ phản hồi tính đúng mẫu số);
-// minResponses > 0 thì chỉ lớp đủ số phiếu.
 async function sectionResults(survey: Survey, where?: SQL, minResponses = 0): Promise<SectionSurveyResult[]> {
   const sections = await db
     .select({
@@ -103,7 +99,6 @@ async function sectionResults(survey: Survey, where?: SQL, minResponses = 0): Pr
       .select({ sectionId: surveyResponses.classSectionId, comment: surveyResponses.comment })
       .from(surveyResponses)
       .where(and(eq(surveyResponses.surveyId, survey.id), inArray(surveyResponses.classSectionId, sectionIds), isNotNull(surveyResponses.comment)))
-      // id ngẫu nhiên nên thứ tự góp ý không theo thứ tự nộp.
       .orderBy(asc(surveyResponses.id)),
   ]);
   const questionIds = survey.questions.map((question) => question.id);
@@ -121,7 +116,6 @@ async function sectionResults(survey: Survey, where?: SQL, minResponses = 0): Pr
     .filter((row) => row.responses >= minResponses);
 }
 
-// Kết quả một đợt cho Phòng Đào tạo và khoa (trang lọc theo phạm vi khoa), kể cả lớp chưa có phiếu.
 export async function getSurveyResults(surveyId: string): Promise<SectionSurveyResult[]> {
   await requirePermission("surveys.view");
   if (!isUuid(surveyId)) return [];
@@ -146,14 +140,12 @@ export async function getLecturerSurvey(surveyId?: string) {
   return lecturerSurveyOf(lecturer.id, surveyId);
 }
 
-// Kết quả các lớp của giảng viên đang đăng nhập trong đợt đang xem: chỉ sau khi đợt đóng (và đã xáo phiếu), chỉ lớp đủ số phiếu tối thiểu.
 export async function getSurveyResultsForLecturer(surveyId?: string): Promise<SectionSurveyResult[]> {
   const lecturer = await getCurrentLecturer();
   const survey = await lecturerSurveyOf(lecturer.id, surveyId);
   return survey ? sectionResults(survey, eq(classSections.lecturerId, lecturer.id), MIN_RESPONSES_FOR_LECTURER) : [];
 }
 
-// Điểm chung trung bình các lớp của khoa giảng viên (lớp đủ số phiếu) ở đợt đang xem, để giảng viên so sánh.
 export async function getFacultySurveyAverage(surveyId?: string): Promise<number | null> {
   const lecturer = await getCurrentLecturer();
   const survey = await lecturerSurveyOf(lecturer.id, surveyId);
@@ -167,7 +159,6 @@ export async function getFacultySurveyAverage(surveyId?: string): Promise<number
   return results.length > 0 ? results.reduce((sum, result) => sum + result.overall, 0) / results.length : null;
 }
 
-// Lớp sinh viên đang đăng nhập cần đánh giá trong đợt khảo sát, đã gửi hay chưa (không có thời điểm gửi).
 export async function getStudentSurveyTasks(surveyId: string): Promise<StudentSurveyTask[]> {
   const student = await getCurrentStudent();
   if (!isUuid(surveyId)) return [];

@@ -2,10 +2,7 @@ import "server-only";
 import { connect } from "node:net";
 import { env } from "@/shared/libs/env.lib";
 
-// Quét virus tệp tải lên bằng clamd (ClamAV) qua TCP, lệnh INSTREAM: gửi "zINSTREAM\0", rồi từng khúc <độ dài 4 byte big-endian>
-// <dữ liệu>, kết thúc bằng khúc độ dài 0; clamd trả "stream: OK" hoặc "stream: <tên mẫu> FOUND" (kết thúc bằng \0).
 
-// Tệp bị từ chối vì lý do người dùng cần biết (có mã độc, chưa quét được): action trả nguyên câu báo này cho form.
 export class UploadRejectedError extends Error {}
 
 export type ClamdConfig = { host: string; port: number; timeoutMs?: number };
@@ -22,11 +19,9 @@ export function parseClamdReply(reply: string): ScanResult {
   if (text === "stream: OK") return { clean: true };
   const found = /^stream: (.+) FOUND$/.exec(text);
   if (found) return { clean: false, signature: found[1] };
-  // "INSTREAM size limit exceeded. ERROR", lỗi khác: coi như chưa quét được.
   throw new Error(`clamd trả lời lạ: ${text.slice(0, 200)}`);
 }
 
-// Không có trả lời trọn vẹn (mất kết nối, hết giờ, clamd đóng giữa chừng) thì ném lỗi, nơi gọi từ chối tệp.
 export function clamdScan(data: Uint8Array, config: ClamdConfig): Promise<ScanResult> {
   return new Promise((resolve, reject) => {
     const socket = connect({ host: config.host, port: config.port });
@@ -61,7 +56,6 @@ export function clamdScan(data: Uint8Array, config: ClamdConfig): Promise<ScanRe
         finish(error as Error);
       }
     });
-    // clamd có thể gửi lỗi rồi đóng trước khi nhận hết dữ liệu (ghi tiếp bị EPIPE): ưu tiên câu trả lời đã nhận.
     const closed = (error?: Error) => {
       if (received.length > 0) {
         try {
@@ -81,8 +75,6 @@ export function virusScanConfig(): ClamdConfig | null {
   return env.DEFEAT_CLAMAV_HOST ? { host: env.DEFEAT_CLAMAV_HOST, port: env.DEFEAT_CLAMAV_PORT } : null;
 }
 
-// Quét một tệp người dùng tải lên trước khi ghi vào kho. Chưa cấu hình clamd thì bỏ qua; đã cấu hình mà clamd không trả lời
-// thì từ chối (không cho tệp chưa quét lọt vào kho).
 export async function assertCleanUpload(file: { data: Uint8Array; name?: string; key?: string }, config = virusScanConfig()) {
   if (!config) return;
   let result: ScanResult;

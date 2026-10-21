@@ -5,7 +5,6 @@ export type PlanTerm = { academicYear: number; semester: number };
 
 const TERM_NAME = /^Học kỳ (1|2|hè), năm học (\d{4})-(\d{4})$/;
 
-// Tên học kỳ trên giao diện ("Học kỳ 2, năm học 2026-2027") là cách hiển thị của (năm học, học kỳ) lưu trong DB.
 export function termNameOf({ academicYear, semester }: PlanTerm) {
   return `Học kỳ ${semester === 3 ? "hè" : semester}, năm học ${academicYear}-${academicYear + 1}`;
 }
@@ -22,7 +21,6 @@ export const compareTerms = (a: PlanTerm, b: PlanTerm) => a.academicYear - b.aca
 
 const COURSE_CODE = /^[A-Z]{4}\d{4}$/;
 
-// Dùng chung cho nút Lưu nháp và Gửi duyệt: mỗi cột là một học kỳ, một học phần chỉ nằm ở một cột.
 export const STUDY_PLAN_SCHEMA = z
   .object({
     terms: z
@@ -63,8 +61,6 @@ export const STUDY_PLAN_REVIEW_SCHEMA = z
 
 export type StudyPlanReviewInput = z.input<typeof STUDY_PLAN_REVIEW_SCHEMA>;
 
-// Sinh viên chỉ sửa trực tiếp kế hoạch nháp hoặc bị trả lại. Kế hoạch đã duyệt thì sửa thành phiên bản mới,
-// bản đã duyệt được giữ lại làm lịch sử. Đang chờ duyệt thì khóa cho tới khi cố vấn xét.
 export function planEditMode(status: StudyPlanStatus | null): "create" | "update" | "new-version" | "locked" {
   if (status === null) return "create";
   if (status === "draft" || status === "returned") return "update";
@@ -76,19 +72,15 @@ export type CreditLimits = { min: number; max: number };
 
 export type CreditRules = { minPerTerm: number; maxPerTerm: number; maxSummer: number; maxWhenWarned: number };
 
-// Hạn mức tín chỉ của một học kỳ trong kế hoạch theo quy chế: học kỳ hè tối đa maxSummer, không bắt tối thiểu; học kỳ chính từ
-// minPerTerm, tối đa maxPerTerm, sinh viên đang bị cảnh báo học vụ (chính thức) tối đa maxWhenWarned.
 export function termCreditLimits(term: PlanTerm, credits: CreditRules, warned: boolean): CreditLimits {
   if (term.semester === 3) return { min: 0, max: credits.maxSummer };
   return { min: Math.min(credits.minPerTerm, warned ? credits.maxWhenWarned : credits.maxPerTerm), max: warned ? credits.maxWhenWarned : credits.maxPerTerm };
 }
 
-// Hạn mức theo tên học kỳ hiển thị ("Học kỳ hè, năm học 2026-2027"); tên lạ coi như học kỳ chính.
 export function termCreditLimitsByName(termName: string, credits: CreditRules, warned: boolean): CreditLimits {
   return termCreditLimits(parseTermName(termName) ?? { academicYear: 0, semester: 1 }, credits, warned);
 }
 
-// Học kỳ có tín chỉ ngoài hạn mức; kế hoạch chỉ được gửi duyệt khi không còn học kỳ nào như vậy.
 export function termsOutOfRange<T extends { termName: string; credits: number }>(terms: T[], limitsOf: (termName: string) => CreditLimits) {
   return terms.filter((term) => {
     const limits = limitsOf(term.termName);
@@ -96,7 +88,6 @@ export function termsOutOfRange<T extends { termName: string; credits: number }>
   });
 }
 
-// Các học kỳ kế hoạch xếp được, tính từ học kỳ hiện tại: các học kỳ sau đó cho tới đủ số học kỳ chính, gồm học kỳ hè xen giữa.
 export function upcomingPlanTerms(current: PlanTerm, mainTerms = 3): PlanTerm[] {
   const result: PlanTerm[] = [];
   let cursor = current;

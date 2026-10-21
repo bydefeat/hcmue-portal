@@ -14,7 +14,6 @@ export type WeeklySchedule = { signature: string; description: string };
 
 type Executor = Transaction | typeof db;
 
-// Ngày nghỉ lễ trong lịch năm học chồng lên khoảng ngày học của lớp.
 export async function holidaysBetween(executor: Executor, from: string, to: string): Promise<Holiday[]> {
   return executor
     .select({ title: calendarEvents.title, startDate: calendarEvents.startDate, endDate: calendarEvents.endDate })
@@ -26,7 +25,6 @@ function slotText(entry: { dayOfWeek: number; startPeriod: number; endPeriod: nu
   return `${weekdayLabel(entry.dayOfWeek)} ${periodLabel(entry.startPeriod, entry.endPeriod).toLowerCase()}, phòng ${entry.room}`;
 }
 
-// Lịch tuần hiện tại của lớp (lý thuyết, nhóm thực hành, phòng, khoảng ngày học) dạng chuỗi để so trước và sau khi sửa lớp.
 export async function weeklyScheduleOf(tx: Transaction, sectionId: string): Promise<WeeklySchedule> {
   const [[section], meetings, labs] = await Promise.all([
     tx.select({ startDate: classSections.startDate, endDate: classSections.endDate }).from(classSections).where(eq(classSections.id, sectionId)),
@@ -50,8 +48,6 @@ export async function weeklyScheduleOf(tx: Transaction, sectionId: string): Prom
   };
 }
 
-// Sinh lại buổi học của một lớp theo lịch tuần hiện tại, trong cùng transaction với thao tác sửa lớp. Lớp không mở (nháp, đã hủy)
-// thì không có buổi tương lai. Truyền lịch trước khi sửa (`previous`) thì báo sinh viên của lớp và giảng viên khi lịch tuần thật sự đổi.
 export async function syncClassSessions(tx: Transaction, sectionId: string, options: { previous?: WeeklySchedule | null } = {}) {
   const [[section], [{ today }]] = await Promise.all([
     tx
@@ -119,8 +115,6 @@ export async function syncClassSessions(tx: Transaction, sectionId: string, opti
   return { added: diff.add.length, removed: diff.removeIds.length, kept: diff.kept, notified };
 }
 
-// Lịch năm học đổi ngày nghỉ lễ (module settings) không đi qua lớp học phần: tác vụ định kỳ sinh lại buổi học của mọi lớp đang mở
-// để bỏ buổi rơi vào ngày nghỉ mới, thêm lại buổi của ngày thôi nghỉ. Buổi đã qua, đã điểm danh giữ nguyên; chạy lặp không sinh trùng.
 export async function resyncOpenClassSessions(executor: typeof db) {
   const sections = await executor.select({ id: classSections.id }).from(classSections).where(eq(classSections.status, "open"));
   let added = 0;

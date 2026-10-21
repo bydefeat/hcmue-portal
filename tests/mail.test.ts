@@ -10,8 +10,6 @@ import { deliverDueMail, enqueueMail, purgeSentMail } from "@/modules/mail/mail.
 import { afterFailedAttempt, MAIL_MAX_ATTEMPTS, uniqueRecipients } from "@/modules/mail/mail.rule";
 import { mailOutbox } from "@/modules/mail/mail.schema";
 
-// Mỗi test ghi thư có tiêu đề riêng và chỉ gửi đúng id của mình (deliverDueMail({ ids })): các file test chạy song song
-// không gửi hộ thư của nhau. Dọn hết thư thử ở after() để không còn dòng mail_outbox nào.
 const TAG = `[mail-test ${newId()}]`;
 after(async () => {
   await db.delete(mailOutbox).where(eq(mailOutbox.subject, TAG));
@@ -94,7 +92,6 @@ describe("mail: hàng đợi trên DB", () => {
     }
     const rows = await rowsOf(ids);
     assert.ok(rows.every((row) => row.status === "sent" && row.sentAt && row.attempts === 1 && row.lastError === null));
-    // Đã gửi thì lần chạy sau không gửi lại.
     assert.equal((await deliverDueMail({ ids, send: failing })).claimed, 0);
   });
 
@@ -125,7 +122,6 @@ describe("mail: hàng đợi trên DB", () => {
     const past = new Date(Date.now() - MINUTE);
     await db.update(mailOutbox).set({ status: "sending", attempts: 1, nextAttemptAt: past }).where(eq(mailOutbox.id, stuck));
     await db.update(mailOutbox).set({ status: "sending", attempts: MAIL_MAX_ATTEMPTS, nextAttemptAt: past }).where(eq(mailOutbox.id, last));
-    // Đang trong hạn giữ chỗ thì không ai lấy (lần gửi kia có thể chỉ đang chậm).
     const [fresh] = await enqueueCommitted(["dang-gui@student.hcmue.edu.vn"]);
     await db.update(mailOutbox).set({ status: "sending", attempts: 1, nextAttemptAt: new Date(Date.now() + 5 * MINUTE) }).where(eq(mailOutbox.id, fresh));
 
@@ -151,7 +147,6 @@ describe("mail: hàng đợi trên DB", () => {
       deliveries.set(String(mail.to), (deliveries.get(String(mail.to)) ?? 0) + 1);
       return { ok: true, id: null };
     };
-    // Mỗi lần lấy tối đa 10 thư: ba lần chạy cùng lúc phải chia nhau ba phần rời nhau, không lần nào lấy lại thư lần kia đang giữ.
     const runs = await Promise.all([1, 2, 3].map(() => deliverDueMail({ ids, limit: 10, send: slow })));
     assert.deepEqual(
       runs.map((run) => run.sent),

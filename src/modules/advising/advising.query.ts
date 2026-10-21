@@ -10,7 +10,6 @@ import type { Appointment, AppointmentStudent, MeetingNote } from "@/modules/adv
 import { getCurrentStudent } from "@/modules/users/users.query";
 import { administrativeClasses, lecturers, students } from "@/modules/users/users.schema";
 
-// Lịch hẹn và ghi chú cố vấn chỉ giảng viên xem (cổng giảng viên kiểm thêm là cố vấn của sinh viên).
 async function appointmentRows(where: SQL): Promise<Appointment[]> {
   const rows = await db
     .select({
@@ -52,7 +51,6 @@ async function appointmentRows(where: SQL): Promise<Appointment[]> {
   for (const { appointmentId, ...student } of members) {
     studentsOf.set(appointmentId, [...(studentsOf.get(appointmentId) ?? []), { ...student, code: formatStudentCode(student.code) }]);
   }
-  // Cột time của Postgres trả "14:00:00", giao diện dùng "14:00".
   return rows.map((row) => ({ ...row, startTime: row.startTime.slice(0, 5), students: studentsOf.get(row.id) ?? [] }));
 }
 
@@ -101,7 +99,6 @@ export async function getMeetingNotesByIds(ids: string[]) {
   return valid.length > 0 ? noteRows(inArray(advisingNotes.id, valid)) : [];
 }
 
-// Lịch hẹn của sinh viên đang đăng nhập (chỉ buổi mình được mời) và liên hệ cố vấn lớp.
 export async function getMyAppointments() {
   const student = await getCurrentStudent();
   return studentAppointments(student.id);

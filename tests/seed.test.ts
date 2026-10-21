@@ -42,7 +42,6 @@ import type { PgTable } from "drizzle-orm/pg-core";
 
 after(() => db.$client.end());
 
-// Seed phải ghi đúng id của dữ liệu mẫu: module còn đọc mock tham chiếu sinh viên, lớp, học kỳ theo các id này.
 describe("seed khớp dữ liệu mẫu", () => {
   test("id tất định của học kỳ, lớp học phần, sinh viên có trong DB", async () => {
     const [term] = await db.select().from(terms).where(eq(terms.id, mockTermId("hk1-2026")));
@@ -62,7 +61,6 @@ describe("seed khớp dữ liệu mẫu", () => {
     const totalOf = new Map(rows.map((row) => [row.id, row.total]));
     const sections = await db.select({ id: classSections.id, enrolled: classSections.enrolledCount }).from(classSections);
     for (const section of sections) assert.equal(section.enrolled, totalOf.get(section.id) ?? 0);
-    // Seed chỉ xếp sinh viên đủ điều kiện (đối tượng, tiên quyết, song hành) nên lớp có thể ít hơn sĩ số mẫu.
     const mockEnrolled = new Map(CLASS_SECTIONS.map((entry) => [entry.id, entry.status === "open" ? entry.enrolled : 0]));
     for (const section of sections) assert.ok(section.enrolled <= mockEnrolled.get(section.id)!);
     assert.ok(sections.reduce((total, section) => total + section.enrolled, 0) > 1000);
@@ -82,7 +80,6 @@ describe("seed khớp dữ liệu mẫu", () => {
   });
 
   test("đơn từ: đủ đơn, bước, tệp của dữ liệu mẫu; bộ đếm mã nối tiếp mã lớn nhất", async () => {
-    // Đếm theo id của mock: requests.test.ts chạy song song, tạo đơn thật rồi mới dọn.
     const requestIds = REQUESTS.map((request) => request.id);
     const [requestCount] = await db.select({ total: count() }).from(academicRequests).where(inArray(academicRequests.id, requestIds));
     assert.equal(requestCount.total, REQUESTS.length);
@@ -122,7 +119,6 @@ describe("seed khớp dữ liệu mẫu: lịch học, lịch thi, khảo sát",
     const [exam] = await db.select().from(examSessions).where(eq(examSessions.id, first.id));
     assert.equal(exam?.classSectionId, first.classSectionId);
     assert.equal(exam?.kind, first.kind);
-    // Mỗi phòng thi đủ 2 cán bộ coi thi, không phòng nào vượt sức chứa thi, không thi chủ nhật, giờ thi trong các ca của trường.
     const rooms = await db.execute<{ proctors: number; candidates: number; capacity: number }>(sql`
       SELECT (SELECT count(*) FROM exam_proctors p WHERE p.exam_room_id = r.id)::int AS proctors,
         (SELECT count(*) FROM exam_candidates c WHERE c.exam_room_id = r.id)::int AS candidates, ro.exam_capacity AS capacity
@@ -168,7 +164,6 @@ describe("seed khớp dữ liệu mẫu: học phí, thông báo, nhật ký, c�
   test("thông báo công khai, thông báo cá nhân, nhật ký đủ số dòng và giữ id của mock", async () => {
     const [[announcement], [notification], [log]] = await Promise.all([
       db.select({ total: count() }).from(announcements),
-      // Đếm theo id của mock: test khác (requests.test.ts) chạy song song và ghi thật thông báo, nhật ký rồi mới dọn.
       db.select({ total: count() }).from(notifications).where(inArray(notifications.id, NOTIFICATIONS.map((item) => item.id))),
       db.select({ total: count() }).from(auditLogs).where(inArray(auditLogs.id, AUDIT_LOG.map((entry) => entry.id))),
     ]);
@@ -228,7 +223,6 @@ describe("seed khớp dữ liệu mẫu: học phí, thông báo, nhật ký, c�
 describe("seed grades, graduation khớp dữ liệu mẫu", () => {
   test("mỗi học phần đã học trong bảng điểm mẫu là một dòng course_results, cùng điểm và học kỳ", async () => {
     const past = STUDENTS.flatMap((student, index) => mockTranscriptTerms(index).filter((term) => !term.isInProgress).map((term) => ({ student, term })));
-    // Cộng kết quả học phần điều kiện (GDTC, GDQP-AN) seed riêng ở học kỳ đầu, học kỳ thứ hai của mỗi sinh viên.
     const conditional = STUDENTS.reduce(
       (acc, student, index) =>
         acc +
@@ -304,7 +298,6 @@ describe("seed khớp dữ liệu mẫu: giảng dạy, kế hoạch học tập
     assert.equal(await total(studyPlans), STUDY_PLANS.length);
     const [current] = await db.select({ status: studyPlans.status }).from(studyPlans).where(eq(studyPlans.id, mockId("study-plan:12")));
     assert.equal(current?.status, STUDY_PLANS.find((plan) => plan.studentId === CURRENT_STUDENT_ID)?.status);
-    // Sinh viên khóa 50 đang học học kỳ 5 của chương trình CNTT 2023: kế hoạch lấy học kỳ 6, 7, 8, mỗi kỳ đủ 14 tín chỉ.
     const items = await db
       .select({ code: courses.code, academicYear: studyPlanItems.academicYear, semester: studyPlanItems.semester })
       .from(studyPlanItems)

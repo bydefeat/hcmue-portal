@@ -282,7 +282,6 @@ export function StudentRegistration({
     });
   };
 
-  // Lớp khác cùng học phần (và nhóm thực hành khác) để đổi một bước; giữ chỗ cũ tới khi nhận được chỗ mới.
   const swapOptions = (section: ClassSectionView) =>
     sections
       .filter((entry) => entry.courseCode === section.courseCode)
@@ -387,7 +386,6 @@ export function StudentRegistration({
                 const isPlanned = plannedIds.includes(section.id);
                 const isRegistered = registeredIds.includes(section.id);
                 const blocked = issues.some((issue) => issue.blocking);
-                // Chỉ bị chặn vì hết chỗ (đầy, hoặc phần còn lại là chỗ dành riêng): vào danh sách chờ, cùng điều kiện server nhận.
                 const onlyFull = blocked && issues.filter((issue) => issue.blocking).every((issue) => issue.kind === "full" || issue.kind === "reserved");
                 const waitingAt = waitlist[section.id];
                 return (

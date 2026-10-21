@@ -20,12 +20,9 @@ type RequestInboxProps = {
   mode: "process" | "own";
   processAs?: "lecturer" | "office";
   initialStatus?: RequestStatus;
-  // Mở sẵn một đơn (đường dẫn từ thông báo: ?open=<id>).
   initialOpenId?: string;
   showRequester?: boolean;
-  // Phòng Đào tạo chuyển người xử lý: danh sách giảng viên để chọn.
   reassignCandidates?: ReassignCandidate[];
-  // Đơn mới gửi lại từ đơn bị từ chối: trang cha thêm vào danh sách.
   onCreated?: (request: RequestView) => void;
 };
 
@@ -63,7 +60,6 @@ export function RequestInbox({
   const [isPending, startTransition] = useTransition();
   const [decision, setDecision] = useState<"approved" | "rejected" | "supplement">();
 
-  // Quyền tính ở server bằng cùng hàm với action (request.can); ở đây chỉ để ẩn hiện nút.
   const canAct = (request: RequestView) => mode === "process" && request.can.decide;
 
   const actionable = rows.filter(canAct);
@@ -94,11 +90,9 @@ export function RequestInbox({
   const done = (next: RequestView, text: string) => {
     if (rows.some((row) => row.id === next.id)) update(next);
     else {
-      // Đơn gửi lại: đơn mới lên đầu, đơn cũ không gửi lại được nữa.
       setRows((current) => [next, ...current.map((row) => (row.id === next.resubmittedFrom?.id ? { ...row, resubmittedAs: { id: next.id, code: next.code }, can: { ...row.can, resubmit: false } } : row))]);
       setOpenId(next.id);
       setDialog(null);
-      // Trang cha thêm đơn vào danh sách (danh sách dựng lại) và báo thành công.
       if (onCreated) return onCreated(next);
     }
     setDialog(null);

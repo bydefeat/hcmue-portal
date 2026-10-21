@@ -13,8 +13,6 @@ const ENGLISH = "Khoa Tiếng Anh";
 const PHYSICS = "Khoa Vật lý";
 const PSYCHOLOGY = "Khoa Tâm lý học";
 
-// Học phần điều kiện (Thông tư 08/2021): Giáo dục thể chất, Giáo dục quốc phòng và an ninh. Chấm Đạt/Không đạt, không tính
-// điểm trung bình, tín chỉ tích lũy; mọi chương trình đang áp dụng có trong khung ở học kỳ 1, 2.
 export const CONDITIONAL_COURSE_CODES = ["PHYE1001", "PHYE1002", "DEFE1001"] as const;
 
 const CONDITIONAL_SEEDS: CourseSeed[] = [
@@ -83,8 +81,6 @@ const FACULTY_BY_PREFIX: Record<string, string> = {
   PSYC: PSYCHOLOGY,
 };
 
-// Học phần có trong bảng điểm mẫu (mock-course.lib) nhưng chưa khai báo ở trên. Thêm vào danh mục để khung chương trình
-// của mỗi ngành đủ học phần cho cả khóa; mã đã khai báo ở trên giữ tên và số tín chỉ ở trên.
 const DECLARED = new Set(COURSE_SEEDS.map(([code]) => code));
 const TRANSCRIPT_SEEDS: CourseSeed[] = [
   ...new Map(
@@ -117,7 +113,6 @@ const DESCRIPTIONS: Record<string, string> = {
 const CONDITIONAL = new Set<string>(CONDITIONAL_COURSE_CODES);
 
 export const COURSES: Course[] = [...COURSE_SEEDS, ...TRANSCRIPT_SEEDS].map(([code, name, credits, faculty, type, block, prerequisites = []]) => {
-  // Giáo dục thể chất học hoàn toàn thực hành; quốc phòng có 3 tín chỉ thực hành.
   const practiceCredits = code.startsWith("PHYE") ? credits : code === "DEFE1001" ? 3 : code.startsWith("COMP") && credits >= 3 ? 1 : 0;
   return {
     id: code.toLowerCase(),
@@ -149,9 +144,6 @@ export const PROGRAMS: Program[] = [
   { id: "ctdt-cntt-2019", code: "7480201", name: "Công nghệ thông tin (2019)", majorCode: "104", faculty: IT, degree: "Cử nhân", totalCredits: 135, durationYears: 4, cohorts: [45, 46, 47], status: "archived", updatedAt: "2023-07-10" },
 ];
 
-// Khung chương trình của các chương trình đang áp dụng: học phần theo đúng thứ tự sinh viên mẫu đã học
-// (mockCourseSequence), chia đều cho các học kỳ của khóa, để bảng điểm, kế hoạch học tập và xét tốt nghiệp khớp nhau.
-// Học phần điều kiện xếp thêm ở học kỳ 1, 2 (không tính vào tổng tín chỉ của chương trình nên không làm lệch khung).
 export const PROGRAM_COURSES: Record<string, ProgramCourse[]> = Object.fromEntries(
   PROGRAMS.filter((program) => program.status === "active").map((program) => [
     program.id,
@@ -168,9 +160,6 @@ export type ElectiveGroupSeed = { id: string; programId: string; name: string; m
 
 const courseOf = new Map(COURSES.map((course) => [course.code, course]));
 
-// Nhóm tự chọn của các chương trình đang áp dụng, lấy từ học phần tự chọn đã có trong khung: đại cương, chuyên ngành (3 tín chỉ),
-// chuyên đề (2 tín chỉ). Khóa luận (tự chọn khối thực tập) để ngoài nhóm. Số tín chỉ tối thiểu bằng khoảng một nửa số có trong
-// nhóm nên sinh viên khóa 48 đã học hết khung đều đạt, sinh viên khóa sau thấy tiến độ từng nhóm.
 export const ELECTIVE_GROUPS: ElectiveGroupSeed[] = Object.entries(PROGRAM_COURSES).flatMap(([programId, plan]) => {
   const electives = plan.map((entry) => courseOf.get(entry.courseCode)!).filter((course) => course.type === "elective" && !course.isConditional && course.block !== "internship");
   const groups = [
@@ -187,8 +176,6 @@ export const ELECTIVE_GROUPS: ElectiveGroupSeed[] = Object.entries(PROGRAM_COURS
     });
 });
 
-// Kết quả học phần điều kiện của sinh viên mẫu: Giáo dục thể chất 1 ở học kỳ đầu, Giáo dục thể chất 2 và quốc phòng ở học kỳ
-// thứ hai đã học. Vài sinh viên khóa 50, 51 không đạt Giáo dục thể chất 2 để minh họa Không đạt (khóa đang xét tốt nghiệp đều đạt).
 export function conditionalResultSeeds(index: number, pastTermIds: string[], cohort: number) {
   const score = (offset: number) => (60 + ((index * 7 + offset * 3) % 35)) / 10;
   const [first, second] = pastTermIds;

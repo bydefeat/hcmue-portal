@@ -12,7 +12,6 @@ type CourseFormDrawerProps = {
   courses: Course[];
   faculties: string[];
   onClose: () => void;
-  // Trả lỗi theo ô khi server từ chối, để drawer gắn vào đúng ô.
   onSubmit: (values: CourseFormValues) => Promise<Record<string, string> | undefined>;
 };
 

@@ -21,7 +21,6 @@ export type WorkloadRow = AssignableLecturer & {
 
 export type LoadState = "over" | "balanced" | "under" | "none";
 
-// Số tiết mỗi tuần giảng viên đứng lớp: buổi lý thuyết và buổi của từng nhóm thực hành.
 export function periodsPerWeekOf(section: Pick<ClassSection, "meetings" | "labGroups">) {
   return allMeetings(section).reduce((total, meeting) => total + meeting.endPeriod - meeting.startPeriod + 1, 0);
 }
@@ -32,14 +31,11 @@ export function classSizeFactor(size: number) {
   return 1;
 }
 
-// Giờ chuẩn quy đổi của một lớp: số tiết/tuần x 15 tuần x hệ số sĩ số. Lớp đã có sinh viên tính theo sĩ số thật, lớp chưa có ai
-// (đang xếp, nháp) tính theo 80% sĩ số tối đa. Một hàm cho trang phân công, trang khối lượng của giảng viên và getLecturerWorkloads.
 export function sectionStandardHours(section: Pick<ClassSection, "meetings" | "labGroups" | "enrolled" | "capacity">) {
   const size = section.enrolled > 0 ? section.enrolled : Math.round(section.capacity * 0.8);
   return periodsPerWeekOf(section) * TEACHING_WEEKS * classSizeFactor(size);
 }
 
-// Định mức giờ chuẩn theo học hàm, học vị lấy từ bảng lecturer_load_norms; học hàm chưa khai báo thì theo mức mặc định.
 export const DEFAULT_NORM_HOURS = 135;
 
 export function normHoursOf(title: string, norms: Record<string, number>) {
@@ -69,7 +65,6 @@ export function loadStateOf(row: Pick<WorkloadRow, "ratio" | "sections">): LoadS
   return "balanced";
 }
 
-// Cùng tiêu chí với conflictsOf và server (assignLecturer): tính cả buổi của nhóm thực hành.
 export function lecturerClash(section: ClassSectionView, lecturerId: string, sections: ClassSectionView[]) {
   for (const other of sections) {
     if (other.id === section.id || other.lecturerId !== lecturerId || other.status === "cancelled") continue;

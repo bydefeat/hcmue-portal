@@ -84,7 +84,6 @@ export function ClassSectionTable({ sections, terms, termId, initialQuery = "", 
       messageApi.error(result.message);
       return result.fieldErrors;
     }
-    // Xung đột do server tính lại trên cả học kỳ (mọi khoa), không tự tính trên danh sách đã lọc theo khoa.
     setRows(result.data.sections);
     setIsOpen(false);
     const saved = result.data.saved;

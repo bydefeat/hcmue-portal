@@ -6,8 +6,6 @@ import { formatPoint, isResultMark, letterTextClass, RESULT_MARKS } from "@/modu
 import { resultMark, resultPoint4 } from "@/modules/grades/grades.rule";
 import type { TranscriptCourse, TranscriptTerm } from "@/modules/grades/grades.type";
 
-// Học lại, học cải thiện: điểm tính tích lũy là lần học cuối; lần trước đó vẫn hiện nhưng ghi đã được thay thế.
-// W, I, M: ký hiệu kèm giải thích ngắn (không tính điểm, chờ thi bù, miễn).
 function AttemptTags({ course }: { course: TranscriptCourse }) {
   const mark = isResultMark(course.letter) ? RESULT_MARKS[course.letter] : null;
   if (!course.retakeKind && !course.replaced && !mark && !course.isConditional) return null;

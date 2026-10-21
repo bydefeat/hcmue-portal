@@ -17,11 +17,9 @@ export type AuditRecord = {
   entityLabel: string;
   summary: string;
   changes?: AuditChange[];
-  // Bỏ trống thì lấy IP của request hiện tại, cùng header tin cậy với rate limit đăng nhập (client-ip.lib).
   ip?: string | null;
 };
 
-// Người thao tác ở cổng quản trị: tên và vai trò đang dùng (viewer.roleName đã kèm khoa nếu phạm vi theo khoa).
 export function auditActorOf(viewer: { id: string; name: string; roleName: string }): AuditActor {
   return { userId: viewer.id, name: viewer.name, role: viewer.roleName };
 }
@@ -30,12 +28,10 @@ async function requestIp() {
   try {
     return clientIpFrom(await headers());
   } catch {
-    // Ngoài request (script, test) không có headers.
     return null;
   }
 }
 
-// Ghi nhật ký trong cùng transaction với thao tác: thao tác rollback thì dòng nhật ký cũng mất, không ghi nhận việc chưa xảy ra.
 export async function recordAudit(tx: Transaction | typeof db, record: AuditRecord) {
   const ip = record.ip === undefined ? await requestIp() : record.ip;
   await tx.insert(auditLogs).values({
@@ -52,8 +48,6 @@ export async function recordAudit(tx: Transaction | typeof db, record: AuditReco
   });
 }
 
-// Tác vụ audit-cleanup: xóa bản ghi nhật ký cũ hơn DEFEAT_AUDIT_RETENTION_DAYS ngày (mặc định 3 năm). Nhật ký không sửa được,
-// chỉ hết hạn lưu theo cấu hình.
 export async function purgeOldAuditLogs(executor: Transaction | typeof db = db, now = new Date(), retentionDays = env.DEFEAT_AUDIT_RETENTION_DAYS) {
   const cutoff = new Date(now.getTime() - retentionDays * 24 * 3_600_000);
   const removed = await executor.delete(auditLogs).where(lt(auditLogs.at, cutoff)).returning({ id: auditLogs.id });

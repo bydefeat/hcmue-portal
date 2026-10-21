@@ -9,7 +9,6 @@ export type AppointmentStudent = {
   code: string;
   fullName: string;
   className: string;
-  // Có mặt hay vắng ở buổi này; null là chưa ghi nhận (buổi chưa diễn ra hoặc chưa ghi).
   attendance?: AppointmentAttendance | null;
 };
 
@@ -30,7 +29,6 @@ export type Appointment = {
 export type MeetingNote = {
   id: string;
   studentId: string;
-  // Buổi hẹn sinh ra ghi chú; null là ghi chú độc lập.
   appointmentId: string | null;
   at: string;
   author: string;
@@ -49,7 +47,6 @@ export type AppointmentFormValues = {
   location: string;
 };
 
-// Lịch hẹn nhìn từ phía sinh viên: không có ghi chú của cố vấn, không có danh sách sinh viên khác (chỉ số người được mời).
 export type StudentAppointment = {
   id: string;
   topic: string;

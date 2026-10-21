@@ -35,7 +35,6 @@ async function sectionScope(classSectionId: string) {
   return section ?? null;
 }
 
-// Giảng viên đề nghị sửa điểm từ bảng điểm đã công bố của lớp mình dạy; Phòng Đào tạo duyệt.
 export async function proposeAmendmentAsLecturer(input: GradeAmendmentProposeInput): Promise<ActionResult<{ id: string }>> {
   const lecturer = await getCurrentLecturer();
   const { user } = await requireSession();
@@ -54,7 +53,6 @@ export async function proposeAmendmentAsLecturer(input: GradeAmendmentProposeInp
   }
 }
 
-// Phòng Đào tạo nhập điểm (thi bù thay điểm I, sửa sai sót) dưới dạng đề nghị; một cán bộ khác duyệt.
 export async function proposeAmendmentAsOffice(input: GradeAmendmentProposeInput): Promise<ActionResult<{ id: string }>> {
   const viewer = await requirePermission("grades.publish");
   const parsed = parseInput(GRADE_AMENDMENT_PROPOSE_SCHEMA, input);
@@ -70,7 +68,6 @@ export async function proposeAmendmentAsOffice(input: GradeAmendmentProposeInput
   }
 }
 
-// Duyệt (áp điểm, tính lại kết quả theo quy chế lúc công bố) hoặc từ chối đề nghị sửa điểm trong phạm vi khoa.
 export async function decideAmendment(input: GradeAmendmentDecideInput): Promise<ActionResult<{ status: "approved" | "rejected"; resultAfter: string | null }>> {
   const viewer = await requirePermission("grades.publish");
   const parsed = parseInput(GRADE_AMENDMENT_DECIDE_SCHEMA, input);
@@ -92,7 +89,6 @@ export async function decideAmendment(input: GradeAmendmentDecideInput): Promise
   }
 }
 
-// Cột điểm và danh sách sinh viên của lớp cho form nhập điểm của Phòng Đào tạo.
 export async function loadAmendableSheet(classSectionId: string): Promise<ActionResult<AmendableSheet>> {
   const viewer = await requirePermission("grades.publish");
   if (!isUuid(classSectionId)) return actionError("Lớp không hợp lệ.");

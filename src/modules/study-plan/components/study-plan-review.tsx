@@ -22,10 +22,8 @@ function waitingDays(plan: StudyPlan) {
 
 type StudyPlanReviewProps = {
   plans: StudyPlan[];
-  // Hạn mức tín chỉ theo quy chế đang áp dụng và sinh viên đang bị cảnh báo học vụ chính thức (hạn mức riêng).
   credits: CreditRules;
   warnedStudentIds: string[];
-  // Số ngày cố vấn cần duyệt theo quy chế.
   reviewDays: number;
 };
 

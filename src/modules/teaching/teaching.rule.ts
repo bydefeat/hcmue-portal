@@ -1,7 +1,6 @@
 import { z } from "zod";
 import type { ClassAnnouncementStatus, SyllabusAssessment } from "@/modules/teaching/teaching.type";
 
-// Loại đánh giá có khóa cố định: đề cương và bảng điểm dùng chung khóa này để đối chiếu cột điểm với hình thức đánh giá.
 export const ASSESSMENT_KINDS = [
   { key: "attendance", label: "Chuyên cần" },
   { key: "assignment", label: "Bài tập" },
@@ -22,8 +21,6 @@ const plain = (value: string) =>
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
 
-// Khóa ổn định của một hình thức đánh giá: tên trùng một loại trong danh mục thì lấy khóa của loại đó ("Giữa kỳ" là midterm,
-// "Thi cuối kỳ" là final); còn lại là tên viết không dấu. Bảng điểm cũng đối chiếu qua hàm này nên cột "Giữa kỳ" khớp midterm.
 export function assessmentKindKey(label: string) {
   const text = plain(label);
   const kind = ASSESSMENT_KINDS.find((entry) => text === plain(entry.label) || text === `thi-${plain(entry.label)}` || text === `diem-${plain(entry.label)}`);
@@ -32,10 +29,8 @@ export function assessmentKindKey(label: string) {
 
 const isKindKey = (key: string) => ASSESSMENT_KINDS.some((kind) => kind.key === key);
 
-// Cột điểm khớp hình thức đánh giá khi cùng khóa, hoặc tên cột thuộc cùng loại đánh giá.
 const sameAssessment = (item: { key: string }, component: { key: string; label: string }) => item.key === component.key || item.key === assessmentKindKey(component.label);
 
-// Chỗ lệch giữa đề cương và bảng điểm (cột, trọng số); checkTotal để báo cả tổng trọng số đề cương khác 100%.
 export function assessmentMismatches<T extends Pick<SyllabusAssessment, "key" | "label" | "weight">>(assessments: T[], components: { key: string; label: string; weight: number }[], checkTotal = true) {
   const messages: string[] = [];
   const total = assessments.reduce((sum, item) => sum + item.weight, 0);
@@ -51,7 +46,6 @@ export function assessmentMismatches<T extends Pick<SyllabusAssessment, "key" | 
   return messages;
 }
 
-// Cách tính điểm có đổi không (khóa, tên, trọng số theo thứ tự): đề cương đã công bố đổi cách tính điểm phải lên phiên bản mới.
 const gradingShape = (items: Pick<SyllabusAssessment, "key" | "label" | "weight">[]) => JSON.stringify(items.map(({ key, label, weight }) => [key, label, weight]));
 
 export function gradingChanged(before: Pick<SyllabusAssessment, "key" | "label" | "weight">[], after: Pick<SyllabusAssessment, "key" | "label" | "weight">[]) {
@@ -60,8 +54,6 @@ export function gradingChanged(before: Pick<SyllabusAssessment, "key" | "label" 
 
 const text = (max: number) => z.string().trim().max(max, `Tối đa ${max} ký tự`);
 
-// Dùng chung cho form và server action; DB còn chặn bằng syllabus_assessments_weight_range, syllabus_weeks_week_range
-// và trigger syllabus_assessments_weights_total_100 (tổng trọng số phải bằng 100 nếu có đánh giá).
 export const SYLLABUS_SCHEMA = z
   .object({
     classSectionId: z.uuid(),
@@ -83,7 +75,6 @@ export const SYLLABUS_SCHEMA = z
     assessments: z
       .array(
         z.object({
-          // Khóa gửi lên chỉ để chọn loại; server tự suy khóa ổn định (assessmentKindKey) nếu không phải loại trong danh mục.
           key: z.string().trim().max(60).default(""),
           label: z.string().trim().min(1, "Chưa nhập tên hình thức đánh giá").max(100, "Tối đa 100 ký tự"),
           weight: z.int("Nhập trọng số").min(1, "Trọng số ít nhất 1%").max(100, "Trọng số tối đa 100%"),
@@ -99,7 +90,6 @@ export const SYLLABUS_SCHEMA = z
         if (items.length > 0 && total !== 100) context.addIssue({ code: "custom", message: `Tổng trọng số đang là ${total}%, cần đúng 100%.` });
       }),
     references: z.array(text(300)).max(30, "Tối đa 30 tài liệu"),
-    // Đề cương đã công bố mà đổi cách tính điểm: bắt buộc ghi lý do, lưu thành phiên bản mới và báo sinh viên.
     revisionNote: z
       .string()
       .trim()
@@ -112,7 +102,6 @@ export const SYLLABUS_SCHEMA = z
     assessments: syllabus.assessments.map((item) => ({ ...item, key: isKindKey(item.key) ? item.key : assessmentKindKey(item.label) })),
   }))
   .transform((syllabus) => {
-    // Chuẩn đầu ra đánh số lại theo thứ tự; đánh giá trỏ tới chuẩn đã bị xóa thì bỏ mã đó.
     const outcomes = syllabus.outcomes.map((outcome, index) => ({ code: `CLO${index + 1}`, text: outcome.text }));
     const codes = new Set(outcomes.map((outcome) => outcome.code));
     return {
@@ -148,7 +137,6 @@ export const CLASS_ANNOUNCEMENT_SCHEMA = z
 
 export type ClassAnnouncementInput = z.input<typeof CLASS_ANNOUNCEMENT_SCHEMA>;
 
-// Thông báo hẹn giờ tự thành "đã đăng" khi tới giờ, không cần job chạy nền đổi trạng thái.
 export function effectiveAnnouncementStatus(status: ClassAnnouncementStatus, publishAt: Date, now = new Date()): ClassAnnouncementStatus {
   return status === "scheduled" && publishAt.getTime() <= now.getTime() ? "published" : status;
 }

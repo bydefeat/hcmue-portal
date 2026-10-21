@@ -14,21 +14,16 @@ export const announcements = pgTable(
     slug: text().notNull().unique("announcements_slug_unique"),
     title: text().notNull(),
     category: announcementCategoryEnum().notNull(),
-    // Đối tượng có cấu trúc (sinh viên theo khóa, ngành, khoa; giảng viên theo khoa), kiểm bằng zod khi ghi. Thông báo không gửi
-    // sinh viên (chỉ giảng viên) không hiện trên trang công khai.
     audience: jsonb().$type<AnnouncementAudience>().notNull().default(sql`'{"students":true,"lecturers":true,"cohorts":[],"facultyIds":[],"majorIds":[]}'::jsonb`),
     status: announcementStatusEnum().notNull().default("draft"),
     isPinned: boolean().notNull().default(false),
     publishedAt: timestamp({ withTimezone: true }),
     deadline: timestamp({ withTimezone: true }),
     authorUserId: uuid().references(() => user.id, { onDelete: "set null" }),
-    // Đơn vị đứng tên thông báo (Phòng Khảo thí, Phòng Kế hoạch - Tài chính...), không phải người bấm đăng.
     authorLabel: text().notNull().default("Phòng Đào tạo"),
     summary: text().notNull(),
     content: text().notNull(),
     viewCount: integer().notNull().default(0),
-    // Gửi kèm thông báo cá nhân trên cổng và thư cho đối tượng; notified_at ghi lúc đã gửi (đăng ngay, hoặc tác vụ
-    // announcement-notifications khi bài hẹn giờ tới giờ đăng) để không gửi hai lần.
     notifyPortal: boolean().notNull().default(false),
     notifyEmail: boolean().notNull().default(false),
     notifiedAt: timestamp({ withTimezone: true }),

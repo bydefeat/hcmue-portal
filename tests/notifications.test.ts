@@ -20,7 +20,6 @@ after(() => db.$client.end());
 
 const MESSAGE: NotificationMessage = { kind: "system", title: "Thông báo kiểm thử", body: "Kiểm thử ghi thông báo", href: "/application/notifications" };
 
-// Chạy trong transaction rồi rollback: không để lại thông báo thử trong DB.
 async function inRollback(run: (tx: Transaction) => Promise<void>) {
   await db
     .transaction(async (tx) => {
@@ -61,7 +60,6 @@ describe("notifications: ghi thông báo trong transaction của thao tác", () 
     assert.ok(student?.userId, "seed cần ít nhất một sinh viên có tài khoản");
     const userId = student.userId;
     await inRollback(async (tx) => {
-      // Truyền trùng id cũng chỉ ghi một dòng.
       const notified = await notifyStudents(tx, [student.id, student.id], MESSAGE);
       assert.deepEqual(notified, [student.id]);
       const rows = await rowsOf(tx, userId);
@@ -85,7 +83,6 @@ describe("notifications: ghi thông báo trong transaction của thao tác", () 
     await inRollback(async (tx) => {
       assert.deepEqual(await notifyStudents(tx, [withoutAccount.id], MESSAGE), []);
       assert.equal(await tx.$count(notifications, eq(notifications.title, MESSAGE.title)), 0);
-      // Lẫn sinh viên có và chưa có tài khoản: chỉ người có tài khoản nhận.
       assert.deepEqual(await notifyStudents(tx, [withoutAccount.id, withAccount.id], MESSAGE), [withAccount.id]);
       assert.equal(await tx.$count(notifications, eq(notifications.title, MESSAGE.title)), 1);
     });
@@ -114,7 +111,6 @@ describe("notifications: phân trang, đếm chưa đọc, lọc, dọn cũ", ()
     await inRollback(async (tx) => {
       const before = await unreadNotificationCount(tx, userId, "lecturer");
       const base = Date.parse("2001-01-01T00:00:00Z");
-      // 130 thông báo cũ (vượt trang 100 của bản trước), 2 đã đọc, xen loại "grade".
       await tx.insert(notifications).values(
         Array.from({ length: 130 }, (_, index) => ({
           recipientUserId: userId,

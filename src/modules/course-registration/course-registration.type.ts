@@ -18,7 +18,6 @@ export type RegistrationPeriod = {
   cohorts: number[];
   opensAt: string;
   closesAt: string;
-  // Bỏ trống là theo quy chế đang áp dụng.
   minCredits: number | null;
   maxCredits: number | null;
   eligibleStudents: number;
@@ -34,7 +33,6 @@ export type ClassMeeting = {
   dayOfWeek: number;
   startPeriod: number;
   endPeriod: number;
-  // Mã phòng để hiện; mã có thể trùng giữa các cơ sở nên so trùng phòng theo roomId khi có.
   room: string;
   roomId?: string;
 };
@@ -65,7 +63,6 @@ export type ClassSection = {
 
 export type SectionAudience = {
   majorCodes: string[];
-  // Tên ngành cùng thứ tự với majorCodes, query join sẵn để hiện "Chỉ ngành ...".
   majorNames: string[];
   cohorts: number[];
   note: string;
@@ -188,14 +185,12 @@ export type RegistrationEvent = {
   note: string;
 };
 
-// Nhịp đăng ký thật từ nhật ký registration_events (lượt đăng ký, hủy, đổi nhóm của sinh viên).
 export type RegistrationActivity = {
   lastMinute: number;
   last15Minutes: number;
   studentsLast15Minutes: number;
   today: number;
   peakPerMinute: number;
-  // Phút đông nhất trong ngày; null khi hôm nay chưa có lượt nào.
   peakAt: string | null;
 };
 
@@ -208,6 +203,5 @@ export type UnregisteredStudent = {
   faculty: string;
   email: string;
   hasAccount: boolean;
-  // Lần nhắc gần nhất kể từ khi đợt của khóa mở.
   remindedAt: string | null;
 };

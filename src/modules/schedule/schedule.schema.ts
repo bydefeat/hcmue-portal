@@ -14,7 +14,6 @@ export const classSessions = pgTable(
     classSectionId: uuid()
       .notNull()
       .references(() => classSections.id, { onDelete: "cascade" }),
-    // Buổi của nhóm thực hành; null là buổi lý thuyết của cả lớp.
     labGroupId: uuid(),
     date: date({ mode: "string" }).notNull(),
     startPeriod: smallint().notNull(),
@@ -52,8 +51,6 @@ export const attendanceRecords = pgTable(
   (table) => [primaryKey({ columns: [table.classSessionId, table.enrollmentId] }), index().on(table.enrollmentId)],
 );
 
-// Buổi học nghỉ theo đơn nghỉ dạy đã duyệt: giống ngày nghỉ lễ, lịch buổi học bỏ khung này (không điểm danh, không tính vào số
-// buổi đã học) và trang điểm danh liệt kê là buổi cần dạy bù. Khóa theo khung lịch tuần (ngày, tiết bắt đầu, nhóm) như class_sessions.
 export const classSessionLeaves = pgTable(
   "class_session_leaves",
   {
@@ -66,7 +63,6 @@ export const classSessionLeaves = pgTable(
     startPeriod: smallint().notNull(),
     endPeriod: smallint().notNull(),
     reason: text().notNull(),
-    // Lịch dạy bù giảng viên đề xuất trong đơn, Phòng Đào tạo xếp phòng theo đó.
     makeupNote: text().notNull().default(""),
     requestId: uuid().references(() => academicRequests.id, { onDelete: "set null" }),
     createdAt: createdAt(),

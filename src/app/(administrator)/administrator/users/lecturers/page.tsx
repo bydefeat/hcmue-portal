@@ -11,7 +11,6 @@ export const metadata: Metadata = { title: "Giảng viên" };
 export default async function Page({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
   const viewer = await requirePermission("lecturers.manage");
   const [{ q }, allLecturers, allFaculties, accounts] = await Promise.all([searchParams, getLecturers(), getFacultyNames(), getAccountStates("lecturer")]);
-  // Vai trò theo khoa chỉ thấy, sửa giảng viên của khoa mình (server action cũng kiểm phạm vi).
   const lecturers = allLecturers.filter((lecturer) => inScope(viewer, lecturer.faculty));
   const faculties = allFaculties.filter((faculty) => inScope(viewer, faculty));
   const advisorCount = lecturers.filter((lecturer) => lecturer.isAdvisor).length;

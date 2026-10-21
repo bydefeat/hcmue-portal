@@ -31,7 +31,6 @@ const TABLE = {
   ],
 };
 
-// Một lần xuất đã xong cách đây daysAgo ngày, có tệp thật trong kho.
 async function makeExport(daysAgo: number) {
   const id = newId();
   const storageKey = newStorageKey("reports", id);

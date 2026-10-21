@@ -13,7 +13,6 @@ import { getRegulation } from "@/modules/settings/settings.query";
 export const metadata: Metadata = { title: "Duyệt và công bố điểm" };
 
 export default async function Page() {
-  // Khoa duyệt (grades.approve) hoặc Phòng Đào tạo công bố (grades.publish): có một trong hai quyền là vào được, nút theo quyền.
   const viewer = await getViewer();
   if (!can(viewer, "grades.approve") && !can(viewer, "grades.publish")) forbidden();
   const [term, regulation] = await Promise.all([getCurrentTerm(), getRegulation()]);

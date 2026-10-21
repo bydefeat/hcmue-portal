@@ -21,7 +21,6 @@ const NOT_YOUR_CLASS = "Bạn không phải giảng viên dạy lớp này nên 
 
 class AlreadyAnnouncedError extends Error {}
 
-// Chỉ giảng viên được phân công dạy lớp mới soạn đề cương và đăng thông báo cho lớp đó.
 async function sectionOfLecturer(classSectionId: string) {
   const lecturer = await getCurrentLecturer();
   if (!isUuid(classSectionId)) return null;
@@ -38,8 +37,6 @@ function revalidateClass(classSectionId: string) {
   revalidatePath(classPageHref(classSectionId));
 }
 
-// Lưu đề cương. Đề cương đã công bố mà đổi cách tính điểm (hình thức, trọng số) phải ghi lý do: lưu thành phiên bản mới, bản cũ
-// giữ lại, sinh viên của lớp nhận thông báo.
 export async function saveSyllabus(input: SyllabusInput): Promise<ActionResult<Syllabus>> {
   const section = await sectionOfLecturer(typeof input?.classSectionId === "string" ? input.classSectionId : "");
   if (!section) return actionError(NOT_YOUR_CLASS);
@@ -100,22 +97,17 @@ export async function saveClassAnnouncement(id: string | null, input: ClassAnnou
             publishAt: schedule && publishAt ? new Date(publishAt) : new Date(),
           })
           .returning({ id: classAnnouncements.id });
-        // Bài hẹn giờ chờ tác vụ class-announcements báo khi tới giờ.
         const announced = schedule ? null : await announceToClass(tx, { id: row.id, classSectionId: section.id, ...values });
         return { id: row.id, mailIds: announced?.mailIds ?? [] };
       }
-      // Khóa dòng để không chạy song song với tác vụ báo bài hẹn giờ (tác vụ bỏ qua dòng đang bị khóa).
       const [current] = await tx
         .select({ publishAt: classAnnouncements.publishAt, notifiedAt: classAnnouncements.notifiedAt })
         .from(classAnnouncements)
         .where(and(eq(classAnnouncements.id, id), eq(classAnnouncements.classSectionId, section.id)))
         .for("update");
       if (!current) return null;
-      // Bài đã tới giờ đăng thì sinh viên đã thấy (kể cả khi tác vụ nền chưa kịp báo): không hẹn giờ lại về tương lai, để bài
-      // không biến mất khỏi trang lớp của sinh viên.
       const isDue = current.publishAt.getTime() <= Date.now();
       if (schedule && (current.notifiedAt || isDue)) throw new AlreadyAnnouncedError();
-      // Sửa bài đã đăng thì giữ thời điểm đăng cũ; bỏ hẹn giờ thì đăng ngay.
       await tx
         .update(classAnnouncements)
         .set({
@@ -124,7 +116,6 @@ export async function saveClassAnnouncement(id: string | null, input: ClassAnnou
           publishAt: schedule && publishAt ? new Date(publishAt) : isDue ? current.publishAt : new Date(),
         })
         .where(eq(classAnnouncements.id, id));
-      // Bài đã báo thì sửa không báo lại; bài chưa báo mà giờ đăng ngay (bỏ hẹn giờ, hoặc đã quá giờ hẹn) thì báo như đăng mới.
       const announced = !schedule && !current.notifiedAt ? await announceToClass(tx, { id, classSectionId: section.id, ...values }) : null;
       return { id, mailIds: announced?.mailIds ?? [] };
     });
@@ -133,7 +124,6 @@ export async function saveClassAnnouncement(id: string | null, input: ClassAnnou
     return actionFailure(error, TEACHING_CONSTRAINT_MESSAGE);
   }
   if (!saved) return actionError("Thông báo không còn tồn tại, tải lại trang.");
-  // Thư đã xếp hàng cùng bài đăng; gửi sau khi đã trả kết quả để giảng viên không phải chờ gửi cho cả lớp.
   deliverMailSoon(saved.mailIds);
   revalidateClass(section.id);
   const announcement = await getClassAnnouncement(saved.id);
@@ -159,7 +149,6 @@ export async function deleteClassAnnouncement(id: string): Promise<ActionResult<
   }
 }
 
-// Sinh viên mở thông báo của lớp mình đang học thì ghi nhận đã đọc; đọc lại không ghi thêm.
 export async function markClassAnnouncementRead(id: string): Promise<ActionResult> {
   const student = await getCurrentStudent();
   if (!isUuid(id)) return actionError("Thông báo không còn tồn tại.");

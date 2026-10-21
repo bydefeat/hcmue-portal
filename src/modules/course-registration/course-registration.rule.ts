@@ -235,16 +235,10 @@ export type CreditRules = { minPerTerm: number; maxPerTerm: number; maxSummer: n
 export type CreditLimits = {
   min: number;
   max: number;
-  // Lý do hạn mức tối đa thấp hơn mức thường (cảnh báo học vụ, hạn mức của đợt), hiện cạnh số tín chỉ.
   note?: string;
-  // Lý do được đăng ký dưới mức tối thiểu của quy chế (học kỳ hè, sắp hoàn thành chương trình).
   minNote?: string;
 };
 
-// Hạn mức tín chỉ một học kỳ, dùng chung cho trang đăng ký và server. Học kỳ hè theo maxSummer và không bắt tối thiểu;
-// bị cảnh báo học vụ (đã ban hành) thì tối đa maxWhenWarned; đợt đăng ký đặt hạn mức riêng thì giới hạn thêm;
-// sinh viên chỉ còn ít tín chỉ hơn mức tối thiểu để hoàn thành chương trình thì tối thiểu là số còn lại. Đơn học vượt đã duyệt
-// (credit_overrides) nâng tối đa lên số được duyệt, kể cả trên hạn mức của đợt; sinh viên đang bị cảnh báo thì không áp dụng.
 export function creditLimitsOf(params: {
   rules: CreditRules;
   semester: number;
@@ -282,13 +276,11 @@ export function creditLimitsOf(params: {
   return { min: Math.min(min, max), max, note, minNote };
 }
 
-// Hủy lớp không được làm tổng tín chỉ xuống dưới mức tối thiểu, như khi đăng ký; muốn đổi lớp thì dùng Đổi lớp.
 export function dropCreditProblem(creditsAfter: number, limits: CreditLimits) {
   if (creditsAfter >= limits.min) return null;
   return `Hủy lớp này còn ${creditsAfter} tín chỉ, dưới mức tối thiểu ${limits.min} tín chỉ của học kỳ. Đăng ký lớp khác trước, dùng Đổi lớp, hoặc gửi đơn rút học phần.`;
 }
 
-// Học phần song hành: còn học phần khác trong học kỳ bắt buộc học cùng học phần sắp hủy (và chưa đạt) thì không hủy riêng được.
 export function corequisiteDependents(dropCode: string, remainingCodes: string[], corequisites: Record<string, string[]>, passed: (code: string) => boolean) {
   if (passed(dropCode)) return [];
   return remainingCodes.filter((code) => code !== dropCode && (corequisites[code] ?? []).includes(dropCode));
@@ -298,29 +290,20 @@ export function blockingHolds(holds: RegistrationHold[]) {
   return holds.filter((hold) => hold.blocking && !hold.releasedAt);
 }
 
-// Thời khóa biểu của sinh viên là mọi lớp đang đăng ký (đã đọc từ bảng enrollments), xếp theo mã lớp.
-// Tham số sau enrollments là chữ ký cũ, không dùng; vài trang ngoài phần đăng ký học phần còn truyền, bỏ khi sửa các trang đó.
 export function pickTimetable(enrollments: StudentEnrollment[], ..._legacy: unknown[]) {
   return [...enrollments].toSorted((a, b) => a.section.code.localeCompare(b.section.code));
 }
 
-// Điểm của LẦN HỌC CUỐI mỗi học phần (quy chế: học lại, học cải thiện lấy lần cuối): "đã học đạt" khi kiểm tiên quyết và học cải
-// thiện dựa trên điểm này. Dùng chung hàm latestGrades của module grades.
 export const lastAttemptGrades = latestGrades;
 
-/** @deprecated Tên cũ, nay theo lần học cuối (lastAttemptGrades). */
 export const bestGrades = lastAttemptGrades;
 
-// Học phần sinh viên đang học ở học kỳ hiện tại thì chưa đăng ký lại ở học kỳ sau. Đăng ký (điều chỉnh) ngay trong học kỳ hiện tại
-// thì các lớp đó là lớp đã đăng ký, không phải "đang học".
 export function inProgressCodesFor(targetTermId: string, currentTermId: string, currentTermCourseCodes: string[]) {
   return targetTermId === currentTermId ? [] : [...new Set(currentTermCourseCodes)];
 }
 
 type PeriodWindow = { cohorts: number[]; opensAt: string; closesAt: string };
 
-// Đợt áp dụng cho một khóa: đợt đang mở (mở muộn nhất nếu nhiều đợt cùng mở), không có thì đợt sắp mở gần nhất, không có nữa thì
-// đợt vừa đóng. Trang sinh viên, trang quản trị, phiếu đăng ký và server cùng chọn đợt bằng hàm này.
 export function applicablePeriod<T extends PeriodWindow>(periods: T[], cohort: number, now: Date = new Date()): T | null {
   const time = now.getTime();
   const mine = periods.filter((period) => period.cohorts.includes(cohort));
@@ -333,8 +316,6 @@ export function applicablePeriod<T extends PeriodWindow>(periods: T[], cohort: n
   return mine.filter((period) => closes(period) <= time).toSorted((a, b) => closes(b) - closes(a))[0] ?? null;
 }
 
-// Sửa lớp có mở thêm chỗ cho người chờ không: tăng sĩ số lớp, tăng sĩ số một nhóm thực hành hoặc thêm nhóm mới (lớp còn chỗ
-// nhưng mọi nhóm đã đầy thì người chờ vẫn chưa vào được).
 export function addsSeats(before: { capacity: number; labGroups: { code: string; capacity: number }[] }, after: { capacity: number; labGroups: { code: string; capacity: number }[] }) {
   if (after.capacity > before.capacity) return true;
   return after.labGroups.some((group) => {
@@ -363,7 +344,6 @@ const meetingSchema = z
   })
   .refine((meeting) => meeting.startPeriod <= meeting.endPeriod, { path: ["endPeriod"], message: "Tiết kết thúc không trước tiết bắt đầu" });
 
-// Dữ liệu form mở/sửa lớp học phần; DB còn chặn thêm sĩ số, khoảng tiết, tổng chỗ dành riêng.
 export const CLASS_SECTION_SCHEMA = z
   .object({
     courseCode: z.string().trim().regex(/^[A-Z]{4}\d{4}$/, "Chưa chọn học phần"),
@@ -423,7 +403,6 @@ export const PERIOD_SCHEMA = z
       .transform((cohorts) => [...new Set(cohorts)].toSorted((a, b) => a - b)),
     opensAt: z.iso.datetime({ offset: true }),
     closesAt: z.iso.datetime({ offset: true }),
-    // Bỏ trống là theo quy chế đang áp dụng.
     minCredits: z.int().min(0).max(40).nullable().default(null),
     maxCredits: z.int().min(1).max(40).nullable().default(null),
   })
@@ -447,11 +426,9 @@ export const ADMIN_REGISTER_SCHEMA = z.object({
   sectionId: z.uuid("Chưa chọn lớp"),
   labGroupId: z.uuid().nullish(),
   reason: z.string().trim().min(1, "Ghi lý do đăng ký hộ").max(300),
-  // Bỏ qua điều kiện học vụ (tiên quyết, song hành, đối tượng, hạn mức, khóa đăng ký); lý do ghi vào lịch sử. Sĩ số, trùng lịch vẫn chặn.
   override: z.boolean().default(false),
 });
 
-// Đổi sang lớp khác cùng học phần, hoặc đổi nhóm thực hành trong cùng lớp (toSectionId trùng fromSectionId), trong một bước.
 export const SWAP_SCHEMA = z.object({
   fromSectionId: z.uuid(),
   toSectionId: z.uuid("Chưa chọn lớp mới"),
@@ -473,7 +450,6 @@ export const TERM_SCHEMA = z
 
 export type TermInput = z.input<typeof TERM_SCHEMA>;
 
-// Mã, tên học kỳ sinh theo năm học và học kỳ, cùng mẫu với dữ liệu đang có ("2026-2027.1", "Học kỳ 1, năm học 2026-2027").
 export function termNaming(academicYear: number, semester: number) {
   const years = `${academicYear}-${academicYear + 1}`;
   const label = semester === 3 ? "Học kỳ hè" : `Học kỳ ${semester}`;
@@ -482,14 +458,12 @@ export function termNaming(academicYear: number, semester: number) {
 
 export type AdminRegisterInput = z.input<typeof ADMIN_REGISTER_SCHEMA>;
 
-// Mã xác thực của phiếu đăng ký: băm sinh viên, học kỳ và các lớp đang học; đổi lớp là đổi mã. Trang và bản PDF dùng chung.
 export function receiptVerificationCode(studentId: string, termId: string, sectionIds: string[]) {
   const value = `${studentId}:${termId}:${sectionIds.join(",")}`;
   const hash = [...value].reduce((sum, char) => (sum * 31 + char.charCodeAt(0)) >>> 0, 17);
   return hash.toString(36).toUpperCase().padStart(7, "0").slice(0, 7);
 }
 
-// Phiếu xác nhận theo lúc đóng đợt áp dụng của khóa (applicablePeriod); học kỳ chưa có đợt thì theo lần đăng ký gần nhất, rồi ngày bắt đầu học kỳ.
 export function receiptConfirmedAt(periods: { cohorts: number[]; opensAt: string; closesAt: string }[], cohort: number, events: { at: string }[], termStart: string, now: Date = new Date()) {
   return applicablePeriod(periods, cohort, now)?.closesAt ?? events[0]?.at ?? termStart;
 }

@@ -10,7 +10,6 @@ import type {
   WarningStatus,
 } from "@/modules/grades/grades.type";
 
-// Màu theo điểm chữ; ngưỡng và điểm thang 4 của từng điểm chữ lấy theo quy chế (grading.scale).
 export const LETTER_COLOR: Record<LetterGrade, { text: string; fill: string }> = {
   A: { text: "text-green-700", fill: "#15803d" },
   "B+": { text: "text-green-600", fill: "#22c55e" },
@@ -22,7 +21,6 @@ export const LETTER_COLOR: Record<LetterGrade, { text: string; fill: string }> =
   F: { text: "text-red-600", fill: "#dc2626" },
 };
 
-// Ký hiệu không có điểm số, hiện cùng chỗ với điểm chữ ở mọi nơi (bảng điểm, PDF, Excel, cổng quản trị, báo cáo).
 export const RESULT_MARKS: Record<ResultMark, { label: string; note: string; text: string }> = {
   W: { label: "Rút học phần", note: "rút học phần, không tính điểm", text: "text-zinc-500" },
   I: { label: "Chưa hoàn thiện", note: "chờ thi bù, chưa tính điểm", text: "text-amber-700" },
@@ -42,14 +40,12 @@ export function letterTextClass(letter: string | null | undefined) {
   return letter && letter in LETTER_COLOR ? LETTER_COLOR[letter as LetterGrade].text : "";
 }
 
-// Cột điểm mặc định khi lớp chưa có bảng điểm riêng.
 export const DEFAULT_COMPONENTS: GradeComponent[] = [
   { key: "attendance", label: "Chuyên cần", weight: 10 },
   { key: "midterm", label: "Giữa kỳ", weight: 30 },
   { key: "final", label: "Cuối kỳ", weight: 60 },
 ];
 
-// Thứ tự và tên các mức xếp loại học lực; ngưỡng CPA của từng mức lấy theo quy chế (grading.standing).
 export const STANDINGS: { standing: AcademicStanding; label: string }[] = [
   { standing: "excellent", label: "Xuất sắc" },
   { standing: "very-good", label: "Giỏi" },

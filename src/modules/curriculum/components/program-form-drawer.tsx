@@ -10,18 +10,14 @@ type ProgramFormDrawerProps = {
   open: boolean;
   program: Program | null;
   majors: Major[];
-  // Các khóa đang có lớp sinh hoạt, đọc từ DB.
   cohorts: number[];
   onClose: () => void;
-  // Trả lỗi theo ô khi server từ chối, để drawer gắn vào đúng ô.
   onSubmit: (values: ProgramFormValues) => Promise<Record<string, string> | undefined>;
 };
 
 const EMPTY_VALUES: Partial<ProgramFormValues> = { degree: "Cử nhân", totalCredits: 130, durationYears: 4, cohorts: [], status: "draft" };
 
 export function ProgramFormDrawer({ open, program, majors, cohorts, onClose, onSubmit }: ProgramFormDrawerProps) {
-  // Khóa đang có lớp, thêm khóa kế tiếp (khung chương trình thường ban hành trước khi tân sinh viên nhập học)
-  // và các khóa chương trình đang áp dụng.
   const nextCohort = cohorts.length > 0 ? [Math.max(...cohorts) + 1] : [];
   const cohortOptions = [...new Set([...cohorts, ...nextCohort, ...(program?.cohorts ?? [])])]
     .toSorted((a, b) => a - b)

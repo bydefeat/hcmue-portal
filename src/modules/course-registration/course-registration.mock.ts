@@ -110,8 +110,6 @@ const TARGET_TERM_SECTIONS: SectionSeed[] = [
   ["COMP1180", 1, 18, 45, 19, [[3, 1, 3, "B.302"]]],
 ];
 
-// Lớp của sinh viên đang đăng nhập trong dữ liệu mẫu (xếp trước, vẫn qua kiểm điều kiện như mọi sinh viên) để các màn hình demo
-// và kịch bản e2e có thời khóa biểu ổn định.
 export const CURRENT_STUDENT_PLAN: Record<string, string[]> = {
   "hk1-2026": ["COMP1020.02", "COMP1060.01", "COMP1080.01", "POLI1001.01"],
   "hk2-2026": ["COMP1100.02", "COMP1120.01", "COMP1121.01", "PSYC2001.01", "COMP1150.01", "COMP1180.01"],
@@ -191,7 +189,6 @@ function meeting([dayOfWeek, startPeriod, endPeriod, room]: SectionSeed[5][numbe
   return { dayOfWeek, startPeriod, endPeriod, room };
 }
 
-// Khóa cũ của lớp ("hk1-2026-comp1020-01") vẫn làm hạt giống chọn sinh viên vào lớp, để danh sách lớp không đổi khi id thành uuid.
 const SECTION_ROSTER_KEY = new Map<string, string>();
 
 function buildSections(termKey: string, seeds: SectionSeed[]): ClassSection[] {

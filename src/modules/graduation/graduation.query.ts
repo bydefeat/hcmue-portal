@@ -10,7 +10,6 @@ export async function getGraduationCandidates() {
   return loadGraduationCandidates(viewer);
 }
 
-// Các khóa đang có lớp sinh hoạt, để chọn khóa cho đợt xét.
 export async function getGraduationCohortOptions(): Promise<number[]> {
   await requirePermission("graduation.manage");
   const rows = await db.selectDistinct({ cohort: administrativeClasses.cohort }).from(administrativeClasses).orderBy(asc(administrativeClasses.cohort));

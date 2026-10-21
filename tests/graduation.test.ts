@@ -111,17 +111,14 @@ describe("graduation: xét điều kiện", () => {
 
   test("giảm một hạng khi học lại vượt tỉ lệ quy chế hoặc bị kỷ luật từ mức đã định; chỉ áp với hạng quy chế chọn", () => {
     const excellent = { ...eligible, cpa4: 3.7 };
-    // 5% của 130 tín chỉ là 6,5 tín chỉ: học lại 6 tín chỉ chưa vượt, 7 tín chỉ thì vượt.
     assert.equal(graduationRank({ ...excellent, retakeCredits: 6 }, RULES).rank, "excellent");
     const retaken = graduationRank({ ...excellent, retakeCredits: 7 }, RULES);
     assert.deepEqual([retaken.baseRank, retaken.rank], ["excellent", "very-good"]);
     assert.equal(retaken.reasons[0], "Học lại 7 tín chỉ, vượt 5% tổng 130 tín chỉ của chương trình");
     const warned = evaluateGraduation({ ...eligible, disciplines: [{ title: "Cảnh cáo do vi phạm", level: "warning", effectiveDate: "2025-01-01" }] }, RULES);
     assert.deepEqual([warned.status, warned.classification], ["eligible", "Khá"]);
-    // Khiển trách dưới mức cảnh cáo: không giảm hạng; hạng Khá không thuộc diện giảm theo quy chế mẫu.
     assert.equal(graduationRank({ ...eligible, disciplines: [{ title: "Khiển trách", level: "reprimand", effectiveDate: "2025-01-01" }] }, RULES).rank, "very-good");
     assert.equal(graduationRank({ ...eligible, cpa4: 2.8, retakeCredits: 30 }, RULES).rank, "good");
-    // Quy chế cho giảm cả hạng Khá và tỉ lệ 10%.
     const wider = { ...RULES, graduation: { ...RULES.graduation, downgradeStandings: ["excellent" as const, "very-good" as const, "good" as const], retakeLimitPercent: 10 } };
     assert.equal(graduationRank({ ...eligible, cpa4: 2.8, retakeCredits: 14 }, wider).rank, "average");
     assert.equal(graduationRank({ ...excellent, retakeCredits: 7 }, wider).rank, "excellent");
@@ -190,7 +187,6 @@ describe("graduation: dữ liệu mẫu theo đợt đang mở", () => {
     const eligibleByMajor = new Map<string, number>();
     for (const candidate of candidates) eligibleByMajor.set(candidate.majorName, (eligibleByMajor.get(candidate.majorName) ?? 0) + (candidate.status === "eligible" ? 1 : 0));
     assert.equal(eligibleByMajor.size, 6);
-    // Sư phạm Toán học khung 135 tín chỉ, khóa luận bắt buộc chưa học: không ai đủ điều kiện, ghi rõ học phần thiếu.
     const math = candidates.filter((candidate) => candidate.majorName === "Sư phạm Toán học" && candidate.status === "missing");
     assert.ok(math.length > 0 && math.every((candidate) => candidate.requiredCredits === 135));
     assert.ok(math.some((candidate) => candidate.missingRequired.some((course) => course.code === "MATH4990")));

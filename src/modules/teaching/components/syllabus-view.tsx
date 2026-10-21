@@ -20,7 +20,6 @@ const WEEK_COLUMNS: TableColumnsType<SyllabusWeek> = [
   { title: "Tài liệu đọc", dataIndex: "readings", width: 200, render: (value: string) => <span className="text-muted">{value}</span> },
 ];
 
-// Đề cương chỉ đọc cho sinh viên: chỉ nhận bản giảng viên đã công bố (query đã lọc).
 export function SyllabusView({ syllabus }: { syllabus: Syllabus | null }) {
   if (!syllabus) {
     return (

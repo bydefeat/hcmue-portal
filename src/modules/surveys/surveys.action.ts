@@ -21,8 +21,6 @@ function revalidateSurveys() {
   revalidatePath("/lecturer/workload");
 }
 
-// Sinh viên gửi phiếu đánh giá một lớp đang học, trong thời gian đợt khảo sát mở. Ẩn danh: xem recordSurveySubmission.
-// DB chặn thêm: trigger survey_submissions_enrolled (đang học lớp), khóa chính survey_submissions (một lần mỗi lớp).
 export async function submitSurvey(input: SurveySubmitInput): Promise<ActionResult<{ classSectionId: string }>> {
   const student = await getCurrentStudent();
   const parsed = parseInput(SURVEY_SUBMIT_SCHEMA, input);
@@ -36,7 +34,6 @@ export async function submitSurvey(input: SurveySubmitInput): Promise<ActionResu
   return actionOk({ classSectionId: parsed.data.classSectionId });
 }
 
-// Phòng Đào tạo tạo hoặc sửa đợt khảo sát (học kỳ, thời gian mở, đóng, bộ câu hỏi khi chưa mở).
 export async function saveSurvey(input: SurveySaveInput): Promise<ActionResult<{ id: string }>> {
   const viewer = await requirePermission("surveys.manage");
   const parsed = parseInput(SURVEY_SAVE_SCHEMA, input);
@@ -51,7 +48,6 @@ export async function saveSurvey(input: SurveySaveInput): Promise<ActionResult<{
   return actionOk({ id });
 }
 
-// Mở ngay đợt chưa mở, hoặc đóng ngay đợt đang mở (đóng thì xáo phiếu, giảng viên xem được kết quả).
 export async function toggleSurveyOpen(id: string, open: boolean): Promise<ActionResult<{ id: string }>> {
   const viewer = await requirePermission("surveys.manage");
   if (!isUuid(id)) return actionError("Đợt khảo sát không hợp lệ.");
@@ -64,7 +60,6 @@ export async function toggleSurveyOpen(id: string, open: boolean): Promise<Actio
   return actionOk({ id });
 }
 
-// Nhắc sinh viên còn lớp chưa đánh giá (thông báo trên cổng).
 export async function remindSurvey(id: string): Promise<ActionResult<{ students: number; notified: number }>> {
   const viewer = await requirePermission("surveys.manage");
   if (!isUuid(id)) return actionError("Đợt khảo sát không hợp lệ.");

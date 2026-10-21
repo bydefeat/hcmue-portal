@@ -5,8 +5,6 @@ import { CALENDAR_EVENTS, REGULATION, REGULATION_VERSIONS } from "@/modules/sett
 import { calendarEvents, regulations } from "@/modules/settings/settings.schema";
 import type { SeedContext } from "./context";
 
-// Cấu hình đào tạo: các bản quy chế (bản mới nhất đang áp dụng) và mốc lịch năm học. Lịch sử xuất báo cáo để trống: mỗi lần
-// xuất lưu tệp thật trong kho, seed chỉ dọn tệp báo cáo của lần chạy trước.
 export async function seedSettings(tx: Transaction, context: SeedContext) {
   await tx.insert(regulations).values(
     REGULATION_VERSIONS.map((version) => ({

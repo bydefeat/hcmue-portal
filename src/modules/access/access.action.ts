@@ -45,7 +45,6 @@ function failure(error: unknown) {
   return actionFailure(error, ACCESS_CONSTRAINT_MESSAGE);
 }
 
-// Đổi vai trò đang dùng khi một tài khoản được cấp nhiều vai trò quản trị.
 export async function switchActiveRole(formData: FormData) {
   const { user } = await requireRole("admin");
   const parsed = switchSchema.safeParse({ assignmentId: formData.get("assignmentId") });
@@ -57,7 +56,6 @@ export async function switchActiveRole(formData: FormData) {
   redirect("/administrator");
 }
 
-// Vai trò kèm tập quyền hiện tại, khóa dòng vai trò để hai người cùng sửa không ghi đè lẫn nhau.
 async function lockRole(tx: Transaction, roleId: string) {
   const [role] = await tx.select().from(roles).where(eq(roles.id, roleId)).for("update");
   if (!role) return null;
@@ -101,7 +99,6 @@ export async function saveRolePermissions(roleId: string, permissions: Permissio
   }
 }
 
-// Giữ user.role khớp với role_assignments: còn ít nhất một vai trò quản trị thì có "admin", hết thì bỏ.
 async function syncAdminRole(tx: Transaction, userId: string) {
   const [[account], [{ total }]] = await Promise.all([
     tx.select({ role: users.role }).from(users).where(eq(users.id, userId)).for("update"),
@@ -125,7 +122,6 @@ export async function grantRole(input: GrantRoleInput): Promise<ActionResult<Rol
   try {
     const targetFaculty = await accountFacultyOf(userId);
     assignmentId = await db.transaction(async (tx) => {
-      // Chỉ cấp vai trò quản trị cho tài khoản của cán bộ hoặc giảng viên; tài khoản sinh viên không bao giờ được vào cổng quản trị.
       const [target] = await tx
         .select({ name: users.name, role: users.role, staffId: staffMembers.id, staffCode: staffMembers.code, lecturerId: lecturers.id, lecturerCode: lecturers.code })
         .from(users)
@@ -187,7 +183,6 @@ export async function revokeRole(assignmentId: string): Promise<ActionResult> {
       if (!role) throw new AccessError("Vai trò không còn tồn tại, tải lại trang.");
       const blocked = revokeBlockedReason(viewer, role, row);
       if (blocked) throw new AccessError(blocked);
-      // Không để trường mất người quản trị hệ thống cuối cùng: không ai cấp lại được vai trò cao nữa.
       if (role.key === SYSTEM_ADMIN_ROLE_KEY) {
         const [{ others }] = await tx
           .select({ others: count() })

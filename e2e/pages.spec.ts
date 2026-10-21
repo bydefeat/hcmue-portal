@@ -1,8 +1,6 @@
 import type { Page } from "@playwright/test";
 import { anonymousTest, asRole, expect, test } from "./support/fixtures";
 
-// Mỗi trang mở được với đúng vai trò: không lỗi console/pageerror (fixture tự kiểm), nội dung chính không có "undefined"/"NaN",
-// không cuộn ngang ở bề rộng 375px. Id trong đường dẫn là id tất định của seed (mockId).
 const LECTURER_CLASS = "/lecturer/classes/01940000-0000-7cf6-8e9d-061ac04964c4";
 const STUDENT_CLASS = "/application/classes/01940000-0000-71d7-86de-be61a4f0a489";
 
@@ -56,7 +54,6 @@ const LECTURER_PAGES = [
   "/lecturer/profile",
 ];
 
-// Vai trò mặc định của tài khoản Phòng Đào tạo (Trưởng phòng Đào tạo).
 const ADMIN_PAGES = [
   "/administrator",
   "/administrator/announcements",
@@ -89,10 +86,8 @@ const ADMIN_PAGES = [
   "/administrator/profile",
 ];
 
-// Trang chỉ vai trò Quản trị hệ thống vào được.
 const SYSTEM_PAGES = ["/administrator/settings/access", "/administrator/settings/audit-log", "/administrator/settings/mail"];
 
-// Đường dẫn chuyển hướng: chỉ cần đến đúng trang đích.
 const REDIRECTS: [role: "student" | "lecturer" | "admin", from: string, to: RegExp][] = [
   ["student", "/application", /\/application\/dashboard$/],
   ["lecturer", "/lecturer/advising", /\/lecturer\/advising\/students$/],

@@ -15,7 +15,6 @@ type View = "all" | "unread";
 
 const KIND_OPTIONS = (Object.keys(NOTIFICATION_KIND_LABEL) as NotificationKind[]).map((value) => ({ value, label: NOTIFICATION_KIND_LABEL[value] }));
 
-// Danh sách thông báo theo trang (xem thêm), lọc loại và chưa đọc ở server; số chưa đọc đếm trên toàn bộ thông báo của cổng.
 export function NotificationList({ audience, initialPage, unreadCount }: { audience: NotificationAudience; initialPage: NotificationPage; unreadCount: number }) {
   const [messageApi, contextHolder] = message.useMessage();
   const [isPending, startTransition] = useTransition();

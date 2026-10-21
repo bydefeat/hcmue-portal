@@ -28,7 +28,6 @@ type FormValues = {
 };
 
 type ExamSessionFormProps = {
-  // null: tạo ca mới; có ca: sửa ca đó.
   editing: ExamSession | null;
   open: boolean;
   sessions: ExamSession[];
@@ -40,7 +39,6 @@ type ExamSessionFormProps = {
   onSaved: (exam: ExamSession, isNew: boolean) => void;
 };
 
-// Giờ thi của ca theo giờ Việt Nam (DatePicker trả ngày theo máy người dùng).
 const startOf = (date: Dayjs, time: string) => schoolTime(`${date.format("YYYY-MM-DD")}T${time}`);
 
 export function ExamSessionForm({ editing, open, sessions, classes, deferrals, rooms, proctors, onClose, onSaved }: ExamSessionFormProps) {
@@ -72,7 +70,6 @@ export function ExamSessionForm({ editing, open, sessions, classes, deferrals, r
     }
   }, [open, editing, form]);
 
-  // Thi bù: tải danh sách lớp để chọn thêm, mặc định chọn người được hoãn đúng kỳ thi của ca gốc.
   useEffect(() => {
     if (!open || !isNew || kind !== "makeup" || !classSectionId) return;
     let ignore = false;
@@ -91,7 +88,6 @@ export function ExamSessionForm({ editing, open, sessions, classes, deferrals, r
     form.setFieldValue("makeupEnrollmentIds", deferred);
   }, [isNew, kind, makeupOfId, sessions, deferrals, form]);
 
-  // Đổi ngày giờ thi thì dời hạn nộp đề theo cùng khoảng cách, để hạn luôn trước giờ thi.
   const moveDeadline = (nextDate: Dayjs | null, nextTime: string | undefined) => {
     const values = form.getFieldsValue();
     const date = nextDate ?? values.date;

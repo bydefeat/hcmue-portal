@@ -17,8 +17,6 @@ type StaffCreateButtonProps = {
   onCreated?: () => void;
 };
 
-// Thêm cán bộ kèm tài khoản và vai trò quản trị ban đầu. Không chọn vai trò thì tài khoản chưa vào được cổng quản trị
-// cho tới khi được cấp vai trò ở trang Phân quyền.
 export function StaffCreateButton({ roles, faculties, onCreated }: StaffCreateButtonProps) {
   const [messageApi, contextHolder] = message.useMessage();
   const [open, setOpen] = useState(false);

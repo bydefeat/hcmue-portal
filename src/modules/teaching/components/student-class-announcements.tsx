@@ -9,11 +9,9 @@ import { formatDateTime, formatRelative } from "@/shared/libs/date.lib";
 import { markClassAnnouncementRead } from "@/modules/teaching/teaching.action";
 import type { StudentClassAnnouncement } from "@/modules/teaching/teaching.type";
 
-// Nội dung dài thì thu gọn; mở trang là đã thấy tiêu đề và đoạn đầu nên ghi nhận đã đọc ngay khi mở.
 const PREVIEW_LENGTH = 280;
 
 export function StudentClassAnnouncements({ announcements }: { announcements: StudentClassAnnouncement[] }) {
-  // Giữ dấu "Mới" theo lúc mở trang để sinh viên vẫn nhận ra bài vừa đọc, dù đã ghi nhận đã đọc ở server.
   const [unreadAtOpen] = useState(() => new Set(announcements.filter((announcement) => !announcement.isRead).map((announcement) => announcement.id)));
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const marked = useRef(new Set<string>());
@@ -31,7 +29,6 @@ export function StudentClassAnnouncements({ announcements }: { announcements: St
   useEffect(() => {
     const pending = announcements.filter((announcement) => !announcement.isRead).map((announcement) => announcement.id);
     const done = marked.current;
-    // Gọi lần lượt: số bài chưa đọc mỗi lớp ít, và server action của cùng một trang vốn chạy nối tiếp nhau.
     void (async () => {
       for (const id of pending) {
         if (done.has(id)) continue;

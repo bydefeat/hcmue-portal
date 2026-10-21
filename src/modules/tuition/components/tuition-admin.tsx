@@ -86,7 +86,6 @@ function PaymentHistory({ payments, onVoid }: { payments: PaymentRecord[]; onVoi
 export function TuitionAdmin({ invoices, terms, termId, initialQuery, studentHrefBase }: TuitionAdminProps) {
   const router = useRouter();
   const [messageApi, contextHolder] = message.useMessage();
-  // Hóa đơn vừa ghi hoặc hủy trong phiên này; sau khi nhập sao kê thì tải lại cả danh sách từ server.
   const [updated, setUpdated] = useState<Record<string, AdminInvoiceRow>>({});
   const rows = invoices.map((row) => updated[row.id] ?? row);
   const [query, setQuery] = useState(initialQuery ?? "");

@@ -50,7 +50,6 @@ import { administrativeClasses, students } from "@/modules/users/users.schema";
 
 const TUITION_HREF = "/application/tuition";
 const MISSING = "Hóa đơn không còn tồn tại, tải lại trang.";
-// Giới hạn mặc định của server action là 1 MB cho cả yêu cầu.
 const STATEMENT_MAX_BYTES = 900 * 1024;
 
 function failure(error: unknown) {
@@ -64,7 +63,6 @@ function revalidateTuition() {
   revalidatePath("/application/dashboard");
 }
 
-// Hóa đơn kèm sinh viên, học kỳ, số phải nộp và đã nộp; khóa dòng hóa đơn để hai người ghi cùng lúc phải chờ nhau.
 async function lockInvoices(tx: Transaction, invoiceIds: string[]) {
   if (invoiceIds.length === 0) return [];
   await tx
@@ -114,8 +112,6 @@ async function reloadInvoice(invoiceId: string): Promise<ActionResult<AdminInvoi
   return invoice ? actionOk(invoice) : actionError("Đã lưu nhưng chưa đọc lại được, tải lại trang.");
 }
 
-// Ghi tay một khoản đã thu (tiền mặt, quẹt thẻ, chuyển khoản sai nội dung). Không nhận số vượt số còn nợ: phần thừa phải làm thủ tục
-// hoàn trả, không treo thành số dư âm trên hóa đơn. DB chặn lần cuối bằng trigger payments_within_invoice_total.
 export async function recordPayment(input: PaymentInput): Promise<ActionResult<AdminInvoiceDetail>> {
   const viewer = await requirePermission("tuition.manage");
   const parsed = parseInput(PAYMENT_SCHEMA, input);
@@ -170,8 +166,6 @@ export async function recordPayment(input: PaymentInput): Promise<ActionResult<A
   return reloadInvoice(values.invoiceId);
 }
 
-// Hủy khoản ghi nhầm (sai hóa đơn, sai số tiền): giữ dòng cùng lý do để còn đối chiếu sao kê, mã giao dịch được ghi lại cho đúng hóa đơn.
-// Hủy làm hóa đơn còn nợ và đã quá hạn thì khóa đăng ký do học phí tự có lại vì tính từ hóa đơn.
 export async function voidPayment(input: VoidPaymentInput): Promise<ActionResult<AdminInvoiceDetail>> {
   const viewer = await requirePermission("tuition.manage");
   const parsed = parseInput(VOID_PAYMENT_SCHEMA, input);
@@ -215,7 +209,6 @@ export async function voidPayment(input: VoidPaymentInput): Promise<ActionResult
   return reloadInvoice(invoiceId);
 }
 
-// Hóa đơn của các cặp MSSV + học kỳ xuất hiện trong sao kê, cùng mã giao dịch đã ghi, để đối chiếu.
 async function reconcileContext(executor: Transaction | typeof db, lines: StatementLine[], viewer: Viewer) {
   const references = [...new Set(lines.map((line) => line.reference))];
   const codes = [...new Set(lines.flatMap((line) => parseTransferContent(line.content)?.studentCode ?? []))];
@@ -266,7 +259,6 @@ async function statementRows(file: File) {
   return null;
 }
 
-// Xem trước sao kê: đọc tệp, đối chiếu từng dòng với hóa đơn, chưa ghi gì. Cán bộ chọn dòng rồi gọi importStatement.
 export async function previewStatement(formData: FormData): Promise<ActionResult<StatementPreview>> {
   const viewer = await requirePermission("tuition.manage");
   const file = formData.get("file");
@@ -290,8 +282,6 @@ export async function previewStatement(formData: FormData): Promise<ActionResult
   }
 }
 
-// Ghi các dòng sao kê đã chọn. Đối chiếu lại trong transaction với dữ liệu mới nhất (không tin hóa đơn client gửi lên):
-// dòng nào không còn khớp (đã có người ghi, số còn nợ đổi) thì không ghi gì cả để cán bộ xem trước lại.
 export async function importStatement(input: StatementImportInput): Promise<ActionResult<{ recorded: number; students: number; total: number }>> {
   const viewer = await requirePermission("tuition.manage");
   const parsed = parseInput(STATEMENT_IMPORT_SCHEMA, input);
@@ -304,7 +294,6 @@ export async function importStatement(input: StatementImportInput): Promise<Acti
       const first = await reconcileContext(tx, lines, viewer);
       const invoiceIds = [...new Set([...first.invoices.values()].map((invoice) => invoice.invoiceId))];
       const locked = await lockInvoices(tx, invoiceIds);
-      // Đọc lại sau khi khóa: số đã nộp có thể vừa đổi bởi người khác.
       const context = await reconcileContext(tx, lines, viewer);
       const rows = reconcileStatement(lines, context.invoices, context.recorded, new Date());
       const rejected = rows.find((row) => !RECORDABLE_STATEMENT_STATUSES.includes(row.status));
@@ -327,7 +316,6 @@ export async function importStatement(input: StatementImportInput): Promise<Acti
       for (const row of rows) byInvoice.set(row.invoiceId!, (byInvoice.get(row.invoiceId!) ?? 0) + row.amount!);
       const studentIds = [...new Set([...byInvoice.keys()].map((id) => invoiceOf.get(id)!.studentId))];
       const released = new Set(await releaseClearedTuitionHolds(tx, studentIds, viewer));
-      // Tệp sao kê tới 2000 dòng: báo và ghi nhật ký gộp (một lệnh ghi mỗi loại) thay vì từng hóa đơn một.
       const cleared = studentIds.filter((id) => released.has(id));
       const others = studentIds.filter((id) => !released.has(id));
       await notifyStudents(tx, others, statementMessage(false));
@@ -354,7 +342,6 @@ export async function importStatement(input: StatementImportInput): Promise<Acti
   return actionOk(summary);
 }
 
-// Chi tiết một hóa đơn cho ngăn kéo ở trang quản trị (lịch sử thanh toán gồm cả khoản đã hủy).
 export async function loadInvoiceDetail(invoiceId: string): Promise<ActionResult<AdminInvoiceDetail>> {
   await requirePermission("tuition.manage");
   const invoice = await getAdminInvoice(invoiceId);
@@ -363,7 +350,6 @@ export async function loadInvoiceDetail(invoiceId: string): Promise<ActionResult
 
 const TUITION_AUDIT_LABEL = (invoice: { studentCode: string; studentName: string }) => `${formatStudentCode(invoice.studentCode)} ${invoice.studentName}`;
 
-// Miễn giảm học phí (chính sách, học bổng, hoàn cảnh): số tiền trừ vào tổng phải nộp, bắt buộc ghi lý do, căn cứ; ghi nhật ký.
 export async function setInvoiceDiscount(input: DiscountInput): Promise<ActionResult<AdminInvoiceDetail>> {
   const viewer = await requirePermission("tuition.manage");
   const parsed = parseInput(DISCOUNT_SCHEMA, input);
@@ -399,7 +385,6 @@ export async function setInvoiceDiscount(input: DiscountInput): Promise<ActionRe
   return reloadInvoice(invoiceId);
 }
 
-// Ghi nhận đã hoàn phần nộp thừa (hủy lớp, giảm tín chỉ sau khi đã nộp). Không chuyển tiền tự động; DB chặn hoàn vượt số nộp thừa.
 export async function recordRefund(input: RefundInput): Promise<ActionResult<AdminInvoiceDetail>> {
   const viewer = await requirePermission("tuition.manage");
   const parsed = parseInput(REFUND_SCHEMA, input);
@@ -446,8 +431,6 @@ export async function recordRefund(input: RefundInput): Promise<ActionResult<Adm
   return reloadInvoice(values.invoiceId);
 }
 
-// Đơn giá tín chỉ theo ngành, năm học: dữ liệu chung toàn trường. Hóa đơn tạm tính tính lại theo đơn giá mới ở lần đăng ký sau
-// hoặc khi chốt; hóa đơn đã chốt giữ nguyên.
 export async function saveTuitionRate(input: RateInput): Promise<ActionResult> {
   const viewer = await requireSchoolWidePermission("tuition.manage");
   const parsed = parseInput(RATE_SCHEMA, input);
@@ -508,8 +491,6 @@ export async function saveTuitionFee(input: FeeInput): Promise<ActionResult> {
   return actionOk();
 }
 
-// Chốt học phí học kỳ: tính lại mọi hóa đơn tạm tính theo đăng ký hiện có (lập hóa đơn cho sinh viên chưa có), đặt hạn nộp chính thức
-// và đổi thành chính thức. Sau khi chốt, thay đổi đăng ký thêm dòng điều chỉnh. Thường làm sau khi đợt điều chỉnh đóng.
 export async function finalizeTermTuition(input: FinalizeInput): Promise<ActionResult<{ finalized: number; unpriced: number }>> {
   const viewer = await requireSchoolWidePermission("tuition.manage");
   const parsed = parseInput(FINALIZE_SCHEMA, input);

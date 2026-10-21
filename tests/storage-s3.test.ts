@@ -6,12 +6,7 @@ import { createHash, createHmac } from "node:crypto";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
 
-// ---- máy chủ giả lập dùng trong file này ----
 
-// S3 giả lập trong test: một bucket kiểu path-style (/<bucket>/<key>) với PutObject, GetObject, DeleteObject, ListObjectsV2
-// (mỗi trang tối đa `pageSize` khóa để buộc client đi tiếp bằng continuation-token). Mỗi request được kiểm chữ ký SigV4 bằng
-// cách tự dựng lại canonical request từ đúng những gì nhận qua mạng (đường dẫn, query, header thô), độc lập với s3.lib: client
-// ký một đằng gửi một nẻo thì bị 403 SignatureDoesNotMatch như S3 thật.
 
 type FakeS3 = {
   endpoint: string;
@@ -50,7 +45,6 @@ function verifySignature(request: IncomingMessage, rawPath: string, rawQuery: st
   const names = signedHeaders.split(";");
   if (!names.includes("host") || !names.includes("x-amz-date") || !names.includes("x-amz-content-sha256")) return "AccessDenied";
   const canonicalHeaders = names.map((name) => `${name}:${String(request.headers[name] ?? "").trim().replace(/\s+/g, " ")}\n`).join("");
-  // S3 giải mã rồi mã hóa lại từng đoạn đường dẫn và từng tham số, nên client mã hóa sai (vd. để "$" thô) thì lệch chữ ký.
   const canonicalPath = rawPath
     .split("/")
     .map((segment) => rfc3986(decodeURIComponent(segment)))
@@ -108,7 +102,6 @@ async function startFakeS3({ pageSize = 2 } = {}): Promise<FakeS3> {
       const remaining = lastKey === null ? keys : keys.filter((name) => name > lastKey);
       const page = remaining.slice(0, pageSize);
       const truncated = remaining.length > page.length;
-      // Token có cả "+", "/", "=" như token thật của S3 để kiểm client mã hóa query đúng.
       const token = `tok+${tokens.size}/x==`;
       if (truncated) tokens.set(token, page.at(-1)!);
       const contents = page
@@ -161,8 +154,6 @@ async function startFakeS3({ pageSize = 2 } = {}): Promise<FakeS3> {
 }
 
 
-// Kho tệp chạy driver s3 trỏ vào S3 giả lập (tests/support/fake-s3.ts, kiểm chữ ký SigV4 độc lập). Biến môi trường đặt trước
-// khi nạp env.lib nên phải import động.
 let s3: FakeS3;
 let storage: typeof StorageLib;
 let s3lib: typeof S3Lib;
@@ -190,7 +181,6 @@ const signatureOf = (headers: Record<string, string>) => /Signature=([0-9a-f]+)$
 const AWS_EXAMPLE = { region: "us-east-1", accessKeyId: "AKIAIOSFODNN7EXAMPLE", secretAccessKey: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY", date: new Date("2013-05-24T00:00:00Z") };
 
 describe("s3: chữ ký SigV4", () => {
-  // Ba ví dụ trong tài liệu AWS "Signature Calculations for the Authorization Header" (S3 API Reference).
   test("khớp chữ ký mẫu của AWS: GetObject có Range, ListObjects, PutObject có ký tự $", () => {
     const get = s3lib.signRequest({ ...AWS_EXAMPLE, method: "GET", url: new URL("https://examplebucket.s3.amazonaws.com/test.txt"), headers: { range: "bytes=0-9" }, payloadHash: s3lib.EMPTY_PAYLOAD_SHA256 });
     assert.equal(signatureOf(get), "f0e8bdb87c964420e857bd35b5d6ed310bd44f0170aba48dd91039c6036bdb41");
@@ -269,7 +259,6 @@ describe("storage: driver s3", () => {
     const listed = s3.requests.length;
     const entries = await storage.listFiles("exams");
     assert.deepEqual(entries.map((entry) => entry.key).toSorted(), keys.toSorted());
-    // 6 khóa dưới exams/, 2 khóa mỗi trang: 3 lần gọi List, có continuation-token chứa "+", "/", "=".
     const pages = s3.requests.slice(listed).filter((request) => request.query.includes("list-type=2"));
     assert.equal(pages.length, 3);
     assert.ok(pages.every((request) => request.status === 200));
@@ -291,7 +280,6 @@ describe("storage: driver s3", () => {
     assert.equal(error.status, 403);
     assert.equal(error.code, "SignatureDoesNotMatch");
     assert.ok(!error.message.includes("sai-khoa-bi-mat"));
-    // Khóa có ký tự cần mã hóa vẫn ký đúng (máy chủ giả giải mã rồi mã hóa lại từng đoạn đường dẫn như S3).
     const good = { ...config, secretAccessKey: s3.secretAccessKey };
     await s3lib.s3PutObject(good, "thư mục/a b+c$(1).pdf", new Uint8Array([5]));
     assert.deepEqual([...s3.objects.get("thư mục/a b+c$(1).pdf")!.data], [5]);

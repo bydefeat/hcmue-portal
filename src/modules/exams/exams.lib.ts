@@ -37,7 +37,6 @@ import { lecturers, students } from "@/modules/users/users.schema";
 
 type Executor = Transaction | typeof db;
 
-// Lỗi nghiệp vụ của lịch thi: action đổi thành câu báo, field có thì gắn vào ô của form.
 export class ExamInputError extends Error {
   constructor(
     message: string,
@@ -47,18 +46,13 @@ export class ExamInputError extends Error {
   }
 }
 
-// Đã tới giờ thi (giờ Việt Nam) theo giờ của DB.
 export const examHasStarted = sql<boolean>`((${examSessions.date} + ${examSessions.startTime}) AT TIME ZONE 'Asia/Ho_Chi_Minh') <= now()`;
 const examHasEnded = sql<boolean>`((${examSessions.date} + ${examSessions.startTime}) AT TIME ZONE 'Asia/Ho_Chi_Minh') + make_interval(mins => ${examSessions.durationMinutes}::int) <= now()`;
 
-// Các thao tác ghi lịch thi của một học kỳ chạy lần lượt: kiểm trùng phòng, trùng cán bộ rồi mới ghi, không để hai người lưu
-// song song cùng lọt kiểm tra.
 export async function lockExamTerm(tx: Transaction, termId: string) {
   await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${`exam-term:${termId}`}, 0))`);
 }
 
-// Tác vụ định kỳ: xóa tệp đề thi, đáp án không còn ca thi nào trỏ tới (bản cũ của lần nộp lại chưa xóa được, tiến trình chết
-// giữa lúc ghi tệp và commit).
 export async function sweepOrphanExamFiles() {
   const removed = await sweepOrphanFiles("exams", async (keys) => {
     const rows = await db
@@ -70,7 +64,6 @@ export async function sweepOrphanExamFiles() {
   return { examFilesRemoved: removed };
 }
 
-// Tác vụ định kỳ exam-sessions: ca đã công bố mà đã thi xong (quá giờ kết thúc) chuyển "Đã thi". Chạy lặp lại không đổi gì thêm.
 export async function refreshExamStatuses(executor: Executor = db) {
   const rows = await executor
     .update(examSessions)
@@ -80,7 +73,6 @@ export async function refreshExamStatuses(executor: Executor = db) {
   return { examSessionsDone: rows.length };
 }
 
-// Người dùng có quyền duyệt đề (Phòng Khảo thí) để báo đề nghị đổi ca, đề nộp lại.
 export async function examOfficeUserIds(executor: Executor) {
   const rows = await executor
     .selectDistinct({ userId: roleAssignments.userId })
@@ -90,7 +82,6 @@ export async function examOfficeUserIds(executor: Executor) {
   return rows.map((row) => row.userId);
 }
 
-// --- Đọc ca thi trong giao dịch ---
 
 export async function sessionForWrite(tx: Transaction, id: string) {
   const [exam] = await tx
@@ -125,12 +116,10 @@ export async function sessionForWrite(tx: Transaction, id: string) {
 
 export type SessionForWrite = NonNullable<Awaited<ReturnType<typeof sessionForWrite>>>;
 
-// "giữa kỳ lớp X", "bù lớp X": ghép sau "Lịch thi", "Đề thi", "ca thi".
 export const sessionLabel = (exam: { kind: ExamKind; classCode: string }) => `${exam.kind === "makeup" ? "bù" : EXAM_KIND_LABEL[exam.kind].toLowerCase()} lớp ${exam.classCode}`;
 
 const whenText = (slot: { date: string; startTime: string }) => `${slot.startTime.slice(0, 5)} ngày ${formatDate(slot.date)}`;
 
-// Lịch toàn học kỳ để kiểm xung đột: mọi ca (mọi khoa), phòng, cán bộ coi thi.
 export async function termSchedule(executor: Executor, termId: string): Promise<ConflictSession[]> {
   const sessions = await executor
     .select({
@@ -168,7 +157,6 @@ export async function termSchedule(executor: Executor, termId: string): Promise<
   });
 }
 
-// Số sinh viên chung giữa từng cặp ca của học kỳ (theo danh sách thí sinh đã xếp), khóa "idA:idB".
 export async function sharedCandidateCounts(executor: Executor, termId: string) {
   const rows = await executor.execute<{ first: string; second: string; shared: number }>(sql`
     SELECT ca.exam_session_id AS first, cb.exam_session_id AS second, count(DISTINCT ea.student_id)::int AS shared
@@ -186,7 +174,6 @@ export async function sharedCandidateCounts(executor: Executor, termId: string) 
   return map;
 }
 
-// Giờ dạy của các cán bộ trùng với ca thi: buổi học (có ngày) của lớp họ dạy chồng giờ thi.
 export async function teachingClashes(executor: Executor, lecturerIds: string[], slot: TimeSlot) {
   if (lecturerIds.length === 0) return [];
   const rows = await executor
@@ -212,8 +199,6 @@ export async function teachingClashes(executor: Executor, lecturerIds: string[],
 
 export type SessionDraft = TimeSlot & { id: string; termId: string; classCode: string; roomIds: string[]; proctorIds: string[]; studentIds: string[] };
 
-// Kiểm xung đột của ca sắp lưu với cả học kỳ. Trùng phòng, trùng cán bộ coi thi: chặn. Trùng lịch thi của sinh viên, trùng giờ
-// dạy của cán bộ coi thi: chặn trừ khi có lý do (trả lại danh sách để ghi nhật ký).
 export async function assertNoConflicts(tx: Transaction, draft: SessionDraft, overrideReason: string | null): Promise<ExamConflict[]> {
   const schedule = (await termSchedule(tx, draft.termId)).filter((session) => session.id !== draft.id);
   const names = await tx
@@ -256,9 +241,7 @@ export async function assertNoConflicts(tx: Transaction, draft: SessionDraft, ov
   return soft;
 }
 
-// --- Thí sinh ---
 
-// Sinh viên dự thi của ca: giữa kỳ, cuối kỳ là sinh viên đang học lớp trừ người được hoãn kỳ thi đó; ca thi bù là danh sách đã chọn.
 export async function expectedCandidates(tx: Executor, exam: { id: string | null; kind: ExamKind; classSectionId: string }, makeupEnrollmentIds?: string[]) {
   const base = tx
     .select({ enrollmentId: enrollments.id, studentId: enrollments.studentId, fullName: students.fullName, code: students.code })
@@ -274,7 +257,6 @@ export async function expectedCandidates(tx: Executor, exam: { id: string | null
   return rows.toSorted(byVietnameseName);
 }
 
-// Xếp lại thí sinh vào các phòng của ca theo sức chứa thi và đánh số báo danh. Thiếu chỗ thì báo lỗi (không lưu).
 export async function syncCandidates(tx: Transaction, exam: { id: string; kind: ExamKind; classSectionId: string }, makeupEnrollmentIds?: string[]) {
   const list = await expectedCandidates(tx, exam, makeupEnrollmentIds);
   const roomRows = await tx
@@ -294,8 +276,6 @@ export async function syncCandidates(tx: Transaction, exam: { id: string; kind: 
   return list;
 }
 
-// Ghi lại phòng và cán bộ coi thi của ca (thay toàn bộ). Người bị gỡ khỏi ca: đề nghị đổi ca đang chờ của họ hết hiệu lực,
-// vẫn giữ làm lịch sử.
 export async function replaceSessionRooms(tx: Transaction, examSessionId: string, plan: { roomId: string; proctorIds: string[] }[]) {
   const before = await tx.select({ lecturerId: examProctors.lecturerId }).from(examProctors).where(eq(examProctors.examSessionId, examSessionId));
   await tx.delete(examSessionRooms).where(eq(examSessionRooms.examSessionId, examSessionId));
@@ -320,7 +300,6 @@ export async function replaceSessionRooms(tx: Transaction, examSessionId: string
   return { removed, added, all: [...after] };
 }
 
-// Phòng thi hợp lệ: còn trong danh mục, không bảo trì.
 export async function assertRoomsUsable(tx: Transaction, roomIds: string[]) {
   if (roomIds.length === 0) return;
   const rows = await tx.select({ id: rooms.id, code: rooms.code, status: rooms.status }).from(rooms).where(inArray(rooms.id, roomIds));
@@ -335,7 +314,6 @@ export async function assertProctorsActive(tx: Transaction, lecturerIds: string[
   if (people.length !== lecturerIds.length) throw new ExamInputError("Có cán bộ coi thi không còn công tác.", "rooms");
 }
 
-// Báo một thay đổi của ca tới sinh viên dự thi, giảng viên dạy lớp và cán bộ coi thi (chỉ khi ca đã công bố).
 export async function notifyExamPeople(
   tx: Transaction,
   exam: { id: string; lecturerId: string | null },
@@ -373,12 +351,9 @@ export async function roomCodesOf(executor: Executor, examSessionId: string) {
   return rows.map((row) => row.code);
 }
 
-// --- Đề thi ---
 
 export type PaperUpload = { key: string; name: string; contentType: string; data: Uint8Array };
 
-// Ghi lần nộp đề (tệp đã nằm trong kho) cho ca thi của lớp giảng viên dạy: chưa tới giờ thi, đề chưa duyệt, chưa quá hạn (đề
-// bị trả lại thì nộp lại được tới giờ thi). Nộp lại thì xóa kết quả xét lần trước. Trả khóa tệp cũ để xóa sau khi commit.
 export async function recordPaperSubmission(tx: Transaction, lecturerId: string, examSessionId: string, files: { paper: PaperUpload; answerKey: PaperUpload }) {
   const { paper, answerKey } = files;
   const [current] = await tx
@@ -411,7 +386,6 @@ export async function recordPaperSubmission(tx: Transaction, lecturerId: string,
       answerKeyFileName: answerKey.name,
       answerKeyContentType: answerKey.contentType,
       answerKeySizeBytes: answerKey.data.byteLength,
-      // clock_timestamp: hai lần nộp trong cùng giao dịch (test) vẫn khác phiên bản.
       paperSubmittedAt: sql`clock_timestamp()`,
       paperReviewedByUserId: null,
       paperReviewedAt: null,
@@ -419,7 +393,6 @@ export async function recordPaperSubmission(tx: Transaction, lecturerId: string,
     })
     .where(eq(examSessions.id, examSessionId))
     .returning({ id: examSessions.id, paperStatus: examSessions.paperStatus, paperSubmittedAt: examSessions.paperSubmittedAt });
-  // Nộp lại sau khi bị trả lại: báo Phòng Khảo thí xét lại.
   if (current.paperStatus === "returned") {
     await notifyUsers(tx, await examOfficeUserIds(tx), "administrator", {
       kind: "exam",
@@ -433,8 +406,6 @@ export async function recordPaperSubmission(tx: Transaction, lecturerId: string,
 
 export type PaperDecision = { decision: "approve"; paperSubmittedAt: string } | { decision: "return"; reason: string; paperSubmittedAt?: string };
 
-// Phòng Khảo thí (quyền exams.review, đúng phạm vi khoa) xét đề đang chờ duyệt: duyệt thì khóa đề, trả lại thì giảng viên thấy
-// lý do và nộp lại. Duyệt phải đúng bản người duyệt đã mở (thời điểm nộp): giảng viên vừa thay đề thì từ chối.
 export async function decidePaperReview(tx: Transaction, viewer: Viewer, examSessionId: string, decision: PaperDecision) {
   if (!can(viewer, "exams.review")) throw new ExamInputError("Vai trò hiện tại không có quyền duyệt đề thi.");
   const exam = await sessionForWrite(tx, examSessionId);
@@ -476,7 +447,6 @@ export async function decidePaperReview(tx: Transaction, viewer: Viewer, examSes
   return next;
 }
 
-// Mở khóa đề đã duyệt khi phát hiện lỗi (quyền exams.review): đề chuyển "bị trả lại" kèm lý do, giữ tệp để giảng viên xem lại.
 export async function unlockApprovedPaper(tx: Transaction, viewer: Viewer, examSessionId: string, reason: string) {
   if (!can(viewer, "exams.review")) throw new ExamInputError("Vai trò hiện tại không có quyền mở khóa đề thi.");
   const exam = await sessionForWrite(tx, examSessionId);
@@ -507,10 +477,7 @@ export async function unlockApprovedPaper(tx: Transaction, viewer: Viewer, examS
   }
 }
 
-// --- Đổi ca coi thi ---
 
-// Phòng Khảo thí chấp nhận (người coi thay vào đúng phòng của người gửi) hoặc từ chối đề nghị đổi ca. Kiểm người thay cùng khoa
-// với người gửi, không trùng ca thi khác và giờ dạy; báo người gửi, người thay.
 export async function decideProctorSwap(tx: Transaction, viewer: Viewer, id: string, decision: "accepted" | "rejected", note: string | null) {
   const [swap] = await tx.select().from(examProctorSwapRequests).where(eq(examProctorSwapRequests.id, id)).for("update");
   if (!swap) throw new ExamInputError("Đề nghị không còn, tải lại trang.");
@@ -567,7 +534,6 @@ export async function decideProctorSwap(tx: Transaction, viewer: Viewer, id: str
   return decision;
 }
 
-// Lớp mở của học kỳ chưa có ca cuối kỳ, để sinh hàng loạt.
 export async function sectionsWithoutFinal(tx: Executor, termId: string) {
   const hasFinal = tx
     .select({ id: examSessions.classSectionId })
@@ -582,16 +548,13 @@ export async function sectionsWithoutFinal(tx: Executor, termId: string) {
     .orderBy(asc(classSections.enrolledCount));
 }
 
-// Ca thi đã qua giờ bắt đầu (dùng ở các chốt chặn ngoài ca đang khóa).
 export function hasStartedAt(exam: { date: string; startTime: string }, now = dayjs()) {
   return !examStartsAt(exam.date, exam.startTime).isAfter(now);
 }
 
-// --- Xếp lịch (dùng chung cho server action và test) ---
 
 export const entityLabel = (exam: { classCode: string; courseName: string; kind: SessionForWrite["kind"] }) => `${exam.classCode} ${exam.courseName} (${EXAM_KIND_LABEL[exam.kind].toLowerCase()})`;
 
-// Lớp học phần trong phạm vi khoa của người thao tác, thuộc học kỳ; khóa lịch học kỳ để kiểm xung đột không chen nhau.
 export async function sectionInScope(tx: Transaction, viewer: Viewer, classSectionId: string) {
   const [section] = await tx
     .select({
@@ -614,7 +577,6 @@ export async function sectionInScope(tx: Transaction, viewer: Viewer, classSecti
   return section;
 }
 
-// Ngày thi trong học kỳ (thi cuối kỳ được tới 3 tuần sau ngày kết thúc học kỳ), chưa qua, không chủ nhật (schema đã kiểm).
 export function assertDateAllowed(date: string, startTime: string, term: { termStart: string; termEnd: string }) {
   if (date < term.termStart || date > dayjs(term.termEnd).add(21, "day").format("YYYY-MM-DD")) throw new ExamInputError("Ngày thi phải nằm trong học kỳ (hoặc 3 tuần thi sau học kỳ).", "date");
   if (!examStartsAt(date, startTime).isAfter(dayjs())) throw new ExamInputError("Giờ thi đã qua, chọn ngày giờ khác.", "date");
@@ -622,7 +584,6 @@ export function assertDateAllowed(date: string, startTime: string, term: { termS
 
 export type SlotValues = { date: string; startTime: string; durationMinutes: number; format: ExamSession["format"]; paperDeadline: string; rooms: { roomId: string; proctorIds: string[] }[]; overrideReason: string | null };
 
-// Ghi phòng, cán bộ coi thi, xếp lại thí sinh và kiểm xung đột cho ca vừa tạo hoặc vừa sửa (trong cùng giao dịch).
 async function applySlot(tx: Transaction, exam: { id: string; termId: string; kind: SessionForWrite["kind"]; classSectionId: string; classCode: string }, values: SlotValues, makeupEnrollmentIds?: string[]) {
   const proctorIds = values.rooms.flatMap((room) => room.proctorIds);
   await assertRoomsUsable(
@@ -653,7 +614,6 @@ async function applySlot(tx: Transaction, exam: { id: string; termId: string; ki
 const softSummary = (soft: ExamConflict[], reason: string | null) => (soft.length > 0 ? ` Bỏ qua cảnh báo (${soft.map((conflict) => conflict.message).join("; ")}): ${reason}.` : "");
 
 
-// Tạo một ca thi (đã kiểm dữ liệu vào): giữa kỳ, cuối kỳ cho cả lớp, hoặc ca thi bù cho danh sách sinh viên của một ca gốc.
 export async function createSession(tx: Transaction, viewer: Viewer, input: z.output<typeof EXAM_SESSION_CREATE_SCHEMA>) {
   const { classSectionId, kind, makeupOfId, makeupEnrollmentIds, ...values } = input;
   const section = await sectionInScope(tx, viewer, classSectionId);
@@ -694,7 +654,6 @@ export async function createSession(tx: Transaction, viewer: Viewer, input: z.ou
   return row.id;
 }
 
-// Sửa ca chưa thi; ca đã công bố thì báo sinh viên, giảng viên, cán bộ coi thi (cả người bị gỡ).
 export async function updateSession(tx: Transaction, viewer: Viewer, input: z.output<typeof EXAM_SESSION_UPDATE_SCHEMA>) {
   const { id, ...values } = input;
   const exam = await sessionForWrite(tx, id);
@@ -742,7 +701,6 @@ export async function updateSession(tx: Transaction, viewer: Viewer, input: z.ou
   }
 }
 
-// Sinh hàng loạt ca cuối kỳ dự kiến cho lớp mở chưa có ca.
 export async function generateFinals(tx: Transaction, viewer: Viewer, input: z.output<typeof EXAM_GENERATE_SCHEMA>) {
   const { termId, fromDate, toDate, durationMinutes, paperDaysBefore, defaultFormat } = input;
   await lockExamTerm(tx, termId);
@@ -750,7 +708,6 @@ export async function generateFinals(tx: Transaction, viewer: Viewer, input: z.o
   if (!term) throw new ExamInputError("Học kỳ không còn, tải lại trang.");
   const sections = (await sectionsWithoutFinal(tx, termId)).filter((section) => inScope(viewer, section.faculty)).toReversed();
   if (sections.length === 0) throw new ExamInputError("Mọi lớp mở trong phạm vi của bạn đã có ca cuối kỳ.");
-  // Hình thức thi theo bài cuối kỳ trong đề cương đã công bố của lớp; không có thì theo hình thức mặc định đã chọn.
   const assessments = await tx
     .select({ sectionId: syllabi.classSectionId, key: syllabusAssessments.key, label: syllabusAssessments.label, method: syllabusAssessments.method })
     .from(syllabusAssessments)
@@ -770,7 +727,6 @@ export async function generateFinals(tx: Transaction, viewer: Viewer, input: z.o
     .toSorted((a, b) => b.examCapacity - a.examCapacity);
   const staff = await tx.select({ id: lecturers.id, facultyId: lecturers.facultyId, status: lecturers.status }).from(lecturers).orderBy(asc(lecturers.code));
   const schedule = await termSchedule(tx, termId);
-  // Sinh viên theo ca đã có, để không xếp trùng giờ thi của sinh viên.
   const studentRows = await tx
     .select({ examSessionId: examCandidates.examSessionId, studentId: enrollments.studentId })
     .from(examCandidates)
@@ -842,7 +798,6 @@ export async function generateFinals(tx: Transaction, viewer: Viewer, input: z.o
   return { created, skipped, fromSyllabus };
 }
 
-// Công bố mọi ca dự kiến cùng loại của học kỳ trong phạm vi khoa, báo mọi người liên quan.
 export async function publishDrafts(tx: Transaction, viewer: Viewer, termId: string, kind: ExamKind) {
   await lockExamTerm(tx, termId);
   const drafts = await tx

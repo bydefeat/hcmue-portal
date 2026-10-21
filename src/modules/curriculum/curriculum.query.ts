@@ -124,8 +124,6 @@ export async function getPrograms(id?: string): Promise<ProgramSummary[]> {
   return rows.map((row) => ({ ...row, courseCount: countOf.get(row.id) ?? 0 }));
 }
 
-// Chương trình đang áp dụng cho ngành và khóa của sinh viên (program_cohorts, chỉ chương trình active), cùng cách chọn với
-// programsOf trong curriculum.lib (xét tốt nghiệp, kế hoạch học tập). Không có thì null.
 export const getProgramOf = cache(async (majorCode: string, cohort: number): Promise<ProgramSummary | null> => {
   await requireSession();
   const [row] = await db
@@ -167,7 +165,6 @@ export async function getProgram(id: string): Promise<ProgramDetail | null> {
       .toSorted((a, b) => a.code.localeCompare(b.code));
     return { semester, courses: semesterCourses, credits: semesterCourses.reduce((sum, course) => sum + course.credits, 0) };
   });
-  // Học phần điều kiện không tính vào tổng tín chỉ của chương trình nên đếm riêng.
   const plannedCourses = semesters.flatMap((semester) => semester.courses).filter((course) => !course.isConditional);
   const conditionalCourses = semesters.flatMap((semester) => semester.courses).filter((course) => course.isConditional);
   const creditsByBlock = (Object.keys(KNOWLEDGE_BLOCK_LABEL) as KnowledgeBlock[]).map((block) => ({

@@ -147,16 +147,12 @@ export function requestView(request: AcademicRequest, can: RequestViewerCan = NO
   else if (openSupplement) status = "needs-info";
   else if (request.steps.some((step) => step.status === "approved" || step.status === "skipped")) status = "in-review";
   else status = "pending";
-  // Đang chờ người gửi bổ sung thì bước dừng tính hạn.
   const isOverdue = Boolean(currentStep?.dueAt && now.isAfter(currentStep.dueAt) && (status === "pending" || status === "in-review"));
   return { ...request, status, currentStep, isOverdue, openSupplement, can };
 }
 
 export type OfficeStepRole = Exclude<StepRole, "advisor" | "lecturer">;
 
-// Bước của đơn vị quản trị xử lý theo quyền của vai trò (sửa được ở trang Phân quyền), không theo khóa vai trò: vai trò tự tạo
-// có quyền requests.step.faculty thì xử lý bước của khoa trong phạm vi khoa của vai trò. Bước cố vấn, giảng viên xử lý ở cổng
-// giảng viên; Phòng Đào tạo có requests.supervise thì chuyển người xử lý hoặc xử lý thay.
 export const STEP_PERMISSION: Record<OfficeStepRole, Permission> = {
   faculty: "requests.step.faculty",
   "academic-office": "requests.step.academic-office",
@@ -179,7 +175,6 @@ export const OFFICE_UNIT_LABEL: Record<Exclude<OfficeStepRole, "faculty">, strin
 
 export const REQUEST_CODE_PREFIX: Record<RequesterType, "DT" | "GV"> = { student: "DT", lecturer: "GV" };
 
-// Mỗi tệp tối đa 10 MB (DB chặn bằng request_attachments_size_range), cả đơn tối đa 25 MB để vừa giới hạn thân request của server action.
 export const ATTACHMENT_LIMIT = { files: 5, bytes: 10 * MB, totalBytes: 25 * MB, kinds: ["pdf", "png", "jpeg", "docx"] as UploadKind[] };
 
 export function requestAttachmentHref(attachmentId: string) {
@@ -196,13 +191,10 @@ export type RequestFieldSpec = {
   min?: number;
   max?: number;
   step?: number;
-  // Sinh viên tự khai, hệ thống có giá trị riêng để đối chiếu: chi tiết đơn ghi rõ "sinh viên khai".
   declared?: boolean;
 };
 
-// Thông tin riêng của từng loại đơn sinh viên: form hiện theo danh sách này, server kiểm lại và ghép thành phần chi tiết của đơn.
 export const STUDENT_REQUEST_FIELDS: Record<RequestKind, RequestFieldSpec[]> = {
-  // Khoảng tín chỉ học vượt theo quy chế (trên hạn mức tối đa mỗi học kỳ) kiểm ở server bằng overloadBlockedReason.
   overload: [
     { name: "credits", label: "Số tín chỉ xin đăng ký", kind: "number", min: 1, max: 60, step: 1 },
     { name: "extra", label: "Học phần muốn học thêm", kind: "text" },

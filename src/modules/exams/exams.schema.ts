@@ -7,11 +7,9 @@ import { rooms } from "@/modules/facilities/facilities.schema";
 import { academicRequests } from "@/modules/requests/requests.schema";
 import { lecturers } from "@/modules/users/users.schema";
 
-// makeup: ca thi bù cho sinh viên được hoãn thi (hoặc vắng thi có lý do) của một ca giữa kỳ, cuối kỳ.
 export const examKindEnum = pgEnum("exam_kind", ["midterm", "final", "makeup"]);
 export const examFormatEnum = pgEnum("exam_format", ["written", "multiple-choice", "practical", "oral", "project"]);
 export const examSessionStatusEnum = pgEnum("exam_session_status", ["draft", "published", "done"]);
-// returned: Phòng Khảo thí trả lại đề kèm lý do, giảng viên nộp lại; approved: đề bị khóa, không đổi tệp được nữa.
 export const examSwapDecisionEnum = pgEnum("exam_swap_decision", ["accepted", "rejected", "withdrawn"]);
 export const examPaperStatusEnum = pgEnum("exam_paper_status", ["not-submitted", "submitted", "approved", "returned"]);
 
@@ -26,7 +24,6 @@ export const examSessions = pgTable(
       .notNull()
       .references(() => classSections.id, { onDelete: "cascade" }),
     kind: examKindEnum().notNull(),
-    // Ca thi bù trỏ về ca gốc (giữa kỳ, cuối kỳ của cùng lớp); ca thường để trống.
     makeupOfId: uuid(),
     format: examFormatEnum().notNull(),
     date: date({ mode: "string" }).notNull(),
@@ -35,7 +32,6 @@ export const examSessions = pgTable(
     status: examSessionStatusEnum().notNull().default("draft"),
     paperStatus: examPaperStatusEnum().notNull().default("not-submitted"),
     paperDeadline: timestamp({ withTimezone: true }).notNull(),
-    // Đề thi và đáp án nộp cùng lúc, nội dung nằm trong kho tệp (storage.lib) dưới khóa do server sinh; nộp lại thì thay cả hai.
     paperStorageKey: text().unique("exam_sessions_paper_storage_key_unique"),
     paperFileName: text(),
     paperContentType: text(),
@@ -45,14 +41,12 @@ export const examSessions = pgTable(
     answerKeyContentType: text(),
     answerKeySizeBytes: integer(),
     paperSubmittedAt: timestamp({ withTimezone: true }),
-    // Lần duyệt hoặc trả lại gần nhất; nộp lại thì xóa (lịch sử ở nhật ký thao tác).
     paperReviewedByUserId: uuid().references(() => user.id, { onDelete: "set null" }),
     paperReviewedAt: timestamp({ withTimezone: true }),
     paperReturnReason: text(),
     ...timestamps(),
   },
   (table) => [
-    // Mỗi lớp một ca giữa kỳ, một ca cuối kỳ; ca thi bù thì nhiều ca được.
     uniqueIndex("exam_sessions_class_section_id_kind_unique").on(table.classSectionId, table.kind).where(sql`${table.kind} IN ('midterm', 'final')`),
     unique("exam_sessions_id_class_section_id_unique").on(table.id, table.classSectionId),
     foreignKey({
@@ -61,7 +55,6 @@ export const examSessions = pgTable(
       foreignColumns: [table.id, table.classSectionId],
     }).onDelete("cascade"),
     check("exam_sessions_makeup_of", sql`(${table.kind}::text = 'makeup') = (${table.makeupOfId} IS NOT NULL)`),
-    // Hạn nộp đề phải trước giờ thi (giờ thi là giờ Việt Nam).
     check("exam_sessions_paper_deadline_before_exam", sql`${table.paperDeadline} < ((${table.date} + ${table.startTime}) AT TIME ZONE 'Asia/Ho_Chi_Minh')`),
     index().on(table.termId, table.date),
     check("exam_sessions_duration_range", sql`${table.durationMinutes} BETWEEN 15 AND 240`),
@@ -69,8 +62,6 @@ export const examSessions = pgTable(
       "exam_sessions_paper_fields",
       sql`num_nonnulls(${table.paperStorageKey}, ${table.paperFileName}, ${table.paperContentType}, ${table.paperSizeBytes}, ${table.answerKeyStorageKey}, ${table.answerKeyFileName}, ${table.answerKeyContentType}, ${table.answerKeySizeBytes}, ${table.paperSubmittedAt}) = CASE WHEN ${table.paperStatus} = 'not-submitted' THEN 0 ELSE 9 END`,
     ),
-    // So sánh dạng text: giá trị enum mới thêm (returned) chưa dùng được trong cùng giao dịch migration. Đề duyệt trước khi
-    // có cột người duyệt (dữ liệu cũ) được phép thiếu thời điểm duyệt.
     check(
       "exam_sessions_paper_review_fields",
       sql`(${table.paperStatus}::text IN ('approved', 'returned') OR (${table.paperReviewedAt} IS NULL AND ${table.paperReviewedByUserId} IS NULL)) AND (${table.paperStatus}::text <> 'returned' OR ${table.paperReviewedAt} IS NOT NULL) AND (${table.paperReviewedByUserId} IS NULL OR ${table.paperReviewedAt} IS NOT NULL)`,
@@ -84,7 +75,6 @@ export const examSessions = pgTable(
   ],
 );
 
-// Phòng thi của một ca: một ca có thể chia nhiều phòng theo sức chứa thi.
 export const examSessionRooms = pgTable(
   "exam_session_rooms",
   {
@@ -105,7 +95,6 @@ export const examSessionRooms = pgTable(
   ],
 );
 
-// Cán bộ coi thi theo phòng: mỗi người coi một phòng của ca (khóa ngoại kép để phòng thuộc đúng ca).
 export const examProctors = pgTable(
   "exam_proctors",
   {
@@ -125,8 +114,6 @@ export const examProctors = pgTable(
   ],
 );
 
-// Thí sinh của ca thi: phòng và số báo danh (đánh lại khi Phòng Khảo thí đổi phòng hoặc công bố). Ca giữa kỳ, cuối kỳ là sinh
-// viên đang học lớp trừ người được hoãn; ca thi bù là danh sách Phòng Khảo thí chọn.
 export const examCandidates = pgTable(
   "exam_candidates",
   {
@@ -149,9 +136,6 @@ export const examCandidates = pgTable(
   ],
 );
 
-// Sinh viên được hoãn thi một kỳ thi (giữa kỳ hoặc cuối kỳ) của lớp: không có trong danh sách thi của ca đó, chờ thi bù.
-// requestId: đơn hoãn thi đã duyệt sinh ra dòng này; Phòng Khảo thí ghi trực tiếp thì để trống. Công bố bảng điểm thì sinh viên
-// đang được hoãn thi (chưa đủ điểm) nhận điểm I.
 export const examDeferrals = pgTable(
   "exam_deferrals",
   {
@@ -184,7 +168,6 @@ export const examEligibilityOverrides = pgTable(
     reason: text().notNull(),
     decidedByUserId: uuid().references(() => user.id, { onDelete: "set null" }),
     decidedAt: createdAt(),
-    // Thu hồi (phát hiện minh chứng không hợp lệ): giữ dòng làm lịch sử, mỗi đăng ký chỉ một quyết định còn hiệu lực.
     revokedAt: timestamp({ withTimezone: true }),
     revokedByUserId: uuid().references(() => user.id, { onDelete: "set null" }),
     revokeReason: text(),
@@ -197,8 +180,6 @@ export const examEligibilityOverrides = pgTable(
   ],
 );
 
-// Đề nghị đổi ca coi thi của giảng viên gửi Phòng Khảo thí. Lúc gửi người gửi phải đang coi ca đó (trigger
-// exam_proctor_swap_requests_proctor_fk); đề nghị được giữ làm lịch sử kể cả khi người gửi đã được gỡ khỏi ca.
 export const examProctorSwapRequests = pgTable(
   "exam_proctor_swap_requests",
   {

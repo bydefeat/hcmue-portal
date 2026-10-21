@@ -12,8 +12,6 @@ import { parseRoles, type AccountRole } from "@/shared/constants/role.constant";
 export const getSession = cache(async () => {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) return null;
-  // Cookie cache của better-auth (5 phút) không hỏi DB: kiểm lại phiên còn và tài khoản chưa bị khóa
-  // để khóa tài khoản, đặt lại mật khẩu (thu hồi phiên) có hiệu lực ngay.
   const [row] = await db
     .select({ banned: users.banned })
     .from(sessions)
@@ -22,7 +20,6 @@ export const getSession = cache(async () => {
   return row && !row.banned ? session : null;
 });
 
-// Gọi ở đầu mỗi query đọc dữ liệu thật: layout và page render song song nên không dựa được vào kiểm tra ở layout.
 export async function requireSession() {
   const session = await getSession();
   if (!session) {
@@ -32,7 +29,6 @@ export async function requireSession() {
   return { ...session, roles: parseRoles(session.user.role) };
 }
 
-// Gọi ở layout của từng portal. Chưa đăng nhập thì về trang đăng nhập (kèm ?next= để quay lại), sai vai trò thì hiện trang 403.
 export async function requireRole(role: AccountRole) {
   const session = await requireSession();
   if (!session.roles.includes(role)) forbidden();

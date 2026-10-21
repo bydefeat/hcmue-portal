@@ -153,7 +153,6 @@ describe("schedule: sinh lại buổi học khi đổi lịch tuần", () => {
             and(
               eq(classSections.status, "open"),
               sql`${classSections.endDate} > ${today}::date + 21`,
-              // Lớp có sinh viên đã có tài khoản cổng để kiểm thông báo đổi lịch.
               sql`EXISTS (SELECT 1 FROM enrollments e JOIN students s ON s.id = e.student_id WHERE e.class_section_id = ${classSections.id} AND e.status = 'enrolled' AND s.user_id IS NOT NULL)`,
             ),
           )
@@ -166,7 +165,6 @@ describe("schedule: sinh lại buổi học khi đổi lịch tuần", () => {
           .where(and(eq(classSessions.classSectionId, section.id), isNull(classSessions.labGroupId), gte(classSessions.date, today), isNull(classSessions.takenAt)))
           .orderBy(asc(classSessions.date));
         const pastCount = (await tx.select({ id: classSessions.id }).from(classSessions).where(and(eq(classSessions.classSectionId, section.id), lt(classSessions.date, today)))).length;
-        // Một buổi tương lai đã có điểm danh (ví dụ điểm danh bù) phải được giữ dù lịch đổi.
         const attended = future[1];
         const [member] = await tx
           .select({ id: enrollments.id })
@@ -191,7 +189,6 @@ describe("schedule: sinh lại buổi học khi đổi lịch tuần", () => {
         const sent = await tx.select({ id: notifications.id }).from(notifications).where(like(notifications.title, `Lớp ${section.code} đổi lịch%`));
         assert.ok(sent.length > 0);
 
-        // Lưu lại mà lịch không đổi thì không sinh lại, không báo.
         const again = await syncClassSessions(tx, section.id, { previous: await weeklyScheduleOf(tx, section.id) });
         assert.deepEqual([again.added, again.removed, again.notified], [0, 0, false]);
         tx.rollback();

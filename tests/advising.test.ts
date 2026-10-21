@@ -210,7 +210,6 @@ describe("advising: thao tác của cố vấn", () => {
     assert.equal(group.length, 3);
     const [present, ...absent] = group.map((row) => row.studentId);
     await inRollback(async (tx) => {
-      // Đưa buổi hẹn nhóm sắp tới về quá khứ để ghi nhận được.
       await tx.update(advisingAppointments).set({ date: dayjs().subtract(1, "day").format("YYYY-MM-DD") }).where(eq(advisingAppointments.id, mockId("appointment:lh-03")));
       const missing = parseInput(APPOINTMENT_OUTCOME_SCHEMA, { id: mockId("appointment:lh-03"), attendance: { [present]: "present" }, note: "Sinh hoạt lớp" });
       assert.ok(missing.ok);
@@ -232,7 +231,6 @@ describe("advising: thao tác của cố vấn", () => {
       assert.ok(marks.every((row) => row.attendance === (row.studentId === present ? "present" : "absent")));
       assert.match(await rejectedIn(tx, (sp) => recordAppointmentOutcome(sp, advisor.id, full.data)), /không còn ở trạng thái đã hẹn/);
     });
-    // Seed: buổi nhóm lh-11 sinh viên 108 vắng, sinh viên hiện tại có mặt.
     const mine = await studentAppointments(CURRENT_STUDENT_ID);
     assert.equal(mine.find((item) => item.id === mockId("appointment:lh-11"))?.status, "done");
     const absentee = await studentAppointments(mockId("student:108"));

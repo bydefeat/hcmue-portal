@@ -14,7 +14,6 @@ import { academicRequests } from "@/modules/requests/requests.schema";
 import { openClassCourseCode, openClassPeersOf, overloadCreditsOf } from "@/modules/requests/requests.rule";
 import { regulationAt } from "@/modules/settings/settings.lib";
 
-// Học kỳ đơn tác động: học kỳ đang mở đăng ký (cờ is_registration_target), chưa đặt thì học kỳ hiện tại.
 async function targetTermOf(tx: Transaction) {
   const rows = await tx
     .select({ id: terms.id, name: terms.name, shortName: terms.shortName, startDate: terms.startDate, endDate: terms.endDate, isTarget: terms.isRegistrationTarget })
@@ -30,8 +29,6 @@ function studentOf(request: ApprovedRequest) {
   return request.requesterStudentId;
 }
 
-// Học vượt được duyệt: hạn mức tối đa của sinh viên ở học kỳ đăng ký là số tín chỉ xin trong đơn (credit_overrides), trong giới
-// hạn maxPerTerm + credits.overloadExtraCredits của quy chế đang áp dụng. Duyệt lại đơn khác cùng học kỳ thì ghi đè.
 export const approveOverload: RequestApprovedHandler = async (request, tx) => {
   const studentId = studentOf(request);
   const credits = overloadCreditsOf(request.details);
@@ -62,7 +59,6 @@ export const approveOverload: RequestApprovedHandler = async (request, tx) => {
   });
 };
 
-// Cán bộ quản lý lớp học phần (quyền class-sections.manage) toàn trường hoặc của khoa học phần, để báo xếp lịch lớp mới.
 async function classSectionManagers(tx: Transaction, facultyId: string) {
   const rows = await tx
     .selectDistinct({ userId: roleAssignments.userId })
@@ -76,8 +72,6 @@ async function classSectionManagers(tx: Transaction, facultyId: string) {
 
 const DEFAULT_CAPACITY = 40;
 
-// Mở lớp được duyệt: tạo lớp học phần nháp của học phần trong đơn ở học kỳ đăng ký (như Mở thêm lớp: chép sĩ số, đối tượng của lớp
-// cùng học phần gần nhất nếu có; chưa có lịch, phòng, giảng viên), báo cán bộ quản lý lớp học phần xếp lịch rồi mở đăng ký.
 export const approveOpenClass: RequestApprovedHandler = async (request, tx) => {
   studentOf(request);
   const [row] = await tx.select({ subject: academicRequests.subject }).from(academicRequests).where(eq(academicRequests.id, request.id));

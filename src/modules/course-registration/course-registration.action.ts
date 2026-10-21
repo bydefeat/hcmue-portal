@@ -104,7 +104,6 @@ function revalidateRegistration() {
   revalidatePath("/administrator", "layout");
 }
 
-// ---- Sinh viên tự đăng ký ----
 
 export async function registerSections(input: RegisterInput): Promise<ActionResult<{ registeredIds: string[] }>> {
   const student = await getCurrentStudent();
@@ -137,7 +136,6 @@ export async function dropSection(sectionId: string): Promise<ActionResult<{ reg
   return actionOk({ registeredIds });
 }
 
-// Đổi lớp cùng học phần hoặc đổi nhóm thực hành trong một bước: không được chỗ mới thì vẫn giữ chỗ cũ.
 export async function swapSection(input: SwapInput): Promise<ActionResult<{ registeredIds: string[] }>> {
   const student = await getCurrentStudent();
   const parsed = parseInput(SWAP_SCHEMA, input);
@@ -192,9 +190,7 @@ export async function leaveWaitlist(sectionId: string): Promise<ActionResult> {
   return actionOk();
 }
 
-// ---- Lớp học phần ----
 
-// Tra id ngành theo mã; mã không có trong danh mục thì báo lỗi vào ô tương ứng.
 function idsByCode(rows: { id: string; code: string }[], wanted: string[], field: string, label: string) {
   const missing = wanted.filter((code) => !rows.some((row) => row.code === code));
   if (missing.length > 0) throw new InputError(`${label} ${missing.join(", ")} không có trong danh mục`, field);
@@ -208,8 +204,6 @@ async function inScopeSections(viewer: Viewer, termId: string) {
     .filter((section) => inScope(viewer, section.faculty));
 }
 
-// Lưu lớp trả lại cả danh sách lớp trong phạm vi của học kỳ với xung đột tính ở server trên toàn học kỳ: sửa một lớp có thể làm
-// lớp khác (khoa khác) hết hoặc thêm xung đột, giao diện không tự tính lại trên danh sách đã lọc theo khoa.
 export async function saveClassSection(termId: string, id: string | null, input: ClassSectionInput): Promise<ActionResult<{ saved: ClassSectionView; sections: ClassSectionView[] }>> {
   const viewer = await requirePermission("class-sections.manage");
   if (!isUuid(termId) || (id !== null && !isUuid(id))) return actionError("Lớp học phần không còn tồn tại, tải lại trang.");
@@ -229,7 +223,6 @@ export async function saveClassSection(termId: string, id: string | null, input:
         .where(eq(courses.code, values.courseCode));
       if (!course) throw new InputError("Học phần không có trong danh mục", "courseCode");
       if (!inScope(viewer, course.faculty)) throw new InputError("Học phần thuộc khoa khác, bạn không mở lớp được", "courseCode");
-      // Phòng chọn theo id: mã phòng có thể trùng giữa các cơ sở.
       const roomIds = [...new Set([...values.meetings.map((meeting) => meeting.roomId), ...values.labGroups.map((group) => group.roomId)])];
       const majorCodes = [...new Set([...values.audienceMajors, ...values.reservedSeats.flatMap((seat) => seat.majorCodes)])];
       const [roomRows, majorRows] = await Promise.all([
@@ -297,7 +290,6 @@ export async function saveClassSection(termId: string, id: string | null, input:
         await tx.insert(classSectionAudienceMajors).values(values.audienceMajors.map((majorCode) => ({ classSectionId: rowId, majorId: majorIds.get(majorCode)! })));
       }
 
-      // Nhóm thực hành và chỗ dành riêng giữ theo mã/tên để không mất sinh viên đã xếp; bỏ nhóm đang có người thì DB chặn.
       const labCodes = values.labGroups.map((group) => `${code}.${group.code}`);
       const previousLabs = id ? await tx.select({ code: labGroups.code, capacity: labGroups.capacity }).from(labGroups).where(eq(labGroups.classSectionId, rowId)) : [];
       const seatsAdded = addsSeats({ capacity: previousCapacity, labGroups: previousLabs }, { capacity: values.capacity, labGroups: values.labGroups.map((group, index) => ({ code: labCodes[index], capacity: group.capacity })) });
@@ -322,9 +314,7 @@ export async function saveClassSection(termId: string, id: string | null, input:
         await tx.delete(reservedSeatMajors).where(eq(reservedSeatMajors.reservedSeatId, seatId));
         if (seat.majorCodes.length > 0) await tx.insert(reservedSeatMajors).values(seat.majorCodes.map((majorCode) => ({ reservedSeatId: seatId, majorId: majorIds.get(majorCode)! })));
       }
-      // Buổi học (điểm danh) sinh lại theo lịch tuần mới; đổi lịch thì báo sinh viên của lớp và giảng viên.
       await syncClassSessions(tx, rowId, { previous: previousSchedule });
-      // Tăng sĩ số lớp hoặc nhóm thực hành của lớp đang mở: xếp người trong danh sách chờ vào chỗ mới.
       if (id && values.status === "open" && seatsAdded) await promoteWaitlist(tx, rowId, regulation, new Date());
       await recordAudit(tx, {
         actor: auditActorOf(viewer),
@@ -357,7 +347,6 @@ export async function assignLecturer(sectionId: string, lecturerId: string | nul
   try {
     await db.transaction(async (tx) => {
       if (lecturerId) {
-        // Trùng giờ dạy kiểm với lịch mới nhất của cả học kỳ, cùng hàm conflictsOf với trang lớp học phần.
         const others = await loadSections(tx, and(eq(classSections.termId, section.termId), ne(classSections.status, "cancelled"), ne(classSections.id, section.id))!);
         const clash = conflictsOf({ ...section, lecturerId }, others).find((conflict) => conflict.kind === "lecturer");
         if (clash) throw new InputError(`Giảng viên đã dạy ${clash.withCode} cùng giờ với ${section.code}. Chọn giảng viên khác hoặc đổi lịch lớp trước.`);
@@ -372,8 +361,6 @@ export async function assignLecturer(sectionId: string, lecturerId: string | nul
   return updated ? actionOk(updated) : actionError("Đã lưu nhưng chưa đọc lại được, tải lại trang.");
 }
 
-// Mở thêm lớp nháp cho học phần đang đầy: cùng sĩ số, đối tượng (ngành, khóa, ghi chú) và chỗ dành riêng với lớp gốc, số thứ tự kế tiếp,
-// chưa có lịch, phòng, giảng viên (chép lịch cũ chắc chắn trùng phòng với lớp gốc). Xếp lịch ở mục Lớp học phần rồi mới mở đăng ký.
 export async function openExtraSections(sectionIds: string[]): Promise<ActionResult<ClassSectionView[]>> {
   const viewer = await requirePermission("class-sections.manage");
   const parsed = sectionIdsSchema.safeParse(sectionIds);
@@ -452,7 +439,6 @@ export async function cancelSections(sectionIds: string[]): Promise<ActionResult
   return actionOk({ dropped });
 }
 
-// Chuyển sinh viên của lớp vừa hủy sang lớp khác cùng học phần; mỗi sinh viên kiểm như đăng ký, ai không đủ điều kiện thì trả lý do.
 export async function moveCancelledStudents(fromId: string, toId: string): Promise<ActionResult<{ moved: number; remaining: number; skipped: { studentName: string; reason: string }[] }>> {
   const viewer = await requirePermission("class-sections.manage");
   if (!isUuid(fromId) || !isUuid(toId)) return actionError("Lớp không còn tồn tại, tải lại trang.");
@@ -473,9 +459,7 @@ export async function moveCancelledStudents(fromId: string, toId: string): Promi
   });
 }
 
-// ---- Danh sách chờ (Phòng Đào tạo) ----
 
-// Chạy lại việc xếp từ danh sách chờ cho một lớp (ví dụ sau khi gỡ khóa cho người đứng đầu danh sách).
 export async function processWaitlist(sectionId: string): Promise<ActionResult<{ promoted: number }>> {
   const viewer = await requirePermission("registration.manage");
   if (!isUuid(sectionId)) return actionError("Lớp không còn tồn tại, tải lại trang.");
@@ -517,7 +501,6 @@ export async function removeWaitlistEntry(entryId: string, reason: string): Prom
   return actionOk();
 }
 
-// ---- Học kỳ, đợt đăng ký ----
 
 export async function createTerm(input: TermInput): Promise<ActionResult<Term>> {
   const viewer = await requireSchoolWidePermission("registration.manage");
@@ -539,8 +522,6 @@ export async function createTerm(input: TermInput): Promise<ActionResult<Term>> 
   return term ? actionOk(term) : actionError("Đã lưu nhưng chưa đọc lại được, tải lại trang.");
 }
 
-// Đặt học kỳ hiện tại (học kỳ đang học: thời khóa biểu, điểm danh, học phí) hoặc học kỳ nhận đăng ký. Mỗi loại chỉ một học kỳ
-// (unique index), đổi trong một transaction: bỏ cờ ở học kỳ cũ rồi đặt cho học kỳ mới.
 export async function setTermFlag(termId: string, flag: "current" | "registration-target"): Promise<ActionResult<Term[]>> {
   const viewer = await requireSchoolWidePermission("registration.manage");
   if (!isUuid(termId)) return actionError("Học kỳ không còn tồn tại, tải lại trang.");
@@ -585,7 +566,6 @@ export async function savePeriod(termId: string, id: string | null, input: Perio
         : await tx.insert(registrationPeriods).values({ ...values, termId }).returning({ id: registrationPeriods.id });
       if (!row) throw new InputError("Đợt đăng ký không còn tồn tại, tải lại trang.");
       await recordAudit(tx, { actor: auditActorOf(viewer), action: id ? "update" : "create", entityType: "registration-period", entityId: row.id, entityLabel: values.name, summary: periodAudit(values) });
-      // Dời giờ đóng về trước hiện tại hoặc bỏ bớt khóa có thể làm khóa đó hết đợt: lượt chờ hết hạn ngay.
       expiredWaitlist = (await expireWaitlists(tx, new Date(), termId)).expired;
       return row.id;
     });
@@ -597,7 +577,6 @@ export async function savePeriod(termId: string, id: string | null, input: Perio
   return period ? actionOk({ period, expiredWaitlist }) : actionError("Đã lưu nhưng chưa đọc lại được, tải lại trang.");
 }
 
-// Đóng sớm đợt đang mở: dời giờ đóng về hiện tại. Đợt đã đóng thì không mở lại được ở đây.
 export async function closePeriod(id: string): Promise<ActionResult<{ period: RegistrationPeriodView; expiredWaitlist: number }>> {
   const viewer = await requireSchoolWidePermission("registration.manage");
   if (!isUuid(id)) return actionError("Đợt đăng ký không còn tồn tại, tải lại trang.");
@@ -624,9 +603,7 @@ export async function closePeriod(id: string): Promise<ActionResult<{ period: Re
   return period ? actionOk({ period, expiredWaitlist }) : actionError("Đã đóng nhưng chưa đọc lại được, tải lại trang.");
 }
 
-// ---- Khóa đăng ký ----
 
-// Phòng Đào tạo đặt mọi loại khóa; Phòng Kế hoạch - Tài chính (tuition.manage) đặt và gỡ khóa học phí.
 function canManageHold(viewer: Viewer, kind: RegistrationHold["kind"]) {
   return can(viewer, "registration.manage") || (kind === "tuition" && can(viewer, "tuition.manage"));
 }
@@ -693,7 +670,6 @@ export async function releaseHold(id: string, note: string): Promise<ActionResul
   return hold ? actionOk(hold) : actionError("Đã gỡ nhưng chưa đọc lại được, tải lại trang.");
 }
 
-// ---- Phòng Đào tạo đăng ký, hủy hộ ----
 
 export async function adminRegister(input: AdminRegisterInput): Promise<ActionResult<ClassSectionView>> {
   const viewer = await requirePermission("registration.manage");
@@ -731,8 +707,6 @@ export async function adminDrop(studentId: string, sectionId: string, reason: st
   return actionOk();
 }
 
-// Nhắc sinh viên chưa đăng ký trong đợt đang mở: gửi thông báo trên cổng sinh viên. Chỉ nhắc được sinh viên trong phạm vi khoa
-// của người gửi và vẫn còn chưa đăng ký lúc gửi; sinh viên chưa kích hoạt tài khoản cổng thì không nhận được thông báo.
 export async function remindUnregisteredStudents(
   studentIds: string[],
 ): Promise<ActionResult<{ remindedIds: string[]; remindedAt: string; withoutAccount: number; mailed: number }>> {
@@ -759,7 +733,6 @@ export async function remindUnregisteredStudents(
           createdAt: remindedAt,
         },
       ),
-      // Thư tới email trường của mọi sinh viên được nhắc, kể cả chưa có tài khoản cổng (kênh duy nhất tới các bạn này).
       mailIds: await enqueueMail(tx, [
         {
           kind: "registration-reminder",
@@ -789,8 +762,6 @@ export async function remindUnregisteredStudents(
 
 type PdfFile = { fileName: string; base64: string; mimeType: string };
 
-// Phiếu đăng ký một học kỳ (mặc định học kỳ đang nhận đăng ký) của chính sinh viên đang đăng nhập, cùng nội dung và mã xác thực
-// với trang Lịch sử và phiếu đăng ký.
 export async function downloadRegistrationReceiptPdf(termId?: string): Promise<ActionResult<PdfFile>> {
   const student = await getCurrentStudent();
   const all = await getTerms();
@@ -807,7 +778,6 @@ export async function downloadRegistrationReceiptPdf(termId?: string): Promise<A
   return actionOk({ fileName: `phieu-dang-ky-${term.code}-${student.code.replace(/\./g, "")}.pdf`, base64: bytesToBase64(bytes), mimeType: PDF_MIME });
 }
 
-// Danh sách lớp bản PDF: chỉ giảng viên được phân công dạy lớp.
 export async function exportClassRosterPdf(classSectionId: string): Promise<ActionResult<PdfFile>> {
   const lecturer = await getCurrentLecturer();
   if (!isUuid(classSectionId)) return actionError("Không tìm thấy lớp học phần.");

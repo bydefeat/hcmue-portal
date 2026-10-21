@@ -3,7 +3,6 @@ import { EQUIPMENT_OPTIONS } from "@/modules/facilities/facilities.constant";
 
 const EQUIPMENT = EQUIPMENT_OPTIONS.map((option) => option.value) as [string, ...string[]];
 
-// Dùng chung cho form (client) và server action; DB còn chặn thêm bằng CHECK rooms_exam_capacity_range.
 export const ROOM_UPDATE_SCHEMA = z
   .object({
     id: z.uuid(),

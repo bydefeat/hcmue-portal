@@ -50,7 +50,6 @@ function EventBlock({ event, compact = false }: { event: ScheduleEvent; compact?
 }
 
 
-// Lớp trùng giờ cùng ngày (đăng ký trùng lịch, nhiều nhóm thực hành) xếp cạnh nhau thay vì đè lên nhau.
 function laneLayout(events: ScheduleEvent[]) {
   const layout = new Map<string, { lane: number; lanes: number }>();
   for (const day of WEEKDAYS) {

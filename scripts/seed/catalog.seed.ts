@@ -17,7 +17,6 @@ const FACULTY_CODES: Record<string, string> = {
   "Khoa Vật lý": "VL",
 };
 
-// Khoa, ngành, học phần và quan hệ học phần, chương trình đào tạo, cơ sở và phòng học.
 export async function seedCatalog(tx: Transaction, context: SeedContext) {
   const facultyRows = await tx
     .insert(faculties)

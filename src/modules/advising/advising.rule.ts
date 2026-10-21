@@ -2,7 +2,6 @@ import { z } from "zod";
 import type { Dayjs } from "dayjs";
 import { dayjs, schoolTime } from "@/shared/libs/date.lib";
 
-// Dùng chung cho form đặt lịch và server action; DB còn chặn bằng advising_appointments_duration_range.
 export const APPOINTMENT_SCHEMA = z.object({
   studentIds: z
     .array(z.uuid("Sinh viên không hợp lệ"))
@@ -19,7 +18,6 @@ export const APPOINTMENT_SCHEMA = z.object({
 
 export type AppointmentInput = z.input<typeof APPOINTMENT_SCHEMA>;
 
-// Giờ bắt đầu buổi hẹn (giờ Việt Nam).
 export const appointmentStart = (appointment: { date: string; startTime: string }) => schoolTime(`${appointment.date}T${appointment.startTime.slice(0, 5)}`);
 
 const OPTIONAL_TEXT = (max: number) =>
@@ -30,7 +28,6 @@ const OPTIONAL_TEXT = (max: number) =>
     .nullish()
     .transform((value) => value || null);
 
-// Ghi nhận buổi đã diễn ra: có mặt hay vắng của TỪNG sinh viên; có người có mặt thì phải ghi nội dung trao đổi.
 export const APPOINTMENT_OUTCOME_SCHEMA = z
   .object({
     id: z.uuid(),
@@ -42,7 +39,6 @@ export const APPOINTMENT_OUTCOME_SCHEMA = z
 
 export type AppointmentOutcomeInput = z.input<typeof APPOINTMENT_OUTCOME_SCHEMA>;
 
-// Dời buổi hẹn còn "đã hẹn" sang giờ khác.
 export const APPOINTMENT_RESCHEDULE_SCHEMA = z.object({
   id: z.uuid(),
   date: APPOINTMENT_SCHEMA.shape.date,
@@ -53,7 +49,6 @@ export const APPOINTMENT_RESCHEDULE_SCHEMA = z.object({
 
 export type AppointmentRescheduleInput = z.input<typeof APPOINTMENT_RESCHEDULE_SCHEMA>;
 
-// Ghi chú cố vấn độc lập (không cần buổi hẹn): gọi điện, gặp ngoài lịch, trao đổi qua tin nhắn.
 export const ADVISING_NOTE_SCHEMA = z.object({
   studentId: z.uuid("Chọn sinh viên"),
   topic: z.string("Nhập chủ đề").trim().min(1, "Nhập chủ đề").max(200, "Tối đa 200 ký tự"),
@@ -63,14 +58,12 @@ export const ADVISING_NOTE_SCHEMA = z.object({
 
 export type AdvisingNoteInput = z.input<typeof ADVISING_NOTE_SCHEMA>;
 
-// Trạng thái chung của buổi sau khi ghi nhận: có ít nhất một người có mặt là "đã gặp", tất cả vắng là "vắng".
 export function outcomeStatus(attendance: Record<string, "present" | "absent">) {
   return Object.values(attendance).includes("present") ? ("done" as const) : ("missed" as const);
 }
 
 const minutesOf = (time: string) => Number(time.slice(0, 2)) * 60 + Number(time.slice(3, 5));
 
-// Hai buổi hẹn cùng ngày chồng giờ nhau (giờ dạng "HH:mm").
 export function appointmentsOverlap(a: { date: string; startTime: string; durationMinutes: number }, b: { date: string; startTime: string; durationMinutes: number }) {
   if (a.date !== b.date) return false;
   const aStart = minutesOf(a.startTime);
@@ -78,7 +71,6 @@ export function appointmentsOverlap(a: { date: string; startTime: string; durati
   return aStart < bStart + b.durationMinutes && bStart < aStart + a.durationMinutes;
 }
 
-// Chia lịch hẹn của sinh viên: sắp tới là buổi còn "đã hẹn" và chưa kết thúc (sớm nhất trước); còn lại là đã qua (gần nhất trước).
 export function splitAppointments<T extends { date: string; startTime: string; durationMinutes: number; status: string }>(appointments: T[], now: Dayjs) {
   const endOf = (appointment: T) => dayjs(`${appointment.date}T${appointment.startTime}`).add(appointment.durationMinutes, "minute");
   const upcoming = appointments.filter((appointment) => appointment.status === "scheduled" && !endOf(appointment).isBefore(now));

@@ -19,7 +19,6 @@ export default async function Page() {
     getTranscript(student.id),
     getStudentStandings([student.id]),
   ]);
-  // Tiến độ theo lần học cuối của từng học phần: lần cuối F là đang nợ dù trước đó từng đạt.
   const grades = latestGrades(transcript);
   const timetable = pickTimetable(enrollments, grades, {
     faculty: student.faculty,

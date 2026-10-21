@@ -9,9 +9,6 @@ type Database = typeof db | Transaction;
 const WINDOW = sql.raw(`interval '${SIGN_IN_LOCKOUT.windowMinutes} minutes'`);
 const LOCK = sql.raw(`interval '${SIGN_IN_LOCKOUT.lockMinutes} minutes'`);
 
-// Tính lần thử vào bộ đếm TRƯỚC khi so mật khẩu, trong một câu lệnh: nhiều request song song cùng lúc cũng không lọt quá
-// maxFailures lần. Đăng nhập đúng thì xóa dòng (clearSignInFailures) nên lần thử đúng không bị tính là sai.
-// Trả true nếu tên này đang bị khóa tạm.
 export async function reserveSignInAttempt(database: Database, username: string) {
   const current = signInFailures;
   const isLocked = sql`${current.lockedUntil} > now()`;
@@ -31,8 +28,6 @@ export async function reserveSignInAttempt(database: Database, username: string)
   return row?.locked === true;
 }
 
-// Lần thử đã tính ở reserveSignInAttempt; sai đủ maxFailures lần thì khóa luôn để lần sau bị chặn trước khi so mật khẩu.
-// Trả true khi lần sai này vừa làm tên bị khóa (để ghi log một lần).
 export async function lockIfTooManyFailures(database: Database, username: string) {
   const locked = await database
     .update(signInFailures)
@@ -47,7 +42,6 @@ export async function clearSignInFailures(database: Database, usernames: string[
   await database.delete(signInFailures).where(inArray(signInFailures.username, usernames));
 }
 
-// Dọn dòng đã hết cửa sổ đếm và hết khóa (tên dò bừa không tồn tại sẽ để lại dòng). Tác vụ cron "sign-in-failures".
 export async function sweepSignInFailures(database: Database) {
   const removed = await database
     .delete(signInFailures)

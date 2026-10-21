@@ -1,11 +1,8 @@
-// Tệp PDF nhỏ hợp lệ (một trang, vài trăm byte) cho minh chứng và đề thi của dữ liệu mẫu, để link tải xuống mở được.
-// Phông chuẩn của PDF không có chữ tiếng Việt có dấu nên nội dung trang viết không dấu; tiêu đề tài liệu (UTF-16) giữ dấu.
 
 function utf16Hex(text: string) {
   let hex = "FEFF";
   for (const char of text) {
     const code = char.codePointAt(0)!;
-    // Chỉ cần ký tự trong BMP (tiếng Việt), ký tự ngoài BMP thay bằng dấu hỏi.
     hex += (code > 0xffff ? 0x3f : code).toString(16).toUpperCase().padStart(4, "0");
   }
   return `<${hex}>`;
@@ -41,6 +38,5 @@ export function samplePdf(fileName: string) {
   const xref = body.length;
   body += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n${offsets.map((offset) => `${String(offset).padStart(10, "0")} 00000 n \n`).join("")}`;
   body += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R /Info ${objects.length} 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
-  // Toàn bộ là ASCII nên độ dài chuỗi bằng số byte, offset trong xref đúng.
   return new TextEncoder().encode(body);
 }

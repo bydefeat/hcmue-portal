@@ -1,5 +1,3 @@
-// Chạy sau `npm run db:seed` (tsx --conditions=react-server): cấp thêm tài khoản cho các kịch bản làm mất phiên của chính tài khoản đó
-// (đổi mật khẩu thu hồi mọi phiên, khóa tài khoản xóa phiên). Dùng tài khoản riêng để không đụng phiên đã lưu của 3 tài khoản seed.
 import { inArray } from "drizzle-orm";
 import { hashPassword } from "better-auth/crypto";
 import { db } from "@/shared/libs/db.lib";
@@ -18,7 +16,6 @@ async function main() {
       "student",
       rows.map((row) => row.id),
     );
-    // Mật khẩu đã biết thay cho mật khẩu ngẫu nhiên của luồng cấp tài khoản thật.
     await createAccounts(
       tx,
       profiles,

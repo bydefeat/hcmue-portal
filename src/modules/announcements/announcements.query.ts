@@ -10,15 +10,12 @@ import { announcementVisibleTo, audienceLabel, SLUG_PATTERN } from "@/modules/an
 import { announcements } from "@/modules/announcements/announcements.schema";
 import type { Announcement, AnnouncementAudienceOptions, AnnouncementStatus, AnnouncementViewer } from "@/modules/announcements/announcements.type";
 
-// Thông báo hẹn giờ tự thành "đã đăng" khi tới giờ, không cần tác vụ nền đổi trạng thái.
 const effectiveStatus = sql<AnnouncementStatus>`CASE WHEN ${announcements.status} = 'scheduled' AND ${announcements.publishedAt} <= now() THEN 'published' ELSE ${announcements.status}::text END`;
 
 export const isLive: SQL = or(eq(announcements.status, "published"), and(eq(announcements.status, "scheduled"), lte(announcements.publishedAt, sql`now()`)))!;
 
-// Danh sách chỉ hiện thông báo còn hạn; quá hạn chót thì tự rời danh sách (trang chi tiết vẫn mở được từ đường dẫn cũ).
 const notExpired: SQL = or(isNull(announcements.deadline), gt(announcements.deadline, sql`now()`))!;
 
-// Thông báo có gửi sinh viên mới công khai cho khách.
 const isPublic: SQL = sql`(${announcements.audience}->>'students')::boolean`;
 
 const ANNOUNCEMENT_COLUMNS = {
@@ -42,7 +39,6 @@ const ANNOUNCEMENT_COLUMNS = {
 
 type Row = { publishedAt: Date | null; deadline: Date | null; notifiedAt: Date | null } & Omit<Announcement, "publishedAt" | "deadline" | "notifiedAt" | "audienceLabel" | "isExpired">;
 
-// Tên khoa, ngành để ghép nhãn đối tượng (bảng nhỏ, đọc một lần mỗi request).
 const audienceNames = cache(async () => {
   const [facultyRows, majorRows] = await Promise.all([db.select({ id: faculties.id, name: faculties.name }).from(faculties), db.select({ id: majors.id, name: majors.name }).from(majors)]);
   return { faculties: new Map(facultyRows.map((row) => [row.id, row.name])), majors: new Map(majorRows.map((row) => [row.id, row.name])) };
@@ -61,10 +57,8 @@ async function toAnnouncements(rows: Row[]): Promise<Announcement[]> {
   }));
 }
 
-// Ghim lên đầu, rồi mới nhất trước; bản nháp (chưa có ngày đăng) đứng đầu danh sách quản trị.
 const ORDER = [desc(announcements.isPinned), sql`${announcements.publishedAt} DESC NULLS FIRST`, desc(announcements.id)];
 
-// Cổng quản trị: mọi cán bộ xem được danh sách (trang tổng quan), sửa cần quyền announcements.manage ở action.
 export async function getAnnouncements(id?: string): Promise<Announcement[]> {
   await requireRole("admin");
   if (id !== undefined && !isUuid(id)) return [];
@@ -76,7 +70,6 @@ export async function getAnnouncements(id?: string): Promise<Announcement[]> {
   return toAnnouncements(rows);
 }
 
-// Danh mục khoa, ngành, khóa để chọn đối tượng trên form soạn thông báo.
 export async function getAnnouncementAudienceOptions(): Promise<AnnouncementAudienceOptions> {
   await requireRole("admin");
   const [facultyRows, majorRows, cohortRows] = await Promise.all([
@@ -87,7 +80,6 @@ export async function getAnnouncementAudienceOptions(): Promise<AnnouncementAudi
   return { faculties: facultyRows, majors: majorRows, cohorts: cohortRows.map((row) => row.cohort) };
 }
 
-// Trang công khai, không cần đăng nhập: thông báo đã đăng (gồm hẹn giờ đã tới giờ), còn hạn, có gửi sinh viên.
 export const getPublishedAnnouncements = cache(async (limit?: number): Promise<Announcement[]> => {
   const query = db
     .select(ANNOUNCEMENT_COLUMNS)
@@ -108,7 +100,6 @@ export const getPublishedAnnouncement = cache(async (slug: string): Promise<Anno
   return row ? (await toAnnouncements([row]))[0] : null;
 });
 
-// Người đang xem ở cổng sinh viên (khóa, ngành, khoa của lớp sinh hoạt) hoặc cổng giảng viên (khoa).
 const portalViewer = cache(async (portal: "student" | "lecturer"): Promise<AnnouncementViewer | null> => {
   const { user } = await requireSession();
   if (portal === "student") {
@@ -124,7 +115,6 @@ const portalViewer = cache(async (portal: "student" | "lecturer"): Promise<Annou
   return row ? { kind: "lecturer", facultyId: row.facultyId } : null;
 });
 
-// Cổng sinh viên, giảng viên: thông báo chung đã đăng, còn hạn, đúng đối tượng của người xem.
 export const getPortalAnnouncements = cache(async (portal: "student" | "lecturer", limit?: number): Promise<Announcement[]> => {
   const viewer = await portalViewer(portal);
   if (!viewer) return [];

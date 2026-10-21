@@ -98,7 +98,6 @@ describe("exams: kiểm dữ liệu và quy tắc", () => {
     assert.deepEqual(Object.keys(sunday.fieldErrors ?? {}).toSorted(), ["date", "startTime"]);
     const late = parseInput(EXAM_SESSION_UPDATE_SCHEMA, { ...update, paperDeadline: "2027-01-05T01:00:00.000Z" });
     assert.equal(!late.ok && late.fieldErrors?.paperDeadline, "Hạn nộp đề phải trước giờ thi");
-    // 00:29 UTC = 07:29 giờ Việt Nam: vẫn trước giờ thi.
     assert.ok(parseInput(EXAM_SESSION_UPDATE_SCHEMA, { ...update, paperDeadline: "2027-01-05T00:29:00.000Z" }).ok);
   });
 
@@ -207,7 +206,6 @@ describe("exams: kiểm dữ liệu và quy tắc", () => {
 
 class Rollback extends Error {}
 
-// Chạy trong transaction rồi bỏ hết, không để lại dữ liệu cho test khác.
 async function inRollback(run: (tx: Transaction) => Promise<void>) {
   await db
     .transaction(async (tx) => {
@@ -219,10 +217,8 @@ async function inRollback(run: (tx: Transaction) => Promise<void>) {
     });
 }
 
-// Lỗi DB trong savepoint để transaction ngoài vẫn dùng tiếp được.
 const savepointFailure = (tx: Transaction, run: (sp: Transaction) => Promise<unknown>) => failure(tx.transaction(async (sp) => void (await run(sp))));
 
-// Lỗi nghiệp vụ trong savepoint: giữ transaction ngoài dùng tiếp được dù hàm đã ghi dở.
 const rejectedIn = (tx: Transaction, run: (sp: Transaction) => Promise<unknown>) =>
   failure(tx.transaction(async (sp) => void (await run(sp)))).then((error) => (error instanceof ExamInputError ? error.message : `không phải ExamInputError: ${String(error)}`));
 
@@ -248,7 +244,6 @@ const adminId = async () => (await db.select({ id: user.id }).from(user).where(e
 
 const roomId = async (code: string) => (await db.select({ id: rooms.id }).from(rooms).where(eq(rooms.code, code)))[0].id;
 
-// Giảng viên đang công tác, không coi ca thi và không có buổi dạy nào trong các ngày cho trước (để test không vướng lịch có sẵn).
 async function freeLecturers(count: number, options: { facultyId?: string; dates?: string[] } = {}) {
   const dates = options.dates ?? ["2027-01-14", "2027-01-15", "2027-01-16"];
   const proctoring = db
@@ -394,7 +389,6 @@ describe("exams: tạo, sửa, công bố ca thi", () => {
       const twice = await rejectedIn(tx, (sp) => createSession(sp, viewer, createInput({ ...base, date: "2027-01-15", rooms: [{ roomId: a201, proctorIds: people.slice(0, 2) }, { roomId: a203, proctorIds: people.slice(2, 4) }] })));
       assert.match(twice, /không phải ExamInputError/, "trùng loại ca của lớp: DB chặn bằng unique index");
 
-      // Ca thi bù: 2 sinh viên của lớp, hai ca bù cùng lớp vẫn được.
       const makeupStudents = seats.slice(0, 2).map((seat) => seat.enrollmentId);
       const makeupBase = { ...base, kind: "makeup", makeupOfId: id, makeupEnrollmentIds: makeupStudents, date: "2027-01-15", startTime: "17:30", paperDeadline: "2027-01-12T10:00:00.000Z" };
       const makeup = await createSession(tx, viewer, createInput({ ...makeupBase, rooms: [{ roomId: h311, proctorIds: people.slice(0, 2) }] }));
@@ -413,10 +407,8 @@ describe("exams: tạo, sửa, công bố ca thi", () => {
     const base = { kind: "midterm", date: "2027-01-16", durationMinutes: 120, format: "written", paperDeadline: "2027-01-10T10:00:00.000Z" };
     await inRollback(async (tx) => {
       const id = await createSession(tx, viewer, createInput({ ...base, classSectionId: first.id, startTime: "13:30", rooms: [{ roomId: a201, proctorIds: people.slice(0, 2) }, { roomId: b302, proctorIds: people.slice(2, 4) }] }));
-      // Lớp khác khoa (Toán): người xem phạm vi khoa CNTT không thấy, nhưng xung đột vẫn tính (Phòng Khảo thí toàn trường tạo).
       const math = await sectionByCode("MATH1011.01");
       const university = viewerOf(admin);
-      // Bắt đầu 15:30, ca trước kết thúc 15:30: không trùng dù cùng phòng.
       await tx.transaction(async (sp) => {
         await createSession(sp, university, createInput({ ...base, kind: "makeup", makeupOfId: (await sp.select({ id: examSessions.id }).from(examSessions).where(and(eq(examSessions.classSectionId, math.id), eq(examSessions.kind, "final"))))[0].id, makeupEnrollmentIds: (await sp.select({ id: enrollments.id }).from(enrollments).where(and(eq(enrollments.classSectionId, math.id), eq(enrollments.status, "enrolled"))).limit(1)).map((row) => row.id), classSectionId: math.id, startTime: "15:30", rooms: [{ roomId: a201, proctorIds: people.slice(0, 2) }] }));
         sp.rollback();
@@ -429,7 +421,6 @@ describe("exams: tạo, sửa, công bố ca thi", () => {
       assert.match(await rejectedIn(tx, (sp) => createSession(sp, university, createInput({ ...overlap, rooms: [{ roomId: a201, proctorIds: people.slice(4, 6) }] }))), /Trùng phòng A\.201 với COMP1070\.01/);
       assert.match(await rejectedIn(tx, (sp) => createSession(sp, university, createInput({ ...overlap, rooms: [{ roomId: h204, proctorIds: [people[0], people[4]] }] }))), /coi thi trùng giờ với COMP1070\.01/);
 
-      // Sinh viên học cả hai lớp thi bù trùng giờ: cảnh báo mềm, cần lý do.
       const shared = await tx.select({ id: examCandidates.enrollmentId }).from(examCandidates).where(eq(examCandidates.examSessionId, id)).limit(1);
       const firstFinal = (await tx.select({ id: examSessions.id }).from(examSessions).where(and(eq(examSessions.classSectionId, first.id), eq(examSessions.kind, "final"))))[0].id;
       const clash = { ...base, kind: "makeup", makeupOfId: firstFinal, makeupEnrollmentIds: shared.map((row) => row.id), classSectionId: first.id, startTime: "13:30", durationMinutes: 60, rooms: [{ roomId: h204, proctorIds: people.slice(4, 6) }] };
@@ -445,7 +436,6 @@ describe("exams: tạo, sửa, công bố ca thi", () => {
     const admin = await adminId();
     const viewer = viewerOf(admin);
     const section = await sectionByCode("COMP1070.01");
-    // Buổi học tháng 12 phủ tiết 2 (07:20-08:10) của một giảng viên không phải người dạy lớp đang xếp thi.
     const [lesson] = await db
       .select({ date: classSessions.date, lecturerId: classSections.lecturerId })
       .from(classSessions)
@@ -456,7 +446,6 @@ describe("exams: tạo, sửa, công bố ca thi", () => {
     const a201 = await roomId("A.201");
     await inRollback(async (tx) => {
       const input = { classSectionId: section.id, kind: "midterm", date: lesson.date, startTime: "07:30", durationMinutes: 60, format: "written", paperDeadline: "2026-11-01T10:00:00.000Z", rooms: [{ roomId: a201, proctorIds: [lesson.lecturerId!, helpers[0]] }] };
-      // Lớp 40 sinh viên vừa A.201 (40 chỗ).
       const error = await rejectedIn(tx, (sp) => createSession(sp, viewer, createInput(input)));
       assert.match(error, /có giờ dạy lớp .* trùng giờ thi/);
       await createSession(tx, viewer, createInput({ ...input, overrideReason: "Khoa đã bố trí dạy thay buổi này" }));
@@ -471,7 +460,6 @@ describe("exams: tạo, sửa, công bố ca thi", () => {
     const people = await freeLecturers(4);
     const termId = (await db.select({ termId: classSections.termId }).from(classSections).where(eq(classSections.id, section.id)))[0].termId;
     await inRollback(async (tx) => {
-      // Ca giữa kỳ hiện có ở trạng thái dự kiến đều đã công bố trong seed; chỉ ca mới tạo là dự kiến.
       const id = await createSession(
         tx,
         viewer,
@@ -502,7 +490,6 @@ describe("exams: tạo, sửa, công bố ca thi", () => {
       const published = await sentTo(tx, /Lịch thi giữa kỳ lớp COMP1070\.01 đã công bố/);
       assert.ok(published.some((entry) => entry.audience === "lecturer"));
 
-      // Sinh viên có tài khoản cổng (sinh viên seed) trong ca thi bù: nhận thông báo khi công bố.
       const own = await sectionByCode("COMP1020.02");
       const [mine] = await tx.select({ id: enrollments.id }).from(enrollments).where(and(eq(enrollments.classSectionId, own.id), eq(enrollments.studentId, CURRENT_STUDENT_ID)));
       const [ownFinal] = await tx.select({ id: examSessions.id }).from(examSessions).where(and(eq(examSessions.classSectionId, own.id), eq(examSessions.kind, "final")));
@@ -632,13 +619,11 @@ describe("exams: duyệt đề", () => {
       assert.equal(submitted.row.paperStatus, "submitted");
       const seen = await versionOf(tx);
 
-      // Trưởng phòng Đào tạo (exams.manage, không có exams.review) không duyệt được.
       const head = viewerOf(admin, { permissions: ROLES.find((role) => role.id === "academic-head")!.permissions });
       assert.match(await rejectedIn(tx, (sp) => decidePaperReview(sp, head, target.id, { decision: "approve", paperSubmittedAt: seen })), /không có quyền duyệt/);
       const otherFaculty = viewerOf(admin, { faculty: "Khoa Ngữ văn", permissions: ["exams.manage", "exams.review"] });
       assert.match(await rejectedIn(tx, (sp) => decidePaperReview(sp, otherFaculty, target.id, { decision: "approve", paperSubmittedAt: seen })), /ngoài phạm vi khoa/);
 
-      // Giảng viên thay đề trong lúc người duyệt đang xem bản cũ: duyệt bị từ chối.
       const second = await recordPaperSubmission(tx, teacher.id, target.id, { paper: upload("Đề thi v2.pdf"), answerKey: upload("Đáp án v2.pdf") });
       assert.deepEqual(second.replaced.toSorted(), [first.paper.key, first.answerKey.key].toSorted());
       assert.match(await rejectedIn(tx, (sp) => decidePaperReview(sp, manager, target.id, { decision: "approve", paperSubmittedAt: seen })), /bản đề mới/);
@@ -650,7 +635,6 @@ describe("exams: duyệt đề", () => {
       assert.equal(await decidePaperReview(tx, manager, target.id, { decision: "approve", paperSubmittedAt: await versionOf(tx) }), "approved");
       assert.match((await lecturerNotices(tx))[0].title, /đã được duyệt/);
 
-      // Đã duyệt: không nộp lại; DB chặn đổi tệp và đổi về chờ duyệt; Phòng Khảo thí mở khóa được (thành bị trả lại, ghi nhật ký).
       assert.match(await rejectedIn(tx, (sp) => recordPaperSubmission(sp, teacher.id, target.id, { paper: upload("c.pdf"), answerKey: upload("d.pdf") })), /đã khóa/);
       const fileSwap = await savepointFailure(tx, (sp) => sp.update(examSessions).set({ paperFileName: "khac.pdf" }).where(eq(examSessions.id, target.id)));
       assert.equal(message(fileSwap), EXAMS_CONSTRAINT_MESSAGE.exam_sessions_paper_locked);
@@ -664,7 +648,6 @@ describe("exams: duyệt đề", () => {
       const audit = await tx.select({ summary: auditLogs.summary }).from(auditLogs).where(and(eq(auditLogs.entityType, "exam"), eq(auditLogs.entityId, target.id)));
       assert.ok(audit.some((entry) => /Mở khóa đề thi đã duyệt/.test(entry.summary)));
 
-      // Quá hạn nộp: đề chưa nộp thì không nộp được nữa.
       await tx.update(examSessions).set({ paperStatus: "returned" }).where(eq(examSessions.id, target.id));
       const [fresh] = await tx
         .select({ id: examSessions.id, lecturerId: classSections.lecturerId })
@@ -674,7 +657,6 @@ describe("exams: duyệt đề", () => {
         .limit(1);
       await tx.update(examSessions).set({ paperDeadline: new Date("2026-01-01T00:00:00Z") }).where(eq(examSessions.id, fresh.id));
       assert.match(await rejectedIn(tx, (sp) => recordPaperSubmission(sp, fresh.lecturerId!, fresh.id, { paper: upload("e.pdf"), answerKey: upload("f.pdf") })), /quá hạn nộp đề/);
-      // Sau giờ thi: DB chặn cả khi ghi thẳng.
       await tx.update(examSessions).set({ date: "2026-02-01", paperDeadline: new Date("2026-01-01T00:00:00Z") }).where(eq(examSessions.id, target.id));
       const afterStart = await savepointFailure(tx, (sp) =>
         sp
@@ -719,11 +701,9 @@ describe("exams: đổi ca coi thi", () => {
       assert.ok(!assigned.some((row) => row.lecturerId === proctor.lecturerId));
       assert.equal(assigned.find((row) => row.lecturerId === sameFaculty)?.examRoomId, proctor.examRoomId);
       assert.match(await rejectedIn(tx, (sp) => decideProctorSwap(sp, viewer, swap.id, "accepted", null)), /đã được xử lý/);
-      // Người gửi đã rời ca nhưng hai đề nghị vẫn còn làm lịch sử.
       const history = await tx.select({ id: examProctorSwapRequests.id }).from(examProctorSwapRequests).where(inArray(examProctorSwapRequests.id, [wrong.id, swap.id]));
       assert.equal(history.length, 2);
 
-      // Phòng Khảo thí đổi phân công gỡ người có đề nghị đang chờ: đề nghị hết hiệu lực, không bị xóa.
       const [stillThere] = assigned.filter((row) => row.lecturerId !== sameFaculty);
       const [pending] = await tx.insert(examProctorSwapRequests).values({ examSessionId: proctor.examSessionId, requesterId: stillThere.lecturerId, substituteId: proctor.lecturerId, reason: "Ốm" }).returning();
       const roomsNow = await tx.select({ roomId: sql<string>`r.room_id`, id: sql<string>`r.id` }).from(sql`exam_session_rooms r`).where(sql`r.exam_session_id = ${proctor.examSessionId}`);

@@ -3,7 +3,6 @@
 import { useRouter } from "@bprogress/next/app";
 import { Select } from "antd";
 
-// Chọn đợt khảo sát đã đóng để xem lại kết quả; đợt nằm trên URL (?survey=) để tải lại vẫn giữ.
 export function LecturerSurveySelect({ value, options }: { value: string; options: { value: string; label: string }[] }) {
   const router = useRouter();
   return (

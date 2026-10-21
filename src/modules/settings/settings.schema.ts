@@ -54,7 +54,6 @@ export const reportExports = pgTable(
     status: reportExportStatusEnum().notNull().default("queued"),
     requestedByUserId: uuid().references(() => user.id, { onDelete: "set null" }),
     rowCount: integer(),
-    // Tệp thật tạo lúc xuất, lưu trong kho (reports/<uuid>); tải về đúng tệp này nên số dòng ghi lại khớp tệp.
     storageKey: text().unique("report_exports_storage_key_unique"),
     fileName: text(),
     contentType: text(),

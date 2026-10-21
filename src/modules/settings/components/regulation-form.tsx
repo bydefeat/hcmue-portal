@@ -19,7 +19,6 @@ type SaveValues = { decision: string; reason: string; effectiveFrom: Dayjs };
 
 const SAVE_FIELDS = new Set(["decision", "reason", "effectiveFrom"]);
 
-// Lỗi theo ô từ server: "rules.credits.maxPerTerm" → ô ["credits", "maxPerTerm"] của form quy chế, còn lại thuộc hộp xác nhận.
 function splitFieldErrors(fieldErrors: Record<string, string> | undefined) {
   const rules: { name: (string | number)[]; errors: string[] }[] = [];
   const save: { name: keyof SaveValues; errors: string[] }[] = [];

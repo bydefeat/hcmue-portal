@@ -12,7 +12,6 @@ import { markAllNotificationsRead, markNotificationsRead } from "@/modules/notif
 import { getNotifications, getUnreadNotificationCount } from "@/modules/notifications/notifications.query";
 import { getLecturers, getStudents } from "@/modules/users/users.query";
 
-// Ô tìm kiếm chung: chỉ đọc nhóm dữ liệu người xem có quyền mở, và chỉ trong khoa của mình.
 async function searchEntries(viewer: Viewer): Promise<SearchEntry[]> {
   const [students, lecturers, courses, sections] = await Promise.all([
     can(viewer, "students.view") ? getStudents() : [],
@@ -66,7 +65,6 @@ async function searchEntries(viewer: Viewer): Promise<SearchEntry[]> {
 }
 
 export default async function Layout({ children }: { children: React.ReactNode }) {
-  // getViewer() gọi requireRole("admin"): chưa đăng nhập về trang đăng nhập, không phải cán bộ quản trị thì 403.
   const viewer = await getViewer();
   const [entries, currentTerm, notifications, unread, assignments, session] = await Promise.all([
     searchEntries(viewer),

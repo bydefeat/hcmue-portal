@@ -11,9 +11,7 @@ type WorkbookInput = {
   components: GradeComponent[];
   students: { studentId: string; studentCode: string; fullName: string }[];
   scores: Record<string, ScoreRow>;
-  // Bảng điểm đã chốt thì khóa cả cột điểm.
   locked: boolean;
-  // Thang điểm chữ và bước làm tròn của quy chế đang áp dụng, để công thức trong tệp ra đúng điểm như trên cổng.
   grading: GradingRules;
 };
 
@@ -28,8 +26,6 @@ function columnLetter(index: number) {
   return letters;
 }
 
-// Điểm chữ trong Excel tính lại theo đúng thang điểm của quy chế khi giảng viên sửa điểm trong tệp.
-// Học phần điều kiện: Đạt từ ngưỡng thấp nhất không phải F của thang điểm.
 function letterFormula(cell: string, scale: GradingRules["scale"], isConditional = false) {
   if (isConditional) return `IF(${cell}="","",IF(${cell}>=${scale.at(-2)?.min ?? 0},"${CONDITIONAL_PASS_LABEL}","${CONDITIONAL_FAIL_LABEL}"))`;
   const steps = scale.slice(0, -1);
@@ -37,8 +33,6 @@ function letterFormula(cell: string, scale: GradingRules["scale"], isConditional
   return `IF(${cell}="","",${nested})`;
 }
 
-// Tệp .xlsx theo mẫu nhập lại được: dòng 1 tiêu đề, cột A MSSV, cột B họ tên, mỗi cột điểm một cột theo thứ tự bảng điểm,
-// rồi tổng và điểm chữ (công thức, tự tính lại khi sửa). Chỉ ô điểm mở khóa; trang tính bật bảo vệ không mật khẩu để tránh sửa nhầm.
 export async function gradeSheetWorkbook(input: WorkbookInput) {
   const workbook = new ExcelJS.Workbook();
   workbook.creator = "HCMUE Portal";
@@ -119,7 +113,6 @@ function cellText(value: ExcelJS.CellValue): string {
   return "";
 }
 
-// Đọc trang đầu của tệp .xlsx thành ma trận chữ (dòng i là dòng i+1 trong Excel, giữ dòng trống để báo đúng số dòng).
 export async function readWorkbookMatrix(data: ArrayBuffer): Promise<string[][]> {
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.load(data);

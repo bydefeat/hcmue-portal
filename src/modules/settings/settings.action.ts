@@ -33,7 +33,6 @@ import {
 import { calendarEvents, regulations, reportExports } from "@/modules/settings/settings.schema";
 import type { CalendarEvent, RegulationSettings, RegulationVersion, ReportExportJob } from "@/modules/settings/settings.type";
 
-// Mỗi lần lưu tạo một phiên bản quy chế mới có ngày áp dụng; bản cũ giữ nguyên để tra cứu điểm, cảnh báo đã xét theo bản cũ.
 export async function saveRegulation(input: RegulationSaveInput): Promise<ActionResult<{ regulation: RegulationSettings; versions: RegulationVersion[] }>> {
   const viewer = await requireSchoolWidePermission("settings.manage");
   const parsed = parseInput(REGULATION_SAVE_SCHEMA, input);
@@ -43,7 +42,6 @@ export async function saveRegulation(input: RegulationSaveInput): Promise<Action
   let outcome: "unchanged" | "saved";
   try {
     outcome = await db.transaction(async (tx) => {
-      // Khóa bảng quy chế trong giao dịch để hai người lưu cùng lúc không sinh trùng số hiệu phiên bản.
       const existing = await tx.select({ version: regulations.version, rules: regulations.rules }).from(regulations).orderBy(desc(regulations.effectiveFrom)).for("update");
       const changes = existing[0] ? regulationChanges(existing[0].rules, rules) : [];
       if (existing[0] && changes.length === 0) return "unchanged";
@@ -70,7 +68,6 @@ export async function saveRegulation(input: RegulationSaveInput): Promise<Action
     return actionFailure(error, SETTINGS_CONSTRAINT_MESSAGE);
   }
   if (outcome === "unchanged") return actionError("Các tham số chưa khác phiên bản mới nhất, không cần lưu phiên bản mới.");
-  // Quy chế dùng ở hầu hết các cổng (đăng ký, điểm danh, lịch thi).
   revalidatePath("/", "layout");
   const [regulation, versions] = await Promise.all([getLatestRegulation(), getRegulationVersions()]);
   return actionOk({ regulation, versions });
@@ -85,7 +82,6 @@ function revalidateCalendar() {
   revalidatePath("/");
 }
 
-// Mốc tự nhập (thi, nhập điểm, nghỉ lễ, sự kiện) trong khoảng ngày của học kỳ; thời gian học kỳ, đợt đăng ký sửa ở trang Học kỳ.
 export async function saveCalendarEvent(id: string | null, input: CalendarEventInput): Promise<ActionResult<CalendarEvent>> {
   const viewer = await requireSchoolWidePermission("settings.manage");
   if (id !== null && !isUuid(id)) return actionError("Mốc lịch không còn tồn tại hoặc lấy từ học kỳ, đợt đăng ký (sửa ở trang Học kỳ).");
@@ -157,7 +153,6 @@ export async function deleteCalendarEvent(id: string): Promise<ActionResult<stri
   return actionOk(id);
 }
 
-// Báo cáo xem được với vai trò đang dùng: reports.view và quyền riêng của báo cáo (khảo sát, xét tốt nghiệp).
 function reportOf(viewer: Viewer, reportKey: string) {
   const report = REPORT_DEFINITIONS.find((entry) => entry.id === reportKey);
   if (!report) return { report: null, denied: "Báo cáo không có trong danh mục." };
@@ -165,8 +160,6 @@ function reportOf(viewer: Viewer, reportKey: string) {
   return { report, denied: null };
 }
 
-// Xuất báo cáo: đọc dữ liệu, dựng tệp đúng định dạng một lần, lưu tệp vào kho (reports/<uuid>) rồi ghi lịch sử xuất cùng số dòng
-// của chính tệp đó. Tải về là đọc lại tệp đã lưu nên số dòng ghi lại luôn khớp tệp.
 export async function requestReportExport(input: ReportExportInput): Promise<ActionResult<ReportExportJob>> {
   const viewer = await requirePermission("reports.view");
   const parsed = parseInput(REPORT_EXPORT_SCHEMA, input);
@@ -174,7 +167,6 @@ export async function requestReportExport(input: ReportExportInput): Promise<Act
   const { reportKey, termId, faculty, format } = parsed.data;
   const { report, denied } = reportOf(viewer, reportKey);
   if (!report || denied) return actionError(denied ?? "Báo cáo không có trong danh mục.");
-  // Cán bộ theo khoa chỉ xuất được dữ liệu khoa mình.
   if (viewer.faculty && faculty !== viewer.faculty) return actionError("Bạn chỉ xuất được báo cáo của khoa mình.", { faculty: `Chỉ chọn được ${viewer.faculty}` });
   const [term] = await db.select({ code: terms.code, name: terms.name, shortName: terms.shortName }).from(terms).where(eq(terms.id, termId));
   if (!term) return actionError("Học kỳ không còn trong danh mục, tải lại trang.");
@@ -225,7 +217,6 @@ export async function requestReportExport(input: ReportExportInput): Promise<Act
   return job ? actionOk(job) : actionError("Đã tạo báo cáo nhưng chưa đọc lại được, tải lại trang.");
 }
 
-// Tải báo cáo đã xuất: đúng tệp đã lưu lúc xuất. Excel, PDF trả base64 (server action chỉ truyền được dữ liệu tuần tự hóa), CSV trả chữ.
 export async function downloadReportExport(id: string): Promise<ActionResult<{ fileName: string; content: string; encoding: "base64" | "text"; mimeType: string }>> {
   const viewer = await requirePermission("reports.view");
   if (!isUuid(id)) return actionError("Không tìm thấy báo cáo.");

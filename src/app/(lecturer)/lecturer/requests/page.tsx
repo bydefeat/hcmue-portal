@@ -10,7 +10,6 @@ export const metadata: Metadata = { title: "Đơn từ" };
 export default async function Page({ searchParams }: { searchParams: Promise<{ tab?: string; open?: string }> }) {
   const [{ tab, open }, lecturer] = await Promise.all([searchParams, getCurrentLecturer()]);
   const [assigned, own, options] = await Promise.all([getRequestsForAssignee(), getRequestsOf(lecturer.id), lecturerRequestOptions(lecturer)]);
-  // Quá hạn ở bước của chính giảng viên, không tính bước của đơn vị khác trong cùng đơn.
   const overdue = assigned.filter((request) => request.can.decide && request.isOverdue).length;
 
   return (

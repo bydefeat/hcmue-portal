@@ -38,7 +38,6 @@ import type { AcademicRequest, ApprovalStep, RequestDetail, RequesterType, Reque
 
 type Executor = Transaction | typeof db;
 
-// Lỗi nghiệp vụ trong giao dịch đơn từ: action đổi thành câu báo, field có thì gắn vào ô của form.
 export class RequestError extends Error {
   constructor(
     message: string,
@@ -50,7 +49,6 @@ export class RequestError extends Error {
 
 export type { StepContext };
 
-// Số tiếp theo của mã đơn. Dòng đếm bị khóa tới hết giao dịch nên hai người gửi cùng lúc không lấy trùng số.
 export async function allocateRequestCode(tx: Transaction, requesterType: RequesterType, year = currentYear()) {
   const prefix = REQUEST_CODE_PREFIX[requesterType];
   const [row] = await tx
@@ -61,7 +59,6 @@ export async function allocateRequestCode(tx: Transaction, requesterType: Reques
   return formatRequestCode(prefix, year, row.value);
 }
 
-// Ngày nghỉ lễ trong lịch năm học, để tính hạn xử lý theo ngày làm việc.
 export async function loadHolidays(executor: Executor = db) {
   const rows = await executor.select({ startDate: calendarEvents.startDate, endDate: calendarEvents.endDate }).from(calendarEvents).where(eq(calendarEvents.kind, "holiday"));
   return holidayDates(rows);
@@ -71,7 +68,6 @@ export type NewAttachment = { name: string; contentType: string; storageKey: str
 
 export type AttachmentFile = { name: string; contentType: string; data: Uint8Array };
 
-// Ghi tệp minh chứng vào kho rồi chạy giao dịch tạo đơn với khóa lưu trữ của từng tệp. Giao dịch hỏng thì tệp vừa ghi bị xóa.
 export function withAttachments<T>(files: AttachmentFile[], work: (attachments: NewAttachment[]) => Promise<T>) {
   const stored = files.map((file) => ({ ...file, key: newStorageKey("requests") }));
   return withStoredFiles(stored, () =>
@@ -104,7 +100,6 @@ export type NewRequest = {
   reason: string;
   attachments: NewAttachment[];
   lecturerAssigneeId: string | null;
-  // Người gửi, để ghi nhật ký thao tác; test bỏ trống.
   actor?: AuditActor;
 };
 
@@ -148,7 +143,6 @@ export async function insertRequest(tx: Transaction, input: NewRequest, year = c
   return request;
 }
 
-// Cột điểm của lớp và điểm đang lưu của một sinh viên ở cột đó (null nếu chưa nhập).
 export async function currentComponentScore(tx: Executor, input: { classSectionId: string; enrollmentId: string; componentKey: string }) {
   const [component] = await tx
     .select({ id: gradeComponents.id, label: gradeComponents.label })
@@ -163,13 +157,11 @@ export async function currentComponentScore(tx: Executor, input: { classSectionI
   return { component: { label: component.label }, score: row?.score ?? null };
 }
 
-// Trạng thái bảng điểm của lớp (để kiểm điều kiện phúc khảo, sửa điểm).
 export async function gradeSheetStatus(tx: Executor, classSectionId: string) {
   const [sheet] = await tx.select({ status: gradeSheets.status, publishedAt: gradeSheets.publishedAt }).from(gradeSheets).where(eq(gradeSheets.classSectionId, classSectionId));
   return sheet ?? null;
 }
 
-// Giá trị trên hệ thống để người duyệt đối chiếu với ô sinh viên tự khai: điểm cột cuối kỳ (phúc khảo), lịch thi của lớp (hoãn thi).
 export async function studentRequestFacts(tx: Executor, kind: RequestKind, input: { classSectionId: string; enrollmentId: string }): Promise<StudentRequestFacts> {
   if (kind === "regrade") {
     const components = await tx
@@ -188,7 +180,6 @@ export async function studentRequestFacts(tx: Executor, kind: RequestKind, input
       .from(examSessions)
       .where(eq(examSessions.classSectionId, input.classSectionId))
       .orderBy(asc(examSessions.date));
-    // Ca thi bù không phải lịch thi gốc để đối chiếu đơn hoãn thi.
     return { examDates: exams.filter((exam): exam is { kind: "midterm" | "final"; date: string } => exam.kind !== "makeup") };
   }
   return {};
@@ -196,8 +187,6 @@ export async function studentRequestFacts(tx: Executor, kind: RequestKind, input
 
 const requesterLecturer = alias(lecturers, "requester_lecturer");
 
-// Khóa dòng đơn: mọi thao tác đổi trạng thái (duyệt, từ chối, hủy, chuyển người, bổ sung) đều khóa dòng này trước, nên hai
-// người bấm cùng lúc thì người sau chờ người trước xong rồi đọc lại trạng thái mới.
 async function lockRequest(tx: Transaction, requestId: string) {
   const [request] = await tx
     .select({
@@ -245,8 +234,6 @@ function stepContext(locked: LockedRequest, step: StepRow): StepContext {
   return { role: step.role, assigneeLecturerId: assigneeOf(locked, step), faculty: locked.request.faculty, advisorId: locked.request.advisorId };
 }
 
-// Tài khoản cán bộ xử lý được bước của đơn vị: tài khoản vào được cổng quản trị (vai trò admin), được cấp vai trò có
-// requests.process và quyền của bước, phạm vi toàn trường hoặc đúng khoa của đơn.
 export async function officeHandlerUserIds(executor: Executor, role: StepRole, facultyId: string) {
   if (!isOfficeStep(role)) return [];
   const process = alias(rolePermissions, "process_permission");
@@ -261,7 +248,6 @@ export async function officeHandlerUserIds(executor: Executor, role: StepRole, f
   return rows.map((row) => row.userId);
 }
 
-// Báo người có bước đến lượt: giảng viên, cố vấn ở cổng giảng viên; cán bộ có quyền bước ở cổng quản trị. Trả số người đã nhận.
 async function notifyStepHandlers(tx: Transaction, locked: LockedRequest, index: number, message: { title: string; body: string }) {
   const step = locked.steps[index];
   if (!step) return 0;
@@ -286,8 +272,6 @@ async function notifyRequester(tx: Transaction, locked: LockedRequest, message: 
   });
 }
 
-// Đơn duyệt xong bước cuối: điểm móc để đợt sau gắn tác động lên dữ liệu (phúc khảo đổi điểm, học vượt nâng hạn mức, rút học
-// phần nhận W, bảo lưu ra quyết định...). Handler chạy trong cùng transaction với lần duyệt: ném lỗi thì cả lần duyệt rollback.
 export type ApprovedRequest = {
   id: string;
   code: string;
@@ -297,13 +281,11 @@ export type ApprovedRequest = {
   classSectionId: string | null;
   details: RequestDetail[];
   actor: AuditActor;
-  // Phần người duyệt bước cuối nhập kèm (điểm sau phúc khảo, học phần công nhận...), handler tự kiểm bằng schema của mình.
   effect?: unknown;
 };
 
 export type RequestApprovedHandler = (request: ApprovedRequest, tx: Transaction) => Promise<void>;
 
-// Handler của từng module đăng ký ở file riêng của module đó; lỗi nghiệp vụ ném InputError để chặn lần duyệt kèm câu báo.
 export const REQUEST_APPROVED_HANDLERS: Partial<Record<RequestKind, RequestApprovedHandler>> = { ...GRADE_REQUEST_HANDLERS };
 
 export async function onRequestApproved(kind: RequestKind, request: ApprovedRequest, tx: Transaction) {
@@ -316,11 +298,8 @@ export type StepDecision = {
   decision: "approved" | "rejected" | "skipped";
   comment: string;
   actor: AuditActor;
-  // Trả câu báo nếu người này không được xử lý bước, null nếu được.
   authorize: (context: StepContext) => string | null;
-  // Phòng Đào tạo xử lý thay (bước của người khác): ghi rõ trên bước, lý do bắt buộc.
   onBehalf?: boolean;
-  // Phần nhập kèm khi duyệt bước cuối, chuyển cho handler kết quả đơn.
   effect?: unknown;
 };
 
@@ -351,7 +330,6 @@ export async function decideStep(tx: Transaction, input: StepDecision) {
     .update(requestSteps)
     .set({
       status: input.decision,
-      // Bước cố vấn, giảng viên ghi lại người chịu trách nhiệm lúc xử lý (cố vấn, giảng viên lớp có thể đổi về sau).
       assigneeLecturerId: isOfficeStep(current.role) ? null : (context.assigneeLecturerId ?? current.assigneeLecturerId),
       actorUserId: input.actor.userId,
       actorName: input.actor.name,
@@ -414,7 +392,6 @@ export async function decideStep(tx: Transaction, input: StepDecision) {
   }
 }
 
-// Chuyển bước cố vấn, giảng viên (chưa xử lý) cho giảng viên khác; người được chuyển giữ cố định, nhận thông báo nếu bước đang chờ.
 export async function reassignStep(
   tx: Transaction,
   input: { requestId: string; step: number; lecturerId: string; reason: string; actor: AuditActor; authorize: (faculty: string) => string | null },
@@ -467,7 +444,6 @@ async function lecturerName(tx: Transaction, id: string) {
   return row ? `${row.title} ${row.fullName}` : "Không rõ";
 }
 
-// Người xử lý bước đang chờ yêu cầu bổ sung minh chứng: bước dừng tính hạn, người gửi nhận thông báo.
 export async function requestSupplement(
   tx: Transaction,
   input: { requestId: string; step: number; note: string; actor: AuditActor; authorize: (context: StepContext) => string | null },
@@ -502,7 +478,6 @@ export async function requestSupplement(
   });
 }
 
-// Người gửi bổ sung theo yêu cầu: thêm tệp, ghi chú; bước đang chờ được tính hạn lại từ lúc bổ sung, người xử lý nhận thông báo.
 export async function submitSupplement(
   tx: Transaction,
   input: { requestId: string; userId: string; note: string; attachments: NewAttachment[]; actor: AuditActor; existingFiles: number },
@@ -536,7 +511,6 @@ export async function submitSupplement(
   });
 }
 
-// Đơn bị từ chối để gửi lại: chỉ người gửi, chỉ đơn đã bị từ chối và chưa gửi lại lần nào.
 export async function lockRejectedForResubmit(tx: Transaction, requestId: string, userId: string) {
   const locked = await lockRequest(tx, requestId);
   if (locked.request.requesterUserId !== userId) throw new RequestError("Chỉ người gửi mới gửi lại được đơn này.");
@@ -554,7 +528,6 @@ export async function cancelOwnRequest(tx: Transaction, requestId: string, userI
   if (blocked) throw new RequestError(blocked);
   const now = new Date();
   await tx.update(academicRequests).set({ cancelledAt: now }).where(eq(academicRequests.id, requestId));
-  // Đơn đã hủy không còn bước nào đến lượt, để bước đang chờ không hiện trong hộp đơn của người xử lý.
   await tx
     .update(requestSteps)
     .set({ status: "waiting", dueAt: null })
@@ -568,9 +541,6 @@ export async function cancelOwnRequest(tx: Transaction, requestId: string, userI
 
 const SLA_BATCH = 200;
 
-// Tác vụ request-sla: báo người xử lý bước sắp hết hạn (còn dưới 24 giờ) và bước đã quá hạn, mỗi loại một lần cho mỗi lượt đến
-// hạn (cờ due_soon_notified_at, overdue_notified_at; chuyển bước, chuyển người, bổ sung thì đặt lại). Đơn đang chờ bổ sung không nhắc.
-// requestIds giới hạn vào vài đơn (test), bỏ trống là mọi đơn.
 export async function runRequestSlaJob(now = new Date(), requestIds?: string[]) {
   const outcome = { dueSoon: 0, overdue: 0, recipients: 0 };
   const soon = new Date(now.getTime() + 24 * 3_600_000);
@@ -596,7 +566,6 @@ export async function runRequestSlaJob(now = new Date(), requestIds?: string[]) 
       let count = 0;
       for (const row of due) {
         const notice = slaNotice({ dueAt: row.dueAt!, dueSoonNotifiedAt: row.dueSoonNotifiedAt, overdueNotifiedAt: row.overdueNotifiedAt }, now);
-        // Đã quá hạn thì không nhắc "sắp hết hạn" nữa: đánh dấu cả hai cờ.
         const flags = notice === "overdue" || row.dueAt! <= now ? { dueSoonNotifiedAt: row.dueSoonNotifiedAt ?? now, overdueNotifiedAt: now } : { dueSoonNotifiedAt: now };
         if (notice) {
           const locked = await lockRequest(tx, row.requestId);
@@ -624,7 +593,6 @@ export async function runRequestSlaJob(now = new Date(), requestIds?: string[]) 
   return outcome;
 }
 
-// Tác vụ định kỳ: xóa tệp minh chứng không còn dòng request_attachments nào trỏ tới (tiến trình chết giữa lúc ghi tệp và commit).
 export async function sweepOrphanRequestFiles() {
   const removed = await sweepOrphanFiles("requests", async (keys) => {
     const rows = await db.select({ key: requestAttachments.storageKey }).from(requestAttachments).where(inArray(requestAttachments.storageKey, keys));
@@ -633,7 +601,6 @@ export async function sweepOrphanRequestFiles() {
   return { requestFilesRemoved: removed };
 }
 
-// ---- Danh sách đơn theo quyền người xem (dùng chung cho query và test, không tự kiểm phiên) ----
 
 const requestFaculty = alias(faculties, "request_faculty");
 const requesterLecturerFaculty = alias(faculties, "requester_lecturer_faculty");
@@ -647,11 +614,8 @@ const visibleStep = alias(requestSteps, "visible_step");
 
 const displayName = (title: string | null, fullName: string | null) => (fullName ? `${title} ${fullName}` : null);
 
-// Cổng đang xem đơn: người gửi (own), cổng giảng viên (bước cố vấn, giảng viên), cổng quản trị (bước của khoa, phòng).
 export type RequestPortal = "own" | "lecturer" | "office";
 
-// Giảng viên chịu trách nhiệm bước (cùng logic với effectiveAssignee trong requests.rule): đã xử lý hoặc đã chuyển thì giữ người
-// đã lưu, còn lại đi theo cố vấn hiện tại của lớp sinh hoạt, giảng viên hiện tại của lớp học phần.
 const visibleStepAssignee = sql`CASE
   WHEN ${visibleStep.status} IN ('approved', 'rejected', 'skipped') OR ${visibleStep.reassignedAt} IS NOT NULL THEN ${visibleStep.assigneeLecturerId}
   WHEN ${visibleStep.role} = 'advisor' THEN ${administrativeClasses.advisorId}
@@ -667,9 +631,6 @@ function hasStep(condition: SQL | undefined) {
   );
 }
 
-// Một hàm quyền xem đơn cho danh sách, chi tiết và tải minh chứng: người gửi; giảng viên có bước cố vấn, giảng viên giao cho mình;
-// cán bộ có quyền bước (requests.step.*) và đơn có bước đó trong phạm vi khoa; Phòng Đào tạo có requests.supervise thấy mọi đơn
-// trong phạm vi; ai đã xử lý một bước của đơn thì vẫn xem lại được.
 function visibleTo(access: RequestAccess, portal: RequestPortal | "any"): SQL {
   const parts: (SQL | undefined)[] = [];
   if (portal === "own" || portal === "any") parts.push(or(eq(students.userId, access.userId), eq(requesterLecturer.userId, access.userId)));
@@ -690,7 +651,6 @@ function visibleTo(access: RequestAccess, portal: RequestPortal | "any"): SQL {
 
 type Row = { advisorId: string | null; sectionLecturerId: string | null; requesterUserId: string | null; faculty: string };
 
-// Người xem làm được gì với đơn ở cổng đang xem; cùng các hàm quyền (stepDeniedReason, superviseDeniedReason) với action.
 function viewerCan(view: RequestView, raw: RequestView["steps"], row: Row, access: RequestAccess, portal: RequestPortal | "any"): RequestViewerCan {
   const active = view.status === "pending" || view.status === "in-review";
   const pendingIndex = raw.findIndex((step) => step.status === "pending");
@@ -713,7 +673,6 @@ function viewerCan(view: RequestView, raw: RequestView["steps"], row: Row, acces
   };
 }
 
-// Đơn kèm người gửi, khoa, cố vấn hiện tại của sinh viên gửi, các bước, yêu cầu bổ sung và tệp minh chứng.
 export async function requestRows(where: SQL, access: RequestAccess, portal: RequestPortal | "any"): Promise<RequestView[]> {
   const rows = await db
     .select({
@@ -879,8 +838,6 @@ export async function requestRows(where: SQL, access: RequestAccess, portal: Req
   });
 }
 
-// Đơn người xem (access) được thấy ở một cổng, kèm quyền thao tác. Không tự kiểm phiên: nơi gọi lấy access từ getRequestAccess()
-// (test truyền access dựng sẵn để kiểm hàm quyền mà không cần đăng nhập).
 export function requestsVisibleTo(access: RequestAccess, portal: RequestPortal | "any", requestId?: string) {
   return requestRows(requestId ? eq(academicRequests.id, requestId) : sql`true`, access, portal);
 }

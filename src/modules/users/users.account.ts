@@ -16,7 +16,6 @@ import type { AccountKind, AccountState } from "@/modules/users/users.type";
 
 type Database = typeof db | Transaction;
 
-// Hồ sơ cần tài khoản: loginName là chữ người dùng gõ ở ô đăng nhập (MSSV có dấu chấm, mã cán bộ, giảng viên chữ hoa).
 export type AccountProfile = {
   id: string;
   userId: string | null;
@@ -33,8 +32,6 @@ export type NewAccount = AccountProfile & { userId: string };
 
 const HASH_BATCH = 25;
 
-// Mật khẩu ban đầu ngẫu nhiên, không hiện cho ai và không lưu dạng rõ: người dùng tự đặt qua "Kích hoạt tài khoản".
-// Băm trước khi mở transaction vì băm 1000 mật khẩu mất vài chục giây, giữ transaction lâu sẽ bị idle timeout.
 export async function randomPasswordHashes(count: number) {
   const hashes: string[] = [];
   for (let start = 0; start < count; start += HASH_BATCH) {
@@ -49,7 +46,6 @@ function studentProfile(row: { id: string; userId: string | null; code: string; 
   return { ...row, ...identity, loginName: identity.displayUsername, role: "student" };
 }
 
-// Đọc hồ sơ theo id, khóa dòng hồ sơ (FOR UPDATE) để hai người cùng bấm cấp tài khoản không tạo hai tài khoản.
 export async function lockAccountProfiles(tx: Transaction, kind: AccountKind, ids: string[]): Promise<AccountProfile[]> {
   if (ids.length === 0) return [];
   if (kind === "student") {
@@ -69,7 +65,6 @@ export async function lockAccountProfiles(tx: Transaction, kind: AccountKind, id
       .from(staffMembers)
       .where(inArray(staffMembers.id, ids))
       .for("update", { of: staffMembers });
-    // Cán bộ không thuộc khoa: faculty ghi đơn vị để câu báo dễ đọc; quyền thao tác kiểm theo phạm vi toàn trường.
     return rows.map(({ unit, ...row }) => staffProfile({ ...row, faculty: unit }, "admin"));
   }
   const rows = await tx
@@ -81,7 +76,6 @@ export async function lockAccountProfiles(tx: Transaction, kind: AccountKind, id
   return rows.map(({ title, fullName, code, ...row }) => staffProfile({ ...row, code, name: `${title} ${fullName}` }, "lecturer"));
 }
 
-// Giảng viên, cán bộ đăng nhập bằng mã hồ sơ; email công vụ chỉ để nhận mã kích hoạt, đặt lại mật khẩu.
 export function staffProfile(
   row: { id: string; userId: string | null; code: string; name: string; faculty: string; email: string },
   role: "lecturer" | "admin",
@@ -91,8 +85,6 @@ export function staffProfile(
   return { ...rest, ...identity, loginName: identity.displayUsername, role };
 }
 
-// Tạo user + account (credential) cho các hồ sơ chưa có tài khoản và gắn userId vào hồ sơ.
-// Email hoặc mã số đã thuộc tài khoản khác thì bỏ qua dòng đó; unique ở DB chặn lần cuối khi tranh nhau.
 export async function createAccounts(tx: Transaction, profiles: AccountProfile[], hashes: string[]) {
   const pending = profiles.filter((profile) => profile.userId === null);
   const skipped: { profile: AccountProfile; reason: string; field: "email" | "code" }[] = [];
@@ -138,7 +130,6 @@ export async function createAccounts(tx: Transaction, profiles: AccountProfile[]
   return { created, skipped };
 }
 
-// Khóa thì thu hồi luôn mọi phiên đang mở; getSession() kiểm lại cờ khóa nên cookie cache cũng hết hiệu lực ngay.
 export async function setAccountsLocked(tx: Transaction, userIds: string[], locked: boolean, reason: string | null) {
   if (userIds.length === 0) return;
   await tx
@@ -146,15 +137,12 @@ export async function setAccountsLocked(tx: Transaction, userIds: string[], lock
     .set({ banned: locked, banReason: locked ? reason : null, banExpires: null })
     .where(inArray(user.id, userIds));
   if (locked) await tx.delete(session).where(inArray(session.userId, userIds));
-  // Mở khóa thì gỡ luôn khóa tạm do đăng nhập sai nhiều lần.
   else {
     const usernames = tx.select({ username: user.username }).from(user).where(inArray(user.id, userIds));
     await tx.delete(signInFailures).where(inArray(signInFailures.username, usernames));
   }
 }
 
-// Xếp thư kích hoạt vào hàng đợi trong transaction cấp tài khoản: rollback thì không có thư, commit thì thư chắc chắn được gửi (có gửi lại).
-// Mỗi người một đường dẫn riêng (điền sẵn email) nên mỗi người một thư. Trả id thư để kích gửi ngay sau commit.
 export async function queueActivationMails(tx: Transaction, accounts: Pick<AccountProfile, "name" | "email" | "loginName" | "role">[]) {
   return enqueueMail(
     tx,
@@ -171,7 +159,6 @@ export async function queueActivationMails(tx: Transaction, accounts: Pick<Accou
   );
 }
 
-// Trạng thái tài khoản theo id hồ sơ; không truyền ids thì đọc mọi hồ sơ của loại đó.
 export async function readAccountStates(database: Database, kind: AccountKind, ids?: string[]): Promise<Record<string, AccountState>> {
   if (ids && ids.length === 0) return {};
   const profile = { student: students, lecturer: lecturers, staff: staffMembers }[kind];
@@ -185,7 +172,6 @@ export async function readAccountStates(database: Database, kind: AccountKind, i
   );
 }
 
-// Giữ tên hiển thị và email đăng nhập khớp hồ sơ khi sửa hồ sơ đã có tài khoản.
 export async function syncAccountProfile(tx: Transaction, userId: string | null, values: { name: string; email?: string }) {
   if (!userId) return;
   await tx
@@ -194,7 +180,6 @@ export async function syncAccountProfile(tx: Transaction, userId: string | null,
     .where(eq(user.id, userId));
 }
 
-// Vai trò quản trị đang giữ của từng tài khoản, để chặn người thấp hơn khóa tài khoản của quản trị cao hơn.
 export async function readHeldRoles(database: Database, userIds: string[]) {
   const held = new Map<string, { name: string; scope: "university" | "faculty"; isSystem: boolean; permissions: Permission[] }[]>();
   if (userIds.length === 0) return held;

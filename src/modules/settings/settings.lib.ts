@@ -28,8 +28,6 @@ export function toRegulation({ version, effectiveFrom, rules, createdAt, created
   return { version, effectiveFrom, updatedAt: createdAt.toISOString(), updatedBy: createdBy ?? "Hệ thống", ...rules };
 }
 
-// Bản quy chế áp dụng tại một ngày: ngày áp dụng gần nhất không sau ngày đó. Chưa có bản nào tới ngày thì lấy bản sớm nhất.
-// Nguồn duy nhất của mọi tham số quy chế; dùng được trong transaction của nơi gọi (cron, action) và không kiểm quyền.
 export async function regulationAt(executor: Executor, date: string = schoolToday()): Promise<RegulationSettings> {
   const [row] = await executor
     .select(REGULATION_COLUMNS)
@@ -47,7 +45,6 @@ export async function regulationAt(executor: Executor, date: string = schoolToda
 
 export type ReportFile = { data: Uint8Array; contentType: string };
 
-// Dựng tệp báo cáo một lần lúc xuất (tệp lưu vào kho, tải về đúng tệp này). CSV có BOM để Excel đọc đúng tiếng Việt.
 export async function buildReportFile(
   table: { header: string[]; rows: ReportCell[][] },
   meta: { title: string; subtitle: string },
@@ -69,8 +66,6 @@ export async function buildReportFile(
   return { data: new TextEncoder().encode(text), contentType: "text/csv;charset=utf-8" };
 }
 
-// Tác vụ report-exports: xóa lịch sử xuất cũ hơn REPORT_EXPORT_RETENTION_DAYS ngày và tệp của chúng, rồi dọn tệp báo cáo không
-// còn dòng nào trỏ tới (xuất hỏng giữa chừng).
 export async function purgeReportExports(executor: Executor = db, now = new Date()) {
   const cutoff = new Date(now.getTime() - REPORT_EXPORT_RETENTION_DAYS * 24 * 3_600_000);
   const removed = await executor.delete(reportExports).where(lt(reportExports.createdAt, cutoff)).returning({ storageKey: reportExports.storageKey });

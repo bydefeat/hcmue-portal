@@ -133,7 +133,6 @@ export const SYLLABI: Syllabus[] = [
       { key: "final", label: "Cuối kỳ", weight: 50, method: "Bảo vệ đồ án trước hội đồng", outcomes: ["CLO2", "CLO3"] },
     ],
     references: ["MDN Web Docs, developer.mozilla.org", "Tài liệu React, react.dev"],
-    // Đã đổi cách tính điểm một lần sau khi công bố: bản 1 đồ án 30%, cuối kỳ 60%.
     version: 2,
     revisions: [
       {

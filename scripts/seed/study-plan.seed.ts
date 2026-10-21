@@ -7,8 +7,6 @@ import type { SeedContext } from "./context";
 
 const ACTIVE_COURSES = new Set(COURSES.filter((course) => course.isActive).map((course) => course.code));
 
-// Học phần của kế hoạch theo khung chương trình: học kỳ thứ n của chương trình (từ firstProgramSemester) xếp vào cột thứ n
-// của kế hoạch. Bỏ học phần đã ngừng mở.
 export function studyPlanCourses(plan: StudyPlanSeed) {
   const program = PROGRAMS.find((entry) => entry.majorCode === plan.majorCode && entry.cohorts.includes(plan.cohort));
   return (program ? (PROGRAM_COURSES[program.id] ?? []) : []).flatMap((entry) => {

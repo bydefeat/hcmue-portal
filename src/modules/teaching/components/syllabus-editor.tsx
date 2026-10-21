@@ -35,7 +35,6 @@ const WEEK_COLUMNS: TableColumnsType<SyllabusWeek> = [
   { title: "Tài liệu đọc", dataIndex: "readings", width: 200, render: (value: string) => <span className="text-muted">{value}</span> },
 ];
 
-// Lỗi trong Form.List ("assessments.0.weight") phải gắn đúng ô con, nên giữ cả chỉ số dòng thay vì chỉ ô cấp đầu.
 function listFields(fieldErrors: Record<string, string> | undefined) {
   return Object.entries(fieldErrors ?? {}).map(([path, error]) => ({
     name: path.split(".").map((part) => (/^\d+$/.test(part) ? Number(part) : part)) as never,
@@ -43,7 +42,6 @@ function listFields(fieldErrors: Record<string, string> | undefined) {
   }));
 }
 
-// Cột bảng điểm ứng với hình thức đánh giá: cùng khóa hoặc tên cột cùng loại đánh giá.
 const componentOf = (components: GradeComponentInfo[], key: string) => components.find((entry) => entry.key === key || assessmentKindKey(entry.label) === key);
 
 const KIND_OPTIONS = [...ASSESSMENT_KINDS.map((kind) => ({ value: kind.key, label: kind.label })), { value: "", label: "Khác (theo tên)" }];
@@ -93,7 +91,6 @@ export function SyllabusEditor({ syllabus: initial, gradeComponents, classCode }
         return;
       }
       if (!result.ok) {
-        // Đề cương đã công bố đổi cách tính điểm: hỏi lý do rồi lưu lại thành phiên bản mới.
         if (result.fieldErrors?.revisionNote) {
           setRevisionFor(values);
           return;

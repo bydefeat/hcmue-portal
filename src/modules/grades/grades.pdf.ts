@@ -7,7 +7,6 @@ import type { GradeComponent, GradingRules, ScoreRow, StudentStanding, Transcrip
 
 type TranscriptStudent = { code: string; fullName: string; dateOfBirth: string; className: string; majorName: string; faculty: string; cohort: number };
 
-// Bảng điểm cá nhân theo đúng nội dung bản in trên trang: các học kỳ đã có kết quả, mỗi kỳ một bảng kèm điểm trung bình.
 export function transcriptPdf(student: TranscriptStudent, terms: TranscriptTerm[], standing: StudentStanding) {
   const completed = terms.filter((term) => !term.isInProgress);
   return buildPdf({
@@ -75,7 +74,6 @@ type GradeSheetPdfInput = {
   grading: GradingRules;
 };
 
-// Bảng điểm lớp đã chốt để giảng viên in, ký nộp khoa: điểm thành phần, tổng, điểm chữ, thống kê đạt / không đạt.
 export function gradeSheetPdf(input: GradeSheetPdfInput) {
   const totals = input.students.map((student) => weightedScore(input.components, input.scores[student.studentId] ?? {}, input.grading.roundingStep));
   const graded = totals.filter((total): total is number => total !== null);
@@ -84,7 +82,6 @@ export function gradeSheetPdf(input: GradeSheetPdfInput) {
     title: "Bảng điểm lớp học phần",
     subtitle: `${input.classCode} · ${input.courseName} · ${input.termName}`,
     unit: "Phòng Đào tạo",
-    // Cột điểm ngắn: khổ dọc đủ chỗ cho tới 4 cột thành phần, nhiều hơn mới xoay ngang.
     landscape: input.components.length > 4,
     blocks: [
       {

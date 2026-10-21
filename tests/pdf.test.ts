@@ -23,7 +23,6 @@ import { deleteFiles, newStorageKey, putFile } from "@/shared/libs/storage.lib";
 import { newId } from "@/shared/libs/id.lib";
 import { buildReportFile } from "@/modules/settings/settings.lib";
 import { administrativeClasses, lecturers, studentDecisions, students } from "@/modules/users/users.schema";
-// Chỉ lấy kiểu: các module này nạp động sau khi dựng môi trường request của Next (xem bên dưới).
 import type * as GradesAction from "@/modules/grades/grades.action";
 import type * as RegistrationAction from "@/modules/course-registration/course-registration.action";
 import type * as RegistrationQuery from "@/modules/course-registration/course-registration.query";
@@ -31,10 +30,6 @@ import type * as SettingsAction from "@/modules/settings/settings.action";
 import type * as SettingsQuery from "@/modules/settings/settings.query";
 import type * as UsersAction from "@/modules/users/users.action";
 
-// ---------- Môi trường request của Next cho test ----------
-// Server action, query đọc phiên qua headers()/cookies() của Next và chặn bằng forbidden(). Test chạy bằng tsx (không qua Next) nên
-// dựng lại những gì server Next có: AsyncLocalStorage toàn cục, cờ authInterrupts (next.config.ts bật), bản react-server của
-// next/navigation. Module của Next và các action nạp động (import()) sau bước này.
 Object.assign(globalThis, { AsyncLocalStorage });
 Object.assign(process.env, { __NEXT_EXPERIMENTAL_AUTH_INTERRUPTS: "true" });
 const resolveFilename = Reflect.get(Module, "_resolveFilename") as (request: string, ...rest: unknown[]) => string;
@@ -44,7 +39,6 @@ Reflect.set(Module, "_resolveFilename", function (this: unknown, request: string
 
 const createdSessions: string[] = [];
 
-// Phiên tạo thẳng trong DB (không qua đăng nhập để không đổi last_sign_in_at của tài khoản seed), cookie ký như better-auth.
 async function sessionCookieOf(userId: string) {
   const token = randomBytes(24).toString("base64url");
   const [row] = await db.insert(session).values({ userId, token, expiresAt: new Date(Date.now() + 60 * 60 * 1000) }).returning({ id: session.id });
@@ -67,11 +61,8 @@ async function asRequestOf() {
   };
 }
 
-// ---------- Trích chữ từ PDF ----------
-// Đủ cho định dạng pdfkit ghi (font Type0 Identity-H, bảng ToUnicode), không phải bộ đọc PDF tổng quát. Mỗi khối BT...ET là một dòng.
 type PdfObject = { dict: string; stream: Buffer | null };
 
-// Đọc tuần tự từng "N 0 obj": luồng dữ liệu cắt đúng /Length byte (dữ liệu font nhị phân có thể chứa chữ "endobj").
 function readObjects(bytes: Uint8Array) {
   const source = Buffer.from(bytes).toString("latin1");
   const objects = new Map<number, PdfObject>();
@@ -128,7 +119,6 @@ function pdfPageCount(bytes: Uint8Array) {
 
 function pdfText(bytes: Uint8Array) {
   const objects = readObjects(bytes);
-  // Tên font trong trang (/F1...) → bảng mã của font đó.
   const fonts = new Map<string, Map<number, string>>();
   for (const object of objects.values()) {
     for (const font of object.dict.matchAll(/\/(F\d+) (\d+) 0 R/g)) {
@@ -172,7 +162,6 @@ function readPdf(result: { ok: boolean; data?: { base64: string } | { content: s
   return { bytes, text: flat(pdfText(bytes)) };
 }
 
-// forbidden() của Next ném lỗi mang digest; so khớp digest thay vì thông điệp.
 async function expectForbidden(run: () => Promise<unknown>) {
   const error = await run().then(
     () => null,
@@ -198,7 +187,6 @@ describe("pdf.lib: dựng tài liệu PDF tiếng Việt", () => {
     for (let index = 1; index <= 90; index++) assert.ok(text.includes(`SV${String(index).padStart(3, "0")} Nguyễn Thị Ngọc Ánh ${index} `), `thiếu dòng ${index}`);
     const pages = pdfPageCount(bytes);
     assert.ok(pages >= 2);
-    // Hàng tiêu đề lặp lại ở mỗi trang, chân trang ghi "Trang x/y".
     assert.equal(text.split("Họ và tên đầy đủ").length - 1, pages);
     for (let page = 1; page <= pages; page++) assert.ok(text.includes(`Trang ${page}/${pages}`));
   });
@@ -291,7 +279,6 @@ describe("pdf: server action tải PDF kiểm quyền như trang", () => {
     const [admin] = await db.select({ id: user.id }).from(user).where(eq(user.email, "khoatm@hcmue.edu.vn"));
     adminUserId = admin.id;
 
-    // Giáo vụ khoa (phạm vi khoa của sinh viên mẫu): có quyền xem sinh viên, xem báo cáo; không có quyền quyết định.
     const [secretary] = await db.insert(user).values({ name: "Giáo vụ thử PDF", email: `pdf-test-${Date.now()}@hcmue.edu.vn`, role: "admin" }).returning({ id: user.id });
     ids.secretaryUserId = secretary.id;
     const [role] = await db.select({ id: roles.id }).from(roles).where(eq(roles.key, "faculty-secretary"));
@@ -305,8 +292,6 @@ describe("pdf: server action tải PDF kiểm quyền như trang", () => {
       secretary: await sessionCookieOf(secretary.id),
     };
 
-    // Tệp báo cáo dựng như action xuất (buildReportFile) và lưu vào kho; tải về phải trả đúng tệp đã lưu. Action xuất gọi
-    // revalidatePath nên không chạy được ngoài Next.
     const [term] = await db.select({ id: terms.id, name: terms.name }).from(terms).where(eq(terms.isCurrent, true));
     const table = (await asRequest(cookies.admin, () => settingsQuery.getReportTable("registration", term.id, "all")))!;
     const file = await buildReportFile(table, { title: "Tỉ lệ đăng ký học phần", subtitle: `${term.name} · Toàn trường` }, "pdf");
@@ -355,7 +340,6 @@ describe("pdf: server action tải PDF kiểm quyền như trang", () => {
   });
 
   test("phiếu đăng ký PDF có đủ lớp đang học và đúng mã xác thực như trang", async () => {
-    // Phiếu chọn được học kỳ (mặc định học kỳ đang nhận đăng ký); ở đây lấy phiếu của học kỳ hiện tại.
     const [term] = await db.select({ id: terms.id }).from(terms).where(eq(terms.isCurrent, true));
     const result = await asRequest(cookies.student, () => registration.downloadRegistrationReceiptPdf(term.id));
     const { text } = readPdf(result);

@@ -23,7 +23,6 @@ export function CourseTable({
   faculties: string[];
   initialQuery?: string;
   header: { title: string; description?: React.ReactNode };
-  // Cán bộ theo khoa chỉ sửa học phần của khoa mình (server kiểm lại).
   scopeFaculty?: string | null;
 }) {
   const [messageApi, contextHolder] = message.useMessage();

@@ -13,7 +13,6 @@ import { changesProfile, decisionBlockedReason, decisionEffect, revokeBlockedRea
 import { administrativeClasses, studentDecisions, students } from "@/modules/users/users.schema";
 import type { z } from "zod";
 
-// Người thao tác quyết định ở cổng quản trị (viewer), hoặc tác vụ nền (id null).
 export type DecisionActor = { id: string | null; name: string; roleName: string; faculty: string | null };
 
 export class DecisionError extends Error {
@@ -38,7 +37,6 @@ export function today() {
   return schoolTime().format("YYYY-MM-DD");
 }
 
-// Sinh viên kèm lớp, khoa; khóa dòng để quyết định và thao tác khác trên cùng sinh viên không chen nhau.
 async function lockStudent(tx: Transaction, studentId: string) {
   const [row] = await tx
     .select({
@@ -72,7 +70,6 @@ function label(decision: Pick<DecisionRow, "number" | "kind">, student: Pick<Loc
   return `${decision.number ?? "Dự thảo"} ${DECISION_KIND_LABEL[decision.kind]}, ${formatStudentCode(student.code)} ${student.fullName}`;
 }
 
-// Lớp sinh hoạt của ngành mới: phải có sẵn, khác ngành hiện tại, thuộc khoa trong phạm vi người lập.
 async function targetClassOf(tx: Transaction, actor: DecisionActor, student: LockedStudent, className: string) {
   const [target] = await tx
     .select({ id: administrativeClasses.id, majorId: administrativeClasses.majorId, faculty: faculties.name })
@@ -86,7 +83,6 @@ async function targetClassOf(tx: Transaction, actor: DecisionActor, student: Loc
   return target.id;
 }
 
-// Quyết định đã ký nhưng chưa tới ngày hiệu lực, cùng làm đổi hồ sơ: ký chồng thì hai quyết định tranh nhau đổi tình trạng.
 async function pendingEffectOf(tx: Transaction, studentId: string, exceptId: string) {
   const rows = await tx
     .select({ number: studentDecisions.number, kind: studentDecisions.kind, disciplineLevel: studentDecisions.disciplineLevel })
@@ -100,7 +96,6 @@ function checkPrecondition(values: Pick<DecisionRow, "kind" | "disciplineLevel">
   if (blocked) throw new DecisionError(blocked, "studentId");
 }
 
-// Lập dự thảo. Quyết định công nhận tốt nghiệp chỉ sinh ra ở trang Xét tốt nghiệp (gắn với hồ sơ đã được Hội đồng công nhận).
 export async function createDecisionDraft(tx: Transaction, actor: DecisionActor, values: DecisionValues) {
   if (values.kind === "graduate") throw new DecisionError("Quyết định công nhận tốt nghiệp lập ở trang Xét tốt nghiệp, sau khi Hội đồng công nhận.", "kind");
   const student = await lockStudent(tx, values.studentId);
@@ -131,7 +126,6 @@ export async function createDecisionDraft(tx: Transaction, actor: DecisionActor,
   return row.id;
 }
 
-// Sửa dự thảo (kể cả dự thảo bị trả lại). Sinh viên và loại quyết định giữ nguyên: lập mới nếu cần đổi.
 export async function updateDecisionDraft(tx: Transaction, actor: DecisionActor, id: string, values: DecisionValues) {
   const row = await lockDecision(tx, id);
   if (row.status !== "draft") throw new DecisionError("Chỉ sửa được quyết định đang là dự thảo, tải lại trang.");
@@ -153,7 +147,6 @@ export async function updateDecisionDraft(tx: Transaction, actor: DecisionActor,
   await recordAudit(tx, { actor: auditActor(actor), action: "update", entityType: "decision", entityId: id, entityLabel: label(row, student), summary: "Sửa dự thảo quyết định", changes });
 }
 
-// Hủy dự thảo: xóa hẳn (chưa có số, chưa có hiệu lực); nhật ký giữ lại dấu vết. Dự thảo tốt nghiệp hủy thì hồ sơ xét tốt nghiệp về chờ xét.
 export async function deleteDecisionDraft(tx: Transaction, actor: DecisionActor, id: string) {
   const row = await lockDecision(tx, id);
   if (row.status !== "draft") throw new DecisionError("Chỉ hủy được quyết định đang là dự thảo. Quyết định đã ký thì thu hồi.");
@@ -164,7 +157,6 @@ export async function deleteDecisionDraft(tx: Transaction, actor: DecisionActor,
   await recordAudit(tx, { actor: auditActor(actor), action: "delete", entityType: "decision", entityId: id, entityLabel: label(row, student), summary: `Hủy dự thảo quyết định: ${row.title}` });
 }
 
-// Trình ký: cấp số kế tiếp (khóa tư vấn để hai người trình cùng lúc không trùng số).
 export async function submitDecision(tx: Transaction, actor: DecisionActor, id: string) {
   const row = await lockDecision(tx, id);
   if (row.status !== "draft") throw new DecisionError("Quyết định đã được người khác xử lý, tải lại trang.");
@@ -181,7 +173,6 @@ export async function submitDecision(tx: Transaction, actor: DecisionActor, id: 
   await recordAudit(tx, { actor: auditActor(actor), action: "submit", entityType: "decision", entityId: id, entityLabel: label({ ...row, number }, student), summary: `Trình ký quyết định số ${number}` });
 }
 
-// Trả lại người lập để sửa: về dự thảo, bỏ số đã cấp, ghi lý do.
 export async function returnDecision(tx: Transaction, actor: DecisionActor, id: string, reason: string) {
   const row = await lockDecision(tx, id);
   if (row.status !== "pending-signature") throw new DecisionError("Chỉ trả lại được quyết định đang chờ ký, tải lại trang.");
@@ -210,7 +201,6 @@ async function resetGraduationRecord(tx: Transaction, studentId: string) {
     .where(eq(graduationRecords.studentId, studentId));
 }
 
-// Đưa quyết định vào hồ sơ: lưu tình trạng, lớp trước đó để thu hồi trả về đúng chỗ.
 async function applyEffect(tx: Transaction, actor: DecisionActor, row: DecisionRow, student: LockedStudent) {
   const { to } = decisionEffect(row.kind, row.disciplineLevel);
   await tx
@@ -242,8 +232,6 @@ async function applyEffect(tx: Transaction, actor: DecisionActor, row: DecisionR
   }
 }
 
-// Ký: người ký khác người lập (DB cũng chặn); kiểm lại điều kiện; có hiệu lực từ hôm nay trở về trước thì áp dụng ngay,
-// ngày hiệu lực sau hôm nay thì tác vụ decision-effects áp dụng đúng ngày.
 export async function signDecision(tx: Transaction, actor: DecisionActor, id: string) {
   const row = await lockDecision(tx, id);
   if (row.status !== "pending-signature") throw new DecisionError("Quyết định đã được người khác xử lý, tải lại trang.");
@@ -284,7 +272,6 @@ export async function signDecision(tx: Transaction, actor: DecisionActor, id: st
   return { applied: effective };
 }
 
-// Thu hồi: trả sinh viên về đúng tình trạng, lớp trước khi quyết định có hiệu lực; tốt nghiệp thì hồ sơ xét tốt nghiệp về chờ xét lại.
 export async function revokeDecision(tx: Transaction, actor: DecisionActor, id: string, reason: string) {
   const row = await lockDecision(tx, id);
   if (row.status !== "signed") throw new DecisionError("Chỉ thu hồi được quyết định đã ký, tải lại trang.");
@@ -320,8 +307,6 @@ export async function revokeDecision(tx: Transaction, actor: DecisionActor, id: 
   });
 }
 
-// Tác vụ decision-effects (mỗi ngày): áp dụng quyết định đã ký tới ngày hiệu lực. Mỗi quyết định một transaction;
-// điều kiện không còn đúng (tình trạng đã đổi) thì để nguyên, người ký xem và thu hồi. Chạy lại không áp dụng hai lần (appliedAt).
 export async function runDecisionEffectsJob(): Promise<Record<string, number>> {
   const due = await db
     .select({ id: studentDecisions.id })

@@ -17,7 +17,6 @@ export const ROLES: Role[] = [
     name: "Trưởng phòng Đào tạo",
     description: "Mọi quyền nghiệp vụ trừ phân quyền: duyệt và công bố điểm, ký quyết định sinh viên, sửa quy chế, xem mọi báo cáo.",
     scope: "university",
-    // Duyệt, tải đề thi chỉ Phòng Khảo thí (quản trị hệ thống có mọi quyền).
     permissions: without("access.manage", "exams.review"),
     isSystem: true,
   },

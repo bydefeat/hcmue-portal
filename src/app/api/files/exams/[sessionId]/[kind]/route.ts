@@ -5,7 +5,6 @@ import type { ExamPaperFileKind } from "@/modules/exams/exams.type";
 
 const KINDS: ExamPaperFileKind[] = ["paper", "answer-key"];
 
-// Tải đề thi (`paper`) hoặc đáp án (`answer-key`): chỉ giảng viên dạy lớp và cán bộ có quyền quản lý thi trong phạm vi khoa.
 export async function GET(_request: Request, { params }: { params: Promise<{ sessionId: string; kind: string }> }) {
   if (!(await getSession())) return fileErrorResponse(401, "Chưa đăng nhập");
   const { sessionId, kind } = await params;

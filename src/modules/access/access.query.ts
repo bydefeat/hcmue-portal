@@ -17,7 +17,6 @@ import type { GrantCandidate, Permission, RoleAssignment, RoleRow, Viewer } from
 const grantor = alias(users, "grantor");
 const lecturerFaculty = alias(faculties, "lecturer_faculty");
 
-// Người quản lý phân quyền theo khoa chỉ thấy vai trò theo khoa, số người tính trong khoa của mình.
 export async function getRoles(): Promise<RoleRow[]> {
   const viewer = await requirePermission("access.manage");
   const [rows, permissions, members] = await Promise.all([
@@ -42,7 +41,6 @@ export async function getRoles(): Promise<RoleRow[]> {
   }));
 }
 
-// Mã và đơn vị của tài khoản: cán bộ lấy từ staff_members, giảng viên lấy mã GV và khoa.
 const accountColumns = {
   userId: users.id,
   name: users.name,
@@ -50,7 +48,6 @@ const accountColumns = {
   unit: sql<string>`coalesce(${staffMembers.unit}, ${lecturerFaculty.name}, '')`,
 };
 
-// Khoa của tài khoản: giảng viên theo khoa của hồ sơ, cán bộ khi đơn vị ghi đúng tên khoa (văn phòng khoa).
 const accountFaculty = sql<string | null>`coalesce(${lecturerFaculty.name}, (SELECT ${faculties.name} FROM ${faculties} WHERE ${faculties.name} = ${staffMembers.unit}))`;
 
 function withAccountInfo<T extends PgSelect>(query: T) {
@@ -92,8 +89,6 @@ export async function getRoleAssignments(id?: string): Promise<RoleAssignment[]>
   }));
 }
 
-// Tài khoản được cấp vai trò quản trị: cán bộ và giảng viên đã có tài khoản đăng nhập. Sinh viên không được cấp.
-// Người quản lý theo khoa chỉ thấy cán bộ, giảng viên thuộc khoa mình; không ai thấy chính mình (không tự cấp quyền).
 export async function getGrantCandidates(): Promise<GrantCandidate[]> {
   const viewer = await requirePermission("access.manage");
   const rows = await withAccountInfo(db.select({ ...accountColumns, faculty: accountFaculty }).from(users).$dynamic())
@@ -102,7 +97,6 @@ export async function getGrantCandidates(): Promise<GrantCandidate[]> {
   return rows.filter((row) => row.userId !== viewer.id && (viewer.faculty === null || row.faculty === viewer.faculty)).map(({ faculty: _faculty, ...row }) => row);
 }
 
-// Khoa của tài khoản được cấp quyền, để kiểm người theo khoa chỉ cấp cho người thuộc khoa mình.
 export async function accountFacultyOf(userId: string) {
   const [row] = await withAccountInfo(db.select({ faculty: accountFaculty }).from(users).$dynamic()).where(eq(users.id, userId));
   return row?.faculty ?? null;
@@ -120,7 +114,6 @@ export type ViewerAssignment = {
   permissions: Permission[];
 };
 
-// Các vai trò quản trị được cấp cho tài khoản đang đăng nhập, kèm quyền của từng vai trò.
 
 export const getViewerAssignments = cache(async (userId: string): Promise<ViewerAssignment[]> => {
   const rows = await db
@@ -152,7 +145,6 @@ export const getViewerAssignments = cache(async (userId: string): Promise<Viewer
   return [...byId.values()];
 });
 
-// Người đang xem cổng quản trị. Có nhiều vai trò thì dùng vai trò chọn gần nhất (cookie), chỉ trong số vai trò của chính tài khoản đó.
 export const getViewer = cache(async (): Promise<Viewer> => {
   const { user } = await requireRole("admin");
   const [assignments, cookieStore, [staff]] = await Promise.all([
@@ -177,15 +169,12 @@ export const getViewer = cache(async (): Promise<Viewer> => {
   };
 });
 
-// Gọi ở dòng đầu mỗi trang và mỗi server action của cổng quản trị.
 export async function requirePermission(permission: Permission) {
   const viewer = await getViewer();
   if (!can(viewer, permission)) forbidden();
   return viewer;
 }
 
-// Thao tác trên dữ liệu chung toàn trường (đợt đăng ký, phòng học, quy chế, lịch năm học, thông báo chung, danh mục đào tạo):
-// vai trò theo khoa dù được cấp quyền cũng không làm được, để không tác động sang khoa khác.
 export async function requireSchoolWidePermission(permission: Permission) {
   const viewer = await requirePermission(permission);
   if (viewer.faculty) forbidden();

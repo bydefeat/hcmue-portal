@@ -5,7 +5,6 @@ import { formatStudentCode, isStudentCode, isStudentEmail, normalizeStudentCode,
 
 export const IMPORT_COLUMNS = ["Mã sinh viên", "Họ và tên", "Giới tính", "Ngày sinh", "Email cá nhân", "Điện thoại", "Mã ngành", "Khóa", "Lớp"] as const;
 
-// Một câu cho mỗi loại lỗi, dùng chung ở form (client) và schema (server).
 export const PHONE_MESSAGE = "Số điện thoại gồm 10 chữ số, bắt đầu bằng 0";
 export const EMAIL_MESSAGE = "Email cần có dấu @ và tên miền";
 export const OFFICIAL_EMAIL_MESSAGE = "Dùng email công vụ có đuôi @hcmue.edu.vn";
@@ -28,7 +27,6 @@ export type ImportResult = {
   errors: string[];
 };
 
-// Danh mục để đối chiếu dòng nhập: mã ngành có trong DB và các khóa đang nhận (page đọc từ DB rồi truyền xuống).
 export type ImportCatalog = {
   majorCodes: string[];
   cohorts: number[];
@@ -40,7 +38,6 @@ export function validateImportRow(row: ImportRow, existingCodes: Set<string>, se
   const [rawCode = "", fullName = "", gender = "", dateOfBirth = "", email = "", phone = "", majorCode = "", cohort = "", className = ""] = row.cells.map((cell) =>
     cell.trim(),
   );
-  // Nhận cả "51.01.104.201" lẫn "5101104201"; existingCodes, seenCodes so theo 10 chữ số.
   const digits = normalizeStudentCode(rawCode);
   const code = formatStudentCode(digits);
   const errors: string[] = [];
@@ -88,7 +85,6 @@ export function templateCsv() {
   return [IMPORT_COLUMNS.join(","), ...sample.map((line) => line.join(","))].join("\n");
 }
 
-// Lưu số đã chuẩn hóa (bỏ khoảng trắng, dấu chấm) để tìm kiếm, gọi điện không lệch.
 const optionalPhone = z
   .string()
   .trim()
@@ -108,8 +104,6 @@ const officialEmail = z
   .pipe(z.email(EMAIL_MESSAGE))
   .refine((value) => value.endsWith("@hcmue.edu.vn") && !isStudentEmail(value), OFFICIAL_EMAIL_MESSAGE);
 
-// Hồ sơ sinh viên do Phòng Đào tạo nhập; MSSV lưu 10 chữ số, lớp sinh hoạt tự tạo nếu chưa có.
-// Email trường luôn là MSSV@student.hcmue.edu.vn (tài khoản nhận thư ở đó) nên không nhập; tình trạng học tập chỉ đổi qua quyết định.
 export const STUDENT_SCHEMA = z.object({
   code: z
     .string()
@@ -129,7 +123,6 @@ export const STUDENT_SCHEMA = z.object({
 export type StudentInput = z.input<typeof STUDENT_SCHEMA>;
 
 export const LECTURER_SCHEMA = z.object({
-  // Mã giảng viên cũng là tên đăng nhập nên phải đúng dạng plugin username nhận (login-name.lib).
   code: z.string().trim().toUpperCase().min(1, "Chưa nhập mã giảng viên").refine(isStoredStaffCode, STAFF_CODE_HINT),
   fullName: z.string().trim().min(1, "Chưa nhập họ và tên").max(120),
   gender: z.enum(["female", "male"], "Chưa chọn giới tính"),
@@ -169,7 +162,6 @@ export const DECISION_SCHEMA = z
     basis: z.string().trim().min(1, "Chưa nhập căn cứ").max(500),
     effectiveDate: z.iso.date("Chưa chọn ngày"),
     disciplineLevel: z.enum(["reprimand", "warning", "suspension"]).nullish(),
-    // Mã lớp sinh hoạt của ngành mới (chuyển ngành).
     targetClassName: z.string().trim().max(40).nullish(),
   })
   .superRefine((value, context) => {
@@ -184,8 +176,6 @@ export const DECISION_SCHEMA = z
 
 export const DECISION_REASON_SCHEMA = z.object({ id: z.uuid("Quyết định không còn tồn tại, tải lại trang."), reason: z.string().trim().min(1, "Chưa ghi lý do").max(500) });
 
-// Quyết định nào được lập cho sinh viên đang ở tình trạng nào, và tình trạng sau khi quyết định có hiệu lực.
-// Đình chỉ học tập (kỷ luật) đưa sinh viên về "tạm ngừng học" như quyết định tạm ngừng.
 type DecisionEffect = { from: StudentStatus[]; to: StudentStatus | null };
 
 export function decisionEffect(kind: DecisionKind, level: DisciplineLevel | null = null): DecisionEffect {
@@ -209,7 +199,6 @@ export function decisionEffect(kind: DecisionKind, level: DisciplineLevel | null
   }
 }
 
-// Quyết định làm đổi tình trạng học tập hoặc lớp sinh hoạt khi có hiệu lực.
 export function changesProfile(kind: DecisionKind, level: DisciplineLevel | null = null) {
   return kind === "major-change" || decisionEffect(kind, level).to !== null;
 }
@@ -233,13 +222,11 @@ const KIND_PHRASE: Record<DecisionKind, string> = {
   graduate: "công nhận tốt nghiệp",
 };
 
-// Câu báo khi tình trạng hiện tại của sinh viên không cho lập, ký quyết định loại này; null là được.
 export function decisionBlockedReason(kind: DecisionKind, status: StudentStatus, level: DisciplineLevel | null = null) {
   if (decisionEffect(kind, level).from.includes(status)) return null;
   return `Sinh viên ${STATUS_PHRASE[status]} nên không lập được quyết định ${KIND_PHRASE[kind]}.`;
 }
 
-// Thu hồi chỉ khi hồ sơ vẫn đúng như lúc quyết định có hiệu lực; có quyết định khác đổi tình trạng, lớp sau đó thì phải thu hồi quyết định sau trước.
 export function revokeBlockedReason(
   decision: { kind: DecisionKind; disciplineLevel: DisciplineLevel | null; appliedAt: unknown; targetClassId: string | null },
   student: { status: StudentStatus; administrativeClassId: string },
@@ -255,7 +242,6 @@ export function revokeBlockedReason(
   return null;
 }
 
-// Tình trạng đổi tay (không qua quyết định) chỉ quản trị hệ thống làm, để sửa dữ liệu sai; bắt buộc ghi lý do.
 export const STATUS_OVERRIDE_SCHEMA = z.object({
   ids: z.array(z.uuid()).min(1, "Chưa chọn sinh viên").max(1000),
   status: z.enum(["studying", "reserved", "suspended", "graduated", "withdrawn"], "Chưa chọn tình trạng"),
@@ -266,12 +252,10 @@ export type StatusOverrideInput = z.input<typeof STATUS_OVERRIDE_SCHEMA>;
 
 export type DecisionInput = z.input<typeof DECISION_SCHEMA>;
 
-// Mã lưu đúng như tên đăng nhập hiển thị (chữ hoa, không khoảng trắng), để đổi qua lại username không lệch.
 function isStoredStaffCode(value: string) {
   return isStaffCode(value) && formatLoginName(value) === value;
 }
 
-// Tài khoản sinh viên: đăng nhập bằng MSSV 10 chữ số, hiển thị dạng có dấu chấm, email trường nhận mã kích hoạt.
 export function studentAccountIdentity(code: string) {
   const username = normalizeStudentCode(code);
   return { username, displayUsername: formatStudentCode(username), email: studentEmailOf(username) };
@@ -283,7 +267,6 @@ export function accountStatusOf(account: { userId: string | null; banned: boolea
   return account.lastSignInAt ? "active" : "pending";
 }
 
-// Đường dẫn trong thư kích hoạt: trang quên mật khẩu điền sẵn email, người nhận lấy mã OTP rồi tự đặt mật khẩu.
 export function activationLink(baseUrl: string, email: string) {
   return `${baseUrl.replace(/\/+$/, "")}/authentication/forgot-password?email=${encodeURIComponent(email)}&activate=1`;
 }
@@ -313,8 +296,6 @@ export const ACCOUNT_BATCH_SCHEMA = z.object({
 
 export type AccountBatchInput = z.input<typeof ACCOUNT_BATCH_SCHEMA>;
 
-// Cán bộ do quản trị hệ thống tạo; đăng nhập bằng mã cán bộ, email công vụ nhận mã kích hoạt.
-// Vai trò quản trị chọn ngay khi tạo (cấp cùng transaction); không chọn thì tài khoản chưa vào được cổng quản trị.
 export const STAFF_SCHEMA = z.object({
   code: z.string().trim().toUpperCase().min(1, "Chưa nhập mã cán bộ").refine(isStoredStaffCode, STAFF_CODE_HINT),
   fullName: z.string().trim().min(1, "Chưa nhập họ và tên").max(120),
@@ -333,7 +314,6 @@ export type StaffInput = z.input<typeof STAFF_SCHEMA>;
 
 export type AccountBatchAction = "provision" | "resend" | "lock" | "unlock";
 
-// Câu báo sau thao tác hàng loạt: số đã làm, số thư đã xếp gửi, số dòng bỏ qua gom theo lý do.
 export function accountBatchSummary(action: AccountBatchAction, result: { changed: number; mailed: number; skipped: { reason: string }[] }) {
   const head = {
     provision: `Đã cấp ${result.changed} tài khoản, gửi thư kích hoạt tới ${result.mailed} người`,

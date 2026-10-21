@@ -28,8 +28,6 @@ import { courseResults, gradeComponents, gradeScores, gradeSheets } from "@/modu
 import { lecturers, students } from "@/modules/users/users.schema";
 import type { z } from "zod";
 
-// Đơn duyệt xong bước cuối (cùng dạng ApprovedRequest của requests.lib, khai báo lại để module điểm không phụ thuộc vòng vào
-// module đơn từ). effect: phần người duyệt bước cuối nhập (điểm sau phúc khảo, học phần công nhận...).
 export type GradeApprovedRequest = {
   id: string;
   code: string;
@@ -43,7 +41,6 @@ export type GradeApprovedRequest = {
 
 type Handler = (request: GradeApprovedRequest, tx: Transaction) => Promise<void>;
 
-// Lỗi của phần nhập ở bước cuối gắn vào ô "effect.<tên>" để form duyệt hiện đúng chỗ.
 function parseEffect<S extends z.ZodType>(schema: S, effect: unknown): z.output<S> {
   const parsed = schema.safeParse(effect ?? undefined);
   if (parsed.success) return parsed.data;
@@ -84,8 +81,6 @@ async function sheetOf(tx: Transaction, classSectionId: string) {
   return sheet ?? null;
 }
 
-// Phúc khảo: Phòng Khảo thí nhập điểm thi cuối kỳ sau chấm lại (có thể giữ nguyên). Điểm đổi thì sinh đề nghị sửa điểm đã duyệt
-// (người đề nghị là sinh viên gửi đơn, người duyệt là người duyệt bước cuối) và tính lại kết quả học phần.
 const regrade: Handler = async (request, tx) => {
   const { newScore } = parseEffect(REGRADE_EFFECT_SCHEMA, request.effect);
   const student = await requesterStudent(tx, request);
@@ -119,7 +114,6 @@ const regrade: Handler = async (request, tx) => {
   });
 };
 
-// Sửa điểm của giảng viên: Phòng Đào tạo duyệt bước cuối với điểm giảng viên đề nghị (hoặc điểm nhập lại khi duyệt).
 const gradeChange: Handler = async (request, tx) => {
   if (!request.requesterLecturerId || !request.classSectionId) throw new InputError("Đơn không gắn với lớp học phần nên không cập nhật được điểm.");
   const target = gradeChangeTarget(request.details);
@@ -149,8 +143,6 @@ const gradeChange: Handler = async (request, tx) => {
   });
 };
 
-// Rút học phần: kiểm lại hạn rút theo quy chế ngày duyệt, đăng ký chuyển sang đã rút (không tính tín chỉ tối thiểu, rời lớp), kết
-// quả ghi W. Học phí không hoàn: hóa đơn giữ nguyên (tuition tính tín chỉ cả đăng ký đã rút).
 const withdraw: Handler = async (request, tx) => {
   const student = await requesterStudent(tx, request);
   const today = schoolToday();
@@ -192,14 +184,12 @@ const withdraw: Handler = async (request, tx) => {
   }
 };
 
-// Ngày thi sinh viên khai (DD/MM/YYYY) so với lịch thi của lớp để biết hoãn ca nào; không khớp thì hoãn thi cuối kỳ.
 function declaredExamDate(details: GradeApprovedRequest["details"]) {
   const value = details.find((detail) => detail.label.startsWith("Ngày thi"))?.value;
   const match = value?.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
   return match ? `${match[3]}-${match[2]}-${match[1]}` : null;
 }
 
-// Hoãn thi: ghi exam_deferrals gắn với đơn, sinh viên rời danh sách thi ca chưa diễn ra; công bố điểm thì sinh viên nhận I.
 const examPostpone: Handler = async (request, tx) => {
   const student = await requesterStudent(tx, request);
   const effect = parseEffect(EXAM_POSTPONE_EFFECT_SCHEMA, request.effect);
@@ -246,8 +236,6 @@ const examPostpone: Handler = async (request, tx) => {
   });
 };
 
-// Công nhận, miễn: Phòng Đào tạo nhập từng học phần ở bước cuối. Công nhận điểm thì ghi điểm (tính CPA), miễn thì ghi M (tính tín chỉ
-// tích lũy, không tính CPA). Ghi vào học kỳ hiện tại; học phần đã học đạt thì không công nhận lại.
 const creditTransfer: Handler = async (request, tx) => {
   if (!request.requesterStudentId) throw new InputError("Đơn không gắn với sinh viên.");
   const effect = parseEffect(CREDIT_TRANSFER_EFFECT_SCHEMA, request.effect);
@@ -305,7 +293,6 @@ const creditTransfer: Handler = async (request, tx) => {
   });
 };
 
-// Đăng ký vào REQUEST_APPROVED_HANDLERS của module đơn từ.
 export const GRADE_REQUEST_HANDLERS = {
   regrade,
   "grade-change": gradeChange,

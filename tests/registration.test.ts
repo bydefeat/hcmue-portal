@@ -52,7 +52,6 @@ async function rolledBack(work: (tx: Transaction) => Promise<void>) {
     });
 }
 
-// Chạy trong savepoint để lỗi nghiệp vụ (ném InputError) không làm hỏng transaction của test.
 async function expectInputError(tx: Transaction, work: (savepoint: Transaction) => Promise<unknown>, pattern: RegExp) {
   const error = await tx.transaction((savepoint) => work(savepoint)).then(
     () => null,
@@ -104,7 +103,6 @@ describe("registration: đợt áp dụng, hạn mức (hàm thuần)", () => {
     const capped = creditLimitsOf({ rules, semester: 2, warningLevel: 0, period: { minCredits: null, maxCredits: 20 } });
     assert.equal(capped.max, 20);
     assert.match(capped.note!, /Đợt/);
-    // Đợt không nới quá quy chế.
     assert.equal(creditLimitsOf({ rules, semester: 2, warningLevel: 0, period: { minCredits: 10, maxCredits: 30 } }).max, 25);
     assert.equal(creditLimitsOf({ rules, semester: 2, warningLevel: 0, period: { minCredits: 10, maxCredits: 30 } }).min, 14);
     const lastYear = creditLimitsOf({ rules, semester: 2, warningLevel: 0, remainingCredits: 6 });
@@ -166,7 +164,6 @@ describe("registration: đăng ký, hủy, đổi lớp trên DB", () => {
 
       const security = await sectionId(tx, "COMP1120.01");
       await expectInputError(tx, (sp) => dropForStudent(sp, { studentId: CURRENT_STUDENT_ID, termId: TARGET, sectionId: security, rules: RULES, now: now() }), /song hành/);
-      // 19 tín chỉ, hủy 3 còn 16: được; hủy thêm 3 còn 13 dưới 14: chặn.
       await dropForStudent(tx, { studentId: CURRENT_STUDENT_ID, termId: TARGET, sectionId: math, rules: RULES, now: now() });
       const testing = await sectionId(tx, "COMP1150.01");
       await expectInputError(tx, (sp) => dropForStudent(sp, { studentId: CURRENT_STUDENT_ID, termId: TARGET, sectionId: testing, rules: RULES, now: now() }), /dưới mức tối thiểu 14/);
@@ -178,7 +175,6 @@ describe("registration: đăng ký, hủy, đổi lớp trên DB", () => {
       const [student, term] = await Promise.all([registrationStudentOf(tx, CURRENT_STUDENT_ID), termFactsOf(tx, TARGET)]);
       assert.equal((await creditLimitsFor(tx, student!, term!, RULES, now())).limits.max, 25);
       await tx.insert(academicWarnings).values({ studentId: CURRENT_STUDENT_ID, termId: CURRENT, level: 1, termGpa4: 1.5, cpa4: 2.5, failedCredits: 0, reasons: ["Thử"], status: "new" });
-      // Chưa gửi thì chưa áp.
       assert.equal((await creditLimitsFor(tx, student!, term!, RULES, now())).limits.max, 25);
       await tx.update(academicWarnings).set({ status: "notified" }).where(and(eq(academicWarnings.studentId, CURRENT_STUDENT_ID), eq(academicWarnings.termId, CURRENT)));
       const warned = await creditLimitsFor(tx, student!, term!, RULES, now());
@@ -248,14 +244,12 @@ describe("registration: đăng ký, hủy, đổi lớp trên DB", () => {
       const [section] = await tx.select({ enrolled: classSections.enrolledCount }).from(classSections).where(eq(classSections.id, math));
       await tx.update(classSections).set({ capacity: section.enrolled }).where(eq(classSections.id, math));
       await joinWaitlistForStudent(tx, { studentId: CURRENT_STUDENT_ID, termId: TARGET, sectionId: math, rules: RULES, now: now() });
-      // Đợt của khóa 50 còn mở hoặc đợt điều chỉnh sắp mở: chưa hết hạn.
       assert.equal((await expireWaitlists(tx, now(), TARGET)).expired, 0);
       const closedAt = new Date(Date.now() - 60_000);
       await tx
         .update(registrationPeriods)
         .set({ opensAt: new Date(closedAt.getTime() - 3_600_000), closesAt: closedAt })
         .where(and(eq(registrationPeriods.termId, TARGET), sql`50 = ANY(${registrationPeriods.cohorts})`));
-      // Ngoài đợt: lớp có chỗ cũng không xếp người chờ.
       await tx.update(classSections).set({ capacity: section.enrolled + 1 }).where(eq(classSections.id, math));
       assert.deepEqual(await promoteWaitlist(tx, math, RULES, now()), []);
       const result = await expireWaitlists(tx, now(), TARGET);
@@ -314,7 +308,6 @@ describe("registration: học phí theo đăng ký", () => {
       const [adjustment] = await tx.select().from(invoiceLines).where(and(eq(invoiceLines.invoiceId, invoice.id), eq(invoiceLines.kind, "adjustment")));
       assert.equal(adjustment.quantity, 3);
       assert.ok(adjustment.unitPrice < 0);
-      // Đồng bộ lại không thêm điều chỉnh trùng.
       assert.equal((await syncTermInvoice(tx, CURRENT_STUDENT_ID, TARGET)).change, "unchanged");
       const [adjusted] = await tx.select({ total: INVOICE_TOTAL_SQL, paid: INVOICE_PAID_SQL }).from(tuitionInvoices).where(eq(tuitionInvoices.id, invoice.id));
       const overpaid = adjusted.paid - adjusted.total;
@@ -344,7 +337,6 @@ describe("registration: điều chỉnh học phí theo đơn giá đã chốt",
       const [tuitionLine] = await tx.select({ unitPrice: invoiceLines.unitPrice }).from(invoiceLines).where(and(eq(invoiceLines.invoiceId, invoice.id), eq(invoiceLines.kind, "tuition")));
       assert.ok(tuitionLine.unitPrice > 0);
       await tx.update(tuitionInvoices).set({ finalizedAt: new Date(), finalizedByLabel: "Thử" }).where(eq(tuitionInvoices.id, invoice.id));
-      // Năm học, ngành của sinh viên: tăng đơn giá sau khi chốt.
       const [{ academicYear }] = await tx.select({ academicYear: terms.academicYear }).from(terms).where(eq(terms.id, TARGET));
       const [{ majorId }] = await tx
         .select({ majorId: administrativeClasses.majorId })
@@ -362,7 +354,6 @@ describe("registration: điều chỉnh học phí theo đơn giá đã chốt",
       assert.equal((await syncTermInvoice(tx, CURRENT_STUDENT_ID, TARGET, "thử")).change, "adjusted");
       const [adjustment] = await tx.select({ unitPrice: invoiceLines.unitPrice, quantity: invoiceLines.quantity }).from(invoiceLines).where(and(eq(invoiceLines.invoiceId, invoice.id), eq(invoiceLines.kind, "adjustment")));
       assert.equal(adjustment.unitPrice, -tuitionLine.unitPrice);
-      // Ngành mất đơn giá năm học: hóa đơn đã chốt vẫn điều chỉnh được theo giá đã chốt.
       await tx.delete(tuitionRates).where(eq(tuitionRates.id, raised[0].id));
       await tx.update(enrollments).set({ status: "enrolled", droppedAt: null }).where(and(eq(enrollments.studentId, CURRENT_STUDENT_ID), eq(enrollments.classSectionId, testing)));
       assert.equal((await syncTermInvoice(tx, CURRENT_STUDENT_ID, TARGET, "thử")).change, "adjusted");
@@ -393,10 +384,8 @@ describe("registration: học kỳ, lớp học phần", () => {
       assert.match((await scheduleProblemOf(tx, roomCandidate(idOf("B.408"), 30), roomRows))!.message, /bảo trì/);
       assert.match((await scheduleProblemOf(tx, roomCandidate(idOf("C.301 (Phòng máy)"), 50), roomRows))!.message, /chỉ có 40 chỗ/);
       assert.equal(await scheduleProblemOf(tx, roomCandidate(idOf("A.201"), 40), roomRows), null);
-      // MATH1011.01 (Khoa Toán - Tin học) học A.201 thứ 2 tiết 1-3: lớp khoa khác cùng phòng, cùng giờ bị chặn.
       const clash = await scheduleProblemOf(tx, { ...roomCandidate(idOf("A.201"), 40), meetings: [{ dayOfWeek: 2, startPeriod: 2, endPeriod: 3, roomId: idOf("A.201") }] }, roomRows);
       assert.match(clash!.message, /Trùng phòng A\.201 với MATH1011\.01/);
-      // Cùng mã A.201 ở cơ sở khác là phòng khác: không trùng phòng.
       const [{ campusId: home }] = await tx.select({ campusId: rooms.campusId }).from(rooms).where(eq(rooms.id, idOf("A.201")));
       const [other] = await tx.select({ id: campuses.id, name: campuses.name }).from(campuses).where(ne(campuses.id, home)).limit(1);
       const [twin] = await tx

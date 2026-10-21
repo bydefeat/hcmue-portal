@@ -1,6 +1,5 @@
 import { z } from "zod";
 
-// Phiếu khảo sát: mỗi câu một mức 1..5 (khóa là id câu hỏi), góp ý tùy chọn. Đủ câu hay chưa kiểm ở server theo phiếu thật.
 export const SURVEY_SUBMIT_SCHEMA = z.object({
   surveyId: z.uuid("Phiếu khảo sát không hợp lệ"),
   classSectionId: z.uuid("Lớp học phần không hợp lệ"),
@@ -20,7 +19,6 @@ const QUESTION = z.object({
   text: z.string("Nhập nội dung câu hỏi").trim().min(1, "Nhập nội dung câu hỏi").max(300, "Tối đa 300 ký tự"),
 });
 
-// Tạo, sửa đợt khảo sát (Phòng Đào tạo): học kỳ, thời gian mở, đóng, bộ câu hỏi (3..30 câu).
 export const SURVEY_SAVE_SCHEMA = z
   .object({
     id: z.uuid().nullish(),
@@ -34,7 +32,6 @@ export const SURVEY_SAVE_SCHEMA = z
 
 export type SurveySaveInput = z.input<typeof SURVEY_SAVE_SCHEMA>;
 
-// Câu hỏi của phiếu còn thiếu hoặc câu trả lời không thuộc phiếu.
 export function answerProblems(questionIds: string[], answers: Record<string, number>) {
   const given = Object.keys(answers);
   return {
@@ -43,7 +40,6 @@ export function answerProblems(questionIds: string[], answers: Record<string, nu
   };
 }
 
-// Điểm trung bình mỗi câu và điểm chung (trung bình các câu), làm tròn 2 chữ số như báo cáo.
 export function summarizeScores(questionIds: string[], averages: Record<string, number>) {
   const values = questionIds.map((id) => averages[id]).filter((value): value is number => value !== undefined);
   const overall = values.length > 0 ? values.reduce((sum, value) => sum + value, 0) / values.length : 0;
@@ -53,21 +49,17 @@ export function summarizeScores(questionIds: string[], averages: Record<string, 
   };
 }
 
-// Tỉ lệ phản hồi: tổng phiếu trên tổng sĩ số MỌI lớp được khảo sát (kể cả lớp chưa có phiếu nào).
 export function responseRate(rows: { responses: number; enrolled: number }[]) {
   const enrolled = rows.reduce((sum, row) => sum + row.enrolled, 0);
   const responses = rows.reduce((sum, row) => sum + row.responses, 0);
   return { responses, enrolled, percent: enrolled > 0 ? Math.round((responses / enrolled) * 100) : 0 };
 }
 
-// Điểm chung trung bình có trọng số theo số phiếu (lớp 0 phiếu không ảnh hưởng điểm, chỉ ảnh hưởng tỉ lệ phản hồi).
 export function weightedOverall(rows: { responses: number; overall: number }[]) {
   const responses = rows.reduce((sum, row) => sum + row.responses, 0);
   return responses > 0 ? rows.reduce((sum, row) => sum + row.overall * row.responses, 0) / responses : 0;
 }
 
-// Đợt khảo sát giảng viên đang xem: đợt được chọn nếu nằm trong danh sách được xem, không thì đợt đầu (mới nhất). Id lạ, đợt chưa
-// đóng hay chưa xáo phiếu không có trong danh sách nên không lộ kết quả sớm.
 export function pickSurvey<T extends { id: string }>(rows: T[], id: string | undefined): T | null {
   return rows.find((row) => row.id === id) ?? rows[0] ?? null;
 }

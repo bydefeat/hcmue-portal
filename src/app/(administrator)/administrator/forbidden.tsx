@@ -7,8 +7,6 @@ import { SignOutButton } from "@/modules/authentication/components/sign-out-butt
 
 export const metadata: Metadata = { title: "Không có quyền truy cập" };
 
-// Nút quay lại dẫn tới trang đầu tiên vai trò hiện tại mở được, không dẫn về /administrator khi vai trò không có quyền xem tổng quan
-// (bấm lại vẫn 403). Tài khoản chưa có vai trò nào thì chỉ hướng dẫn liên hệ quản trị và cho đăng xuất.
 export default async function Forbidden() {
   const viewer = await getViewer();
   const home = firstAccessibleHref(ADMINISTRATOR_NAVIGATION, viewer.permissions, { schoolWide: viewer.faculty === null });

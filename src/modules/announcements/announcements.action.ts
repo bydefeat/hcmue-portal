@@ -39,7 +39,6 @@ async function reload(id: string) {
   return announcement ? actionOk(announcement) : actionError("Đã lưu nhưng chưa đọc lại được, tải lại trang.");
 }
 
-// Trạng thái thật của dòng: hẹn giờ đã tới giờ được tính là đã đăng (giống query).
 function liveStatus(row: { status: AnnouncementStatus; publishedAt: Date | null }): AnnouncementStatus {
   return row.status === "scheduled" && row.publishedAt && row.publishedAt <= new Date() ? "published" : row.status;
 }
@@ -66,13 +65,11 @@ export async function saveAnnouncement(id: string | null, input: AnnouncementInp
       blocked = draftBlockedReason(existing ? liveStatus(existing) : null, status);
       if (blocked) return null;
       const names = await audienceNames(tx);
-      // Đăng ngay mà chọn gửi thông báo cá nhân, email: gửi một lần (notified_at); bài hẹn giờ do tác vụ announcement-notifications gửi.
       const sendNow = async (announcementId: string, slug: string, alreadyNotified: boolean) => {
         if (status !== "published" || alreadyNotified) return;
         const sent = await announceToAudience(tx, { id: announcementId, slug, ...values });
         mailIds = sent.mailIds;
       };
-      // Đăng ngay một thông báo đã đăng thì giữ ngày đăng cũ để thứ tự trên trang chủ không đổi khi sửa lỗi chính tả.
       const publishedAt =
         status === "draft" ? null : status === "scheduled" ? new Date(scheduledAt!) : existing && liveStatus(existing) === "published" && existing.publishedAt ? existing.publishedAt : new Date();
       const row = { ...values, status, publishedAt, deadline: deadline ? new Date(deadline) : null };
@@ -99,7 +96,6 @@ export async function saveAnnouncement(id: string | null, input: AnnouncementInp
         });
         return created.id;
       }
-      // Đổi về hẹn giờ hoặc nháp (chưa đăng) thì cho gửi lại khi đăng.
       await tx.update(announcements).set({ ...row, ...(status !== "published" ? { notifiedAt: null } : {}) }).where(eq(announcements.id, existing.id));
       await sendNow(existing.id, existing.slug, existing.notifiedAt !== null);
       const before = liveStatus(existing);
@@ -138,7 +134,6 @@ export async function saveAnnouncement(id: string | null, input: AnnouncementInp
 
 const idSchemaError = (id: string) => (isUuid(id) ? null : actionError(MISSING));
 
-// Gỡ khỏi trang công khai, bỏ ghim. Bản nháp chưa từng đăng thì xóa hẳn (deleteAnnouncementDraft).
 export async function archiveAnnouncement(id: string): Promise<ActionResult<Announcement>> {
   const viewer = await requireSchoolWidePermission("announcements.manage");
   const invalid = idSchemaError(id);
@@ -181,7 +176,6 @@ export async function deleteAnnouncementDraft(id: string): Promise<ActionResult<
   let deleted: { title: string } | undefined;
   try {
     deleted = await db.transaction(async (tx) => {
-      // Chỉ xóa được bản nháp: thông báo đã từng đăng phải gỡ để còn dấu vết.
       const [row] = await tx
         .delete(announcements)
         .where(and(eq(announcements.id, id), eq(announcements.status, "draft")))

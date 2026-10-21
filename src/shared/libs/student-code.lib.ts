@@ -1,4 +1,3 @@
-// Mã số sinh viên lưu 10 chữ số liền ("5001104013"), hiển thị theo thẻ sinh viên ("50.01.104.013").
 export const STUDENT_EMAIL_DOMAIN = "student.hcmue.edu.vn";
 
 const STUDENT_CODE = /^\d{10}$/;

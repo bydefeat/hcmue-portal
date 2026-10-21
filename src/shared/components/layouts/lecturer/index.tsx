@@ -24,7 +24,6 @@ type LecturerLayoutProps = {
   unreadNotifications?: number;
   onMarkNotificationsRead?: MarkNotificationsRead;
   onMarkAllNotificationsRead?: MarkAllNotificationsRead;
-  // Liên kết chuyển cổng (giảng viên kiêm quản trị), thêm vào menu tài khoản.
   portalLinks?: NavItem[];
   children: React.ReactNode;
 };

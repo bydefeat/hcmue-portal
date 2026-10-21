@@ -1,7 +1,6 @@
 import { mockDate, mockId } from "@/shared/libs/mock.lib";
 import type { Announcement } from "@/modules/announcements/announcements.type";
 
-// Thông báo mẫu: đối tượng có cấu trúc; gửi thông báo cá nhân, email chỉ áp khi đăng thật nên mẫu coi như đã gửi.
 type AnnouncementSeed = Omit<Announcement, "audienceLabel" | "isExpired" | "notifyPortal" | "notifyEmail" | "notifiedAt">;
 
 const STUDENTS = { students: true, lecturers: false, cohorts: [], facultyIds: [], majorIds: [] };
@@ -136,7 +135,6 @@ export const ANNOUNCEMENTS: AnnouncementSeed[] = [
     slug: "nop-de-thi-cuoi-ky-hk1-2026-2027",
     title: "Giảng viên nộp đề thi cuối kỳ học kỳ 1 cho Phòng Khảo thí",
     category: "exam",
-    // Chỉ gửi giảng viên: không hiện trên trang công khai.
     audience: { students: false, lecturers: true, cohorts: [], facultyIds: [], majorIds: [] },
     status: "published",
     isPinned: false,

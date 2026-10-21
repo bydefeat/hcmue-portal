@@ -22,9 +22,6 @@ import type { ClassAnnouncement, StudentClassDetail, Syllabus } from "@/modules/
 import { getCurrentStudent } from "@/modules/users/users.query";
 import { lecturers, students } from "@/modules/users/users.schema";
 
-// Quyền đọc dữ liệu lớp kiểm ở đây chứ không ở layout: layout không chạy lại khi điều hướng mềm hay gọi RSC thẳng tới page con.
-// Người gọi là giảng viên dạy lớp (thấy cả bài hẹn giờ, đề cương nháp) hoặc sinh viên đang học lớp (chỉ bài đã đăng,
-// đề cương đã công bố); còn lại (giảng viên khác, sinh viên ngoài lớp, cán bộ) nhận null.
 const viewerIds = cache(async () => {
   const { user, roles } = await requireSession();
   const [lecturer, student] = await Promise.all([
@@ -34,7 +31,6 @@ const viewerIds = cache(async () => {
   return { lecturerId: lecturer[0]?.id ?? null, studentId: student[0]?.id ?? null };
 });
 
-// Đầu mỗi page trong /lecturer/classes/[classId]: không phải giảng viên dạy lớp thì 404, trước khi đọc dữ liệu khác của lớp.
 export async function requireTaughtClass(classSectionId: string) {
   const { lecturerId } = await viewerIds();
   const section = lecturerId ? await lecturerClass(lecturerId, classSectionId) : null;
@@ -90,13 +86,11 @@ export async function getClassAnnouncement(id: string): Promise<ClassAnnouncemen
   return null;
 }
 
-// Lớp học phần học kỳ hiện tại của sinh viên đang đăng nhập, kèm số thông báo chưa đọc.
 export async function getMyClasses() {
   const student = await getCurrentStudent();
   return studentClasses(student.id);
 }
 
-// Trang lớp của sinh viên: chỉ sinh viên đang học lớp mới xem được; đề cương chỉ hiện khi giảng viên đã công bố.
 export async function getMyClass(classSectionId: string): Promise<StudentClassDetail | null> {
   const student = await getCurrentStudent();
   const section = await studentClass(student.id, classSectionId);

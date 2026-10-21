@@ -17,7 +17,6 @@ type AcademicWarningTableProps = {
   warnings: AcademicWarning[];
   studentHrefBase: string;
   showFaculty?: boolean;
-  // Người xem có quyền xử lý (cố vấn của lớp, cán bộ có warnings.manage); chỉ xem thì ẩn nút.
   canAdvance?: boolean;
 };
 

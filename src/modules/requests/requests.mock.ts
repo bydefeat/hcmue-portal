@@ -12,7 +12,6 @@ type Seed = {
   student?: number;
   lecturer?: number;
   handlerLecturer?: number;
-  // Mã lớp học phần học kỳ 1 năm 2026 của đơn (rút học phần, phúc khảo, hoãn thi, sửa điểm, nghỉ dạy).
   section?: string;
   subject: string;
   details: RequestDetail[];
@@ -70,7 +69,6 @@ function buildSteps(seed: Seed, createdAt: string, advisor: { id: string; name: 
   });
 }
 
-// Minh chứng mẫu đều là PDF; seed ghi một tệp PDF nhỏ cho mỗi tệp và lưu kích thước thật của tệp đó.
 function attachmentsOf(seed: Seed, index: number, createdAt: string): RequestAttachment[] {
   return (seed.attachments ?? []).map((fileName, position) => ({
     id: mockId(`request:${index + 1}:attachment:${position + 1}`),
@@ -95,7 +93,6 @@ function build(seed: Seed, index: number): AcademicRequest {
   const year = 2026;
   if (seed.student !== undefined) {
     const student = mockStudentIdentity(seed.student);
-    // Cố vấn đúng như phân công lớp sinh hoạt trong dữ liệu mẫu của module users.
     const assignment = ADVISOR_ASSIGNMENTS.find((entry) => entry.className === student.className);
     const advisor = assignment?.advisorId ? { id: assignment.advisorId, name: assignment.advisorName ?? "" } : null;
     return {
@@ -140,7 +137,6 @@ function build(seed: Seed, index: number): AcademicRequest {
   };
 }
 
-// Chi tiết đơn đúng định dạng studentRequestContent ghép ở server (nhãn ô của form, "sinh viên khai", giá trị trên hệ thống).
 const SEEDS: Seed[] = [
   {
     kind: "overload",
@@ -299,7 +295,6 @@ const SEEDS: Seed[] = [
     reason: "Xin chấm lại câu 2.",
     daysAgo: 30,
     approved: 3,
-    // Hệ thống chưa tự đổi điểm khi duyệt đơn: kết quả phúc khảo do giảng viên gửi đơn sửa điểm riêng.
     comments: ["Đã tiếp nhận.", "Cộng 0,75 điểm câu 2b do chấm sót, điểm sau phúc khảo 4,25.", "Đã công bố kết quả phúc khảo; giảng viên gửi đơn sửa điểm để cập nhật bảng điểm."],
   },
   {
@@ -389,7 +384,6 @@ const SEEDS: Seed[] = [
     attachments: ["ielts.pdf"],
     daysAgo: 14,
     approved: 2,
-    // Đơn chỉ ghi nhận kết quả xét; điểm miễn do Phòng Đào tạo nhập ở hồ sơ sinh viên.
     comments: ["Chứng chỉ hợp lệ, đủ điều kiện.", "Đồng ý công nhận 2 học phần, chuyển bộ phận nhập điểm miễn (M)."],
   },
   {

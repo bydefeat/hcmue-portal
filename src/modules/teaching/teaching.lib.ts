@@ -15,15 +15,12 @@ import { classAnnouncementReads, classAnnouncements, syllabi, syllabusAssessment
 import type { ClassAnnouncement, ClassLecturer, StudentClass, StudentClassAnnouncement, Syllabus, SyllabusWeek } from "@/modules/teaching/teaching.type";
 import { lecturers, students } from "@/modules/users/users.schema";
 
-// Hàm không kiểm phiên: chỉ query/action/route của module gọi sau khi đã xác định người dùng (hoặc tác vụ nền, test).
-// Nhận executor để test chạy trong transaction rồi rollback.
 type Executor = Transaction | typeof db;
 
 export const classPageHref = (classSectionId: string) => `/application/classes/${classSectionId}`;
 
 const blankWeek = (week: number): SyllabusWeek => ({ week, topic: "", activities: "", readings: "" });
 
-// Kế hoạch luôn đủ 15 tuần để form soạn có sẵn từng dòng; tuần chưa lưu là dòng trống.
 export function fillWeeks(weeks: SyllabusWeek[]) {
   const total = Math.max(SYLLABUS_WEEKS, ...weeks.map((week) => week.week));
   const byWeek = new Map(weeks.map((week) => [week.week, week]));
@@ -89,7 +86,6 @@ export async function readSyllabus(classSectionId: string): Promise<Syllabus | n
   };
 }
 
-// Số lượt đọc của từng bài: đếm theo khóa chính (class_announcement_id, student_id), không gom cả bảng lượt đọc mỗi lần đọc.
 const readCount = sql<number>`(SELECT count(*) FROM class_announcement_reads r WHERE r.class_announcement_id = ${classAnnouncements.id})::int`;
 
 const CLASS_ANNOUNCEMENT_COLUMNS = {
@@ -124,11 +120,9 @@ export async function announcementRows(where: SQL): Promise<ClassAnnouncement[]>
   }));
 }
 
-// Điều kiện "sinh viên đang học lớp": chỉ đăng ký còn hiệu lực, đã hủy hay rút thì không còn xem lớp.
 const enrolledIn = (studentId: string) =>
   and(eq(enrollments.classSectionId, classSections.id), eq(enrollments.studentId, studentId), eq(enrollments.status, "enrolled"));
 
-// Thông báo đã tới giờ đăng của các lớp sinh viên đang học, kèm đã đọc hay chưa; truyền classSectionId để lấy một lớp.
 export async function studentAnnouncements(studentId: string, classSectionId?: string, executor: Executor = db): Promise<StudentClassAnnouncement[]> {
   if (!isUuid(studentId) || (classSectionId !== undefined && !isUuid(classSectionId))) return [];
   const rows = await executor
@@ -176,7 +170,6 @@ async function studentClassRows(studentId: string, where: SQL | undefined, execu
     .where(where)
     .orderBy(asc(classSections.code));
   if (rows.length === 0) return [];
-  // Chỉ đếm số bài đã đăng và chưa đọc của đúng các lớp cần hiện, không đọc toàn bộ nội dung thông báo.
   const counts = await executor
     .select({
       classSectionId: classAnnouncements.classSectionId,
@@ -203,20 +196,17 @@ async function studentClassRows(studentId: string, where: SQL | undefined, execu
   });
 }
 
-// Lớp học phần sinh viên đang học trong học kỳ hiện tại.
 export async function studentClasses(studentId: string, executor: Executor = db) {
   if (!isUuid(studentId)) return [];
   return studentClassRows(studentId, eq(terms.isCurrent, true), executor);
 }
 
-// Một lớp của sinh viên; không đang học lớp đó thì null (trang trả 404, không lộ lớp có tồn tại hay không).
 export async function studentClass(studentId: string, classSectionId: string, executor: Executor = db) {
   if (!isUuid(studentId) || !isUuid(classSectionId)) return null;
   const [row] = await studentClassRows(studentId, eq(classSections.id, classSectionId), executor);
   return row ?? null;
 }
 
-// Lớp do giảng viên này dạy; không dạy thì null. Giảng viên khác không xem được bài hẹn giờ hay đề cương nháp của lớp.
 export async function lecturerClass(lecturerId: string, classSectionId: string) {
   if (!isUuid(lecturerId) || !isUuid(classSectionId)) return null;
   const [section] = await db
@@ -227,26 +217,22 @@ export async function lecturerClass(lecturerId: string, classSectionId: string) 
   return section ?? null;
 }
 
-// Mọi thông báo của lớp (kể cả hẹn giờ chưa tới giờ) cho giảng viên dạy lớp; không dạy thì null.
 export async function lecturerAnnouncements(lecturerId: string, classSectionId: string) {
   if (!(await lecturerClass(lecturerId, classSectionId))) return null;
   return announcementRows(eq(classAnnouncements.classSectionId, classSectionId));
 }
 
-// Đề cương (cả bản nháp) cho giảng viên dạy lớp: { syllabus: null } là lớp chưa có đề cương; không dạy thì null.
 export async function lecturerSyllabus(lecturerId: string, classSectionId: string) {
   if (!(await lecturerClass(lecturerId, classSectionId))) return null;
   return { syllabus: await readSyllabus(classSectionId) };
 }
 
-// Đề cương cho sinh viên: chỉ khi đang học lớp và giảng viên đã công bố.
 export async function studentSyllabus(studentId: string, classSectionId: string) {
   if (!(await studentClass(studentId, classSectionId))) return null;
   const syllabus = await readSyllabus(classSectionId);
   return syllabus?.status === "published" ? syllabus : null;
 }
 
-// Ghi nhận sinh viên đã đọc; trả false nếu thông báo không thuộc lớp sinh viên đang học hoặc chưa tới giờ đăng.
 export async function recordAnnouncementRead(studentId: string, announcementId: string, executor: Executor = db) {
   if (!isUuid(studentId) || !isUuid(announcementId)) return false;
   const [announcement] = await executor
@@ -262,8 +248,6 @@ export async function recordAnnouncementRead(studentId: string, announcementId: 
 
 type AnnouncementToSend = { id: string; classSectionId: string; title: string; body: string; sendEmail: boolean };
 
-// Báo bài đăng tới sinh viên đang học lớp: ghi thông báo trên cổng, notified_at và thư (nếu bật email) trong cùng transaction.
-// Thư chỉ xếp hàng, không gửi khi đang giữ khóa dòng; trả id thư để nơi gọi gửi sau khi commit.
 export async function announceToClass(tx: Transaction, announcement: AnnouncementToSend) {
   const [section] = await tx
     .select({ code: classSections.code, courseName: courses.name, lecturerTitle: lecturers.title, lecturerName: lecturers.fullName })
@@ -297,12 +281,8 @@ export async function announceToClass(tx: Transaction, announcement: Announcemen
   return { students: roster.length, notified: notified.length, mailIds };
 }
 
-// Mỗi lần chạy báo tối đa ngần này bài; còn thì lần chạy sau báo tiếp.
 const DUE_BATCH = 50;
 
-// Báo các bài đã tới giờ đăng mà chưa báo. Mỗi bài một giao dịch: một bài lỗi (lớp vừa xóa, dữ liệu hỏng) không chặn các bài
-// khác, lần chạy sau thử lại bài đó. Khóa dòng FOR UPDATE SKIP LOCKED: hai lần chạy song song (cron và trang lớp gọi bù) không
-// báo trùng, bài đang bị lần chạy kia hoặc giảng viên đang sửa giữ khóa thì bỏ qua cho lần sau.
 export async function publishDueClassAnnouncements(options: { classSectionId?: string } = {}) {
   const empty = { announcements: 0, notified: 0, emailed: 0, emailRetrying: 0, failed: 0 };
   if (options.classSectionId !== undefined && !isUuid(options.classSectionId)) return empty;
@@ -336,7 +316,6 @@ export async function publishDueClassAnnouncements(options: { classSectionId?: s
       console.error(`Không báo được thông báo lớp ${id}`, error);
     }
   }
-  // Tác vụ nền nên chờ gửi luôn; thư lỗi nằm lại hàng đợi cho tác vụ mail-outbox gửi lại.
   const mail = await deliverQueuedMail(results.flatMap((result) => result.mailIds));
   return {
     announcements: results.length,
@@ -349,11 +328,8 @@ export async function publishDueClassAnnouncements(options: { classSectionId?: s
 
 const describeGrading = (items: { label: string; weight: number }[]) => items.map((item) => `${item.label} ${item.weight}%`).join(", ");
 
-// Đề cương đã công bố đổi cách tính điểm mà chưa ghi lý do.
 export class SyllabusRevisionError extends Error {}
 
-// Ghi đề cương (đã kiểm dữ liệu vào) của lớp. Đề cương đã công bố: đổi cách tính điểm thì bắt buộc có lý do, lưu bản cũ vào
-// syllabus_revisions, tăng phiên bản, báo sinh viên đang học lớp và ghi nhật ký; sửa phần khác thì lưu như thường.
 export async function writeSyllabus(
   tx: Transaction,
   section: { id: string; code: string; courseName: string },
@@ -381,7 +357,6 @@ export async function writeSyllabus(
   if (isRevision && current) {
     await tx.insert(syllabusRevisions).values({ syllabusId: syllabus.id, version: current.version, assessments: before, note: revisionNote! });
   }
-  // Ghi lại toàn bộ phần con: trigger kiểm tổng trọng số chạy lúc commit nên xóa rồi chèn trong cùng giao dịch được.
   await tx.delete(syllabusOutcomes).where(eq(syllabusOutcomes.syllabusId, syllabus.id));
   await tx.delete(syllabusWeeks).where(eq(syllabusWeeks.syllabusId, syllabus.id));
   await tx.delete(syllabusAssessments).where(eq(syllabusAssessments.syllabusId, syllabus.id));

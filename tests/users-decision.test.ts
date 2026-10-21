@@ -208,7 +208,6 @@ describe("users.decision: lập, ký, hiệu lực, thu hồi trên DB", () => {
       const second = await createDecisionDraft(tx, maker, input(student.id, "expel"));
       await submitDecision(tx, maker, second);
       assert.match(await rejected(signDecision(tx, signer, second)), /chưa tới ngày hiệu lực/);
-      // Thu hồi khi chưa có hiệu lực: không đổi gì ở hồ sơ.
       await revokeDecision(tx, signer, id, "Sinh viên rút đơn");
       assert.equal((await statusOf(tx, student.id)).status, "studying");
     });
@@ -268,7 +267,6 @@ describe("users.decision: lập, ký, hiệu lực, thu hồi trên DB", () => {
     await inRollback(async (tx) => {
       const { student } = await makeStudent(tx);
       assert.match(await rejected(createDecisionDraft(tx, maker, input(student.id, "graduate"))), /trang Xét tốt nghiệp/);
-      // Như approveGraduation: dự thảo quyết định + hồ sơ "approved" trỏ tới quyết định.
       const [decision] = await tx
         .insert(studentDecisions)
         .values({ kind: "graduate", studentId: student.id, title: "Công nhận tốt nghiệp thử", basis: "Hội đồng", effectiveDate: day(0), createdByUserId: maker.id })

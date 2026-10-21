@@ -18,7 +18,6 @@ export function RolePermissionMatrix({ roles, viewer }: { roles: RoleRow[]; view
   const [isSaving, startSaving] = useTransition();
   const selected = rows.find((role) => role.id === selectedId);
   const isDirty = selected ? JSON.stringify([...draft].toSorted()) !== JSON.stringify([...selected.permissions].toSorted()) : false;
-  // Người theo khoa không sửa vai trò có quyền phân quyền, không thêm quyền toàn trường hay quyền chính mình không có.
   const isLocked = !selected || selected.isSystem || (viewer.faculty !== null && isPrivilegedRole(selected));
   const canAdd = (permission: Permission) => viewer.faculty === null || (!SCHOOL_WIDE_PERMISSIONS.includes(permission) && viewer.permissions.includes(permission));
 

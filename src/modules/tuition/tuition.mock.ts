@@ -5,11 +5,8 @@ import type { InvoiceLine } from "@/modules/tuition/tuition.type";
 
 export const HEALTH_INSURANCE = { code: "bhyt", label: "Bảo hiểm y tế 12 tháng", amount: 1_263_600 };
 
-// Năm học có đơn giá và khoản thu trong dữ liệu mẫu (bảng điểm từ 2022 đến học kỳ hiện tại).
 export const TUITION_YEARS = [2022, 2023, 2024, 2025, 2026];
 
-// Hóa đơn mẫu của một sinh viên trong một học kỳ. Học kỳ cũ đã nộp đủ; học kỳ hiện tại phát hành 25 ngày trước, hạn sau 9 ngày,
-// sinh viên đang đăng nhập chưa nộp (để thấy hướng dẫn chuyển khoản), các bạn khác nộp đủ, nộp thiếu hoặc chưa nộp.
 export function mockInvoice(params: {
   studentId: string;
   studentIndex: number;
@@ -29,7 +26,6 @@ export function mockInvoice(params: {
   if (isCurrent) paid = params.isCurrentStudent || roll >= 0.65 ? 0 : roll < 0.55 ? total : Math.round(total / 2 / 1000) * 1000;
   const paidAt = isCurrent ? dayjs(issuedAt).add(3 + Math.floor(random() * 18), "day").hour(10) : dayjs(issuedAt).add(9 + (studentIndex % 7), "day").hour(14);
   return {
-    // Học kỳ đã qua và học kỳ hiện tại đã chốt học phí (chính thức) từ lúc phát hành.
     invoice: { id, studentId, termId: term.id, issuedAt: new Date(issuedAt), dueDate, discount: 0, finalizedAt: new Date(issuedAt), finalizedByLabel: "Phòng Kế hoạch - Tài chính" },
     lines: lines.map((line, position) => ({ invoiceId: id, position: position + 1, kind: line.kind, label: line.label, quantity: line.quantity, unitPrice: line.unitPrice })),
     payments:
@@ -40,7 +36,6 @@ export function mockInvoice(params: {
               invoiceId: id,
               paidAt: paidAt.toDate(),
               amount: paid,
-              // Chưa tích hợp ngân hàng: khoản mẫu coi như đã nhập từ sao kê.
               method: "Chuyển khoản (nhập sao kê)",
               source: "statement" as const,
               recordedByLabel: "Phòng Kế hoạch - Tài chính",

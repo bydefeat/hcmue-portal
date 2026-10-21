@@ -25,7 +25,6 @@ function periodText(survey: Survey) {
 export default async function Page({ searchParams }: { searchParams: Promise<{ survey?: string }> }) {
   const viewer = await requirePermission("surveys.view");
   const [{ survey: wanted }, surveys, terms] = await Promise.all([searchParams, getSurveys(), getTerms()]);
-  // Mặc định: đợt đang mở, không có thì đợt mới nhất đã mở.
   const survey = surveys.find((entry) => entry.id === wanted) ?? surveys.find((entry) => entry.status === "open") ?? surveys.find((entry) => entry.status === "closed") ?? surveys[0] ?? null;
   const canManage = can(viewer, "surveys.manage");
   const all = survey ? await getSurveyResults(survey.id) : [];

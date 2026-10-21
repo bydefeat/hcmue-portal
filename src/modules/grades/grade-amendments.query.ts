@@ -64,14 +64,12 @@ async function amendmentRows(where: SQL | undefined, viewerUserId: string, limit
   }));
 }
 
-// Trang Sửa điểm của Phòng Đào tạo (quyền công bố điểm), trong phạm vi khoa của vai trò: đề nghị chờ duyệt và lịch sử gần đây.
 export async function getGradeAmendments(status?: GradeAmendmentStatus): Promise<GradeAmendment[]> {
   const viewer = await requirePermission("grades.publish");
   const rows = await amendmentRows(status ? eq(gradeAmendments.status, status) : undefined, viewer.id);
   return rows.filter((row) => inScope(viewer, row.faculty));
 }
 
-// Lịch sử sửa điểm của một lớp: giảng viên dạy lớp hoặc cán bộ (trang nhập điểm, bảng điểm).
 export async function getSectionAmendments(classSectionId: string): Promise<GradeAmendment[]> {
   const session = await requireSession();
   if (!isUuid(classSectionId)) return [];
@@ -88,7 +86,6 @@ export async function getSectionAmendments(classSectionId: string): Promise<Grad
 
 export type AmendableSection = { classSectionId: string; label: string; faculty: string };
 
-// Lớp có bảng điểm đã công bố trong phạm vi khoa, để Phòng Đào tạo nhập điểm thi bù, sửa điểm tay.
 export async function getAmendableSections(): Promise<AmendableSection[]> {
   const viewer = await requirePermission("grades.publish");
   const rows = await db
@@ -108,7 +105,6 @@ export type AmendableSheet = {
   students: { studentId: string; studentCode: string; fullName: string; scores: Record<string, number | null> }[];
 };
 
-// Cột điểm, sinh viên đang học và điểm hiện tại của một bảng điểm đã chốt trở đi (form đề nghị sửa điểm). Nơi gọi kiểm phạm vi lớp.
 export async function amendableSheet(classSectionId: string): Promise<AmendableSheet | null> {
   await requireSession();
   if (!isUuid(classSectionId)) return null;

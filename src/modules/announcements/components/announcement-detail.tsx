@@ -6,7 +6,6 @@ import { ANNOUNCEMENT_CATEGORY_LABEL } from "@/modules/announcements/announcemen
 import type { Announcement } from "@/modules/announcements/announcements.type";
 import { deadlineHint, PublicAnnouncementItem } from "@/modules/announcements/components/public-announcement-item";
 
-// Trang chi tiết thông báo chung, dùng cho trang công khai và trang thông báo trong cổng sinh viên, giảng viên.
 export function AnnouncementDetail({
   announcement,
   related,

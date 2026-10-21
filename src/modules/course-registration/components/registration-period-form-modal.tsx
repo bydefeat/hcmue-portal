@@ -28,17 +28,13 @@ type RegistrationPeriodFormModalProps = {
   open: boolean;
   period: RegistrationPeriod | null;
   termName: string;
-  // Các khóa đang có lớp sinh hoạt, đọc từ DB.
   cohorts: number[];
-  // Hạn mức của quy chế đang áp dụng, gợi ý khi để trống.
   regulationCredits: { minPerTerm: number; maxPerTerm: number };
   onClose: () => void;
-  // Trả lỗi theo ô khi server từ chối, để modal gắn vào đúng ô.
   onSubmit: (values: PeriodFormResult) => Promise<Record<string, string> | undefined>;
 };
 
 export function RegistrationPeriodFormModal({ open, period, termName, cohorts, regulationCredits, onClose, onSubmit }: RegistrationPeriodFormModalProps) {
-  // Giữ cả khóa đợt đang lưu để ô chọn vẫn hiện nhãn khi khóa đó không còn lớp.
   const cohortOptions = [...new Set([...cohorts, ...(period?.cohorts ?? [])])]
     .toSorted((a, b) => a - b)
     .map((cohort) => ({ value: cohort, label: `Khóa ${cohort}` }));

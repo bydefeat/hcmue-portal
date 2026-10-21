@@ -20,7 +20,6 @@ import { normalizeSearch } from "@/shared/libs/search.lib";
 
 export type DecisionStudentOption = { id: string; code: string; fullName: string; className: string; faculty: string; majorCode: string; cohort: number; status: StudentStatus };
 
-// Lớp sinh hoạt để chọn ngành mới khi chuyển ngành.
 export type DecisionClassOption = { code: string; majorCode: string; majorName: string; cohort: number };
 
 type DecisionTableProps = {
@@ -28,7 +27,6 @@ type DecisionTableProps = {
   students: DecisionStudentOption[];
   classes: DecisionClassOption[];
   header: { title: string; description?: React.ReactNode };
-  // decisions.manage: lập, sửa, hủy dự thảo, trình ký. decisions.sign: ký, trả lại, thu hồi (không ký dự thảo của chính mình).
   canManage: boolean;
   canSign: boolean;
   currentUserId: string;
@@ -47,7 +45,6 @@ type FormValues = {
 type ReasonStep = { row: StudentDecision; step: "return" | "revoke" };
 
 const NETWORK_ERROR = "Chưa lưu được, kiểm tra kết nối rồi thử lại.";
-// Quyết định công nhận tốt nghiệp sinh ra ở trang Xét tốt nghiệp, không lập tay ở đây.
 const CREATABLE_KINDS = DECISION_KIND_OPTIONS.filter((option) => option.value !== "graduate");
 
 function StatusCell({ row }: { row: StudentDecision }) {
@@ -80,7 +77,6 @@ export function DecisionTable({ decisions, students, classes, header, canManage,
   const chosenLevel = Form.useWatch("disciplineLevel", form);
   const chosenStudent = students.find((student) => student.id === chosenStudentId);
   const studentById = useMemo(() => new Map(students.map((student) => [student.id, student])), [students]);
-  // Báo trước khi lưu: tình trạng hiện tại của sinh viên không cho lập loại quyết định đã chọn (server kiểm lại).
   const blocked = chosenStudent && chosenKind ? decisionBlockedReason(chosenKind, chosenStudent.status, chosenLevel ?? null) : null;
   const targetClasses = chosenStudent ? classes.filter((entry) => entry.majorCode !== chosenStudent.majorCode).toSorted((a, b) => Number(b.cohort === chosenStudent.cohort) - Number(a.cohort === chosenStudent.cohort) || a.code.localeCompare(b.code)) : [];
 

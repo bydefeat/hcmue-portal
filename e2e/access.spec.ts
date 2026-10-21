@@ -1,6 +1,5 @@
 import { anonymousTest, asRole, expect, test } from "./support/fixtures";
 
-// Trang 403/404 trả mã lỗi thật nên console có "Failed to load resource"; đó là hành vi đúng.
 const ERROR_STATUS = /Failed to load resource: the server responded with a status of 40[34]/;
 
 test.describe.configure({ mode: "parallel" });
@@ -18,7 +17,6 @@ test.describe("sinh viên", () => {
   }
 
   test("không mở được tệp minh chứng của đơn người khác", async ({ page }) => {
-    // Đường dẫn tệp có uuid hợp lệ nhưng không thuộc đơn của sinh viên: trả 404, không lộ tệp có tồn tại.
     const response = await page.request.get("/api/files/requests/01940000-0000-7000-8000-000000000000");
     expect(response.status()).toBe(404);
   });
@@ -33,7 +31,6 @@ test.describe("giảng viên", () => {
   });
 
   test("lớp không dạy thì báo Không tìm thấy", async ({ page }) => {
-    // COMP1010.01 do ThS. Nguyễn Thành Thịnh dạy.
     await page.goto("/lecturer/classes/01940000-0000-7f6a-bbd5-16f374a105ba");
     await expect(page.getByText("Không tìm thấy").first()).toBeVisible();
     await expect(page.getByText("Lập trình cơ bản")).toHaveCount(0);

@@ -28,11 +28,8 @@ const TERM_KEY = /^hk([1-3])-(\d{4})$/;
 
 const relatedCourses = alias(courses, "related_courses");
 
-// Khóa của mọi học kỳ có trong dữ liệu mẫu: bảng điểm từ 2022 và đăng ký học phần 2025-2027.
 const TERM_KEYS = ["hk1-2022", "hk2-2022", "hk1-2023", "hk2-2023", "hk1-2024", "hk2-2024", "hk1-2025", "hk2-2025", "hk3-2025", "hk1-2026", "hk2-2026"];
 
-// Học kỳ của bảng điểm (từ 2022) và của đăng ký học phần dùng chung một bảng terms. Học kỳ cũ không có ngày trong dữ liệu mẫu
-// thì lấy lịch thường lệ: học kỳ 1 từ tháng 9 đến giữa tháng 1, học kỳ 2 từ giữa tháng 2 đến cuối tháng 6.
 function termRows() {
   const known = new Map(TERMS.map((term) => [term.id, term]));
   return TERM_KEYS.map((key) => {
@@ -58,7 +55,6 @@ function termRows() {
   });
 }
 
-// Đợt đầu tiên (đã mở) của khóa trong học kỳ: thời điểm đăng ký mẫu nằm trong đợt này.
 function periodOf(termId: string, cohort: number) {
   return REGISTRATION_PERIODS.filter((period) => period.termId === termId && period.cohorts.includes(cohort) && dayjs(period.opensAt).isBefore(dayjs())).toSorted((a, b) => a.opensAt.localeCompare(b.opensAt))[0];
 }
@@ -139,10 +135,6 @@ export async function seedRegistration(tx: Transaction, context: SeedContext) {
     if (seatMajors.length > 0) await tx.insert(reservedSeatMajors).values(seatMajors);
   }
 
-  // Danh sách lớp lấy theo cùng thứ tự chọn của dữ liệu mẫu, chỉ gồm sinh viên đủ điều kiện như khi đăng ký thật: đang học, đúng đối
-  // tượng của lớp, đã đạt học phần tiên quyết (điểm lần học cuối trong bảng điểm mẫu), có học phần song hành cùng học kỳ hoặc đã đạt,
-  // chưa đạt học phần (trừ điểm học cải thiện được), không đang học học phần đó ở học kỳ hiện tại, không trùng lịch, không hai lớp
-  // của cùng học phần. Lớp có ít sinh viên đủ điều kiện hơn sĩ số mẫu thì chỉ xếp số đủ điều kiện.
   const relationRows = await tx
     .select({ course: courses.code, kind: courseRelations.kind, related: relatedCourses.code })
     .from(courseRelations)
@@ -192,7 +184,6 @@ export async function seedRegistration(tx: Transaction, context: SeedContext) {
       if (!period) continue;
       let labGroupId: string | null = null;
       if (section.labGroups.length > 0) {
-        // Chia vào nhóm thực hành đang ít người nhất còn chỗ.
         const open = section.labGroups.map((group, position) => position).filter((position) => labLoad[position] < section.labGroups[position].capacity);
         if (open.length === 0) break;
         const position = open.reduce((best, slot) => (labLoad[slot] < labLoad[best] ? slot : best));
@@ -209,7 +200,6 @@ export async function seedRegistration(tx: Transaction, context: SeedContext) {
       courseCodesOf.set(slotKey, termCourses);
       busy.set(slotKey, [...(busy.get(slotKey) ?? []), ...section.meetings, ...(labMeeting ? [labMeeting] : [])]);
       count += 1;
-      // Thời điểm đăng ký nằm trong đợt của khóa, trước hiện tại.
       const opensAt = dayjs(period.opensAt);
       const closes = dayjs(period.closesAt);
       const until = closes.isBefore(dayjs().subtract(1, "hour")) ? closes : dayjs().subtract(1, "hour");

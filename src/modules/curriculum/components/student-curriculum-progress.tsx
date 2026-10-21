@@ -24,7 +24,6 @@ const STATUS_VIEW = {
   "not-taken": { icon: CircleDashed, className: "text-muted" },
 } as const;
 
-// Học phần điều kiện chỉ ghi Đạt/Không đạt, không ghi điểm chữ (không tính điểm trung bình).
 function statusText(entry: CourseProgress, course: Pick<Course, "isConditional">) {
   if (entry.status === "passed") return course.isConditional ? "Đạt" : `Đạt ${entry.letter}`;
   if (entry.status === "failed") return course.isConditional ? "Không đạt, cần học lại" : "Chưa đạt, cần học lại";
@@ -42,7 +41,6 @@ export function StudentCurriculumProgress({ program, progress, earnedCredits }: 
   }
 
   const allCourses = program.semesters.flatMap((semester) => semester.courses);
-  // Học phần điều kiện không tính vào tín chỉ của chương trình nên đếm riêng.
   const courses = allCourses.filter((course) => !course.isConditional);
   const conditional = allCourses.filter((course) => course.isConditional);
   const statusOf = (code: string): CourseProgress => progress[code] ?? { status: "not-taken" };

@@ -37,7 +37,6 @@ async function readBack(id: string): Promise<ActionResult<Appointment>> {
   return appointment ? actionOk(appointment) : actionError("Đã lưu nhưng chưa đọc lại được, tải lại trang.");
 }
 
-// Đặt lịch hẹn: không trùng giờ buổi hẹn khác của cố vấn (kiểm ở server), báo từng sinh viên được mời.
 export async function createAppointment(input: AppointmentInput): Promise<ActionResult<Appointment>> {
   const lecturer = await getCurrentLecturer();
   const parsed = parseInput(APPOINTMENT_SCHEMA, input);
@@ -51,7 +50,6 @@ export async function createAppointment(input: AppointmentInput): Promise<Action
   return readBack(id);
 }
 
-// Ghi nhận buổi đã diễn ra: có mặt, vắng theo từng sinh viên; ghi chú chỉ vào hồ sơ người có mặt.
 export async function recordAppointment(input: AppointmentOutcomeInput): Promise<ActionResult<{ appointment: Appointment; notes: MeetingNote[] }>> {
   const lecturer = await getCurrentLecturer();
   const parsed = parseInput(APPOINTMENT_OUTCOME_SCHEMA, input);
@@ -67,7 +65,6 @@ export async function recordAppointment(input: AppointmentOutcomeInput): Promise
   return appointment ? actionOk({ appointment, notes }) : actionError("Đã lưu nhưng chưa đọc lại được, tải lại trang.");
 }
 
-// Dời buổi hẹn chưa diễn ra.
 export async function moveAppointment(input: AppointmentRescheduleInput): Promise<ActionResult<Appointment>> {
   const lecturer = await getCurrentLecturer();
   const parsed = parseInput(APPOINTMENT_RESCHEDULE_SCHEMA, input);
@@ -91,7 +88,6 @@ export async function cancelAppointment(id: string): Promise<ActionResult<Appoin
   return readBack(id);
 }
 
-// Ghi chú cố vấn độc lập (không cần buổi hẹn) vào hồ sơ sinh viên mình cố vấn.
 export async function createAdvisingNote(input: AdvisingNoteInput): Promise<ActionResult<MeetingNote>> {
   const lecturer = await getCurrentLecturer();
   const parsed = parseInput(ADVISING_NOTE_SCHEMA, input);

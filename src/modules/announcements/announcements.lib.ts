@@ -11,7 +11,6 @@ import type { AnnouncementAudience } from "@/modules/announcements/announcements
 
 type AnnouncementToSend = { id: string; slug: string; title: string; summary: string; content: string; audience: AnnouncementAudience; notifyPortal: boolean; notifyEmail: boolean };
 
-// Người nhận theo đối tượng: sinh viên đang học đúng khóa, ngành, khoa; giảng viên đang làm việc đúng khoa.
 export async function audienceRecipients(tx: Transaction | typeof db, audience: AnnouncementAudience) {
   const studentRows = audience.students
     ? await tx
@@ -37,8 +36,6 @@ export async function audienceRecipients(tx: Transaction | typeof db, audience: 
   return { students: studentRows, lecturers: lecturerRows };
 }
 
-// Gửi thông báo chung tới đối tượng: thông báo cá nhân trên cổng và/hoặc thư (hàng đợi), ghi notified_at trong cùng transaction
-// để không gửi hai lần. Trả id thư để nơi gọi gửi sau khi commit.
 export async function announceToAudience(tx: Transaction, announcement: AnnouncementToSend) {
   await tx.update(announcements).set({ notifiedAt: new Date() }).where(eq(announcements.id, announcement.id));
   if (!announcement.notifyPortal && !announcement.notifyEmail) return { notified: 0, mailIds: [] as string[] };
@@ -88,8 +85,6 @@ const SEND_COLUMNS = {
   notifyEmail: announcements.notifyEmail,
 };
 
-// Tác vụ announcement-notifications: thông báo hẹn giờ đã tới giờ đăng mà chưa gửi. Khóa dòng SKIP LOCKED để hai lần chạy
-// song song (hoặc người sửa đang giữ khóa) không gửi trùng.
 export async function publishDueAnnouncements() {
   const outcome = { announcements: 0, notified: 0, emailed: 0 };
   const mailIds = await db.transaction(async (tx) => {
@@ -113,7 +108,6 @@ export async function publishDueAnnouncements() {
   return outcome;
 }
 
-// Lượt xem thật: trang chi tiết (công khai và cổng) tăng một lượt sau khi trả trang.
 export async function recordAnnouncementView(id: string) {
   await db
     .update(announcements)

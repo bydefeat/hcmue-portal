@@ -75,8 +75,6 @@ export const SURVEY_RESULTS: SectionSurveyResult[] = SEEDS.map(([classSectionId,
   };
 });
 
-// Đợt khảo sát giữa học kỳ đã đóng (và đã xáo phiếu): giảng viên xem được kết quả lớp đủ 5 phiếu; COMP1020.02 chỉ có 3 phiếu
-// nên giảng viên không thấy lớp này.
 export const MIDTERM_SURVEY: SurveySeed = {
   id: mockId("survey:ks-giua-ky-hk1-2026"),
   termId: mockTermId("hk1-2026"),

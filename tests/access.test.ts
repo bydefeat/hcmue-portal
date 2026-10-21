@@ -17,13 +17,10 @@ import { session, user } from "@/modules/authentication/authentication.schema";
 import { faculties, majors } from "@/modules/curriculum/curriculum.schema";
 import { mailOutbox } from "@/modules/mail/mail.schema";
 import { administrativeClasses, lecturers, staffMembers, students } from "@/modules/users/users.schema";
-// Chỉ lấy kiểu: action, query nạp động sau khi dựng môi trường request của Next (installNextRuntime).
 import type * as AccessAction from "@/modules/access/access.action";
 import type * as AccessQuery from "@/modules/access/access.query";
 import type * as UsersAction from "@/modules/users/users.action";
 
-// ---------- Môi trường request của Next cho test gọi thẳng server action (cùng cách tests/pdf.test.ts dựng):
-// AsyncLocalStorage toàn cục, cờ authInterrupts, bản react-server của next/navigation. Gọi installNextRuntime() trước khi import() action.
 let installed = false;
 
 function installNextRuntime() {
@@ -39,7 +36,6 @@ function installNextRuntime() {
 
 const createdSessions: string[] = [];
 
-// Phiên tạo thẳng trong DB, cookie ký như better-auth; assignmentId chọn vai trò đang dùng (cookie đổi vai trò).
 async function cookieOf(userId: string, assignmentId?: string) {
   const token = randomBytes(24).toString("base64url");
   const [row] = await db.insert(session).values({ userId, token, expiresAt: new Date(Date.now() + 60 * 60 * 1000) }).returning({ id: session.id });
@@ -60,7 +56,6 @@ async function requestRunner() {
   ]);
   return <T>(cookie: string, run: () => Promise<T>): Promise<T> => {
     const headers = new Headers({ cookie });
-    // Pha "action", incrementalCache giả để revalidatePath chạy được; after() (gửi thư ngay) bị bỏ qua, thư vẫn nằm trong hàng đợi.
     const workStore = { route: "/test", forceStatic: false, dynamicShouldError: false, isStaticGeneration: false, incrementalCache: {}, afterContext: { after: () => {} } } as never;
     const requestStore = {
       type: "request",
@@ -265,7 +260,6 @@ describe("access.action: phân quyền trên DB qua server action", () => {
     assert.ok(granted.ok, granted.ok ? "" : granted.message);
     ids.assignments.push(granted.data.id);
     assert.ok((await run(adminCookie, () => access.revokeRole(granted.data.id))).ok);
-    // Người toàn trường khác (vai trò tự tạo có quyền phân quyền) thử thu hồi quản trị hệ thống duy nhất của seed.
     const schoolRoleId = await testRole("Thử phân quyền toàn trường", "university", ["access.manage", "dashboard.view"]);
     const [assignment] = await db.insert(roleAssignments).values({ userId: otherUnitUser, roleId: schoolRoleId }).returning({ id: roleAssignments.id });
     await db.update(user).set({ role: "admin" }).where(eq(user.id, otherUnitUser));

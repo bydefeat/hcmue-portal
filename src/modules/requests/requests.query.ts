@@ -15,7 +15,6 @@ import { academicRequests, requestAttachments } from "@/modules/requests/request
 
 export type { RequestPortal };
 
-// Người đang xem: giảng viên (nếu tài khoản là giảng viên) và vai trò quản trị đang dùng (nếu có quyền mở hộp đơn từ).
 export const getRequestAccess = cache(async (): Promise<RequestAccess> => {
   const { user, roles } = await requireSession();
   const [lecturer] = roles.includes("lecturer") ? await db.select({ id: lecturers.id }).from(lecturers).where(eq(lecturers.userId, user.id)) : [];
@@ -30,28 +29,23 @@ export const getRequestAccess = cache(async (): Promise<RequestAccess> => {
   };
 });
 
-// Cổng quản trị: đơn có bước thuộc quyền của vai trò đang dùng trong phạm vi khoa (hoặc mọi đơn trong phạm vi nếu có
-// requests.supervise), cộng đơn người xem đã xử lý.
 export const getRequests = cache(async () => {
   await requirePermission("requests.process");
   return requestRows(sql`true`, await getRequestAccess(), "office");
 });
 
-// Đơn do chính tài khoản đang đăng nhập gửi (sinh viên hoặc giảng viên).
 export async function getRequestsOf(requesterId: string) {
   const access = await getRequestAccess();
   if (!isUuid(requesterId)) return [];
   return requestRows(or(eq(academicRequests.requesterStudentId, requesterId), eq(academicRequests.requesterLecturerId, requesterId))!, access, "own");
 }
 
-// Cổng giảng viên: đơn có bước cố vấn, giảng viên đang giao cho giảng viên đang đăng nhập hoặc giảng viên đã xử lý.
 export async function getRequestsForAssignee() {
   const access = await getRequestAccess();
   if (!access.lecturerId) return [];
   return requestRows(sql`true`, access, "lecturer");
 }
 
-// Một đơn mà tài khoản đang đăng nhập được xem (cùng hàm quyền với danh sách); portal quyết định nút nào hiện.
 export async function getRequest(id: string, portal: RequestPortal | "any" = "any") {
   const access = await getRequestAccess();
   if (!isUuid(id)) return null;
@@ -59,7 +53,6 @@ export async function getRequest(id: string, portal: RequestPortal | "any" = "an
   return request ?? null;
 }
 
-// Tệp minh chứng để tải xuống: chỉ trả khi tài khoản đang đăng nhập xem được đơn chứa tệp (cùng quyền với getRequest).
 export async function getRequestAttachmentFile(attachmentId: string) {
   await requireSession();
   if (!isUuid(attachmentId)) return null;
@@ -78,7 +71,6 @@ export async function getRequestAttachmentFile(attachmentId: string) {
   return request ? file : null;
 }
 
-// Giảng viên đang làm việc để Phòng Đào tạo chọn khi chuyển người xử lý bước cố vấn, giảng viên.
 export async function getReassignCandidates() {
   await requirePermission("requests.supervise");
   const rows = await db

@@ -5,7 +5,6 @@ import type { StudyPlanStatus } from "@/modules/study-plan/study-plan.type";
 const PLAN_CLASSES = ["49.01.CNTT.A", "50.01.CNTT.A", "49.01.CNTT.B", "50.01.CNTT.B"];
 const STUDENT_TOTAL = 600;
 
-// Kế hoạch xếp cho các học kỳ sau học kỳ hiện tại (HK1 2026-2027).
 export const STUDY_PLAN_TERMS = [
   { academicYear: 2026, semester: 2 },
   { academicYear: 2027, semester: 1 },
@@ -33,7 +32,6 @@ export type StudyPlanSeed = {
   majorCode: string;
   cohort: number;
   className: string;
-  // Học kỳ của chương trình đào tạo ứng với học kỳ đầu tiên trong kế hoạch; học phần học kỳ sau xếp vào cột sau.
   firstProgramSemester: number;
   status: StudyPlanStatus;
   submittedAt: string | null;
@@ -42,7 +40,6 @@ export type StudyPlanSeed = {
   advisorComment: string | null;
 };
 
-// Học phần trong kế hoạch lấy từ khung chương trình đào tạo của sinh viên khi seed (module curriculum).
 export const STUDY_PLANS: StudyPlanSeed[] = Array.from({ length: STUDENT_TOTAL }, (_, index) => mockStudentIdentity(index))
   .filter((student) => PLAN_CLASSES.includes(student.className))
   .map((student) => {

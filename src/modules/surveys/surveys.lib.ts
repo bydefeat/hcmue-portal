@@ -20,16 +20,6 @@ export class SurveyInputError extends Error {
   }
 }
 
-// Giờ hiện tại dùng clock_timestamp() (không phải now(), giờ bắt đầu giao dịch) để mở rồi đóng trong cùng giao dịch vẫn đúng thứ tự.
-// Ẩn danh của phiếu (cân nhắc ở mức DB, không chỉ giao diện):
-// - survey_submissions chỉ ghi "đã nộp" (đợt, lớp, sinh viên), không thời điểm; survey_responses không có cột thời gian, không
-//   khóa tới sinh viên, id là uuid v4 ngẫu nhiên (uuid v7 mang mốc thời gian, đối chiếu với nhật ký truy cập là ra người nộp).
-// - Dấu "đã nộp" và phiếu phải ghi trong cùng giao dịch (không thì nộp hai lần hoặc mất phiếu), nên lúc đợt còn mở hai dòng có
-//   chung xmin và nằm cạnh nhau trên đĩa: người đọc thẳng DB vẫn ghép được. Vì vậy khi đợt đóng, sealSurvey chép lại toàn bộ
-//   phiếu của đợt theo thứ tự ngẫu nhiên, id mới, trong một giao dịch rồi xóa bản cũ: mọi phiếu cùng một xmin, thứ tự trên đĩa
-//   không còn theo thứ tự nộp. Giảng viên chỉ xem kết quả sau bước này (đợt đã đóng và đã xáo).
-// Còn lại: bản cũ nằm ở dòng chết tới khi autovacuum dọn (chỉ superuser đọc được bằng công cụ đọc trang), và trong lúc đợt mở
-// quản trị DB vẫn ghép được; giao diện không bao giờ trả dữ liệu theo người nộp.
 export async function recordSurveySubmission(tx: Transaction, studentId: string, input: z.output<typeof SURVEY_SUBMIT_SCHEMA>) {
   const { surveyId, classSectionId, answers, comment } = input;
   const [survey] = await tx
@@ -51,7 +41,6 @@ export async function recordSurveySubmission(tx: Transaction, studentId: string,
   await tx.insert(surveyAnswers).values(questions.map((question) => ({ responseId: response.id, questionId: question.id, score: answers[question.id] })));
 }
 
-// Xáo lại phiếu của đợt đã đóng (xem chú thích ở recordSurveySubmission). Chạy lặp lại không đổi gì thêm.
 export async function sealSurvey(tx: Transaction, surveyId: string) {
   const [survey] = await tx
     .select({ isClosed: sql<boolean>`${surveys.closesAt} <= clock_timestamp()`, sealedAt: surveys.sealedAt })
@@ -71,7 +60,6 @@ export async function sealSurvey(tx: Transaction, surveyId: string) {
   return { responses: removed.count };
 }
 
-// Các đợt giảng viên được xem kết quả (mới nhất trước): đã đóng, đã xáo phiếu và giảng viên có dạy lớp trong học kỳ của đợt.
 export async function sealedSurveyIdsForLecturer(executor: Transaction | typeof db, lecturerId: string) {
   const rows = await executor
     .select({ id: surveys.id })
@@ -87,7 +75,6 @@ export async function sealedSurveyIdsForLecturer(executor: Transaction | typeof 
   return rows.map((row) => row.id);
 }
 
-// Tác vụ định kỳ surveys: xáo phiếu các đợt vừa đóng (mỗi đợt một giao dịch). Nên chạy mỗi giờ.
 export async function sealClosedSurveys() {
   const due = await db
     .select({ id: surveys.id })
@@ -98,7 +85,6 @@ export async function sealClosedSurveys() {
   return { surveysSealed: due.length, responsesResealed: responses };
 }
 
-// Nhắc sinh viên còn lớp chưa đánh giá trong đợt đang mở; cách lần nhắc trước ít nhất SURVEY_REMIND_GAP_HOURS giờ.
 export async function remindNonRespondents(tx: Transaction, viewer: Viewer, surveyId: string) {
   const [survey] = await tx
     .select({
@@ -125,7 +111,6 @@ export async function remindNonRespondents(tx: Transaction, viewer: Viewer, surv
     .where(and(eq(enrollments.termId, survey.termId), eq(enrollments.status, "enrolled"), ne(classSections.status, "cancelled"), notExists(submitted)))
     .groupBy(enrollments.studentId);
   let notified = 0;
-  // Gom theo số lớp còn thiếu để mỗi nhóm một lần ghi thông báo.
   const byCount = new Map<number, string[]>();
   for (const row of rows) byCount.set(row.missing, [...(byCount.get(row.missing) ?? []), row.studentId]);
   for (const [missing, studentIds] of byCount) {
@@ -149,7 +134,6 @@ export async function remindNonRespondents(tx: Transaction, viewer: Viewer, surv
   return { students: rows.length, notified };
 }
 
-// Tạo hoặc sửa đợt khảo sát. Đợt đã mở: chỉ đổi tên và thời điểm đóng (không đổi câu hỏi, thời điểm mở); đợt đã đóng không sửa.
 export async function saveSurvey(tx: Transaction, viewer: Viewer, input: z.output<typeof SURVEY_SAVE_SCHEMA>) {
   const { id, termId, title, opensAt, closesAt, questions } = input;
   const [term] = await tx.select({ id: terms.id }).from(terms).where(eq(terms.id, termId));
@@ -194,7 +178,6 @@ export async function saveSurvey(tx: Transaction, viewer: Viewer, input: z.outpu
   return id;
 }
 
-// Mở ngay (đợt chưa mở) hoặc đóng ngay (đợt đang mở). Đóng thì xáo phiếu luôn để giảng viên xem được kết quả.
 export async function setSurveyOpen(tx: Transaction, viewer: Viewer, id: string, open: boolean) {
   const [current] = await tx
     .select({ title: surveys.title, hasOpened: sql<boolean>`${surveys.opensAt} <= clock_timestamp()`, hasClosed: sql<boolean>`${surveys.closesAt} <= clock_timestamp()` })

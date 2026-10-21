@@ -6,7 +6,6 @@ import { after, before, describe, test } from "node:test";
 import type * as StorageLib from "@/shared/libs/storage.lib";
 import { checkUpload, cleanFileName, contentDisposition, formatFileSize, matchesSignature } from "@/shared/libs/upload.lib";
 
-// Kho tệp trỏ vào thư mục tạm riêng của test (đặt trước khi nạp env.lib nên phải import động), xóa ở after().
 let directory = "";
 let storage: typeof StorageLib;
 
@@ -25,7 +24,6 @@ describe("storage: ghi, đọc, xóa", () => {
     const data = new TextEncoder().encode("%PDF-1.4 nội dung");
     await storage.putFile(key, data);
     assert.deepEqual(await storage.readFile(key), data);
-    // Không để lại tệp tạm của lần ghi.
     assert.deepEqual(await readdir(path.join(directory, "requests")), [key.split("/")[1]]);
     await storage.deleteFile(key);
     assert.equal(await storage.readFile(key), null);

@@ -75,7 +75,6 @@ export function AcademicCalendar({
         return;
       }
       if (!result.ok) {
-        // Ngày bắt đầu và kết thúc nằm chung một ô chọn khoảng ngày.
         const fields = Object.entries(result.fieldErrors ?? {}).map(([path, error]) => ({ name: (path === "startDate" || path === "endDate" ? "range" : path) as keyof EventValues, errors: [error] }));
         form.setFields(fields);
         messageApi.error(result.message);
@@ -128,7 +127,6 @@ export function AcademicCalendar({
       />
       <div className="flex flex-col gap-4">
         <div className="flex flex-wrap items-center gap-2">
-          {/* Mọi học kỳ đều có mốc (thời gian học kỳ lấy từ bảng học kỳ) nên chọn bằng ô chọn, không trải ngang. */}
           <Select
             value={termId}
             onChange={setTermId}

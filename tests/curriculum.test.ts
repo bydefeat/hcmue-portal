@@ -179,7 +179,6 @@ describe("curriculum: kiểm khung chương trình", () => {
 
 class Rollback extends Error {}
 
-// Chạy trong một giao dịch rồi hủy, không để lại dữ liệu; mỗi thao tác lỗi chạy trong savepoint riêng.
 async function inRollback(run: (tx: Transaction) => Promise<void>) {
   await db
     .transaction(async (tx) => {
@@ -191,7 +190,6 @@ async function inRollback(run: (tx: Transaction) => Promise<void>) {
     });
 }
 
-// Chạy trong savepoint, ép kiểm ràng buộc hoãn ngay rồi so câu báo lỗi (null là không lỗi).
 async function failureOrNull(tx: Transaction, run: (inner: Transaction) => Promise<unknown>, expected: string | null) {
   const error = await tx
     .transaction(async (inner) => {
@@ -275,7 +273,6 @@ describe("curriculum: sửa khung chương trình trên DB", () => {
         await failureOf(tx, (inner) => inner.insert(programCourses).values({ programId: archived.id, courseId: first.id, semester: 1 })),
         CURRICULUM_CONSTRAINT_MESSAGE.program_courses_program_archived,
       );
-      // Ngừng áp dụng là trạng thái cuối: không mở lại được.
       assert.equal(
         await failureOf(tx, (inner) => inner.update(programs).set({ status: "draft" }).where(eq(programs.id, archived.id))),
         CURRICULUM_CONSTRAINT_MESSAGE.programs_archived_final,
@@ -295,7 +292,6 @@ describe("curriculum: sửa khung chương trình trên DB", () => {
     assert.equal(programStatusChangeError("draft", "active"), null);
     await inRollback(async (tx) => {
       const [draft] = await tx.select().from(programs).where(eq(programs.name, "Công nghệ thông tin (cập nhật 2027)"));
-      // Khóa 52 chưa có chương trình nào đang áp dụng: kích hoạt được.
       await failureOrNull(tx, (inner) => inner.update(programs).set({ status: "active" }).where(eq(programs.id, draft.id)), null);
       await failureOrNull(
         tx,

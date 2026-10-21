@@ -12,7 +12,6 @@ type AccessManagerProps = {
   faculties: string[];
   candidates: GrantCandidate[];
   currentUserId: string;
-  // Phạm vi và quyền của người xem: người theo khoa chỉ sửa, cấp vai trò theo khoa trong khoa mình.
   viewer: { faculty: string | null; permissions: Permission[] };
 };
 

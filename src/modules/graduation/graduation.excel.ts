@@ -5,7 +5,6 @@ import type { GraduationCandidate } from "@/modules/graduation/graduation.type";
 
 export const XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 
-// Danh sách đang lọc, mỗi điều kiện một cột "Đạt"/"Chưa đạt" kèm chi tiết, để khoa đối chiếu trước khi trình hội đồng.
 export async function graduationWorkbook(rows: GraduationCandidate[]) {
   const workbook = new ExcelJS.Workbook();
   workbook.creator = "HCMUE Portal";

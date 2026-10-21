@@ -147,7 +147,6 @@ export function StaffTable({ staff, roles, faculties, currentUserId, header }: S
           rowSelection={{
             selectedRowKeys: selectedIds,
             onChange: setSelectedIds,
-            // Không tự khóa tài khoản của mình (server cũng chặn).
             getCheckboxProps: (row) => ({ disabled: row.userId === currentUserId }),
           }}
           scroll={{ x: "max-content" }}

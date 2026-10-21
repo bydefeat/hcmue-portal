@@ -3,8 +3,6 @@ import { ANNOUNCEMENTS } from "@/modules/announcements/announcements.mock";
 import { announcements } from "@/modules/announcements/announcements.schema";
 import type { SeedContext } from "./context";
 
-// Thông báo chung; thông báo của Phòng Đào tạo gắn với tài khoản cán bộ seed, của đơn vị khác chỉ ghi tên đơn vị. Bài đã đăng
-// coi như đã gửi (notified_at) để tác vụ announcement-notifications không gửi lại; bài hẹn giờ chờ tới giờ.
 export async function seedAnnouncements(tx: Transaction, context: SeedContext) {
   await tx.insert(announcements).values(
     ANNOUNCEMENTS.map(({ author, views, publishedAt, deadline, ...announcement }) => ({

@@ -13,7 +13,6 @@ function mockStatus(random: () => number, reliability: number): AttendanceStatus
   return "absent";
 }
 
-// Mã buổi học của dữ liệu mẫu cũ ("<lớp>-YYYYMMDD-<tiết>"), giữ để seed ra đúng trạng thái điểm danh như trước.
 export function mockSessionKey(classSectionId: string, date: string, startPeriod: number) {
   return `${classSectionId}-${date.replaceAll("-", "")}-${startPeriod}`;
 }

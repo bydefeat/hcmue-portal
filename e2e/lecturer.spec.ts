@@ -3,7 +3,6 @@ import { asRole, chooseOption, dialog, expect, openAs, test, toast, vietnamDate,
 
 test.use(asRole("lecturer"));
 
-// COMP1020.01 (đang nhập điểm) và COMP1020.02 do ThS. Phạm Thùy Hạnh dạy; sinh viên seed học COMP1020.02.
 const CLASS_01 = "/lecturer/classes/01940000-0000-7cf6-8e9d-061ac04964c4";
 const CLASS_02 = "/lecturer/classes/01940000-0000-71d7-86de-be61a4f0a489";
 
@@ -32,7 +31,6 @@ test.describe("nhập điểm", () => {
     const book = new ExcelJS.Workbook();
     await book.xlsx.readFile(await download.path());
     const sheet = book.worksheets[0];
-    // Tìm hàng tiêu đề (có ô "MSSV") và cột "Cuối kỳ" thay vì cố định vị trí.
     let headerRow = 0;
     sheet.eachRow((row, number) => {
       if (!headerRow && row.values && (row.values as unknown[]).includes("MSSV")) headerRow = number;
@@ -41,15 +39,12 @@ test.describe("nhập điểm", () => {
     const headers = Array.from(sheet.getRow(headerRow).values as unknown[], (value) => String(value ?? ""));
     const finalColumn = headers.findIndex((value) => value.startsWith("Cuối kỳ"));
     expect(finalColumn).toBeGreaterThan(0);
-    // Sinh viên đầu tiên của danh sách (danh sách lớp seed theo điều kiện đăng ký nên không cố định một MSSV).
     const target = headerRow + 1;
     const studentName = String(sheet.getRow(target).getCell(2).value ?? "");
     expect(studentName.length).toBeGreaterThan(0);
-    // Sửa điểm cuối kỳ của sinh viên đó trong tệp đã xuất rồi nhập lại.
     sheet.getRow(target).getCell(finalColumn).value = 8.5;
     const edited = Buffer.from(await book.xlsx.writeBuffer());
 
-    // Tệp .xlsx được đọc bằng một server action; lưu nháp là lượt gọi sau đó (tự lưu sau khoảng 1 giây) mang điểm mới.
     const saved = page.waitForResponse((response) => Boolean(response.request().headers()["next-action"]) && (response.request().postData() ?? "").includes('"score":8.5'));
     await page.locator('input[type="file"][accept=".xlsx,.csv"]').setInputFiles({ name: "bang-diem-sua.xlsx", mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", buffer: edited });
     await expect(toast(page, /Đã điền \d+ điểm từ tệp bang-diem-sua\.xlsx/)).toBeVisible();
@@ -119,7 +114,6 @@ test("đặt lịch hẹn cố vấn", async ({ page }) => {
 
 test("duyệt đơn ở bước của mình", async ({ page }) => {
   await page.goto("/lecturer/requests");
-  // Đơn học vượt của Võ Thành Huy đang chờ cố vấn (giảng viên seed) xác nhận.
   await page.getByRole("button", { name: "DT-2026-01249" }).click();
   const detail = dialog(page, "Học vượt tín chỉ · DT-2026-01249");
   await detail.getByLabel("Ý kiến xử lý").fill("Đồng ý, sinh viên có kết quả học tập tốt.");
@@ -127,7 +121,6 @@ test("duyệt đơn ở bước của mình", async ({ page }) => {
   await expect(toast(page, /DT-2026-01249/)).toBeVisible();
 
   await page.reload();
-  // Bước cố vấn đã xong: đơn rời danh sách "Cần tôi xử lý", vẫn xem được ở "Tất cả" với bước kế tiếp.
   await expect(page.getByRole("button", { name: "DT-2026-01249" })).toHaveCount(0);
   await page.getByText("Tất cả", { exact: true }).click();
   await expect(page.getByRole("row", { name: /^DT-2026-01249 / })).toContainText("Khoa đồng ý");

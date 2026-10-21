@@ -4,7 +4,6 @@ import { notifications } from "@/modules/notifications/notifications.schema";
 import type { NotificationAudience } from "@/modules/notifications/notifications.type";
 import type { SeedContext } from "./context";
 
-// Thông báo cá nhân: mỗi cổng gửi cho đúng tài khoản seed của cổng đó.
 export async function seedNotifications(tx: Transaction, context: SeedContext) {
   const recipientOf: Record<NotificationAudience, string> = {
     student: context.studentUserId,
@@ -16,7 +15,6 @@ export async function seedNotifications(tx: Transaction, context: SeedContext) {
       ...notification,
       recipientUserId: recipientOf[notification.audience],
       createdAt: new Date(createdAt),
-      // Đã đọc thì coi như đọc một giờ sau khi nhận.
       readAt: isRead ? new Date(new Date(createdAt).getTime() + 60 * 60 * 1000) : null,
     })),
   );

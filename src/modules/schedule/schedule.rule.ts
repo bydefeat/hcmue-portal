@@ -14,7 +14,6 @@ export type SessionPlan = {
   roomId: string;
 };
 
-// Các ngày trong [from, to] rơi vào thứ của lịch tuần (thứ 2..8, 8 là chủ nhật).
 export function datesOnWeekday(dayOfWeek: number, from: string, to: string) {
   const dates: string[] = [];
   let date = dayjs(from).startOf("day");
@@ -53,22 +52,17 @@ function weeklyPlans(section: PlanSection): SessionPlan[] {
     .toSorted((a, b) => a.date.localeCompare(b.date) || a.startPeriod - b.startPeriod);
 }
 
-// Khung buổi nghỉ theo đơn nghỉ dạy đã duyệt (class_session_leaves): bỏ khỏi lịch như ngày nghỉ lễ.
 export type LeaveSlot = Pick<SessionPlan, "date" | "startPeriod" | "labGroupId">;
 
-// Buổi học của một lớp sinh từ lịch tuần (lý thuyết cho cả lớp, thực hành theo nhóm) trong khoảng ngày học của lớp, bỏ các buổi
-// rơi vào ngày nghỉ lễ của lịch năm học (calendar_events loại holiday) và các buổi nghỉ dạy đã duyệt.
 export function planClassSessions(section: PlanSection, holidays: Holiday[] = [], leaves: LeaveSlot[] = []): SessionPlan[] {
   const skipped = new Set(leaves.map(slotKey));
   return weeklyPlans(section).filter((plan) => !holidayOn(plan.date, holidays) && !skipped.has(slotKey(plan)));
 }
 
-// Buổi của lớp trong ngày nghỉ dạy, giao với khoảng tiết nghỉ (đơn ghi buổi theo tiết bắt đầu - kết thúc).
 export function sessionsInLeave<T extends { date: string; startPeriod: number; endPeriod: number }>(sessions: T[], leave: { date: string; startPeriod: number; endPeriod: number }) {
   return sessions.filter((session) => session.date === leave.date && session.startPeriod <= leave.endPeriod && session.endPeriod >= leave.startPeriod);
 }
 
-// Buổi theo lịch tuần bị trừ vì nghỉ lễ: giảng viên cần xếp dạy bù (đơn dạy bù ở mục Đơn từ).
 export function holidaySessions(section: PlanSection, holidays: Holiday[]) {
   return weeklyPlans(section).flatMap((plan) => {
     const holiday = holidayOn(plan.date, holidays);
@@ -82,8 +76,6 @@ function slotKey(session: Pick<SessionPlan, "date" | "startPeriod" | "labGroupId
   return `${session.date}|${session.startPeriod}|${session.labGroupId ?? ""}`;
 }
 
-// Lịch tuần đổi: buổi đã qua (trước hôm nay) và buổi đã điểm danh giữ nguyên làm lịch sử; buổi từ hôm nay trở đi chưa điểm danh
-// mà không còn trong lịch mới thì bỏ, buổi mới chưa có thì thêm. Buổi tương lai trùng hệt lịch mới giữ nguyên id để không xáo trộn.
 export function diffClassSessions(existing: ExistingSession[], plans: SessionPlan[], today: string) {
   const kept = existing.filter((session) => session.date < today || session.isTaken);
   const keptSlots = new Set(kept.map(slotKey));
@@ -109,19 +101,16 @@ export function isAbsence(status: AttendanceStatus | undefined) {
   return status !== undefined && ABSENCE_STATUSES.includes(status);
 }
 
-// Quy chế: vắng (kể cả có phép) từ ngưỡng phần trăm số buổi đã học trở lên thì không được dự thi.
 export function isOverAbsenceLimit(absences: number, sessionsHeld: number, limitPercent: number) {
   return sessionsHeld > 0 && (absences / sessionsHeld) * 100 >= limitPercent;
 }
 
-// Vắng thêm một buổi nữa là chạm ngưỡng, để giảng viên nhắc sinh viên.
 export function isNearAbsenceLimit(absences: number, sessionsHeld: number, limitPercent: number) {
   return sessionsHeld > 0 && !isOverAbsenceLimit(absences, sessionsHeld, limitPercent) && isOverAbsenceLimit(absences + 1, sessionsHeld, limitPercent);
 }
 
 const STATUSES = Object.keys(ATTENDANCE_STATUS) as [AttendanceStatus, ...AttendanceStatus[]];
 
-// Lưu điểm danh một buổi: phải có trạng thái cho đủ mọi sinh viên của buổi, mỗi người một lần.
 export const ATTENDANCE_SAVE_SCHEMA = z.object({
   classSessionId: z.uuid("Buổi học không hợp lệ"),
   records: z

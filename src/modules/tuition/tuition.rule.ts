@@ -2,13 +2,10 @@ import { z } from "zod";
 import { normalizeSearch } from "@/shared/libs/search.lib";
 import type { InvoiceLine, StatementLine, StatementPreviewRow, StatementStatus } from "@/modules/tuition/tuition.type";
 
-// Khóa học kỳ dùng trong nội dung chuyển khoản ("HK1-2026"), giữ đúng dạng ngân hàng đã quen gạch nợ.
 export function termKeyOf(term: { academicYear: number; semester: number }) {
   return `hk${term.semester}-${term.academicYear}`;
 }
 
-// Học phí tính theo tín chỉ đăng ký nhân đơn giá ngành; khoản thu cố định (bảo hiểm y tế) thu một lần vào học kỳ 1 của năm học.
-// Dùng cả khi seed lẫn lúc chạy (hóa đơn tạm tính cập nhật sau mỗi lần đăng ký, hủy).
 export function buildInvoiceLines(params: { credits: number; pricePerCredit: number; semester: number; fees: { label: string; amount: number }[] }): InvoiceLine[] {
   const { credits, pricePerCredit } = params;
   const tuition: InvoiceLine = {
@@ -22,7 +19,6 @@ export function buildInvoiceLines(params: { credits: number; pricePerCredit: num
   return [...(credits > 0 ? [tuition] : []), ...fees];
 }
 
-// Số tín chỉ đã tính tiền trên hóa đơn: dòng học phí cộng các dòng điều chỉnh (đơn giá âm là giảm tín chỉ).
 export function billedCredits(lines: Pick<InvoiceLine, "kind" | "quantity" | "unitPrice">[]) {
   return lines.reduce((sum, line) => {
     if (line.kind === "tuition") return sum + line.quantity;
@@ -31,7 +27,6 @@ export function billedCredits(lines: Pick<InvoiceLine, "kind" | "quantity" | "un
   }, 0);
 }
 
-// Đơn giá tín chỉ đã chốt của hóa đơn: dòng học phí, không có (chốt lúc chưa đăng ký tín chỉ nào) thì dòng điều chỉnh đầu tiên.
 export function finalizedPricePerCredit(lines: Pick<InvoiceLine, "kind" | "unitPrice">[]) {
   const tuition = lines.find((line) => line.kind === "tuition");
   if (tuition) return tuition.unitPrice;
@@ -39,7 +34,6 @@ export function finalizedPricePerCredit(lines: Pick<InvoiceLine, "kind" | "unitP
   return adjustment ? Math.abs(adjustment.unitPrice) : null;
 }
 
-// Hóa đơn đã chốt: đăng ký đổi thì thêm một dòng điều chỉnh bằng phần chênh tín chỉ, giữ nguyên các dòng đã chốt.
 export function adjustmentLine(params: { creditDelta: number; pricePerCredit: number; note: string }): InvoiceLine | null {
   const { creditDelta, pricePerCredit, note } = params;
   if (creditDelta === 0 || pricePerCredit === 0) return null;
@@ -54,8 +48,6 @@ export function adjustmentLine(params: { creditDelta: number; pricePerCredit: nu
   };
 }
 
-// Khóa đăng ký do học phí tính từ hóa đơn của học kỳ hiện tại: chỉ hóa đơn đã chốt, còn nợ và qua hết ngày hạn nộp mới chặn;
-// nộp đủ (ghi nhận khoản nộp hoặc sao kê) là hết chặn ngay. Còn nợ nhưng chưa tới hạn thì chỉ nhắc.
 export function tuitionBlockOf(invoice: { balance: number; dueDate: string; isFinal: boolean; daysToDue: number } | null | undefined, termShortName: string) {
   if (!invoice || invoice.balance <= 0) return null;
   const amount = `${invoice.balance.toLocaleString("vi-VN")}\u00a0đ`;
@@ -119,8 +111,6 @@ export function invoiceTotal(lines: InvoiceLine[], discount: number) {
   return Math.max(0, lines.reduce((sum, line) => sum + line.amount, 0) - discount);
 }
 
-// Nội dung chuyển khoản dạng "HP 5001104009 HK1-2026" (transferContent). Ngân hàng hay viết hoa, bỏ dấu gạch hoặc chèn chữ
-// trước sau ("NGUYEN VAN A HP 5001104009 HK1 2026"), nên chỉ tìm cụm HP + MSSV + HK<số>-<năm> ở bất kỳ đâu trong nội dung.
 const TRANSFER_PATTERN = /HP[\s:._-]*(\d{2}[.\s]?\d{2}[.\s]?\d{3}[.\s]?\d{3})[\s,._-]*HK[\s._-]*([1-3])[\s._-]*(\d{4})/i;
 
 export function parseTransferContent(content: string): { studentCode: string; termKey: string } | null {
@@ -129,7 +119,6 @@ export function parseTransferContent(content: string): { studentCode: string; te
   return { studentCode: match[1].replace(/[.\s]/g, ""), termKey: `hk${match[2]}-${match[3]}` };
 }
 
-// Số tiền trong sao kê: "9.063.600", "9,063,600", "9063600", "9.063.600,00" hoặc ô số của Excel. Học phí tính theo đồng nên làm tròn.
 export function parseMoney(text: string): number | null {
   const cleaned = text.replace(/[^\d.,-]/g, "");
   if (!/\d/.test(cleaned) || cleaned.startsWith("-")) return null;
@@ -148,7 +137,6 @@ export function parseMoney(text: string): number | null {
   return Number.isFinite(value) ? Math.round(value) : null;
 }
 
-// Ngày giao dịch "19/10/2026", "19/10/2026 10:15[:30]", "2026-10-19[ T]10:15[:30]"; giờ ghi trên sao kê là giờ Việt Nam.
 export function parseStatementDate(text: string): string | null {
   const value = text.trim();
   const vn = /^(\d{1,2})[/-](\d{1,2})[/-](\d{4})(?:[ T,]+(\d{1,2}):(\d{2})(?::(\d{2}))?)?$/.exec(value);
@@ -158,13 +146,11 @@ export function parseStatementDate(text: string): string | null {
   const [year, month, day, hour, minute, second] = parts.map((part) => (part ?? "0").padStart(2, "0"));
   const date = new Date(`${year}-${month}-${day}T${hour}:${minute}:${second}+07:00`);
   if (Number.isNaN(date.getTime())) return null;
-  // Date tự lăn 31/02 sang tháng sau: so lại ngày tháng theo giờ Việt Nam để bắt ngày không có thật.
   const local = new Date(date.getTime() + 7 * 3600_000);
   if (local.getUTCDate() !== Number(day) || local.getUTCMonth() + 1 !== Number(month)) return null;
   return date.toISOString();
 }
 
-// Tên cột sao kê của các ngân hàng (đã bỏ dấu, chữ thường). Cột số tiền ưu tiên "ghi có" để không lấy nhầm cột ghi nợ.
 const STATEMENT_HEADERS = {
   paidAt: ["ngay giao dich", "ngay gd", "thoi gian giao dich", "thoi gian", "ngay hach toan", "ngay", "transaction date", "date"],
   reference: ["ma giao dich", "so tham chieu", "ma tham chieu", "so giao dich", "ma gd", "so ct", "so chung tu", "reference", "ref"],
@@ -213,8 +199,6 @@ function invalidRow(line: number, cells: { reference: string; content: string },
   };
 }
 
-// Tìm dòng tiêu đề trong 15 dòng đầu (sao kê thường có vài dòng tên ngân hàng, số tài khoản phía trên), rồi đọc từng dòng bên dưới.
-// Dòng không có số tiền ghi có (khoản chi) bỏ qua, không tính là lỗi.
 export function parseStatement(rows: string[][]): ParsedStatement | string {
   const headerIndex = rows.slice(0, 15).findIndex((row) => findStatementColumns(row) !== null);
   if (headerIndex < 0) return "Không thấy dòng tiêu đề có đủ các cột Ngày giao dịch, Mã giao dịch, Số tiền ghi có, Nội dung.";
@@ -251,8 +235,6 @@ function money(value: number) {
   return `${value.toLocaleString("vi-VN")} đ`;
 }
 
-// Đối chiếu từng dòng sao kê với hóa đơn theo thứ tự trong tệp: dòng trước đã trừ vào số còn nợ thì dòng sau tính trên phần còn lại,
-// nên hai lần chuyển cho cùng một hóa đơn không cùng được coi là khớp đủ.
 export function reconcileStatement(lines: StatementLine[], invoices: Map<string, ReconcileInvoice>, recordedReferences: Set<string>, now: Date): StatementPreviewRow[] {
   const remaining = new Map<string, number>();
   const seen = new Set<string>();
@@ -277,7 +259,6 @@ export function reconcileStatement(lines: StatementLine[], invoices: Map<string,
   });
 }
 
-// Dòng ghi được vào sổ: khớp đủ, hoặc nộp thiếu mà cán bộ đã chọn.
 export const RECORDABLE_STATEMENT_STATUSES: StatementStatus[] = ["matched", "partial"];
 
 export const PAYMENT_METHODS = ["Chuyển khoản ngân hàng", "Nộp tiền mặt tại Phòng Kế hoạch - Tài chính", "Quẹt thẻ tại Phòng Kế hoạch - Tài chính", "Thanh toán qua ứng dụng ngân hàng"];

@@ -27,7 +27,6 @@ after(() => db.$client.end());
 const BASE_URL = env.DEFEAT_BETTER_AUTH_PUBLIC_APPLICATION_BASE_URL;
 const NEW_PASSWORD = "KichHoat@2026";
 
-// Tạo trong transaction rồi rollback: không để lại tài khoản thử làm lệch tests/seed.test.ts (đếm tài khoản sinh viên).
 async function inRollback(run: (tx: Transaction) => Promise<void>) {
   await db
     .transaction(async (tx) => {
@@ -41,7 +40,6 @@ async function inRollback(run: (tx: Transaction) => Promise<void>) {
 
 let requestCount = 0;
 
-// better-auth chạy trên chính transaction của test để thấy tài khoản vừa tạo (chưa commit).
 function authClientOn(tx: Transaction) {
   const auth = createAuth(tx);
   return async (path: string, body: unknown) => {
@@ -178,7 +176,6 @@ describe("users: cấp, kích hoạt, khóa tài khoản trên DB", () => {
       assert.equal(linked.userId, row.id);
       assert.equal((await readAccountStates(tx, "student", [student.id]))[student.id].status, "pending");
 
-      // Thư kích hoạt xếp hàng cùng transaction cấp tài khoản, chưa gửi; rollback thì thư cũng mất (kiểm sau inRollback).
       mailIds = await queueActivationMails(tx, created);
       const queued = await tx.select().from(mailOutbox).where(inArray(mailOutbox.id, mailIds));
       assert.equal(queued.length, 1);
@@ -187,7 +184,6 @@ describe("users: cấp, kích hoạt, khóa tài khoản trên DB", () => {
       assert.equal(queued[0].status, "pending");
       assert.ok(queued[0].text.includes(activationLink(BASE_URL, identity.email)));
 
-      // Cấp lần hai cho cùng hồ sơ: bỏ qua, không tạo tài khoản thứ hai.
       const again = await createAccounts(tx, await lockAccountProfiles(tx, "student", [student.id]), hashes);
       assert.equal(again.created.length, 0);
 
@@ -214,7 +210,6 @@ describe("users: cấp, kích hoạt, khóa tài khoản trên DB", () => {
       assert.equal(blocked.status, 403);
       assert.equal(blocked.json?.code, "BANNED_USER");
       assert.match(blocked.json?.message ?? "", /bị khóa/);
-      // Sai mật khẩu vẫn báo chung một câu, không lộ tài khoản đang bị khóa.
       assert.equal((await call("/sign-in/username", { username: identity.username, password: "sai-mat-khau" })).json?.code, "INVALID_USERNAME_OR_PASSWORD");
       assert.equal((await readAccountStates(tx, "student", [student.id]))[student.id].status, "locked");
 
@@ -241,7 +236,6 @@ describe("users: cấp, kích hoạt, khóa tài khoản trên DB", () => {
       assert.equal(row.username, lecturer.code.toLowerCase());
       assert.equal(row.displayUsername, lecturer.code);
       assert.equal(row.role, "lecturer");
-      // Đặt mật khẩu như sau khi kích hoạt.
       await tx.update(account).set({ password: await hashPassword(NEW_PASSWORD) }).where(eq(account.userId, row.id));
       const call = authClientOn(tx);
       for (const username of [lecturer.code, lecturer.code.toLowerCase()]) {
@@ -253,7 +247,6 @@ describe("users: cấp, kích hoạt, khóa tài khoản trên DB", () => {
       assert.equal(viaEmail.status, 401);
       assert.equal(viaEmail.json?.code, "USE_LOGIN_CODE");
 
-      // Mở khóa tài khoản thì gỡ luôn khóa tạm do đăng nhập sai nhiều lần.
       await tx.insert(signInFailures).values({ username: row.username!, failures: 10, windowStartedAt: new Date(), lockedUntil: new Date(Date.now() + 60_000) });
       assert.equal((await call("/sign-in/username", { username: lecturer.code, password: NEW_PASSWORD })).json?.code, "SIGN_IN_LOCKED");
       await setAccountsLocked(tx, [row.id], false, null);

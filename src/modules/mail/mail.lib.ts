@@ -18,16 +18,13 @@ type Executor = Transaction | typeof db;
 
 export type OutboxMessage = Omit<MailMessage, "to"> & {
   kind: MailKind;
-  // Nhiều người nhận thì mỗi người một thư riêng (một dòng hàng đợi).
   to: string | string[];
 };
 
 type DeliverOptions = {
   limit?: number;
-  // Chỉ gửi các thư này (thư vừa xếp hàng của một thao tác); bỏ trống thì gửi mọi thư đến hạn.
   ids?: string[];
   now?: Date;
-  // Test truyền hàm gửi giả để thử lỗi; mặc định gửi qua Resend.
   send?: (message: MailMessage) => Promise<MailResult>;
 };
 
@@ -37,8 +34,6 @@ const DEFAULT_LIMIT = 50;
 const MINUTE = 60_000;
 const DAY = 24 * 60 * MINUTE;
 
-// Ghi thư vào hàng đợi trong transaction của thao tác: thao tác rollback thì thư cũng mất, commit thì thư chắc chắn còn để gửi.
-// Trả id các thư để nơi gọi kích gửi ngay sau commit (deliverMailSoon).
 export async function enqueueMail(tx: Executor, messages: OutboxMessage[]) {
   const rows = messages.flatMap(({ to, kind, subject, text, html }) =>
     uniqueRecipients([to].flat()).map((recipient) => ({ kind, recipient, subject, text, html: html ?? null })),
@@ -51,7 +46,6 @@ export async function enqueueMail(tx: Executor, messages: OutboxMessage[]) {
   return ids;
 }
 
-// Thư kẹt ở sending (tiến trình chết giữa lúc gửi) mà đã hết số lần thử thì dừng hẳn, không lấy lại nữa.
 async function failAbandonedMail(now: Date, ids: string[] | undefined) {
   await db
     .update(mailOutbox)
@@ -66,8 +60,6 @@ async function failAbandonedMail(now: Date, ids: string[] | undefined) {
     );
 }
 
-// Gửi một lô thư đến hạn. Lấy thư bằng một câu UPDATE trên các dòng FOR UPDATE SKIP LOCKED và đổi ngay sang sending có hạn giữ chỗ:
-// hai lần chạy song song (cron và after() của thao tác) không lấy trùng thư nào. Thư sending quá hạn giữ chỗ được lấy lại.
 export async function deliverDueMail(options: DeliverOptions = {}) {
   const { limit = DEFAULT_LIMIT, ids, now = new Date(), send = sendMail } = options;
   const outcome = { claimed: 0, sent: 0, retrying: 0, failed: 0 };
@@ -100,7 +92,6 @@ export async function deliverDueMail(options: DeliverOptions = {}) {
         const result = await send({ to: mail.recipient, subject: mail.subject, text: mail.text, html: mail.html ?? undefined }).catch(
           (error: unknown): MailResult => ({ ok: false, error: error instanceof Error ? error.message : "Không gửi được thư" }),
         );
-        // Chỉ cập nhật khi thư vẫn do lần chạy này giữ (status sending), phòng khi quản trị vừa đặt lại.
         const mine = and(eq(mailOutbox.id, mail.id), eq(mailOutbox.status, "sending"));
         if (result.ok) {
           await db.update(mailOutbox).set({ status: "sent", sentAt: new Date(), providerMessageId: result.id, lastError: null }).where(mine);
@@ -120,7 +111,6 @@ export async function deliverDueMail(options: DeliverOptions = {}) {
   return outcome;
 }
 
-// Gửi lô này tới lô khác cho tới khi hết thư đến hạn (hoặc chạm số lô tối đa, phần còn lại để lần chạy sau).
 async function deliverAllDue(options: Omit<DeliverOptions, "limit"> & { maxBatches: number }) {
   const total = { sent: 0, retrying: 0, failed: 0 };
   for (let batch = 0; batch < options.maxBatches; batch += 1) {
@@ -133,20 +123,16 @@ async function deliverAllDue(options: Omit<DeliverOptions, "limit"> & { maxBatch
   return total;
 }
 
-// Gửi ngay các thư vừa xếp hàng (gọi sau khi transaction đã commit); thư lỗi để lại cho tác vụ mail-outbox gửi lại.
 export async function deliverQueuedMail(ids: string[]) {
   if (ids.length === 0) return { sent: 0, retrying: 0, failed: 0 };
   return deliverAllDue({ ids, maxBatches: Math.ceil(ids.length / DEFAULT_LIMIT) + 1 });
 }
 
-// Như deliverQueuedMail nhưng chạy sau khi đã trả phản hồi (after()): thao tác không phải chờ Resend.
-// Chỉ gọi trong action, route handler, server component.
 export function deliverMailSoon(ids: string[]) {
   if (ids.length === 0) return;
   after(() => deliverQueuedMail(ids).catch((error: unknown) => console.error("[mail] Không gửi được thư vừa xếp hàng:", error)));
 }
 
-// Thư đã gửi quá MAIL_SENT_RETENTION_DAYS ngày thì xóa; nhận executor để test chạy trong transaction rồi rollback.
 export async function purgeSentMail(executor: Executor = db, now = new Date()) {
   const removed = await executor
     .delete(mailOutbox)
@@ -155,7 +141,6 @@ export async function purgeSentMail(executor: Executor = db, now = new Date()) {
   return removed.length;
 }
 
-// Tác vụ cron mail-outbox: gửi thư đến hạn (lần đầu bị lỡ, gửi lại sau lỗi, kẹt ở sending), rồi dọn thư đã gửi lâu.
 export async function runMailOutboxJob() {
   const delivered = await deliverAllDue({ maxBatches: 20 });
   return { ...delivered, purged: await purgeSentMail() };

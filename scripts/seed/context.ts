@@ -4,7 +4,6 @@ import type { terms } from "@/modules/course-registration/course-registration.sc
 
 type Row<T extends { $inferSelect: unknown }> = T["$inferSelect"];
 
-// Bảng tra dùng chung giữa các bước seed: bước sau tra id của bước trước theo mã tự nhiên.
 export type SeedContext = {
   passwordHash: string;
   facultyByName: Map<string, Row<typeof faculties>>;

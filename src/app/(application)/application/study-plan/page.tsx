@@ -22,7 +22,6 @@ export default async function Page() {
     getTranscript(student.id),
     getCurrentWarnings([student.id]),
   ]);
-  // Đã học: theo lần học cuối của từng học phần (lần cuối F là còn nợ, xếp vào kế hoạch được).
   const passedGrades = latestGrades(transcript);
   const prerequisites = Object.fromEntries(courses.map((course) => [course.code, course.prerequisiteCodes]));
   const inProgress = new Set(transcript.filter((entry) => entry.isInProgress).flatMap((entry) => entry.courses.map((course) => course.courseCode)));
@@ -32,7 +31,6 @@ export default async function Page() {
     .filter((course) => isOpenCourse(course.code) && !plannedCodes.has(course.code))
     .map((course) => ({ code: course.code, name: course.name, credits: course.credits }));
 
-  // Các cột học kỳ tính từ học kỳ hiện tại (3 học kỳ chính kế tiếp, kèm học kỳ hè xen giữa), cộng học kỳ sau đó đã có trong kế hoạch.
   const current = parseTermName(term.name);
   const upcoming = current ? upcomingPlanTerms(current) : [];
   const first = upcoming[0];

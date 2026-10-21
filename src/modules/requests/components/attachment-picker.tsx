@@ -7,11 +7,8 @@ import { ATTACHMENT_LIMIT } from "@/modules/requests/requests.constant";
 
 type Picked = { uid: string; file: File };
 
-// Chọn tệp minh chứng cho form đơn: kiểm loại tệp (đuôi và chữ ký đầu tệp), dung lượng, số tệp ngay ở trình duyệt để báo sớm;
-// server kiểm lại khi nhận.
 export function useAttachmentPicker(onError: (message: string) => void) {
   const [picked, setPicked] = useState<Picked[]>([]);
-  // Chọn nhiều tệp một lần thì beforeUpload chạy song song cho từng tệp: giữ bản đồng bộ để đếm đúng số tệp, tổng dung lượng.
   const current = useRef<Picked[]>([]);
   const update = (next: Picked[]) => {
     current.current = next;
@@ -43,13 +40,10 @@ export function useAttachmentPicker(onError: (message: string) => void) {
   };
 }
 
-// Lỗi theo ô từ server, bỏ lỗi minh chứng: ô tệp không phải ô của form (lỗi đã hiện bằng thông báo). Gắn lỗi vào tên ô không có
-// trong form thì antd giữ lỗi đó và chặn lần gửi sau dù người dùng đã chọn tệp.
 export function formErrorsWithoutAttachments(fieldErrors: Record<string, string> | undefined) {
   return Object.fromEntries(Object.entries(fieldErrors ?? {}).filter(([key]) => key !== "attachments"));
 }
 
-// Dữ liệu form đi dạng JSON ở ô "input", tệp ở các ô "files" (xem readRequestForm).
 export function requestFormData(input: unknown, files: File[]) {
   const formData = new FormData();
   formData.set("input", JSON.stringify(input));

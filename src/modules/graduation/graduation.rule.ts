@@ -11,13 +11,10 @@ const RANK_ORDER: RankedStanding[] = ["excellent", "very-good", "good", "average
 
 const atLeast = (level: DisciplineLevel, threshold: DisciplineLevel) => DISCIPLINE_LEVELS.indexOf(level) >= DISCIPLINE_LEVELS.indexOf(threshold);
 
-// Bậc ngoại ngữ đạt chuẩn tối thiểu của quy chế (khung tham chiếu châu Âu).
 export function meetsLanguageLevel(level: CefrLevel | null, minimum: CefrLevel) {
   return level !== null && CEFR_LEVELS.indexOf(level) >= CEFR_LEVELS.indexOf(minimum);
 }
 
-// Hạng tốt nghiệp theo CPA (ngưỡng xếp loại của quy chế, từ Trung bình trở lên), bị giảm một mức khi khối lượng học lại vượt tỉ lệ
-// của quy chế trên tổng tín chỉ chương trình hoặc bị kỷ luật từ mức đã định trong thời gian học; chỉ áp với các hạng quy chế chọn.
 export function graduationRank(input: Pick<GraduationInput, "cpa4" | "retakeCredits" | "disciplines" | "program">, rules: GraduationRules) {
   const standing = input.cpa4 === null ? null : toStanding(input.cpa4, rules.grading.standing);
   const baseRank = standing && (RANK_ORDER as string[]).includes(standing) ? (standing as RankedStanding) : null;
@@ -145,7 +142,6 @@ export const GRADUATION_APPROVE_SCHEMA = z.object({ studentIds: studentIds(1000,
 
 export const GRADUATION_EXPORT_SCHEMA = z.object({ studentIds: studentIds(5000, "Danh sách đang trống") });
 
-// Đợt xét tốt nghiệp: tên đợt và các khóa được xét.
 export const GRADUATION_ROUND_SCHEMA = z.object({
   name: z.string().trim().min(1, "Chưa nhập tên đợt").max(120, "Tối đa 120 ký tự"),
   cohorts: z
@@ -157,7 +153,6 @@ export const GRADUATION_ROUND_SCHEMA = z.object({
 
 export type GraduationRoundInput = z.input<typeof GRADUATION_ROUND_SCHEMA>;
 
-// Phòng Đào tạo nhập, xác nhận chứng chỉ vào hồ sơ xét tốt nghiệp; bậc ngoại ngữ so với chuẩn của quy chế khi xét.
 export const GRADUATION_CERTIFICATES_SCHEMA = z
   .object({
     studentId: z.uuid(),

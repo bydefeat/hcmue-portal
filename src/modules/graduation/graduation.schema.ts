@@ -6,8 +6,6 @@ import { studentDecisions, students } from "@/modules/users/users.schema";
 
 export const graduationRecordStatusEnum = pgEnum("graduation_record_status", ["pending", "approved", "graduated"]);
 
-// Đợt xét tốt nghiệp: Phòng Đào tạo cấu hình các khóa được xét. Mỗi lúc chỉ một đợt mở; trang xét tốt nghiệp, báo cáo xếp loại
-// (bỏ khóa đang xét) đọc khóa từ đợt đang mở.
 export const graduationRounds = pgTable(
   "graduation_rounds",
   {
@@ -34,12 +32,10 @@ export const graduationRecords = pgTable(
       .unique("graduation_records_student_id_unique")
       .references(() => students.id, { onDelete: "cascade" }),
     languageCertificate: text(),
-    // Bậc ngoại ngữ (khung tham chiếu châu Âu) Phòng Đào tạo xác nhận theo chứng chỉ, so với chuẩn tối thiểu của quy chế.
     languageLevel: text(),
     itCertificate: text(),
     certificatesVerifiedAt: timestamp({ withTimezone: true }),
     certificatesVerifiedByUserId: uuid().references(() => user.id, { onDelete: "set null" }),
-    // Không còn dùng để xét: học phí suy ra từ hóa đơn học phí, kỷ luật từ quyết định kỷ luật đã ký (graduation.query).
     tuitionCleared: boolean().notNull().default(false),
     disciplineFree: boolean().notNull().default(true),
     status: graduationRecordStatusEnum().notNull().default("pending"),

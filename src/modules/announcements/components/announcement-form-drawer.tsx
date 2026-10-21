@@ -41,7 +41,6 @@ export function AnnouncementFormDrawer({ open, announcement, audienceOptions, on
   const targets = Form.useWatch("targets", form) ?? [];
   const facultyIds = Form.useWatch("facultyIds", form) ?? [];
   const isEdit = announcement !== null;
-  // Đã đăng (hoặc đã gỡ) thì không đưa về nháp: server cũng chặn.
   const wasPublished = announcement !== null && (announcement.status === "published" || announcement.status === "archived");
   const alreadySent = announcement?.notifiedAt !== null && announcement?.notifiedAt !== undefined;
 
@@ -94,7 +93,6 @@ export function AnnouncementFormDrawer({ open, announcement, audienceOptions, on
               deadline: values.deadline?.toISOString(),
               publishedAt: values.publishMode === "schedule" ? values.publishedAt?.toISOString() : undefined,
             });
-            // Lỗi đối tượng (audience.students...) gắn vào ô "Gửi tới".
             if (fieldErrors) form.setFields(toFormFields(Object.fromEntries(Object.entries(fieldErrors).map(([key, value]) => [key.startsWith("audience") ? "targets" : key, value]))));
           })
         }

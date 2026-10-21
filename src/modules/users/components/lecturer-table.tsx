@@ -27,9 +27,7 @@ export function LecturerTable({
   canManage,
 }: {
   lecturers: LecturerRow[];
-  // Có quyền quản lý giảng viên: thêm, sửa, thao tác tài khoản. Không có thì bảng chỉ để xem.
   canManage: boolean;
-  // Danh sách khoa đọc từ DB.
   faculties: string[];
   initialQuery?: string;
   header: { title: string; description?: React.ReactNode };

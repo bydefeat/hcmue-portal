@@ -114,7 +114,6 @@ describe("teaching: kiểm dữ liệu đề cương", () => {
       { key: "final", label: "Cuối kỳ", weight: 60 },
     ];
     assert.deepEqual(assessmentMismatches(published, sheet), []);
-    // Hình thức "Khác" (key rỗng hay custom-...) được server đổi thành khóa theo loại/tên, không còn custom-<thời điểm>.
     const parsed = parseInput(SYLLABUS_SCHEMA, { ...syllabus, assessments: [{ ...syllabus.assessments[0], key: "custom-1729000000000" }, { ...syllabus.assessments[1], key: "" }] });
     assert.ok(parsed.ok);
     assert.deepEqual(
@@ -200,7 +199,6 @@ describe("teaching: ràng buộc ở DB", () => {
   });
 });
 
-// Lớp của sinh viên seed 50.01.104.009: có đề cương đã công bố, một bài đã đọc được, một bài chưa đọc, một bài hẹn giờ.
 const MY_SECTION_ID = mockSectionId("hk1-2026", "COMP1020.02");
 const UNREAD_ID = mockId("class-announcement:tbl-07");
 const SCHEDULED_ID = mockId("class-announcement:tbl-08");
@@ -283,7 +281,6 @@ describe("teaching: lớp học phần của sinh viên", () => {
 });
 
 describe("teaching: báo thông báo lớp hẹn giờ", () => {
-  // Dùng bài hẹn giờ có sẵn của seed (không thêm dòng để tests/seed.test.ts chạy song song vẫn đếm đúng), trả lại như cũ sau khi thử.
   const ID = mockId("class-announcement:tbl-03");
   const SECTION_ID_03 = mockSectionId("hk1-2026", "COMP1020.01");
 
@@ -295,7 +292,6 @@ describe("teaching: báo thông báo lớp hẹn giờ", () => {
     try {
       await db.update(classAnnouncements).set({ publishAt: new Date(Date.now() - 60_000) }).where(eq(classAnnouncements.id, ID));
 
-      // Một transaction khác đang giữ khóa dòng (giảng viên đang sửa): tác vụ bỏ qua, không chờ, không báo.
       await db.transaction(async (tx) => {
         await tx.select({ id: classAnnouncements.id }).from(classAnnouncements).where(eq(classAnnouncements.id, ID)).for("update");
         const skipped = await publishDueClassAnnouncements({ classSectionId: SECTION_ID_03 });
@@ -320,7 +316,6 @@ describe("teaching: báo thông báo lớp hẹn giờ", () => {
       assert.equal(sent.length, withAccount.length, "mỗi sinh viên có tài khoản nhận đúng một thông báo");
       assert.ok(sent.every((row) => row.href === `/application/classes/${SECTION_ID_03}`));
       assert.equal(runs[0].emailed + runs[1].emailed, roster.length, "email tới mọi sinh viên đang học, kể cả chưa có tài khoản");
-      // Thư đi qua hàng đợi: mỗi sinh viên một dòng, đã gửi (chưa có khóa Resend thì in ra log và coi như gửi được).
       const queued = await db.select({ recipient: mailOutbox.recipient, status: mailOutbox.status, kind: mailOutbox.kind }).from(mailOutbox).where(eq(mailOutbox.subject, `[COMP1020.01] ${original.title}`));
       assert.deepEqual(queued.map((row) => row.recipient).toSorted(), roster.map((row) => row.email).toSorted());
       assert.ok(queued.every((row) => row.status === "sent" && row.kind === "class-announcement"));
@@ -360,7 +355,6 @@ async function inRollbackTx(run: (tx: Transaction) => Promise<void>) {
     });
 }
 
-// Chạy trong savepoint rồi kiểm ngay các ràng buộc hoãn tới lúc commit; trả lỗi (nếu có) thay vì ném.
 const immediate = (tx: Transaction, work: (sp: Transaction) => Promise<unknown>) =>
   tx
     .transaction(async (sp) => {
@@ -390,7 +384,6 @@ describe("teaching: phiên bản đề cương", () => {
     });
     assert.ok(same.ok && changed.ok);
     await inRollbackTx(async (tx) => {
-      // Sửa phần khác (không đổi cách tính điểm): không lên phiên bản.
       assert.equal((await writeSyllabus(tx, section, actor, { ...same.data, description: "Mô tả mới" })).isRevision, false);
       const blocked = await tx.transaction((sp) => writeSyllabus(sp, section, actor, changed.data)).catch((error: unknown) => error);
       assert.ok(blocked instanceof SyllabusRevisionError);
@@ -400,10 +393,8 @@ describe("teaching: phiên bản đề cương", () => {
       const [revision] = await tx.select().from(syllabusRevisions).where(eq(syllabusRevisions.syllabusId, saved.id));
       assert.equal(revision.version, 1);
       assert.ok(revision.assessments.some((item) => item.key === "midterm" && item.weight === 30));
-      // Lớp mẫu không có sinh viên có tài khoản cổng; kiểm nhật ký thao tác thay cho chuông thông báo.
       const [log] = await tx.select({ summary: auditLogs.summary }).from(auditLogs).where(and(eq(auditLogs.entityType, "syllabus"), eq(auditLogs.entityId, saved.id)));
       assert.match(log.summary, /phiên bản 2: Giảm trọng số giữa kỳ/);
-      // Kiểm ngay các ràng buộc hoãn tới lúc commit: đổi qua phiên bản mới thì trigger cho qua.
       await tx.execute(sql`SET CONSTRAINTS ALL IMMEDIATE`);
     });
   });
@@ -411,14 +402,12 @@ describe("teaching: phiên bản đề cương", () => {
   test("DB: đề cương đã công bố không đổi trọng số, tên đánh giá nếu không lên phiên bản; không về nháp, không lùi phiên bản", async () => {
     const [row] = await db.select({ id: syllabi.id, version: syllabi.version }).from(syllabi).where(eq(syllabi.classSectionId, SECTION_ID));
     await inRollbackTx(async (tx) => {
-      // Đổi trọng số giữa hai dòng (tổng vẫn 100) mà không lên phiên bản: chặn.
       const swapped = await immediate(tx, async (sp) => {
         await sp.update(syllabusAssessments).set({ weight: sql`CASE ${syllabusAssessments.key} WHEN 'midterm' THEN 60 WHEN 'final' THEN 30 ELSE ${syllabusAssessments.weight} END` }).where(eq(syllabusAssessments.syllabusId, row.id));
       });
       assert.equal(pgErrorMessage(swapped, TEACHING_CONSTRAINT_MESSAGE), TEACHING_CONSTRAINT_MESSAGE.syllabus_assessments_weights_versioned);
       const renamed = await immediate(tx, (sp) => sp.update(syllabusAssessments).set({ label: sql`${syllabusAssessments.label} || ' (sửa)'` }).where(eq(syllabusAssessments.syllabusId, row.id)));
       assert.equal(pgErrorMessage(renamed, TEACHING_CONSTRAINT_MESSAGE), TEACHING_CONSTRAINT_MESSAGE.syllabus_assessments_weights_versioned);
-      // Xóa rồi chèn lại đúng như cũ (cách server lưu đề cương), chỉ đổi cách đánh giá: cho qua.
       const unchanged = await immediate(tx, async (sp) => {
         const items = await sp.select().from(syllabusAssessments).where(eq(syllabusAssessments.syllabusId, row.id));
         await sp.delete(syllabusAssessments).where(eq(syllabusAssessments.syllabusId, row.id));
@@ -430,7 +419,6 @@ describe("teaching: phiên bản đề cương", () => {
       const lower = await immediate(tx, (sp) => sp.update(syllabi).set({ version: 0 }).where(eq(syllabi.id, row.id)));
       assert.ok(lower);
     });
-    // Đề cương nháp sửa tự do.
     const [draftRow] = await db.select({ id: syllabi.id }).from(syllabi).where(eq(syllabi.status, "draft")).limit(1);
     await inRollbackTx(async (tx) => {
       assert.equal(await immediate(tx, (sp) => sp.update(syllabusAssessments).set({ label: sql`${syllabusAssessments.label} || ' (sửa)'` }).where(eq(syllabusAssessments.syllabusId, draftRow.id))), null);
@@ -446,7 +434,6 @@ describe("teaching: tác vụ báo thông báo lớp", () => {
     const error = mock.method(console, "error", () => {});
     const realTransaction = db.transaction.bind(db);
     let calls = 0;
-    // Giao dịch đầu tiên của tác vụ hỏng (giả lập một bài lỗi), giao dịch sau chạy bình thường.
     const broken = mock.method(db, "transaction", ((...args: Parameters<typeof db.transaction>) => {
       calls += 1;
       if (calls === 1) return Promise.reject(new Error("lỗi giả lập"));

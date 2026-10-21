@@ -11,8 +11,6 @@ import { attendanceRecords, classSessions } from "@/modules/schedule/schedule.sc
 import type { SavedAttendance } from "@/modules/schedule/schedule.type";
 import { getCurrentLecturer } from "@/modules/users/users.query";
 
-// Giảng viên lưu điểm danh một buổi của lớp mình dạy. Buổi chưa tới ngày học không điểm danh được; danh sách phải đủ đúng
-// các sinh viên đang học lớp (buổi thực hành: sinh viên của nhóm đó). DB chặn thêm bằng trigger attendance_records_same_section.
 export async function saveAttendance(input: AttendanceSaveInput): Promise<ActionResult<SavedAttendance>> {
   const lecturer = await getCurrentLecturer();
   const parsed = parseInput(ATTENDANCE_SAVE_SCHEMA, input);

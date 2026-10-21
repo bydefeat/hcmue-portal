@@ -41,7 +41,6 @@ export function formatMoney(value: number) {
   return `${value.toLocaleString("vi-VN")} đ`;
 }
 
-// Hóa đơn tạm tính chưa có hạn chính thức nên không bao giờ quá hạn; quá hạn là qua hết ngày hạn nộp (giờ Việt Nam).
 export function invoiceView(invoice: TuitionInvoice): TuitionInvoiceView {
   const balance = Math.max(0, invoice.total - invoice.paid);
   const refundDue = Math.max(0, invoice.paid - invoice.total);
@@ -53,7 +52,6 @@ export function invoiceView(invoice: TuitionInvoice): TuitionInvoiceView {
 
 export const PROVISIONAL_INVOICE: StatusMeta = { label: "Tạm tính", tone: "neutral" };
 
-// "HP 5001104009 HK1-2026": MSSV 10 chữ số liền và khóa học kỳ, để ngân hàng tự gạch nợ.
 export function transferContent(studentCode: string, termKey: string) {
   return `HP ${normalizeStudentCode(studentCode)} ${termKey.toUpperCase()}`;
 }

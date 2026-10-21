@@ -4,7 +4,6 @@ import { StatusTag } from "@/shared/components/ui/status-tag";
 import { formatPoint, WARNING_LEVEL } from "@/modules/grades/grades.constant";
 import type { ExpulsionProposal } from "@/modules/grades/grades.type";
 
-// Danh sách đề xuất để Phòng Đào tạo xem xét; quyết định buộc thôi học lập ở mục Quyết định sinh viên.
 export function ExpulsionProposalList({ proposals, studentHrefBase, expelAfterWarnings }: { proposals: ExpulsionProposal[]; studentHrefBase: string; expelAfterWarnings: number }) {
   if (proposals.length === 0) {
     return <EmptyState illustration="done" title="Không có sinh viên thuộc diện xét buộc thôi học" description={`Theo quy chế: bị cảnh báo ${expelAfterWarnings} học kỳ chính liên tiếp hoặc cảnh báo mức 3.`} />;

@@ -18,7 +18,6 @@ export default async function Page() {
     const entry = attendanceOf.get(exam.classSectionId);
     const absentPeriods = entry?.absentPeriods ?? 0;
     const plannedPeriods = entry?.plannedPeriods ?? 0;
-    // Phòng Khảo thí đã cho dự thi (có minh chứng) thì không còn cấm thi.
     return { exam, absentPeriods, plannedPeriods, isBanned: !entry?.overrideReason && isBannedFromExam(absentPeriods, plannedPeriods, limit) };
   });
   const sectionName = new Map(enrollments.map(({ section }) => [section.id, `${section.courseName} (${section.code})`]));

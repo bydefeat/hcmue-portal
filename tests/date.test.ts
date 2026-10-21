@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import { after, describe, test } from "node:test";
 
-// Trình duyệt người dùng có thể ở múi giờ bất kỳ: định dạng phải luôn ra giờ Việt Nam như server.
 const original = process.env.TZ;
 after(() => {
   process.env.TZ = original;
@@ -18,7 +17,6 @@ describe("ngày giờ theo giờ Việt Nam bất kể múi giờ của máy", (
       assert.equal(formatDateTime("2026-10-20T08:30:00+07:00"), "08:30, 20/10/2026");
       assert.equal(formatDateTime(new Date("2026-10-20T01:00:00Z")), "08:00, 20/10/2026");
       assert.equal(schoolTime("2000-01-01T07:30").add(90, "minute").format("HH:mm"), "09:00");
-      // 19/10/2026 là thứ Hai: thứ 2 theo cách đánh số của trường.
       assert.equal(weekdayOf("2026-10-19"), 2);
     });
   }

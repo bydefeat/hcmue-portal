@@ -15,11 +15,9 @@ import type { Course, CourseType, ProgramCourseChange, ProgramDetail, ProgramSem
 
 type ProgramFrameworkProps = {
   program: ProgramDetail;
-  // Có danh mục học phần nghĩa là người xem được sửa khung (chương trình chưa ngừng áp dụng, đúng khoa).
   catalog?: Course[];
 };
 
-// Tên học phần kèm dấu học phần điều kiện, nhóm tự chọn (chỉ ngoại lệ mới có dấu).
 const courseColumns = (groupOf: Map<string, string>): TableColumnsType<Course> => [
   { title: "Mã HP", dataIndex: "code", width: 110, responsive: ["sm"], render: (code: string) => <span className="text-xs">{code}</span> },
   {
@@ -82,7 +80,6 @@ function SemesterDrop({ semester, children }: { semester: number; children: Reac
   );
 }
 
-// Học kỳ hiện trên trang: khi sửa thì đủ các học kỳ của chương trình (kể cả học kỳ trống) để thêm hoặc kéo học phần vào.
 function visibleSemesters(program: ProgramDetail, editable: boolean): ProgramSemester[] {
   if (!editable) return program.semesters;
   const limit = programSemesterLimit(program.durationYears);

@@ -24,8 +24,6 @@ if (process.env.NODE_ENV === "production") throw new Error("Không chạy seed t
 
 const PASSWORD = process.env.DEFEAT_SEED_ACCOUNT_PASSWORD || "Hcmue@2026";
 
-// Nạp toàn bộ dữ liệu mẫu vào Postgres với đúng id của *.mock.ts (mockId), để module đã đọc DB và module còn đọc mock khớp nhau.
-// Thứ tự theo khóa ngoại: danh mục → người → đăng ký học phần → cấu hình.
 async function main() {
   const context = { passwordHash: await hashPassword(PASSWORD) } as SeedContext;
   const summary = await db.transaction(async (tx) => {

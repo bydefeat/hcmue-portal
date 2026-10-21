@@ -42,7 +42,6 @@ type RegistrationHoldTableProps = {
   students: HoldStudentOption[];
   studentHrefBase: string;
   header: { title: string; description?: React.ReactNode };
-  // Loại khóa người xem được đặt, gỡ (Phòng Kế hoạch - Tài chính chỉ khóa học phí); server kiểm lại.
   manageableKinds: HoldKind[];
 };
 

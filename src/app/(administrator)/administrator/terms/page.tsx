@@ -13,7 +13,6 @@ export const metadata: Metadata = { title: "Học kỳ và đợt đăng ký" };
 export default async function Page() {
   const viewer = await requirePermission("registration.manage");
   const [terms, periods, cohorts, regulation] = await Promise.all([getTermOverview(), getRegistrationPeriods(), getCohorts(), getRegulation()]);
-  // Học kỳ, đợt đăng ký là dữ liệu chung toàn trường: vai trò theo khoa chỉ xem (server cũng chặn).
   const canManage = viewer.faculty === null;
 
   return (

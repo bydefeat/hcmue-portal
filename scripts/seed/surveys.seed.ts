@@ -9,7 +9,6 @@ import type { SectionSurveyResult } from "@/modules/surveys/surveys.type";
 import { CURRENT_STUDENT_ID } from "@/modules/users/users.mock";
 import type { SeedContext } from "./context";
 
-// Điểm từng phiếu sao cho trung bình của n phiếu bằng đúng điểm mẫu (làm tròn tới 1/n), xáo thứ tự cho tự nhiên.
 function scoresFor(average: number, n: number, random: () => number) {
   const total = Math.min(5 * n, Math.max(n, Math.round(average * n)));
   const base = Math.floor(total / n);
@@ -19,8 +18,6 @@ function scoresFor(average: number, n: number, random: () => number) {
 
 type Roster = { sectionId: string; studentId: string }[];
 
-// Một đợt khảo sát: câu hỏi, sinh viên đã nộp (chỉ dấu "đã nộp") và phiếu ẩn danh khớp kết quả tổng hợp của dữ liệu mẫu. Phiếu
-// có id ngẫu nhiên và được chèn theo thứ tự xáo trộn, không theo thứ tự người nộp.
 async function seedRound(tx: Transaction, survey: SurveySeed, results: SectionSurveyResult[], roster: Roster, mineSubmitted: Set<string>, seed: number) {
   await tx.insert(surveys).values({
     id: survey.id,
@@ -64,8 +61,6 @@ async function seedRound(tx: Transaction, survey: SurveySeed, results: SectionSu
   return submissions.length;
 }
 
-// Đợt khảo sát đang mở của học kỳ hiện tại (sinh viên hiện tại đã đánh giá lớp thứ 1 và thứ 4 theo mã lớp) và một đợt giữa kỳ
-// đã đóng để giảng viên xem được kết quả.
 export async function seedSurveys(tx: Transaction, _context: SeedContext) {
   const roster = await tx
     .select({ sectionId: enrollments.classSectionId, studentId: enrollments.studentId })

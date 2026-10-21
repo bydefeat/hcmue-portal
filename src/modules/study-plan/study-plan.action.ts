@@ -27,8 +27,6 @@ import { administrativeClasses, students } from "@/modules/users/users.schema";
 
 class PlanError extends Error {}
 
-// Học phần trong kế hoạch phải thuộc khung chương trình đang áp dụng cho ngành và khóa của sinh viên (programsOf, cùng cách chọn với
-// xét tốt nghiệp và trang Chương trình đào tạo).
 async function programCoursesOf(tx: Transaction, studentId: string, codes: string[]) {
   if (codes.length === 0) return new Map<string, { id: string; credits: number }>();
   const [home] = await tx
@@ -69,7 +67,6 @@ async function writePlan(input: StudyPlanInput, submit: boolean): Promise<Action
         terms.flatMap((term) => term.courseCodes),
       );
       if (submit) {
-        // Hạn mức theo quy chế đang áp dụng: học kỳ hè theo maxSummer, đang bị cảnh báo chính thức theo maxWhenWarned.
         const [regulation, warningLevel] = await Promise.all([regulationAt(tx), currentWarningLevel(tx, student.id)]);
         const limitsOf = (termName: string) => termCreditLimits(terms.find((term) => term.termName === termName)!, regulation.credits, warningLevel > 0);
         const credits = terms.map((term) => ({ termName: term.termName, credits: term.courseCodes.reduce((sum, code) => sum + found.get(code)!.credits, 0) }));
@@ -85,7 +82,6 @@ async function writePlan(input: StudyPlanInput, submit: boolean): Promise<Action
         await tx.update(studyPlans).set({ studentNote }).where(eq(studyPlans.id, planId));
         await tx.delete(studyPlanItems).where(eq(studyPlanItems.studyPlanId, planId));
       } else {
-        // Kế hoạch đã duyệt giữ nguyên làm lịch sử, bản sửa là kế hoạch nháp mới.
         if (current) await tx.update(studyPlans).set({ isActive: false }).where(eq(studyPlans.id, current.id));
         const [row] = await tx.insert(studyPlans).values({ studentId: student.id, studentNote }).returning({ id: studyPlans.id });
         planId = row.id;
@@ -97,7 +93,6 @@ async function writePlan(input: StudyPlanInput, submit: boolean): Promise<Action
           .update(studyPlans)
           .set({ status: "pending", submittedAt: new Date(), reviewedAt: null, reviewedById: null, advisorComment: null })
           .where(eq(studyPlans.id, planId));
-        // Báo cố vấn của lớp sinh hoạt; lớp chưa phân công cố vấn thì chưa có ai để báo.
         const [advisor] = await tx
           .select({ id: administrativeClasses.advisorId })
           .from(students)
@@ -131,7 +126,6 @@ export async function submitStudyPlan(input: StudyPlanInput): Promise<ActionResu
   return writePlan(input, true);
 }
 
-// Cố vấn chỉ xét kế hoạch đang chờ duyệt của sinh viên thuộc lớp sinh hoạt mình được phân công.
 export async function reviewStudyPlan(input: StudyPlanReviewInput): Promise<ActionResult<StudyPlan>> {
   const lecturer = await getCurrentLecturer();
   const parsed = parseInput(STUDY_PLAN_REVIEW_SCHEMA, input);

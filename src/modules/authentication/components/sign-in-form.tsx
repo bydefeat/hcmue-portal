@@ -15,7 +15,6 @@ type SignInValues = {
   password: string;
 };
 
-// Mọi tài khoản đăng nhập bằng mã số: sinh viên dùng MSSV, giảng viên và cán bộ dùng mã số cán bộ (GV104011, CB0021).
 function signIn({ username, password }: SignInValues) {
   return authClient.signIn.username({ username: username.trim(), password });
 }
@@ -26,7 +25,6 @@ export function SignInForm({ defaultUsername, next }: { defaultUsername?: string
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const username = Form.useWatch("username", form)?.trim();
-  // Email trường của sinh viên suy ra được từ MSSV; mã cán bộ thì không tra email ở đây để trang không lộ email của ai.
   const recoveryEmail = username && isStudentCode(username) ? studentEmailOf(username) : username?.includes("@") ? username : undefined;
   const forgotHref = recoveryEmail
     ? `/authentication/forgot-password?email=${encodeURIComponent(recoveryEmail)}`

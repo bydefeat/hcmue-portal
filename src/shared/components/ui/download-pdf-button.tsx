@@ -8,7 +8,6 @@ import { downloadBase64 } from "@/shared/libs/download.lib";
 
 export type PdfFileResult = ActionResult<{ fileName: string; base64: string; mimeType: string }>;
 
-// Nút tải tệp PDF do server action dựng (action đã kiểm quyền). Trang server truyền action, cần tham số thì bind trước.
 export function DownloadPdfButton({ action, label = "Tải PDF" }: { action: () => Promise<PdfFileResult>; label?: string }) {
   const [messageApi, contextHolder] = message.useMessage();
   const [isLoading, setIsLoading] = useState(false);

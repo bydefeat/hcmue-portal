@@ -73,7 +73,6 @@ describe("tuition: tính hóa đơn", () => {
     assert.equal(invoiceView({ ...base, paid: 400_000 }).balance, 600_000);
     assert.equal(invoiceView({ ...base, dueDate: dayjs().subtract(1, "day").toISOString() }).status, "overdue");
     assert.equal(invoiceView({ ...base, paid: 1_000_000, dueDate: dayjs().subtract(1, "day").toISOString() }).status, "paid");
-    // Hóa đơn tạm tính không quá hạn; nộp thừa (sau khi giảm tín chỉ) là số cần hoàn.
     assert.equal(invoiceView({ ...base, isFinal: false, dueDate: dayjs().subtract(1, "day").toISOString() }).status, "unpaid");
     assert.equal(invoiceView({ ...base, paid: 1_300_000 }).refundDue, 300_000);
   });
@@ -184,7 +183,6 @@ describe("tuition: đọc và đối chiếu sao kê", () => {
 
 class Rollback extends Error {}
 
-// Chạy trong transaction rồi bỏ hết, không để lại dữ liệu cho test khác.
 async function inRollback(run: (tx: Transaction) => Promise<void>) {
   await db
     .transaction(async (tx) => {
@@ -223,7 +221,6 @@ describe("tuition: ghi và hủy thanh toán", () => {
       const [voided] = await tx.select({ paid: INVOICE_PAID_SQL }).from(tuitionInvoices).where(eq(tuitionInvoices.id, invoice.id));
       assert.equal(voided.paid, invoice.paid);
 
-      // Mã của khoản đã hủy ghi lại được; mã đang hiệu lực thì không.
       await tx.insert(payments).values({ ...values, amount: balance, reference: "TEST-REF-1" });
       const duplicate = await caught(tx.transaction((sp) => sp.insert(payments).values({ ...values, amount: 1000, reference: "TEST-REF-1" })));
       assert.equal(pgErrorMessage(duplicate, TUITION_CONSTRAINT_MESSAGE), TUITION_CONSTRAINT_MESSAGE.payments_reference_unique);

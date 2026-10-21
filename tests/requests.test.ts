@@ -30,7 +30,6 @@ import { REQUESTS } from "@/modules/requests/requests.mock";
 import { academicRequests, requestAttachments, requestCodeCounters, requestSteps } from "@/modules/requests/requests.schema";
 
 const TEST_YEAR = 2099;
-// Đơn thử của phần minh chứng lấy mã năm khác để không đụng mã đặt tay DT-2099-000xx của các test khác.
 const FILE_TEST_YEAR = 2098;
 const createdIds: string[] = [];
 const createdKeys: string[] = [];
@@ -39,7 +38,6 @@ let studentUserId: string | null = null;
 let facultyId = "";
 
 before(async () => {
-  // Ưu tiên sinh viên có tài khoản để kiểm cả thông báo gửi người gửi đơn.
   [{ id: studentId, userId: studentUserId }] = await db.select({ id: students.id, userId: students.userId }).from(students).orderBy(asc(isNull(students.userId))).limit(1);
   [{ id: facultyId }] = await db.select({ id: faculties.id }).from(faculties).limit(1);
 });
@@ -48,7 +46,6 @@ after(async () => {
   await deleteFiles(createdKeys);
   if (createdIds.length > 0) await db.delete(academicRequests).where(inArray(academicRequests.id, createdIds));
   await db.delete(requestCodeCounters).where(inArray(requestCodeCounters.year, [TEST_YEAR, FILE_TEST_YEAR]));
-  // decideStep báo người gửi, người xử lý bước sau và ghi nhật ký: xóa thông báo, nhật ký của các đơn thử mã năm 2099, 2098.
   for (const year of [TEST_YEAR, FILE_TEST_YEAR]) {
     await db.delete(notifications).where(like(notifications.title, `Đơn DT-${year}-%`));
     await db.delete(auditLogs).where(like(auditLogs.entityLabel, `DT-${year}-%`));
@@ -56,7 +53,6 @@ after(async () => {
   await db.$client.end();
 });
 
-// Đơn "Học vượt tín chỉ" (cố vấn → khoa → Phòng Đào tạo) mã năm 2099 để không đụng bộ đếm thật.
 async function makeRequest(number: number) {
   const now = new Date();
   const [request] = await db
@@ -142,7 +138,6 @@ describe("requests: kiểm dữ liệu gửi đơn", () => {
       reason: "Hội thảo",
     });
     assert.ok(!leave.ok && leave.fieldErrors?.makeupEnd === "Tiết kết thúc đứng trước tiết bắt đầu");
-    // Điểm cũ, nhãn cột client gửi lên bị bỏ: server đọc từ bảng điểm.
     const grade = parseInput(LECTURER_REQUEST_SCHEMA, {
       kind: "grade-change",
       classId: "0192f3a4-0000-7000-8000-000000000000",
@@ -177,7 +172,6 @@ describe("requests: kiểm dữ liệu gửi đơn", () => {
       { label: "Điểm thi hiện tại (sinh viên khai)", value: "4,5" },
       { label: "Điểm cuối kỳ trên hệ thống", value: "3,75" },
     ]);
-    // Bảng điểm không có cột cuối kỳ rõ ràng thì ghi "không xác định", không đoán cột.
     const unknown = studentRequestContent({ kind: "regrade", fields: { section: "x", score: 4.5 } }, "COMP1070.01 Web", { finalExam: null });
     assert.match(unknown.details.at(-1)?.value ?? "", /^Không xác định/);
     const postponeWithExams = studentRequestContent({ kind: "exam-postpone", fields: { section: "x", examDate: "2026-11-04" } }, "COMP1020.02", {
@@ -228,7 +222,6 @@ describe("requests: quy tắc chuyển bước", () => {
       "exam-office",
       "faculty",
     ]);
-    // Chỉ có requests.process (vai trò tự tạo chưa được giao bước) thì không xử lý bước nào; có quyền bước mà không mở được hộp đơn cũng không.
     assert.deepEqual(officeStepRoles(["requests.process"]), []);
     assert.deepEqual(officeStepRoles(["requests.step.faculty"]), []);
   });
@@ -322,7 +315,6 @@ describe("requests: đồng thời", () => {
     await decide(2);
     assert.deepEqual(await statuses(id), ["approved", "approved", "approved"]);
     await assert.rejects(decide(2), /duyệt xong/);
-    // Người gửi nhận một thông báo mỗi bước được duyệt (hai lần chuyển bước, một lần hoàn tất) ở cổng sinh viên.
     if (studentUserId) {
       const sent = await db
         .select({ title: notifications.title, audience: notifications.audience, href: notifications.href })
@@ -346,7 +338,6 @@ describe("requests: lưu minh chứng", () => {
     assert.equal(data.byteLength, sample.sizeBytes);
     const text = new TextDecoder().decode(data);
     assert.ok(text.endsWith("%%EOF\n"));
-    // Bảng xref trỏ đúng vị trí từng đối tượng.
     const offsets = [...text.matchAll(/^(\d{10}) 00000 n $/gm)].map((match) => Number(match[1]));
     assert.ok(offsets.length > 0);
     offsets.forEach((offset, index) => assert.ok(text.startsWith(`${index + 1} 0 obj`, offset)));

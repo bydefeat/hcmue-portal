@@ -14,8 +14,6 @@ export default async function Page({ params }: { params: Promise<{ classId: stri
   const { classId } = await params;
   const section = await getMyClass(classId);
   if (!section) notFound();
-  // Bài hẹn giờ đã tới giờ vẫn hiện ngay cho sinh viên (lọc theo giờ đăng); việc báo cả lớp được gọi bù sau khi trả trang
-  // để không phụ thuộc hoàn toàn vào bộ hẹn giờ ngoài. Khóa SKIP LOCKED và notified_at bảo đảm không báo trùng với cron.
   after(() => publishDueClassAnnouncements({ classSectionId: section.id }).catch((error: unknown) => console.error("[teaching] Không báo được bài hẹn giờ:", error)));
   return (
     <>

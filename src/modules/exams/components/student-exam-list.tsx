@@ -41,7 +41,6 @@ type Deferral = { classSectionId: string; kind: string; label: string };
 
 export function StudentExamList({ items, absenceLimitPercent, deferrals }: { items: StudentExamItem[]; absenceLimitPercent: number; deferrals: Deferral[] }) {
   const [filter, setFilter] = useState<Filter>("upcoming");
-  // Đếm theo học phần, không theo ca: một học phần có ca giữa kỳ và cuối kỳ vẫn là một học phần bị cấm thi.
   const banned = new Set(items.filter((item) => item.isBanned && daysUntil(item.exam.date) >= 0).map((item) => item.exam.classSectionId));
   const visible = items.filter(({ exam }) => {
     if (filter === "upcoming") return daysUntil(exam.date) >= 0;

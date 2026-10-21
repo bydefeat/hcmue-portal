@@ -18,7 +18,6 @@ type TuitionSettingsProps = {
   fees: TuitionFeeRow[];
   terms: TermTuitionStatus[];
   majors: { code: string; name: string }[];
-  // Đơn giá, khoản thu, chốt học phí là dữ liệu toàn trường: vai trò theo khoa chỉ xem.
   canManage: boolean;
 };
 
@@ -39,7 +38,6 @@ export function TuitionSettings({ rates, fees, terms, majors, canManage }: Tuiti
   const router = useRouter();
   const [messageApi, messageHolder] = message.useMessage();
   const [isSaving, startSaving] = useTransition();
-  // Giá trị đang sửa (null là đóng); form mở mới mỗi lần nên nhận giá trị qua initialValues.
   const [rateOpen, setRateOpen] = useState<Partial<RateForm> | null>(null);
   const [feeOpen, setFeeOpen] = useState<Partial<FeeForm> | null>(null);
   const [finalizing, setFinalizing] = useState<TermTuitionStatus | null>(null);

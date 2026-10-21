@@ -1,12 +1,10 @@
 import { PASSWORD, SEED_ACCOUNTS, type SeedRole } from "./support/accounts";
 import { anonymousTest as test, expect, signIn, signInAs } from "./support/fixtures";
 
-// Đăng nhập sai trả 401 nên console có dòng "Failed to load resource"; đó là hành vi đúng.
 const FAILED_REQUEST = /Failed to load resource: the server responded with a status of 401/;
 
 const MENU_BUTTON: Record<SeedRole, RegExp> = {
   student: /Phạm Gia Đạt/,
-  // Cổng giảng viên để menu tài khoản ở thanh trên (nút biểu tượng).
   lecturer: /^Tài khoản$/,
   admin: /Trần Minh Khoa/,
 };
@@ -17,7 +15,6 @@ test.describe("đăng nhập và đăng xuất", () => {
       await signInAs(page, role);
       await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
 
-      // Trang vừa tải có thể chưa gắn sự kiện cho nút menu, hoặc lần bấm rơi vào lúc menu đang mở dần: bấm lại tới khi về trang đăng nhập.
       const signOut = page.getByRole("menuitem", { name: "Đăng xuất" });
       await expect(async () => {
         if (!(await signOut.isVisible())) await page.getByRole("button", { name: MENU_BUTTON[role] }).click();
@@ -25,7 +22,6 @@ test.describe("đăng nhập và đăng xuất", () => {
         await page.waitForURL("**/authentication/sign-in", { timeout: 5000 });
       }).toPass({ timeout: 30_000 });
 
-      // Phiên đã bị hủy: mở lại trang cổng thì về trang đăng nhập, giữ đường dẫn để quay lại.
       await page.goto(SEED_ACCOUNTS[role].home);
       await expect(page).toHaveURL(/\/authentication\/sign-in\?next=/);
       expect(new URL(page.url()).searchParams.get("next")).toBe(SEED_ACCOUNTS[role].home);
@@ -54,14 +50,12 @@ test.describe("đăng nhập sai", () => {
     await expect(page.getByText("Đăng nhập bằng mã số sinh viên hoặc mã số cán bộ, giảng viên").first()).toBeVisible();
     await expect(page).toHaveURL(/\/authentication\/sign-in/);
 
-    // Server cũng chặn khi gọi thẳng API, kể cả đúng mật khẩu.
     const response = await page.request.post("/api/auth/sign-in/email", {
       data: { email: "5001104009@student.hcmue.edu.vn", password: PASSWORD },
       headers: { origin: new URL(page.url()).origin },
     });
     expect(response.status()).toBe(401);
     expect((await response.json()).code).toBe("USE_LOGIN_CODE");
-    // Giảng viên cũng vậy: email công vụ không còn là tên đăng nhập.
     const lecturer = await page.request.post("/api/auth/sign-in/email", {
       data: { email: "hanhpt@hcmue.edu.vn", password: PASSWORD },
       headers: { origin: new URL(page.url()).origin },

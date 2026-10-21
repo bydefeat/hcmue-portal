@@ -25,8 +25,6 @@ function revalidatePortals() {
   for (const path of PORTAL_PATHS) revalidatePath(path, "layout");
 }
 
-// Đánh dấu đã đọc: chỉ thông báo của chính tài khoản đang đăng nhập, id của người khác bị bỏ qua.
-// Trả về id đã đọc (gồm cả những thông báo đã đọc từ trước) để giao diện khớp với DB.
 export async function markNotificationsRead(input: NotificationReadInput): Promise<ActionResult<string[]>> {
   const { user } = await requireSession();
   const parsed = parseInput(NOTIFICATION_READ_SCHEMA, input);
@@ -46,7 +44,6 @@ export async function markNotificationsRead(input: NotificationReadInput): Promi
   return actionOk(rows.map((row) => row.id));
 }
 
-// Đọc hết mọi thông báo chưa đọc của một cổng (kể cả dòng chưa tải lên trang).
 export async function markAllNotificationsRead(audience: NotificationAudience): Promise<ActionResult<number>> {
   const { user } = await requireSession();
   const parsed = parseInput(z.object({ audience: NOTIFICATION_AUDIENCE_SCHEMA }), { audience });
@@ -66,7 +63,6 @@ export async function markAllNotificationsRead(audience: NotificationAudience): 
   return actionOk(marked);
 }
 
-// Xóa thông báo khỏi danh sách của chính mình (không ảnh hưởng người nhận khác).
 export async function deleteNotifications(input: NotificationDeleteInput): Promise<ActionResult<string[]>> {
   const { user } = await requireSession();
   const parsed = parseInput(NOTIFICATION_DELETE_SCHEMA, input);
@@ -85,7 +81,6 @@ export async function deleteNotifications(input: NotificationDeleteInput): Promi
   return actionOk(removed);
 }
 
-// Trang thông báo: tải trang kế tiếp (xem thêm) hoặc lọc theo loại, chưa đọc.
 export async function loadNotifications(input: NotificationPageInput): Promise<ActionResult<NotificationPage>> {
   await requireSession();
   const parsed = parseInput(NOTIFICATION_PAGE_SCHEMA, input);

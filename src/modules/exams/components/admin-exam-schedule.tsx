@@ -37,7 +37,6 @@ type AdminExamScheduleProps = {
   proctors: ProctorOption[];
   classes: ExamClassOption[];
   deferrals: ExamDeferralRow[];
-  // Người xem có quyền duyệt, mở khóa đề (Phòng Khảo thí); không có thì ẩn nút.
   canReview: boolean;
   header: { title: string; description?: React.ReactNode };
 };
@@ -46,10 +45,8 @@ type GenerateValues = { range: [Dayjs, Dayjs]; durationMinutes: number; paperDay
 
 const capacityOf = (row: ExamSession) => row.rooms.reduce((sum, room) => sum + room.examCapacity, 0);
 
-// Sinh hàng loạt thì nhiều ca đổi cùng lúc, tải lại toàn trang cho đúng xung đột của cả học kỳ.
 const refreshAll = () => window.location.reload();
 
-// Vấn đề cần xử lý của ca: xung đột (server tính trên toàn học kỳ), thiếu phòng, thiếu cán bộ, thiếu chỗ, danh sách cũ.
 const issuesOf = (row: ExamSession) => [
   ...row.conflicts.map((conflict) => conflict.message),
   ...(row.rooms.length === 0 ? ["Chưa có phòng thi"] : []),
@@ -469,7 +466,6 @@ export function AdminExamSchedule({ termId, sessions, rooms, proctors, classes, 
       </div>
 
       <ExamSessionForm
-        // Mỗi lần mở là một form mới (trạng thái cảnh báo, danh sách sinh viên của lần trước không còn).
         key={editingId ?? (isCreating ? "new" : "closed")}
         open={editing !== null || isCreating}
         editing={editing}

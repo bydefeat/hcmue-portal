@@ -17,8 +17,6 @@ import { invoiceLines, payments, tuitionFees, tuitionInvoices, tuitionRates, tui
 import type { AdminInvoiceDetail, AdminInvoiceRow, PaymentRecord, TermTuitionStatus, TuitionFeeRow, TuitionInvoiceView, TuitionRateRow } from "@/modules/tuition/tuition.type";
 import { administrativeClasses, students } from "@/modules/users/users.schema";
 
-// Hóa đơn học phí của một sinh viên, học kỳ mới nhất trước. Sinh viên chỉ xem được của chính mình, cán bộ quản trị xem được mọi sinh viên.
-// Khoản đã hủy (ghi nhầm) không tính vào số đã nộp và không hiện với sinh viên.
 export const getInvoices = cache(async (studentId: string): Promise<TuitionInvoiceView[]> => {
   const session = await requireSession();
   if (!isUuid(studentId)) return [];
@@ -77,7 +75,6 @@ export const getInvoices = cache(async (studentId: string): Promise<TuitionInvoi
   });
 });
 
-// Đơn giá tín chỉ của ngành trong năm học của học kỳ; ngành sư phạm được miễn có đơn giá 0. Chưa công bố đơn giá thì trả null.
 export async function getTuitionRate(majorCode: string, termId: string): Promise<number | null> {
   await requireSession();
   if (!isUuid(termId)) return null;
@@ -137,7 +134,6 @@ function toAdminRow({ academicYear, semester, dueDate, discount: _discount, disc
   };
 }
 
-// Danh sách hóa đơn cho Phòng Kế hoạch - Tài chính: theo một học kỳ hoặc mọi học kỳ ("all"); lọc theo MSSV, tên, trạng thái làm tại chỗ.
 export async function getAdminInvoices(termId: string | "all"): Promise<AdminInvoiceRow[]> {
   const viewer = await requirePermission("tuition.manage");
   if (termId !== "all" && !isUuid(termId)) return [];
@@ -161,7 +157,6 @@ const PAYMENT_RECORD_COLUMNS = {
   voidReason: payments.voidReason,
 };
 
-// Hóa đơn kèm các dòng và toàn bộ lịch sử thanh toán, gồm cả khoản đã hủy (có lý do, người hủy).
 export async function getAdminInvoice(invoiceId: string): Promise<AdminInvoiceDetail | null> {
   const viewer = await requirePermission("tuition.manage");
   if (!isUuid(invoiceId)) return null;
@@ -197,7 +192,6 @@ export async function getAdminInvoice(invoiceId: string): Promise<AdminInvoiceDe
   };
 }
 
-// Học kỳ có hóa đơn, mới nhất trước, để chọn trong bộ lọc.
 export async function getInvoiceTerms(): Promise<{ id: string; name: string; isCurrent: boolean }[]> {
   await requirePermission("tuition.manage");
   return db
@@ -208,7 +202,6 @@ export async function getInvoiceTerms(): Promise<{ id: string; name: string; isC
     .then((rows) => rows.map(({ startDate: _startDate, ...term }) => term));
 }
 
-// Đơn giá tín chỉ theo ngành và năm học, khoản thu cố định theo năm học, cho trang cấu hình học phí.
 export async function getTuitionRates(): Promise<TuitionRateRow[]> {
   await requirePermission("tuition.manage");
   return db
@@ -226,7 +219,6 @@ export async function getTuitionFees(): Promise<TuitionFeeRow[]> {
     .orderBy(desc(tuitionFees.academicYear), asc(tuitionFees.code));
 }
 
-// Học kỳ hiện tại và học kỳ nhận đăng ký kèm số hóa đơn tạm tính, để Phòng Kế hoạch - Tài chính chốt học phí.
 export async function getTermTuitionStatus(): Promise<TermTuitionStatus[]> {
   await requirePermission("tuition.manage");
   const rows = await db

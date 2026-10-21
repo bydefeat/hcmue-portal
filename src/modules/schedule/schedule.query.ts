@@ -13,7 +13,6 @@ import type { AttendanceBook, ScheduleEvent, ScheduleSession, Timetable } from "
 
 type TimetableSection = { id: string; code: string; courseName: string; credits: number };
 
-// Lịch tuần của các lớp: buổi lý thuyết của lớp và buổi thực hành của nhóm (labGroupIds null là mọi nhóm của lớp).
 async function weeklyEvents(sections: TimetableSection[], labGroupIds: string[] | null, href?: (sectionId: string) => string): Promise<Timetable> {
   if (sections.length === 0) return { events: [], sessions: [], sectionCount: 0, credits: 0 };
   const sectionIds = sections.map((section) => section.id);
@@ -66,8 +65,6 @@ async function weeklyEvents(sections: TimetableSection[], labGroupIds: string[] 
   return { events, sessions: [], sectionCount: sections.length, credits: sections.reduce((sum, section) => sum + section.credits, 0) };
 }
 
-// Buổi học thật của các lớp (đã trừ ngày nghỉ lễ, theo lịch đã đổi): buổi lý thuyết và buổi của nhóm thực hành được chọn
-// (labGroupIds null là mọi nhóm).
 async function sessionsOf(sections: TimetableSection[], labGroupIds: string[] | null): Promise<ScheduleSession[]> {
   if (sections.length === 0) return [];
   const sectionOf = new Map(sections.map((section) => [section.id, section]));
@@ -91,7 +88,6 @@ async function sessionsOf(sections: TimetableSection[], labGroupIds: string[] | 
 
 const sectionColumns = { id: classSections.id, code: classSections.code, courseName: courses.name, credits: courses.credits };
 
-// Thời khóa biểu của sinh viên đang đăng nhập: các lớp đang đăng ký trong học kỳ, kèm nhóm thực hành đã chọn.
 export async function getStudentTimetable(termId: string): Promise<Timetable> {
   const student = await getCurrentStudent();
   if (!isUuid(termId)) return { events: [], sessions: [], sectionCount: 0, credits: 0 };
@@ -108,7 +104,6 @@ export async function getStudentTimetable(termId: string): Promise<Timetable> {
   return { ...timetable, sessions };
 }
 
-// Lịch dạy của giảng viên đang đăng nhập: mọi buổi lý thuyết và thực hành của lớp được phân công.
 export async function getLecturerTimetable(termId: string): Promise<Timetable> {
   const lecturer = await getCurrentLecturer();
   if (!isUuid(termId)) return { events: [], sessions: [], sectionCount: 0, credits: 0 };
@@ -122,7 +117,6 @@ export async function getLecturerTimetable(termId: string): Promise<Timetable> {
   return { ...timetable, sessions };
 }
 
-// Sổ điểm danh của một lớp, chỉ giảng viên dạy lớp đó xem được. Buổi "đã học" là buổi giảng viên đã lưu điểm danh.
 export async function getAttendanceBook(classSectionId: string): Promise<AttendanceBook | null> {
   const lecturer = await getCurrentLecturer();
   if (!isUuid(classSectionId)) return null;
@@ -175,7 +169,6 @@ export async function getAttendanceBook(classSectionId: string): Promise<Attenda
   return {
     classSectionId,
     today,
-    // Buổi nghỉ lễ và buổi nghỉ dạy đã duyệt đều là buổi cần dạy bù.
     holidaySessions: [
       ...missed.map((plan) => ({ date: plan.date, startPeriod: plan.startPeriod, endPeriod: plan.endPeriod, labGroupCode: plan.labGroupId ? (labCode.get(plan.labGroupId) ?? null) : null, holiday: plan.holiday })),
       ...leaves.map((leave) => ({

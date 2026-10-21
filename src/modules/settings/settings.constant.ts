@@ -15,10 +15,8 @@ export const MANUAL_CALENDAR_EVENT_KINDS = ["exam", "grading", "holiday", "event
 
 export const MANUAL_CALENDAR_EVENT_OPTIONS = MANUAL_CALENDAR_EVENT_KINDS.map((value) => ({ value, label: CALENDAR_EVENT_LABEL[value] }));
 
-// Mốc tự nhập phải nằm trong học kỳ, cho phép trước và sau học kỳ ngần này ngày (nghỉ lễ, nhập và công bố điểm giáp học kỳ).
 export const CALENDAR_TERM_MARGIN_DAYS = 31;
 
-// Nhãn từng tham số quy chế, dùng để ghi nhật ký thay đổi theo đúng tên ô trên form.
 export const REGULATION_FIELD_LABEL = {
   "grading.roundingStep": "Làm tròn điểm học phần đến",
   "grading.standing.excellent": "Xuất sắc: CPA từ",
@@ -138,10 +136,8 @@ export const REPORT_FACULTY_BASIS_LABEL: Record<ReportDefinition["facultyBasis"]
   course: "Lọc theo khoa quản lý học phần",
 };
 
-// Lịch sử xuất giữ ngần này ngày; tác vụ report-exports xóa dòng và tệp cũ hơn.
 export const REPORT_EXPORT_RETENTION_DAYS = 30;
 
-// Excel (.xlsx: tiêu đề in đậm, cố định hàng tiêu đề, ô số là số), PDF (in, gửi kèm văn bản) hoặc CSV (UTF-8 có BOM) cho phần mềm khác nhập lại.
 export const REPORT_FORMATS = ["xlsx", "pdf", "csv"] as const;
 
 export const REPORT_FORMAT_LABEL: Record<(typeof REPORT_FORMATS)[number], string> = {

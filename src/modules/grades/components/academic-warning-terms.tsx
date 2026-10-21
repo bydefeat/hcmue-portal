@@ -11,7 +11,6 @@ type WarningTerm = { id: string; name: string; warnings: number; canGenerate: bo
 type AcademicWarningTermsProps = {
   terms: WarningTerm[];
   selectedId: string | null;
-  // Người xem được sinh cảnh báo (Phòng Đào tạo, phạm vi toàn trường).
   canGenerate: boolean;
 };
 

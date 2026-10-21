@@ -12,7 +12,6 @@ type ReceiptInput = {
   verificationCode: string;
 };
 
-// Phiếu đăng ký học phần, cùng nội dung bản in trên trang (mã xác thực để Phòng Đào tạo đối chiếu).
 export function registrationReceiptPdf({ student, termName, enrollments, confirmedAt, verificationCode }: ReceiptInput) {
   const totalCredits = enrollments.reduce((sum, { section }) => sum + section.credits, 0);
   return buildPdf({
@@ -48,7 +47,6 @@ export function registrationReceiptPdf({ student, termName, enrollments, confirm
   });
 }
 
-// Danh sách lớp để giảng viên in: điểm danh tay, ký nhận. Cột ghi chú để trống cho giảng viên ghi.
 export function classRosterPdf(section: Pick<ClassSectionView, "code" | "courseName" | "credits" | "lecturerName" | "meetings">, termName: string, roster: RosterEntry[]) {
   return buildPdf({
     title: "Danh sách lớp học phần",

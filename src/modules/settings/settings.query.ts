@@ -25,17 +25,13 @@ import { regulationAt, REGULATION_COLUMNS, toRegulation } from "@/modules/settin
 import { calendarEvents, regulations, reportExports } from "@/modules/settings/settings.schema";
 import type { CalendarEvent, RegulationSettings, RegulationVersion, ReportCell, ReportExportJob, ReportExportStatus } from "@/modules/settings/settings.type";
 
-// Bản quy chế đang áp dụng hôm nay (giờ Việt Nam). Nhiều trang và quy tắc (đăng ký, điểm danh, điểm, cảnh báo) gọi trong cùng request
-// nên cache theo request. Module khác cần tham số quy chế thì gọi hàm này (hoặc regulationAt trong settings.lib khi ở trong transaction).
 export const getRegulation = cache(async (): Promise<RegulationSettings> => getRegulationAt(schoolToday()));
 
-// Bản quy chế áp dụng tại một ngày ("YYYY-MM-DD", ngày của trường).
 export const getRegulationAt = cache(async (date: string): Promise<RegulationSettings> => {
   await requireSession();
   return regulationAt(db, date);
 });
 
-// Trang sửa quy chế mở bản mới nhất, kể cả bản đã lưu nhưng chưa tới ngày áp dụng.
 export async function getLatestRegulation(): Promise<RegulationSettings> {
   await requirePermission("settings.manage");
   const [row] = await db.select(REGULATION_COLUMNS).from(regulations).leftJoin(user, eq(user.id, regulations.createdByUserId)).orderBy(desc(regulations.effectiveFrom)).limit(1);
@@ -43,7 +39,6 @@ export async function getLatestRegulation(): Promise<RegulationSettings> {
   return toRegulation(row);
 }
 
-// Công khai (trang Giới thiệu): lịch sử các bản quy chế.
 export async function getRegulationVersions(): Promise<RegulationVersion[]> {
   return db
     .select({ version: regulations.version, effectiveFrom: regulations.effectiveFrom, decision: regulations.decision, summary: regulations.summary })
@@ -61,8 +56,6 @@ export const CALENDAR_EVENT_COLUMNS = {
   audience: calendarEvents.audience,
 };
 
-// Công khai: lịch năm học hiện trên trang chủ. Thời gian học kỳ và đợt đăng ký đọc thẳng từ học kỳ, đợt đăng ký (một nguồn
-// ngày duy nhất, chỉ đọc ở đây); mốc tự nhập là các sự kiện khác (thi, nhập điểm, nghỉ lễ, sự kiện).
 export async function getCalendarEvents(termId?: string): Promise<CalendarEvent[]> {
   const [manual, termRows, periods] = await Promise.all([
     db
@@ -108,8 +101,6 @@ const JOB_STATUS: Record<"queued" | "running" | "done" | "failed", ReportExportS
 
 export type ReportParams = { termId: string; faculty: string; format: string };
 
-// Lịch sử xuất: chỉ báo cáo mà vai trò đang dùng được xem (khảo sát cần surveys.view, xét tốt nghiệp cần graduation.manage),
-// cán bộ theo khoa chỉ thấy báo cáo của khoa mình.
 export async function getReportExports(id?: string): Promise<ReportExportJob[]> {
   const viewer = await requirePermission("reports.view");
   const allowedKeys = REPORT_DEFINITIONS.filter((report) => can(viewer, report.permission)).map((report) => report.id);
@@ -146,7 +137,6 @@ export async function getReportExports(id?: string): Promise<ReportExportJob[]> 
       id: row.id,
       reportId: row.reportKey,
       reportName: report?.name ?? row.reportKey,
-      // Báo cáo số liệu hiện tại (không theo học kỳ) không ghi học kỳ.
       params: [report?.usesTerm && params.termId ? termName.get(params.termId) : null, scope].filter(Boolean).join(", "),
       format: (params.format ?? "").toUpperCase(),
       createdAt: row.createdAt.toISOString(),
@@ -159,15 +149,11 @@ export async function getReportExports(id?: string): Promise<ReportExportJob[]> 
 
 export type ReportTable = { header: string[]; rows: ReportCell[][] };
 
-// Tỉ lệ và điểm giữ cả giá trị số (để Excel tính được) lẫn chữ theo kiểu Việt Nam (dấu phẩy thập phân) cho CSV.
 const percent = (part: number, whole: number): ReportCell =>
   whole > 0 ? { value: Math.round((part / whole) * 1000) / 1000, text: `${Math.round((part / whole) * 1000) / 10}%`.replace(".", ","), numFmt: "0.0%" } : "";
 const decimal = (value: number | null, digits = 2): ReportCell =>
   value === null ? "" : { value: Number(value.toFixed(digits)), text: value.toFixed(digits).replace(".", ","), numFmt: `0.${"0".repeat(digits)}` };
 
-// Bảng dữ liệu của từng báo cáo theo học kỳ và khoa ("all" là toàn trường), đọc trên dữ liệu hiện tại lúc gọi; action xuất
-// dựng tệp từ bảng này một lần và lưu vào kho (tải về là tệp đã lưu). Trả null khi học kỳ không còn hoặc báo cáo không có
-// trong danh mục. Báo cáo moet, graduation là số liệu hiện tại, không lọc theo học kỳ.
 export async function getReportTable(reportKey: string, termId: string, faculty: string): Promise<ReportTable | null> {
   await requirePermission("reports.view");
   const [term] = await db.select({ startDate: terms.startDate }).from(terms).where(eq(terms.id, termId));
@@ -206,7 +192,6 @@ export async function getReportTable(reportKey: string, termId: string, faculty:
       };
     }
     case "standing": {
-      // CPA, tín chỉ theo lần học cuối của mỗi học phần đến hết học kỳ đã chọn, tính trong SQL; chưa có điểm thì Chưa xếp loại.
       const [people, results, regulation] = await Promise.all([
         db
           .select(studentColumns)
@@ -304,7 +289,6 @@ export async function getReportTable(reportKey: string, termId: string, faculty:
       };
     }
     case "graduation": {
-      // Cùng kết quả xét với trang Xét tốt nghiệp (đợt đang mở): điều kiện, hạng tốt nghiệp đã xét giảm hạng.
       const { candidates } = await loadGraduationCandidates({ faculty: faculty === "all" ? null : faculty });
       const check = (candidate: (typeof candidates)[number], key: string) => candidate.checks.find((entry) => entry.key === key);
       return {

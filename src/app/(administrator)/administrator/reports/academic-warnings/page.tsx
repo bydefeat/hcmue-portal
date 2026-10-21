@@ -16,7 +16,6 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ t
   const viewer = await requirePermission("reports.view");
   const [{ term }, terms, regulation] = await Promise.all([searchParams, getWarningTerms(), getRegulation()]);
   const requested = terms.find((entry) => entry.id === term);
-  // Mặc định là học kỳ có cảnh báo gần nhất; chưa có thì học kỳ xét được gần nhất.
   const selected = requested ?? terms.find((entry) => entry.warnings > 0) ?? terms[0] ?? null;
   const [allWarnings, allProposals] = selected ? await Promise.all([getAcademicWarnings(undefined, selected.id), getExpulsionProposals(selected.id)]) : [[], []];
   const warnings = allWarnings.filter((warning) => inScope(viewer, warning.faculty));

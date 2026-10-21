@@ -13,15 +13,12 @@ import { formatStudentCode, isStudentCode, normalizeStudentCode, studentEmailOf 
 
 const PASSWORD = process.env.DEFEAT_SEED_ACCOUNT_PASSWORD || "Hcmue@2026";
 const STUDENT_CODE = "5001104009";
-// Giảng viên ThS. Phạm Thùy Hạnh và cán bộ Trần Minh Khoa của seed.
 const LECTURER_CODE = "GV104011";
 const STAFF_CODE = "CB0021";
-// Tên riêng cho test khóa tạm, không trùng tài khoản nào; dọn ở after().
 const LOCKOUT_GHOST = "TT9990001";
 const LOCKOUT_RACE = "TT9990002";
 const BASE_URL = env.DEFEAT_BETTER_AUTH_PUBLIC_APPLICATION_BASE_URL;
 
-// Mỗi request một IP riêng để rate limit đăng nhập (5 lần/phút) không làm test chạy sau bị 429.
 let requestCount = 0;
 
 function nextIp(prefix: number) {
@@ -87,7 +84,6 @@ describe("trang đích sau đăng nhập", () => {
   });
 
   test("chặn các dạng open redirect qua ?next=", () => {
-    // Next giải mã searchParams nên "%09" tới đây là ký tự tab; trình duyệt bỏ tab, đổi "\\" thành "/".
     for (const attack of ["/\t/evil.com", "/\n/evil.com", "/\\evil.com", "/\\/evil.com", "//evil.com", "/.//evil.com", "/%2F/evil.com/..//x", "https:evil.com", "javascript:alert(1)", " /x"]) {
       const safe = safeNextPath(attack);
       assert.ok(safe === null || (safe.startsWith("/") && !safe.startsWith("//")), `${JSON.stringify(attack)} → ${safe}`);
@@ -136,7 +132,6 @@ describe("đăng nhập", () => {
       assert.equal(viaEmail.status, 401, email);
       assert.equal(viaEmail.json?.code, "USE_LOGIN_CODE");
       assert.equal(viaEmail.json?.message, "Đăng nhập bằng mã số sinh viên hoặc mã số cán bộ, giảng viên");
-      // Gõ email vào ô tên đăng nhập cũng vậy.
       const viaUsername = await call("/sign-in/username", { username: email, password: PASSWORD });
       assert.equal(viaUsername.status, 401, email);
       assert.equal(viaUsername.json?.code, "USE_LOGIN_CODE");
@@ -196,7 +191,6 @@ describe("đăng nhập", () => {
     assert.notEqual(signUp.status, 200);
     const otpSignIn = await call("/sign-in/email-otp", { email: "khoatm@hcmue.edu.vn", otp: "000000" });
     assert.equal(otpSignIn.status, 404);
-    // Kích hoạt tài khoản đi qua luồng quên mật khẩu: endpoint gửi mã xác minh email tới địa chỉ bất kỳ đã đóng.
     assert.equal((await call("/email-otp/send-verification-otp", { email: "khoatm@hcmue.edu.vn", type: "email-verification" })).status, 404);
     assert.equal((await call("/email-otp/verify-email", { email: "khoatm@hcmue.edu.vn", otp: "000000" })).status, 404);
     const [created] = await db.select().from(user).where(eq(user.email, "moi@hcmue.edu.vn"));
@@ -239,10 +233,8 @@ describe("khóa tạm theo tên đăng nhập", () => {
       assert.equal(locked.json?.code, "SIGN_IN_LOCKED");
       assert.match(locked.json?.message ?? "", /tạm khóa 15 phút/);
       assert.equal(authErrorMessage({ code: "SIGN_IN_LOCKED", status: 429 }), AUTH_ERROR_MESSAGE.SIGN_IN_LOCKED);
-      // Dạng chữ khác của cùng mã cũng bị khóa (đếm theo tên đã chuẩn hoá).
       assert.equal((await call("/sign-in/username", { username: " gv104011", password: PASSWORD })).json?.code, "SIGN_IN_LOCKED");
 
-      // Hết thời gian khóa thì vào lại được và bộ đếm được xóa.
       await db
         .update(signInFailures)
         .set({ lockedUntil: sql`now() - interval '1 second'`, windowStartedAt: sql`now() - interval '30 minutes'` })
@@ -279,14 +271,12 @@ describe("khôi phục mật khẩu", () => {
     const warn = mock.method(console, "warn", () => {});
     try {
       assert.equal((await call("/email-otp/request-password-reset", { email })).status, 200);
-      // Chưa có khóa Resend: mail.lib in thư ra log, mã nằm ở tiêu đề "Mã đặt lại mật khẩu HCMUE Portal: 123456".
       const otp = String(warn.mock.calls.at(-1)?.arguments[0]).match(/Portal: (\d{6})"/)?.[1];
       assert.ok(otp, "OTP được in ra log");
 
       const wrong = await call("/email-otp/check-verification-otp", { email, otp: otp === "000000" ? "111111" : "000000", type: "forget-password" });
       assert.equal(wrong.json?.code, "INVALID_OTP");
       assert.equal((await call("/email-otp/check-verification-otp", { email, otp, type: "forget-password" })).status, 200);
-      // Đang bị khóa tạm vì sai nhiều lần: đặt lại mật khẩu thành công thì gỡ khóa.
       const lockedUntil = new Date(Date.now() + 15 * 60_000);
       await db
         .insert(signInFailures)

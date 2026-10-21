@@ -38,7 +38,6 @@ import {
 import { academicRequests, requestCodeCounters, requestSteps, requestSupplements } from "@/modules/requests/requests.schema";
 import { pgErrorMessage } from "@/shared/libs/pg-error.lib";
 
-// Năm mã đơn riêng của file này: requests.test.ts chạy song song và kiểm dãy mã năm 2099, 2098.
 const YEAR = 2097;
 const createdIds: string[] = [];
 const createdRoleIds: string[] = [];
@@ -49,7 +48,6 @@ let otherFacultyId = "";
 const actor = { userId: null, name: "Phòng Đào tạo kiểm thử", role: "Kiểm thử" };
 
 before(async () => {
-  // Sinh viên tài khoản seed: lớp có cố vấn là giảng viên có tài khoản (GV104011).
   const [row] = await db
     .select({ id: students.id, userId: students.userId, advisorId: administrativeClasses.advisorId, advisorUserId: lecturers.userId, facultyId: majors.facultyId })
     .from(students)
@@ -139,7 +137,6 @@ describe("requests: hàm quyền thuần", () => {
     assert.equal(stepDeniedReason({ userId: "u", lecturerId: "gv-1", office: null }, "lecturer", advisorStep), null);
     assert.ok(stepDeniedReason({ userId: "u", lecturerId: "gv-2", office: null }, "lecturer", advisorStep));
     assert.match(stepDeniedReason(office({ roles: ["faculty"] }), "office", advisorStep) ?? "", /cổng giảng viên/);
-    // Bước cố vấn kẹt (lớp không còn cố vấn): không ai ở cổng giảng viên xử lý được, Phòng Đào tạo xử lý thay được.
     assert.ok(stepDeniedReason({ userId: "u", lecturerId: "gv-1", office: null }, "lecturer", { ...advisorStep, assigneeLecturerId: null }));
     assert.equal(superviseDeniedReason(office({ supervise: true }), "Khoa A"), null);
     assert.ok(superviseDeniedReason(office({ supervise: true, faculty: "Khoa B" }), "Khoa A"));
@@ -147,11 +144,8 @@ describe("requests: hàm quyền thuần", () => {
   });
 
   test("hạn xử lý theo ngày làm việc: bỏ thứ 7, chủ nhật và ngày nghỉ lễ", () => {
-    // Thứ 6 15:00 giờ Việt Nam + 3 ngày làm việc = thứ 4 tuần sau, cùng giờ.
     assert.equal(addWorkingDays(new Date("2026-10-23T08:00:00Z"), 3).toISOString(), "2026-10-28T08:00:00.000Z");
-    // Thứ 2 nghỉ lễ thì lùi thêm một ngày.
     assert.equal(addWorkingDays(new Date("2026-10-23T08:00:00Z"), 3, holidayDates([{ startDate: "2026-10-26", endDate: "2026-10-26" }])).toISOString(), "2026-10-29T08:00:00.000Z");
-    // Gửi ngày thứ 7: tính từ thứ 2.
     assert.equal(addWorkingDays(new Date("2026-10-24T03:00:00Z"), 1).toISOString(), "2026-10-26T03:00:00.000Z");
     assert.deepEqual([...holidayDates([{ startDate: "2027-04-30", endDate: "2027-05-02" }])], ["2027-04-30", "2027-05-01", "2027-05-02"]);
   });
@@ -168,7 +162,6 @@ describe("requests: hàm quyền thuần", () => {
   test("điều kiện gửi đơn theo quy chế", () => {
     const rules = { maxPerTerm: 25, overloadMinCpa: 2.5, overloadExtraCredits: 5, regradeWindowDays: 7, maxReserveTerms: 2 };
     assert.equal(overloadBlockedReason({ credits: 28, cpa4: 3.1 }, rules), null);
-    // Phần học vượt thêm đọc từ quy chế: thêm 3 thì 29 tín chỉ là quá.
     assert.equal(overloadBlockedReason({ credits: 29, cpa4: 3.1 }, { ...rules, overloadExtraCredits: 3 })?.field, "credits");
     assert.equal(overloadBlockedReason({ credits: 28, cpa4: 2.1 }, rules)?.field, "kind");
     assert.equal(overloadBlockedReason({ credits: 25, cpa4: 3.1 }, rules)?.field, "credits");
@@ -187,7 +180,6 @@ describe("requests: hàm quyền thuần", () => {
     assert.match(missingAttachmentReason("grade-change", 0) ?? "", /bắt buộc kèm/);
     assert.equal(missingAttachmentReason("exam-postpone", 1), null);
     assert.equal(missingAttachmentReason("transcript", 0), null);
-    // Mô tả lấy số từ quy chế, không ghi cứng.
     assert.match(requestKindDescription("overload", { ...rules, maxPerTerm: 24, overloadMinCpa: 2.8 }), /24 tín chỉ.*2,8/);
     assert.match(requestKindDescription("regrade", { ...rules, regradeWindowDays: 10 }), /10 ngày/);
     assert.match(requestKindDescription("reserve", { ...rules, maxReserveTerms: 3 }), /tối đa 3 học kỳ/);
@@ -208,12 +200,10 @@ describe("requests: quyền xem, thông báo người xử lý", () => {
     assert.equal(toAdvisor.length, 1);
     assert.equal(toAdvisor[0].audience, "lecturer");
     assert.equal(toAdvisor[0].href, `/lecturer/requests?open=${request.id}`);
-    // Cố vấn thấy và xử lý được; giảng viên khác không thấy.
     const [asAdvisor] = await requestsVisibleTo({ userId: student.advisorUserId, lecturerId: student.advisorId, office: null }, "lecturer", request.id);
     assert.ok(asAdvisor?.can.decide);
     assert.equal(asAdvisor.steps[0].assigneeId, student.advisorId);
     assert.equal((await requestsVisibleTo({ userId: "0192f3a4-0000-7000-8000-0000000000ee", lecturerId: otherLecturer.id, office: null }, "lecturer", request.id)).length, 0);
-    // Vai trò chỉ có requests.process (không quyền bước nào) không thấy đơn; vai trò bước khoa thấy nhưng chưa tới lượt.
     assert.equal((await requestsVisibleTo(office({ roles: [] }), "office", request.id)).length, 0);
     assert.equal((await requestsVisibleTo(office({ roles: ["exam-office"] }), "office", request.id)).length, 0);
     const [asFaculty] = await requestsVisibleTo(office({ roles: ["faculty"] }), "office", request.id);
@@ -222,7 +212,6 @@ describe("requests: quyền xem, thông báo người xử lý", () => {
     assert.equal(otherFaculty.length, 0);
     const [asSupervisor] = await requestsVisibleTo(office({ supervise: true }), "office", request.id);
     assert.ok(asSupervisor?.can.supervise && asSupervisor.can.reassign);
-    // Người gửi thấy đơn của mình, hủy được khi chưa ai xử lý.
     const [own] = await requestsVisibleTo({ userId: student.userId, lecturerId: null, office: null }, "own", request.id);
     assert.ok(own?.can.cancel);
   });
@@ -251,7 +240,6 @@ describe("requests: quyền xem, thông báo người xử lý", () => {
       { roleId: role.id, permission: "requests.process" },
       { roleId: role.id, permission: "requests.step.faculty" },
     ]);
-    // Tài khoản cán bộ thử (vai trò admin); tài khoản không vào được cổng quản trị thì không nhận dù được gán vai trò.
     const [someone] = await db.insert(user).values({ name: "Thư ký khoa thử", email: `request-test-${Date.now()}@hcmue.edu.vn`, role: "admin" }).returning({ id: user.id });
     createdUserIds.push(someone.id);
     await db.insert(roleAssignments).values({ userId: someone.id, roleId: role.id, facultyId: student.facultyId });

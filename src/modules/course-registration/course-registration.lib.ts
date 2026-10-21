@@ -48,11 +48,8 @@ import type { StudentStatus } from "@/modules/users/users.type";
 
 type Executor = Transaction | typeof db;
 
-// Lượt sinh viên tự đăng ký, hủy, đổi nhóm (không tính thao tác hàng loạt của Phòng Đào tạo như hủy lớp, chuyển lớp).
 const STUDENT_EVENT_KINDS = ["add", "drop", "swap"] as const;
 
-// Nhịp đăng ký thật của một học kỳ tính từ nhật ký registration_events: 1 phút và 15 phút gần nhất, tổng trong ngày (giờ Việt Nam)
-// và phút đông nhất trong ngày. Không kiểm quyền: chỉ gọi từ query đã kiểm (getRegistrationQueueStatus) hoặc test.
 export async function registrationActivityOf(executor: Executor, termId: string, at: Date): Promise<RegistrationActivity> {
   const now = at.toISOString();
   const dayStart = sql`(date_trunc('day', ${now}::timestamptz AT TIME ZONE 'Asia/Ho_Chi_Minh') AT TIME ZONE 'Asia/Ho_Chi_Minh')`;
@@ -89,8 +86,6 @@ export async function registrationActivityOf(executor: Executor, termId: string,
 
 const sectionLecturer = alias(lecturers, "section_lecturer");
 
-// Lớp học phần ghép buổi học, nhóm thực hành, chỗ dành riêng, đối tượng. Trang quản trị tải cả học kỳ (để tính xung đột),
-// thao tác đăng ký chỉ tải các lớp liên quan tới sinh viên.
 export async function loadSections(executor: Executor, where: SQL): Promise<ClassSection[]> {
   const rows = await executor
     .select({
@@ -234,8 +229,6 @@ export async function currentTermOf(executor: Executor): Promise<TermFacts> {
   return row;
 }
 
-// Một sinh viên trong một học kỳ chỉ có một thao tác đăng ký chạy tại một thời điểm: kiểm hạn mức, trùng lịch, song hành rồi ghi
-// nằm trong cùng một khóa, hai yêu cầu song song (hai tab, bấm hai lần) không cùng lọt qua phép kiểm.
 export async function lockRegistration(tx: Transaction, studentId: string, termId: string) {
   await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${`registration:${studentId}:${termId}`}, 0))`);
 }
@@ -245,7 +238,6 @@ async function tryLockRegistration(tx: Transaction, studentId: string, termId: s
   return row?.locked === true;
 }
 
-// Điểm lần học cuối mỗi học phần (theo thời gian học kỳ) và số tín chỉ còn thiếu so với chương trình của ngành, khóa.
 async function gradeFactsOf(executor: Executor, student: RegistrationStudentFacts) {
   const [results, [program]] = await Promise.all([
     executor
@@ -253,7 +245,6 @@ async function gradeFactsOf(executor: Executor, student: RegistrationStudentFact
       .from(courseResults)
       .innerJoin(courses, eq(courses.id, courseResults.courseId))
       .innerJoin(terms, eq(terms.id, courseResults.termId))
-      // W (rút), I (chưa hoàn thiện) không phải lần học có kết quả; M (miễn) tính là đạt.
       .where(and(eq(courseResults.studentId, student.id), sql`${courseResults.letter} IS NOT NULL AND ${courseResults.letter} NOT IN ('W', 'I')`))
       .orderBy(asc(terms.startDate)),
     executor
@@ -268,7 +259,6 @@ async function gradeFactsOf(executor: Executor, student: RegistrationStudentFact
   const credits = new Map<string, number>();
   for (const result of results) {
     last[result.code] = result.letter!;
-    // Học phần điều kiện không tính tín chỉ tích lũy của chương trình (vẫn tính "đã học đạt" cho tiên quyết).
     credits.set(result.code, result.isConditional ? 0 : result.credits);
   }
   const earned = Object.entries(last)
@@ -279,8 +269,6 @@ async function gradeFactsOf(executor: Executor, student: RegistrationStudentFact
 
 const relatedCourses = alias(courses, "related_courses");
 
-// Quan hệ tiên quyết, song hành, tương đương chỉ của các học phần liên quan (không tải cả danh mục mỗi lần đăng ký):
-// quan hệ của chính các học phần đó, và học phần tương đương của các học phần tiên quyết, song hành của chúng.
 async function relationsOf(executor: Executor, courseCodes: string[]) {
   const result = { prerequisites: {} as Record<string, string[]>, corequisites: {} as Record<string, string[]>, equivalents: {} as Record<string, string[]>, courseNames: {} as Record<string, string> };
   if (courseCodes.length === 0) return result;
@@ -307,7 +295,6 @@ export type RegistrationRules = { credits: CreditRules };
 export type StudentTermState = {
   student: RegistrationStudentFacts;
   term: TermFacts;
-  // Lớp đang đăng ký trong học kỳ và nhóm thực hành đã chọn.
   registered: ClassSection[];
   labChoices: Record<string, string>;
 };
@@ -322,7 +309,6 @@ export async function studentTermStateOf(executor: Executor, student: Registrati
   return { student, term, registered: registered.filter((section) => section.status !== "cancelled"), labChoices };
 }
 
-// Đợt đăng ký áp dụng cho khóa của sinh viên trong học kỳ (đang mở > sắp mở > vừa đóng), cùng hàm với giao diện.
 export async function periodOf(executor: Executor, termId: string, cohort: number, now: Date) {
   const rows = await executor
     .select({ id: registrationPeriods.id, name: registrationPeriods.name, cohorts: registrationPeriods.cohorts, opensAt: registrationPeriods.opensAt, closesAt: registrationPeriods.closesAt, minCredits: registrationPeriods.minCredits, maxCredits: registrationPeriods.maxCredits })
@@ -338,7 +324,6 @@ export async function periodOf(executor: Executor, termId: string, cohort: numbe
   return { ...period, isOpen };
 }
 
-// Hạn mức tín chỉ được duyệt riêng (đơn học vượt) của sinh viên trong học kỳ, null nếu không có.
 export async function creditOverrideOf(executor: Executor, studentId: string, termId: string) {
   const [row] = await executor
     .select({ maxCredits: creditOverrides.maxCredits })
@@ -347,7 +332,6 @@ export async function creditOverrideOf(executor: Executor, studentId: string, te
   return row?.maxCredits ?? null;
 }
 
-// Hạn mức tín chỉ của sinh viên trong học kỳ cho trang đăng ký: cùng nguồn và cùng hàm với lúc server kiểm.
 export async function creditLimitsFor(executor: Executor, student: RegistrationStudentFacts, term: TermFacts, rules: RegistrationRules, now: Date) {
   const [period, warningLevel, grades, overrideMax] = await Promise.all([
     periodOf(executor, term.id, student.cohort, now),
@@ -360,8 +344,6 @@ export async function creditLimitsFor(executor: Executor, student: RegistrationS
 
 export type EligibilityBundle = { context: Omit<EligibilityContext, "planned" | "labChoices">; limits: CreditLimits };
 
-// Dữ liệu để kiểm điều kiện học vụ của một sinh viên với một nhóm lớp: điểm lần học cuối, quan hệ học phần, học phần đang học,
-// hạn mức tín chỉ (quy chế đang áp dụng, đợt, cảnh báo đã ban hành, số tín chỉ còn lại của chương trình).
 export async function eligibilityOf(
   executor: Executor,
   state: StudentTermState,
@@ -403,7 +385,6 @@ export async function eligibilityOf(
   };
 }
 
-// Khóa đăng ký đang chặn sinh viên: khóa do cán bộ đặt (mọi loại) và học phí học kỳ hiện tại đã chốt, quá hạn, còn nợ.
 export async function registrationBlockOf(executor: Executor, studentId: string) {
   const current = await currentTermOf(executor);
   const [[hold], invoice] = await Promise.all([
@@ -421,7 +402,6 @@ export async function registrationBlockOf(executor: Executor, studentId: string)
   return null;
 }
 
-// Chỗ còn cho sinh viên này sau khi trừ chỗ dành riêng cho đối tượng khác; nếu sinh viên thuộc một nhóm dành riêng còn chỗ thì dùng chỗ đó.
 async function claimSeat(tx: Transaction, sectionId: string, student: RegistrationStudentFacts) {
   const [section] = await tx
     .select({ capacity: classSections.capacity, enrolled: classSections.enrolledCount, code: classSections.code })
@@ -456,9 +436,6 @@ export type RegistrationActor = { userId: string | null; label: string; channel:
 
 type EventKind = "add" | "admin-add" | "waitlist-promoted" | "swap";
 
-// Kiểm điều kiện rồi ghi đăng ký cho các lớp mới, trong transaction đã giữ khóa đăng ký của sinh viên. Lỗi nghiệp vụ ném InputError
-// để cả transaction rollback (lớp đã ghi trước đó trong cùng lần cũng bỏ). `skip` là loại điều kiện được bỏ qua (Phòng Đào tạo
-// đăng ký hộ có ghi lý do); sĩ số, nhóm thực hành, trùng lịch, trùng học phần không bao giờ bỏ qua.
 export async function insertEnrollments(
   tx: Transaction,
   params: {
@@ -497,7 +474,6 @@ export async function insertEnrollments(
     const total = sectionCredits(basket);
     if (total < eligibility.limits.min) throw new InputError(`Cần đăng ký tối thiểu ${eligibility.limits.min} tín chỉ trong học kỳ (đang chọn ${total}).`);
   }
-  // Khóa lớp theo thứ tự id để hai sinh viên đăng ký cùng nhóm lớp không chờ vòng nhau.
   for (const section of adds.toSorted((a, b) => a.id.localeCompare(b.id))) {
     const seat = await claimSeat(tx, section.id, state.student);
     if ("error" in seat) throw new InputError(seat.error!);
@@ -526,7 +502,6 @@ export async function insertEnrollments(
   }
 }
 
-// Rút sinh viên khỏi một lớp (tự hủy, Phòng Đào tạo hủy hộ, rời lớp cũ khi đổi lớp). Trả về false nếu sinh viên không còn trong lớp.
 async function removeEnrollment(
   tx: Transaction,
   params: { studentId: string; sectionId: string; termId: string; eventKind: "drop" | "admin-drop" | null; actor: RegistrationActor; note?: string },
@@ -563,7 +538,6 @@ async function loadStudentTerm(tx: Executor, studentId: string, termId: string) 
   return { student, term };
 }
 
-// Sinh viên tự thao tác (đăng ký, hủy, đổi lớp, vào danh sách chờ): đang học, trong đợt đăng ký đang mở của khóa, không bị khóa.
 async function selfServiceState(tx: Transaction, studentId: string, termId: string, now: Date) {
   await lockRegistration(tx, studentId, termId);
   const { student, term } = await loadStudentTerm(tx, studentId, termId);
@@ -587,7 +561,6 @@ async function sectionsByIds(executor: Executor, ids: string[]) {
 
 const STUDENT_PORTAL = "Cổng sinh viên";
 
-// Sinh viên đăng ký các lớp đã chọn. Mọi điều kiện kiểm lại trong transaction, sau khóa của sinh viên, với dữ liệu mới nhất.
 export async function registerForStudent(
   tx: Transaction,
   params: { studentId: string; termId: string; sectionIds: string[]; labChoices: Record<string, string>; rules: RegistrationRules; now: Date },
@@ -608,7 +581,6 @@ export async function registerForStudent(
   return [...state.registered, ...adds].map((section) => section.id);
 }
 
-// Kiểm khi bỏ một lớp ra khỏi các lớp đang học: song hành và tối thiểu tín chỉ, cùng tiêu chí với lúc đăng ký.
 export function dropProblem(state: StudentTermState, section: ClassSection, eligibility: EligibilityBundle) {
   const remaining = state.registered.filter((entry) => entry.id !== section.id);
   const passed = (code: string) => {
@@ -636,8 +608,6 @@ export async function dropForStudent(tx: Transaction, params: { studentId: strin
   return { registeredIds: state.registered.filter((entry) => entry.id !== section.id).map((entry) => entry.id), promoted };
 }
 
-// Đổi sang lớp khác cùng học phần hoặc đổi nhóm thực hành trong một bước: rời chỗ cũ và nhận chỗ mới trong cùng transaction,
-// không được chỗ mới (hết chỗ, trùng lịch) thì rollback, vẫn giữ chỗ cũ.
 export async function swapForStudent(
   tx: Transaction,
   params: { studentId: string; termId: string; fromSectionId: string; toSectionId: string; labGroupId: string | null; rules: RegistrationRules; now: Date },
@@ -651,7 +621,6 @@ export async function swapForStudent(
   if (sameSection && (!params.labGroupId || params.labGroupId === state.labChoices[from.id])) throw new InputError("Chọn nhóm thực hành khác nhóm đang học.");
   const actor = { userId: null, label: state.student.fullName, channel: STUDENT_PORTAL };
   await removeEnrollment(tx, { studentId: state.student.id, sectionId: from.id, termId: state.term.id, eventKind: null, actor });
-  // Đọc lại lớp đích sau khi rời lớp cũ: đổi nhóm trong cùng lớp thì chỗ vừa trả được tính.
   const [target] = await sectionsByIds(tx, [to.id]);
   const remaining = { ...state, registered: state.registered.filter((entry) => entry.id !== from.id), labChoices: Object.fromEntries(Object.entries(state.labChoices).filter(([id]) => id !== from.id)) };
   const eligibility = await eligibilityOf(tx, remaining, [target], params.rules, period);
@@ -671,7 +640,6 @@ export async function swapForStudent(
   return { registeredIds: [...remaining.registered.map((entry) => entry.id), target.id], promoted };
 }
 
-// Vào danh sách chờ chỉ khi lớp không còn chỗ cho sinh viên (đầy hoặc phần còn lại là chỗ dành riêng) và sinh viên đủ mọi điều kiện khác.
 export async function joinWaitlistForStudent(tx: Transaction, params: { studentId: string; termId: string; sectionId: string; rules: RegistrationRules; now: Date }) {
   const { state, period } = await selfServiceState(tx, params.studentId, params.termId, params.now);
   const [section] = await sectionsByIds(tx, [params.sectionId]);
@@ -693,9 +661,6 @@ export async function joinWaitlistForStudent(tx: Transaction, params: { studentI
 
 const SYSTEM_ACTOR: RegistrationActor = { userId: null, label: "Hệ thống", channel: "Danh sách chờ" };
 
-// Lớp vừa có chỗ (sinh viên hủy, đổi lớp, Phòng Đào tạo hủy hộ hoặc tăng sĩ số): xếp lần lượt người đầu danh sách chờ đủ điều kiện
-// (đang học, không bị khóa, không trùng lịch, trong hạn mức, đúng đối tượng, còn chỗ cho đối tượng của mình). Người không đủ điều kiện
-// hoặc đang có thao tác đăng ký khác thì bỏ qua lượt này, vẫn giữ vị trí chờ. Chạy trong transaction của thao tác làm trống chỗ.
 export async function promoteWaitlist(tx: Transaction, sectionId: string, rules: RegistrationRules, now: Date) {
   const promoted: string[] = [];
   const tried = new Set<string>();
@@ -726,7 +691,6 @@ export async function promoteWaitlist(tx: Transaction, sectionId: string, rules:
           const busy = state.registered.flatMap((registeredSection) => chosenMeetings(registeredSection, state.labChoices));
           const lab = target.labGroups.find((group) => group.enrolled < group.capacity && !busy.some((meeting) => overlaps(meeting, group.meeting)));
           if (target.labGroups.length > 0 && !lab) return false;
-          // Ngoài đợt đăng ký của khóa thì không xếp: lượt chờ chờ đợt sau hoặc hết hạn khi mọi đợt đã đóng (expireWaitlists).
           const period = await periodOf(savepoint, term.id, student.cohort, now);
           if (!period?.isOpen) return false;
           const eligibility = await eligibilityOf(savepoint, state, [target], rules, period);
@@ -762,9 +726,6 @@ export async function promoteWaitlist(tx: Transaction, sectionId: string, rules:
   return promoted;
 }
 
-// Lượt chờ hết hạn khi khóa của sinh viên không còn đợt đăng ký nào của học kỳ chưa đóng (kể cả đợt điều chỉnh sắp mở):
-// hệ thống thôi tự xếp, báo sinh viên một lần. Chỉ lấy lượt đang chờ nên chạy lại không ghi trùng; lượt đang bị thao tác khác
-// khóa thì để lần chạy sau. Gọi từ tác vụ waitlist-expiry và lúc Phòng Đào tạo đóng, sửa đợt.
 export async function expireWaitlists(tx: Transaction, now: Date, termId?: string) {
   const due = tx
     .select({ id: waitlistEntries.id })
@@ -808,8 +769,6 @@ export async function expireWaitlists(tx: Transaction, now: Date, termId?: strin
   return { expired: expired.length, students: byStudent.size };
 }
 
-// Phòng Đào tạo đăng ký hộ: sinh viên phải đang học; được bỏ qua điều kiện học vụ và khóa đăng ký khi ghi lý do (override),
-// còn sĩ số, chỗ dành riêng, nhóm thực hành, trùng lịch luôn chặn. Sinh viên được báo trên cổng.
 export async function adminRegisterStudent(
   tx: Transaction,
   params: { studentId: string; sectionId: string; labGroupId: string | null; reason: string; override: boolean; actor: RegistrationActor; rules: RegistrationRules; now: Date },
@@ -870,8 +829,6 @@ export async function adminDropStudent(
   return promoteWaitlist(tx, section.id, params.rules, params.now);
 }
 
-// Hủy lớp (từ form sửa lớp hoặc hủy hàng loạt): rút mọi sinh viên, hủy danh sách chờ, bỏ buổi học tương lai, cập nhật học phí,
-// báo sinh viên. Một đường duy nhất cho mọi nơi hủy lớp.
 export async function cancelSection(tx: Transaction, sectionId: string, actor: RegistrationActor) {
   const [section] = await tx
     .select({ code: classSections.code, termId: classSections.termId, status: classSections.status, courseName: courses.name })
@@ -918,9 +875,6 @@ export async function cancelSection(tx: Transaction, sectionId: string, actor: R
   return { dropped: dropped.length, waitlisted: waitlisted.length };
 }
 
-// Chuyển sinh viên của lớp đã hủy sang lớp đang mở cùng học phần. Mỗi sinh viên kiểm như đăng ký (đang học, trùng lịch, hạn mức,
-// đối tượng, chỗ dành riêng); ai không đủ thì bỏ qua và trả lý do để Phòng Đào tạo xử lý riêng. Không xét khóa đăng ký: sinh viên
-// mất lớp vì nhà trường hủy, không phải tự đăng ký.
 export async function moveStudents(tx: Transaction, params: { fromId: string; toId: string; actor: RegistrationActor; rules: RegistrationRules; now: Date }) {
   const [from, to] = await sectionsByIds(tx, [params.fromId, params.toId]);
   if (from.status !== "cancelled" || to.status !== "open" || from.courseCode !== to.courseCode || from.termId !== to.termId) {
@@ -939,7 +893,6 @@ export async function moveStudents(tx: Transaction, params: { fromId: string; to
         const { student, term } = await loadStudentTerm(savepoint, studentId, to.termId);
         if (student.status !== "studying") throw new InputError("không ở tình trạng đang học");
         const state = await studentTermStateOf(savepoint, student, term);
-        // Đã tự đăng ký lớp khác của học phần thì thôi.
         if (state.registered.some((entry) => entry.courseCode === to.courseCode)) return "already";
         const [target] = await sectionsByIds(savepoint, [to.id]);
         const busy = state.registered.flatMap((entry) => chosenMeetings(entry, state.labChoices));
@@ -980,8 +933,6 @@ export async function moveStudents(tx: Transaction, params: { fromId: string; to
 
 export type RoomFacts = { id: string; code: string; capacity: number; status: "active" | "maintenance"; note: string; campus: string };
 
-// Phòng phải đang dùng được và đủ chỗ (phòng lý thuyết cho cả lớp, phòng thực hành cho từng nhóm); lịch không trùng phòng, không
-// trùng giờ giảng viên với lớp khác trong cả học kỳ (mọi khoa, kể cả lớp nháp), cùng tiêu chí với conflictsOf của giao diện.
 export async function scheduleProblemOf(
   tx: Transaction,
   candidate: {
@@ -1020,8 +971,6 @@ export async function scheduleProblemOf(
   return null;
 }
 
-// Đặt học kỳ hiện tại hoặc học kỳ nhận đăng ký: mỗi loại chỉ một học kỳ (unique index), bỏ cờ ở học kỳ cũ rồi đặt cho học kỳ mới
-// trong cùng transaction.
 export async function switchTermFlag(tx: Transaction, termId: string, flag: "current" | "registration-target") {
   const column = flag === "current" ? terms.isCurrent : terms.isRegistrationTarget;
   const [target] = await tx.select({ id: terms.id, name: terms.name }).from(terms).where(eq(terms.id, termId)).for("update");

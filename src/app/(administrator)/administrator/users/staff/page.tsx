@@ -7,7 +7,6 @@ import { getAccountStates, getStaffMembers } from "@/modules/users/users.query";
 
 export const metadata: Metadata = { title: "Cán bộ" };
 
-// Cán bộ (không phải giảng viên): tài khoản cổng quản trị, chỉ người phân quyền phạm vi toàn trường quản lý.
 export default async function Page() {
   const viewer = await requireSchoolWidePermission("access.manage");
   const [staff, accounts, roles, faculties] = await Promise.all([getStaffMembers(), getAccountStates("staff"), getRoles(), getFacultyNames()]);
@@ -15,7 +14,6 @@ export default async function Page() {
 
   return (
     <StaffTable
-      // Thêm cán bộ xong trang tải lại dữ liệu; đổi key để bảng nhận danh sách mới.
       key={staff.length}
       header={{
         title: "Cán bộ",

@@ -35,7 +35,6 @@ type ReportExportCenterProps = {
   reports: ReportDefinition[];
   terms: { id: string; name: string }[];
   faculties: string[];
-  // Cán bộ theo khoa không chọn được toàn trường.
   allowAllFaculties: boolean;
   defaultTermId: string;
   jobs: ExportJob[];
@@ -193,7 +192,6 @@ export function ReportExportCenter({ reports, terms, faculties, allowAllFacultie
         }
       >
         <Form form={form} layout="vertical" onFinish={create} initialValues={{ termId: defaultTermId, faculty: allowAllFaculties ? "all" : faculties[0], format: "xlsx" }}>
-          {/* Báo cáo số liệu hiện tại không theo học kỳ: giữ học kỳ mặc định ở form để action nhận đủ tham số. */}
           <Form.Item name="termId" label="Học kỳ" hidden={opened ? !opened.usesTerm : false}>
             <Select options={terms.map((term) => ({ value: term.id, label: term.name }))} />
           </Form.Item>

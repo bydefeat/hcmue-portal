@@ -15,18 +15,12 @@ const schema = z.object({
       .transform((value) => value.split(",").map((origin) => origin.trim()).filter(Boolean))
       .default([]),
   ),
-  // Gửi email qua Resend. Bỏ trống khóa thì không gửi, chỉ in nội dung thư ra log server (môi trường phát triển).
   DEFEAT_RESEND_API_KEY: blankAsUnset(z.string().startsWith("re_").optional()),
   DEFEAT_MAIL_FROM: blankAsUnset(z.string().default("HCMUE Portal <onboarding@resend.dev>")),
-  // Khóa bí mật của bộ hẹn giờ gọi /api/cron/<tác vụ>. Bỏ trống cả hai thì endpoint tắt. CRON_SECRET là tên Vercel Cron tự gửi
-  // trong header Authorization: Bearer <CRON_SECRET>; đặt tên nào cũng được, đặt cả hai thì khớp một trong hai là đủ.
   DEFEAT_CRON_SECRET: blankAsUnset(z.string().min(32).optional()),
   CRON_SECRET: blankAsUnset(z.string().min(32).optional()),
-  // Số ngày giữ nhật ký thao tác; tác vụ audit-cleanup xóa bản ghi cũ hơn. Mặc định 3 năm.
   DEFEAT_AUDIT_RETENTION_DAYS: blankAsUnset(z.coerce.number().int().min(30).default(1095)),
-  // Thư mục lưu tệp tải lên (minh chứng đơn từ, đề thi), tương đối thì tính từ thư mục chạy app.
   DEFEAT_STORAGE_DIRECTORY: blankAsUnset(z.string().trim().min(1).default("./storage")),
-  // Nơi lưu tệp: "local" (thư mục trên) hoặc "s3" (AWS S3, Cloudflare R2, MinIO; cần đủ vùng, bucket, khóa truy cập).
   DEFEAT_STORAGE_DRIVER: blankAsUnset(z.enum(["local", "s3"]).default("local")),
   DEFEAT_S3_ENDPOINT: blankAsUnset(z.url({ protocol: /^https?$/ }).optional()),
   DEFEAT_S3_REGION: blankAsUnset(z.string().trim().min(1).optional()),
@@ -40,12 +34,9 @@ const schema = z.object({
   DEFEAT_S3_ACCESS_KEY_ID: blankAsUnset(z.string().trim().min(1).optional()),
   DEFEAT_S3_SECRET_ACCESS_KEY: blankAsUnset(z.string().min(1).optional()),
   DEFEAT_S3_FORCE_PATH_STYLE: blankAsUnset(z.stringbool().default(false)),
-  // Quét virus tệp tải lên bằng clamd (ClamAV) qua TCP. Bỏ trống host thì không quét.
   DEFEAT_CLAMAV_HOST: blankAsUnset(z.string().trim().min(1).optional()),
   DEFEAT_CLAMAV_PORT: blankAsUnset(z.coerce.number().int().min(1).max(65535).default(3310)),
-  // Header chứa IP thật của người dùng, do reverse proxy ghi đè (rate limit đăng nhập, nhật ký thao tác).
   DEFEAT_TRUSTED_IP_HEADER: blankAsUnset(z.string().trim().toLowerCase().default("x-forwarded-for")),
-  // IP hoặc dải CIDR của các reverse proxy, cách nhau bởi dấu phẩy. Bỏ trống thì chỉ tin header có đúng một IP.
   DEFEAT_TRUSTED_PROXIES: blankAsUnset(
     z
       .string()
@@ -58,7 +49,6 @@ const isBuildPhase = () => process.env.NEXT_PHASE === "phase-production-build";
 
 const S3_REQUIRED = ["DEFEAT_S3_REGION", "DEFEAT_S3_BUCKET", "DEFEAT_S3_ACCESS_KEY_ID", "DEFEAT_S3_SECRET_ACCESS_KEY"] as const;
 
-// Production thiếu khóa Resend thì mail.lib in cả mã OTP ra log: không cho chạy (bước next build vẫn qua để dựng được bản build).
 export const env = schema
   .refine((value) => process.env.NODE_ENV !== "production" || isBuildPhase() || Boolean(value.DEFEAT_RESEND_API_KEY), {
     message: "DEFEAT_RESEND_API_KEY bắt buộc khi NODE_ENV=production",

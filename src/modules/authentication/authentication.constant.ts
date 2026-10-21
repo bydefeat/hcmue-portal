@@ -18,12 +18,10 @@ export const OTP_RULES: Rule[] = [
 
 export const AUTH_COOKIE_PREFIX = "hcmue";
 
-// proxy.ts gắn đường dẫn đang mở vào header này để layout dựng được ?next= khi phiên đã hết hạn.
 export const AUTH_PATHNAME_HEADER = "x-hcmue-pathname";
 
 export const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 7;
 
-// Sai quá MAX_FAILURES lần trong WINDOW_MINUTES phút thì tạm khóa đăng nhập tên đó LOCK_MINUTES phút.
 export const SIGN_IN_LOCKOUT = { maxFailures: 10, windowMinutes: 15, lockMinutes: 15 } as const;
 
 export const LOGIN_NAME_HINT = "Sinh viên nhập mã số sinh viên, ví dụ 50.01.104.013. Cán bộ, giảng viên nhập mã số của mình, ví dụ GV104011";
@@ -36,7 +34,6 @@ export const AUTH_ERROR = {
 
 const INVALID_LOGIN_NAME = "Tên đăng nhập là mã số sinh viên (ví dụ 50.01.104.013) hoặc mã số cán bộ, giảng viên (ví dụ GV104011)";
 
-// Mã lỗi better-auth trả về → câu hiển thị. Sai tên đăng nhập hay sai mật khẩu dùng chung một câu để không lộ tài khoản nào tồn tại.
 export const AUTH_ERROR_MESSAGE: Record<string, string> = {
   INVALID_USERNAME_OR_PASSWORD: "Sai tên đăng nhập hoặc mật khẩu",
   INVALID_EMAIL_OR_PASSWORD: "Sai tên đăng nhập hoặc mật khẩu",
@@ -62,13 +59,11 @@ export const AUTH_RATE_LIMITED = "Thử quá nhiều lần, đợi một phút r
 
 export function authErrorMessage(error: { code?: string; status?: number } | null | undefined) {
   if (!error) return AUTH_FALLBACK_ERROR;
-  // Khóa tạm theo tên đăng nhập cũng trả 429 nhưng có câu riêng (chờ 15 phút, không phải một phút).
   if (error.code === "SIGN_IN_LOCKED") return AUTH_ERROR.SIGN_IN_LOCKED;
   if (error.status === 429) return AUTH_RATE_LIMITED;
   return (error.code && AUTH_ERROR_MESSAGE[error.code]) || AUTH_FALLBACK_ERROR;
 }
 
-// Chỉ nhận đường dẫn nội bộ, chặn chuyển hướng ra trang ngoài qua ?next=.
 export function safeNextPath(next: string | null | undefined) {
   return safeInternalPath(next);
 }

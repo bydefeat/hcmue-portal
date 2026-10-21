@@ -4,7 +4,6 @@ import { AUTH_COOKIE_PREFIX, AUTH_PATHNAME_HEADER } from "@/modules/authenticati
 
 const PROTECTED_PREFIXES = ["/application", "/lecturer", "/administrator"];
 
-// Kiểm tra lạc quan: chỉ xem có cookie phiên hay không. Phiên còn hạn và đúng vai trò do requireRole() ở layout kiểm.
 export function authenticationProxy(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
   const isProtected = PROTECTED_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));

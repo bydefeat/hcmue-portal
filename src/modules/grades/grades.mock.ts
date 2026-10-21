@@ -5,7 +5,6 @@ import { letterOf } from "@/modules/grades/grades.rule";
 import { REGULATION_RULES } from "@/modules/settings/settings.mock";
 import type { GradeComponent, GradeSheetStatus, ScoreRow, TranscriptCourseInput, WarningStatus } from "@/modules/grades/grades.type";
 
-// Dữ liệu mẫu chỉ còn seed dùng (scripts/seed/grades.seed.ts); query đọc từ Postgres.
 
 export const PAST_TERMS = [
   { id: mockTermId("hk1-2022"), name: "Học kỳ 1, năm học 2022-2023" },
@@ -61,8 +60,6 @@ export function mockTranscriptTerms(index: number) {
     courses: takeCourses(COURSES_PER_PAST_TERM).map(([courseCode, courseName, credits]) => graded(courseCode, courseName, credits, clamp(ability + (random() - 0.5) * 3))),
   }));
 
-  // Học lại và học cải thiện ở học kỳ chính kế tiếp (luồng ngẫu nhiên riêng để điểm lần đầu không đổi): phần lớn học phần F được học lại,
-  // một số sinh viên học cải thiện một học phần điểm D. Điểm tính CPA là lần học cuối.
   const retakeRandom = createRandom(index * 211 + 17);
   let improved = index % 7 !== 3;
   terms.forEach((term, position) => {
@@ -119,7 +116,6 @@ export const GRADE_SHEET_SEEDS: Record<string, GradeSheetSeed> = {
   [mockSectionId("hk1-2026", "ENGL1002.01")]: { components: DEFAULT_COMPONENTS, status: "draft", deadline: mockDate(-3, "23:59"), fill: { attendance: 1, midterm: 0.5, final: 0 } },
 };
 
-// Lớp không có trong GRADE_SHEET_SEEDS: bảng điểm nháp, chưa nhập ô nào.
 export const DEFAULT_SHEET_SEED: GradeSheetSeed = { components: DEFAULT_COMPONENTS, status: "draft", deadline: mockDate(30, "23:59"), fill: {} };
 
 export const RETURN_REASON = "Tổng trọng số cột giữa kỳ sai, kiểm tra lại cấu hình cột điểm.";
@@ -127,7 +123,6 @@ export const RETURN_REASON = "Tổng trọng số cột giữa kỳ sai, kiểm 
 export const SHEET_LOCKED_AT = mockDate(-8, "16:20");
 export const SHEET_SAVED_AT = mockDate(-1, "21:47");
 
-// Điểm thành phần của một sinh viên trong bảng điểm mẫu: ô nào chưa nhập thì null.
 export function mockScoreRow(classSectionId: string, studentId: string, seed: GradeSheetSeed): ScoreRow {
   const index = mockStudentIndex(studentId);
   const random = createRandom(index * 17 + classSectionId.length * 101);
@@ -141,11 +136,8 @@ export function mockScoreRow(classSectionId: string, studentId: string, seed: Gr
   );
 }
 
-// Cảnh báo học vụ sau học kỳ 2, năm học 2025-2026: trạng thái xử lý và ngày lập của từng sinh viên.
 export const WARNING_TERM_KEY = "hk2-2025";
 
-// Cảnh báo của học kỳ chính trước đó đã xử lý xong (đã gặp sinh viên): sinh viên bị cảnh báo cả hai học kỳ vào danh sách đề xuất
-// xét buộc thôi học.
 export const PREVIOUS_WARNING_TERM_KEY = "hk1-2025";
 
 export function mockWarningMeta(index: number): { id: string; status: WarningStatus; createdAt: string } {

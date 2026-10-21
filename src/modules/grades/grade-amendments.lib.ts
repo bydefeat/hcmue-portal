@@ -22,7 +22,6 @@ type Executor = Transaction | typeof db;
 
 const AMENDABLE = ["locked", "approved", "published"] as const;
 
-// Bảng điểm của lớp, khóa dòng để đề nghị, duyệt sửa điểm không chen với công bố.
 async function lockSheetOf(tx: Transaction, where: { classSectionId: string } | { gradeSheetId: string }) {
   const [sheet] = await tx
     .select({
@@ -45,7 +44,6 @@ async function lockSheetOf(tx: Transaction, where: { classSectionId: string } | 
   return sheet ?? null;
 }
 
-// Tài khoản cán bộ có quyền công bố điểm trong phạm vi khoa của học phần: nhận thông báo có đề nghị sửa điểm cần duyệt.
 export async function gradePublisherUserIds(executor: Executor, facultyId: string) {
   const rows = await executor
     .selectDistinct({ userId: roleAssignments.userId })
@@ -69,13 +67,10 @@ export type ProposeAmendmentInput = {
   source: GradeAmendmentSource;
   requestId?: string | null;
   requester: AmendmentRequester;
-  // Chỉ nhận bảng điểm đã công bố (giảng viên đề nghị từ bảng điểm); đơn sửa điểm nhận cả bảng điểm đã chốt, đã duyệt.
   publishedOnly?: boolean;
   notify?: boolean;
 };
 
-// Đề nghị sửa một cột điểm của một sinh viên: kiểm bảng điểm đã chốt, cột thuộc bảng điểm, sinh viên đang học lớp, điểm mới khác
-// điểm đang lưu. DB chặn lần cuối (grade_amendments_guard, một đề nghị chờ duyệt cho mỗi ô).
 export async function proposeGradeAmendment(tx: Transaction, input: ProposeAmendmentInput) {
   const sheet = await lockSheetOf(tx, { classSectionId: input.classSectionId });
   if (!sheet || !(AMENDABLE as readonly string[]).includes(sheet.status)) throw new GradeActionError("Bảng điểm của lớp chưa chốt, giảng viên sửa trực tiếp trên trang nhập điểm.");
@@ -149,8 +144,6 @@ const requesterUser = alias(user, "requester_user");
 
 export type DecideAmendmentInput = { id: string; decision: "approved" | "rejected"; note: string; actor: AuditActor };
 
-// Duyệt (áp điểm, tính lại kết quả học phần) hoặc từ chối một đề nghị sửa điểm. Người đề nghị không tự duyệt (DB chặn thêm bằng
-// grade_amendments_not_self_approved). Điểm chữ, thang 4 quy đổi theo bản quy chế áp dụng ngày công bố bảng điểm, như lúc công bố.
 export async function decideGradeAmendment(tx: Transaction, input: DecideAmendmentInput) {
   const [amendment] = await tx
     .select({
@@ -208,7 +201,6 @@ export async function decideGradeAmendment(tx: Transaction, input: DecideAmendme
   const scoreOf = new Map(scores.map((row) => [row.componentId, row.score]));
   scoreOf.set(amendment.gradeComponentId, amendment.newScore);
   const row = Object.fromEntries(columns.map((column) => [column.key, scoreOf.get(column.id) ?? null]));
-  // Quy chế lúc công bố (bảng điểm chưa công bố thì bản đang áp dụng, chỉ để ghi tổng dự kiến).
   const regulation = await regulationAt(tx, sheet.publishedAt ? schoolTime(sheet.publishedAt).format("YYYY-MM-DD") : schoolToday());
   const total = weightedScore(columns, row, regulation.grading.roundingStep);
   const graded = total === null ? null : courseGrade(total, regulation.grading.scale);
@@ -220,7 +212,6 @@ export async function decideGradeAmendment(tx: Transaction, input: DecideAmendme
     .insert(gradeScores)
     .values({ gradeComponentId: amendment.gradeComponentId, enrollmentId: amendment.enrollmentId, score: amendment.newScore })
     .onConflictDoUpdate({ target: [gradeScores.gradeComponentId, gradeScores.enrollmentId], set: { score: sql`excluded.score`, updatedAt: sql`now()` } });
-  // Kết quả học phần chỉ có sau khi công bố; còn thiếu điểm (sinh viên I chưa thi bù đủ) thì giữ nguyên I.
   if (sheet.status === "published" && graded) {
     if (result) await tx.update(courseResults).set({ score10: graded.score10, letter: graded.letter, point4: graded.point4 }).where(eq(courseResults.id, result.id));
     else {
@@ -260,7 +251,6 @@ export async function decideGradeAmendment(tx: Transaction, input: DecideAmendme
   return { status: "approved" as const, resultAfter: after };
 }
 
-// Người đề nghị là cán bộ (nhập tay) nhận ở cổng quản trị, giảng viên nhận ở cổng giảng viên. Đề nghị theo đơn thì đơn đã báo người gửi.
 async function notifyRequester(tx: Transaction, amendment: { requestedByUserId: string | null; requesterRoles: string | null; source: GradeAmendmentSource }, message: { title: string; body: string }) {
   if (!amendment.requestedByUserId || amendment.source === "regrade") return;
   const audience = amendment.source === "manual" || !amendment.requesterRoles?.split(",").includes("lecturer") ? "administrator" : "lecturer";
@@ -271,7 +261,6 @@ async function notifyRequester(tx: Transaction, amendment: { requestedByUserId: 
   });
 }
 
-// Đơn được duyệt ở bước cuối (phúc khảo, sửa điểm): tạo đề nghị rồi duyệt ngay bởi người duyệt bước cuối, trong cùng giao dịch.
 export async function amendFromRequest(tx: Transaction, input: ProposeAmendmentInput & { decider: AuditActor }) {
   const { id } = await proposeGradeAmendment(tx, { ...input, notify: false });
   return decideGradeAmendment(tx, { id, decision: "approved", note: "", actor: input.decider });
@@ -279,10 +268,7 @@ export async function amendFromRequest(tx: Transaction, input: ProposeAmendmentI
 
 const SYSTEM_ACTOR: AuditActor = { userId: null, name: "Hệ thống", role: "Tác vụ định kỳ" };
 
-// Tác vụ incomplete-grades: điểm I quá grading.incompleteTerms học kỳ mà chưa có điểm thi bù thì chuyển F (điểm 0), báo sinh viên.
-// Chỉ đổi dòng còn là I nên chạy lại không chuyển trùng, không báo trùng.
 export async function convertOverdueIncompletes(executor: Executor = db, today = schoolToday()) {
-  // Trong transaction của nơi gọi (test) thì chạy trong savepoint.
   return (executor as typeof db).transaction(async (tx) => {
     const regulation = await regulationAt(tx, today);
     const [pending, allTerms] = await Promise.all([

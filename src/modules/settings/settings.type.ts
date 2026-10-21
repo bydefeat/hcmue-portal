@@ -6,7 +6,6 @@ export type LetterStep = {
   point4: number;
 };
 
-// Ngưỡng CPA (thang 4) thấp nhất của từng mức xếp loại học lực; dùng cho cả xếp loại tốt nghiệp (mức Trung bình trở lên mới tốt nghiệp).
 export type StandingThresholds = {
   excellent: number;
   veryGood: number;
@@ -17,7 +16,6 @@ export type StandingThresholds = {
 
 export type CefrLevel = "A1" | "A2" | "B1" | "B2" | "C1" | "C2";
 
-// Mức kỷ luật sinh viên từ nhẹ đến nặng.
 export type DisciplineLevel = "reprimand" | "warning" | "suspension" | "expulsion";
 
 export type RankedStanding = "excellent" | "very-good" | "good" | "average";
@@ -29,10 +27,8 @@ export type RegulationSettings = {
   updatedBy: string;
   grading: {
     scale: LetterStep[];
-    // Bước làm tròn điểm tổng kết học phần (thang 10): 0,1, 0,5 hoặc 1.
     roundingStep: 0.1 | 0.5 | 1;
     standing: StandingThresholds;
-    // Điểm I (chưa hoàn thiện, do hoãn thi) quá số học kỳ này kể từ học kỳ nhận I mà chưa có điểm thì chuyển thành F.
     incompleteTerms: number;
   };
   credits: {
@@ -41,7 +37,6 @@ export type RegulationSettings = {
     maxSummer: number;
     maxWhenWarned: number;
     overloadMinCpa: number;
-    // Học vượt được duyệt đăng ký tối đa maxPerTerm cộng số tín chỉ này.
     overloadExtraCredits: number;
   };
   warning: {
@@ -50,7 +45,6 @@ export type RegulationSettings = {
     level2Cpa: number;
     level2FailedCredits: number;
     level3Cpa: number;
-    // Số học kỳ chính liên tiếp bị cảnh báo thì đưa vào danh sách đề xuất xét buộc thôi học.
     expelAfterWarnings: number;
   };
   attendance: {
@@ -62,17 +56,12 @@ export type RegulationSettings = {
     studyPlanReviewDays: number;
     regradeWindowDays: number;
     registrationClosingSoonHours: number;
-    // Rút học phần (nhận W) trong số tuần này kể từ ngày bắt đầu học kỳ.
     withdrawDeadlineWeeks: number;
-    // Tổng số học kỳ bảo lưu tối đa trong thời gian học (kiểm khi gửi đơn và khi duyệt đơn bảo lưu).
     maxReserveTerms: number;
   };
   graduation: {
-    // Khối lượng học lại vượt quá phần trăm này của tổng tín chỉ chương trình thì hạng tốt nghiệp bị giảm một mức.
     retakeLimitPercent: number;
-    // Bị kỷ luật từ mức này trở lên trong thời gian học thì hạng tốt nghiệp bị giảm một mức.
     downgradeDisciplineLevel: DisciplineLevel;
-    // Các hạng bị giảm khi vi phạm một trong hai điều kiện trên (thông lệ: Xuất sắc, Giỏi).
     downgradeStandings: RankedStanding[];
     languageMinLevel: CefrLevel;
     requireItCertificate: boolean;
@@ -89,12 +78,9 @@ export type CalendarEvent = {
   startDate: string;
   endDate: string;
   audience: string;
-  // manual: mốc tự nhập ở trang Lịch năm học (sửa, xóa được); term, registration: lấy từ học kỳ, đợt đăng ký (chỉ đọc,
-  // sửa ở trang Học kỳ) để lịch không có hai nguồn ngày.
   source: "manual" | "term" | "registration";
 };
 
-// Loại mốc tự nhập: thời gian học kỳ và đợt đăng ký lấy từ học kỳ, đợt đăng ký.
 export type ManualCalendarEventKind = Exclude<CalendarEventKind, "teaching" | "registration">;
 
 export type RegulationVersion = {
@@ -106,7 +92,6 @@ export type RegulationVersion = {
 
 export type ReportFormat = "xlsx" | "pdf" | "csv";
 
-// Ô số kèm định dạng: Excel nhận giá trị số với định dạng hiển thị, CSV nhận chữ đã định dạng kiểu Việt Nam.
 export type ReportCell = string | number | { value: number; text: string; numFmt: string };
 
 export type ReportDefinition = {
@@ -114,11 +99,8 @@ export type ReportDefinition = {
   name: string;
   description: string;
   audience: string;
-  // Báo cáo theo học kỳ hay số liệu hiện tại (không chọn học kỳ).
   usesTerm: boolean;
-  // Lọc theo khoa: khoa của sinh viên hay khoa quản lý học phần.
   facultyBasis: "student" | "course";
-  // Quyền cần để xuất, tải (ngoài reports.view).
   permission: Permission;
 };
 

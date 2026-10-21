@@ -14,7 +14,6 @@ type ElectiveGroupsCardProps = {
   onChange: (program: ProgramDetail) => void;
 };
 
-// Nhóm tự chọn của khung: tên, số tín chỉ tối thiểu sinh viên phải tích lũy, các học phần tự chọn trong khung thuộc nhóm.
 export function ElectiveGroupsCard({ program, editable, onChange }: ElectiveGroupsCardProps) {
   const [messageApi, contextHolder] = message.useMessage();
   const [modal, modalContextHolder] = Modal.useModal();

@@ -8,7 +8,6 @@ import type { MailOutboxOverview } from "@/modules/mail/mail.type";
 
 const PROBLEM_LIMIT = 100;
 
-// Thư lỗi: đã ngừng thử, hoặc đang chờ gửi lại sau một lần lỗi. Không trả nội dung thư.
 const PROBLEM_COLUMNS = {
   id: mailOutbox.id,
   kind: mailOutbox.kind,
@@ -43,7 +42,6 @@ export async function getMailOutboxOverview(): Promise<MailOutboxOverview> {
     stats,
     problems: problems.map((row) => ({
       ...row,
-      // Thư đã ngừng thử không có lần gửi tiếp; thư đang gửi thì cột này là hạn giữ chỗ, không phải lịch gửi.
       nextAttemptAt: row.status === "pending" ? row.nextAttemptAt.toISOString() : null,
       createdAt: row.createdAt.toISOString(),
     })),

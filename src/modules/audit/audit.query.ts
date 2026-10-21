@@ -19,7 +19,6 @@ type AuditFilter = { entityType?: AuditEntityType; entityId?: string; actorUserI
 const COLUMNS = {
   id: auditLogs.id,
   at: auditLogs.at,
-  // Tên người thao tác là nhãn lưu lúc ghi: đổi tên tài khoản sau đó không sửa ngược được nhật ký.
   actorName: auditLogs.actorLabel,
   actorRole: auditLogs.actorRole,
   action: auditLogs.action,
@@ -35,7 +34,6 @@ type Row = { at: Date; ip: string | null } & Omit<AuditEntry, "at" | "ip">;
 
 const toEntry = ({ at, ip, ...row }: Row): AuditEntry => ({ ...row, at: at.toISOString(), ip: ip ?? "" });
 
-// Giảng viên chỉ xem lịch sử bảng điểm của lớp mình dạy.
 async function teachesSection(userId: string, sectionId: string) {
   if (!isUuid(sectionId)) return false;
   const [row] = await db
@@ -59,9 +57,6 @@ async function studentFaculty(studentId: string) {
   return row?.faculty ?? null;
 }
 
-// Cả nhật ký cần quyền audit.view. Lịch sử của một đối tượng thì cần quyền xem chính đối tượng đó trong phạm vi khoa (hồ sơ
-// sinh viên: students.view và sinh viên thuộc khoa của vai trò); đối tượng khác chỉ người có audit.view. Nhật ký của chính
-// mình (trang hồ sơ) ai cũng xem được.
 async function guard(filter: AuditFilter | undefined) {
   const session = await requireSession();
   if (filter?.actorUserId !== undefined && filter.actorUserId === session.user.id) return;
@@ -81,7 +76,6 @@ async function guard(filter: AuditFilter | undefined) {
   forbidden();
 }
 
-// Lịch sử một đối tượng hoặc của chính người xem (200 bản ghi mới nhất).
 export async function getAuditLog(filter?: AuditFilter): Promise<AuditEntry[]> {
   await guard(filter);
   if (filter?.actorUserId !== undefined && !isUuid(filter.actorUserId)) return [];
@@ -100,7 +94,6 @@ export async function getAuditLog(filter?: AuditFilter): Promise<AuditEntry[]> {
 
 export type AuditQuery = {
   page?: number;
-  // Ngày "YYYY-MM-DD" theo giờ Việt Nam, tính trọn ngày.
   from?: string;
   to?: string;
   actor?: string;
@@ -114,7 +107,6 @@ const day = (value: string | undefined) => (value && /^\d{4}-\d{2}-\d{2}$/.test(
 
 const escapeLike = (value: string) => value.replace(/[\\%_]/g, (char) => `\\${char}`);
 
-// Trang Nhật ký thao tác: lọc ở DB theo thời gian, người, đối tượng, hành động, phân trang.
 export async function getAuditLogPage(query: AuditQuery): Promise<AuditPage> {
   await requirePermission("audit.view");
   const conditions: (SQL | undefined)[] = [];

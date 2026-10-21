@@ -109,7 +109,6 @@ describe("surveys: phiếu ẩn danh", () => {
       const afterSubmit = await totals();
       assert.equal(afterSubmit.reduce((sum, row) => sum + row.responses, 0), before.reduce((sum, row) => sum + row.responses, 0) + 1);
 
-      // Đợt chưa đóng: không xáo.
       assert.equal((await sealSurvey(tx, SURVEY.id)).responses, 0);
       const ids = new Set((await tx.select({ id: surveyResponses.id }).from(surveyResponses).where(eq(surveyResponses.surveyId, SURVEY.id))).map((row) => row.id));
       await setSurveyOpen(tx, await adminViewer(), SURVEY.id, false);
@@ -119,7 +118,6 @@ describe("surveys: phiếu ẩn danh", () => {
       assert.deepEqual(await totals(), afterSubmit, "số phiếu, điểm trung bình từng lớp giữ nguyên");
       const [sealed] = await tx.select({ sealedAt: surveys.sealedAt }).from(surveys).where(eq(surveys.id, SURVEY.id));
       assert.ok(sealed.sealedAt);
-      // Mọi phiếu sau khi xáo cùng một giao dịch ghi (không còn ghép xmin với dấu "đã nộp").
       const xmins = await tx.execute<{ distinct: number }>(sql`SELECT count(DISTINCT xmin::text)::int AS distinct FROM survey_responses WHERE survey_id = ${SURVEY.id}`);
       assert.equal(xmins[0].distinct, 1);
       assert.match(await rejectedIn(tx, (sp) => recordSurveySubmission(sp, CURRENT_STUDENT_ID, input.data)), /chưa mở hoặc đã đóng/);

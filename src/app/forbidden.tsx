@@ -7,8 +7,6 @@ import { SignOutButton } from "@/modules/authentication/components/sign-out-butt
 
 export const metadata: Metadata = { title: "Không có quyền truy cập" };
 
-// Nút quay lại dẫn về trang chủ cổng của chính người dùng (sinh viên, giảng viên không vào được /administrator).
-// Tài khoản chưa có vai trò nào (cán bộ mới chưa được phân quyền) thì không có cổng để về: hướng dẫn liên hệ quản trị, cho đăng xuất.
 export default async function Forbidden() {
   const session = await getSession();
   const roles = parseRoles(session?.user.role);

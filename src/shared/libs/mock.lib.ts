@@ -12,7 +12,6 @@ export function createRandom(seed: number) {
   };
 }
 
-// Băm chuỗi ra 128 bit (cyrb128), thuần JS để dùng được cả ở client.
 function hash128(value: string) {
   let h1 = 1779033703;
   let h2 = 3144134277;
@@ -32,10 +31,8 @@ function hash128(value: string) {
   return [(h1 ^ h2 ^ h3 ^ h4) >>> 0, (h2 ^ h1) >>> 0, (h3 ^ h1) >>> 0, (h4 ^ h1) >>> 0];
 }
 
-const MOCK_ID_TIME = "01940000-0000"; // 2025-01: phần thời gian cố định của uuidv7
+const MOCK_ID_TIME = "01940000-0000";
 
-// Id tất định cho dữ liệu mẫu: cùng một khóa ("student:12", "term:hk1-2026") luôn ra cùng một uuid dạng v7.
-// Seed ghi đúng id này vào Postgres nên module đã đọc DB và module còn đọc mock trỏ về cùng một bản ghi.
 export function mockId(key: string) {
   const hex = hash128(key)
     .map((part) => part.toString(16).padStart(8, "0"))
@@ -153,7 +150,6 @@ export function mockLecturerIdentity(index: number): MockLecturerIdentity {
 const STUDENT_INDEX = new Map(Array.from({ length: 1000 }, (_, index) => [mockId(`student:${index}`), index]));
 const LECTURER_INDEX = new Map(Array.from({ length: 100 }, (_, index) => [mockId(`lecturer:${index}`), index]));
 
-// Ngược lại của mockStudentIdentity(index).id, -1 nếu không phải sinh viên mẫu.
 export function mockStudentIndex(id: string) {
   return STUDENT_INDEX.get(id) ?? -1;
 }

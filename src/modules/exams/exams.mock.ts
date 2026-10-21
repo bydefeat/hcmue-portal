@@ -3,8 +3,6 @@ import { mockDate, mockId, mockLecturerIdentity, mockSectionId, mockTermId } fro
 import { EXAM_START_TIMES } from "@/modules/exams/exams.constant";
 import type { ExamFormat, ExamKind, ExamPaperFile, ExamPaperStatus, ExamSessionStatus } from "@/modules/exams/exams.type";
 
-// Ca thi mẫu: phòng và cán bộ coi thi không ghi sẵn ở đây mà seed xếp theo sĩ số thật của lớp (đủ sức chứa thi, 2 cán bộ mỗi
-// phòng, không trùng phòng hay cán bộ giữa các ca chồng giờ).
 export type ExamSeed = {
   id: string;
   termId: string;
@@ -19,14 +17,12 @@ export type ExamSeed = {
   startTime: string;
   durationMinutes: number;
   format: ExamFormat;
-  // Phòng ưu tiên theo hình thức thi (phòng máy cho thi thực hành...), seed thêm phòng khác nếu thiếu chỗ.
   preferredRooms: string[];
   status: ExamSessionStatus;
   paperStatus: ExamPaperStatus;
   paperDeadline: string;
   papers: ExamPaperFile[];
   paperReview: { reviewerName: string; returnReason: string | null } | null;
-  // Seed ưu tiên xếp giảng viên đang đăng nhập (giảng viên 0) coi ca này để trang Lịch coi thi có dữ liệu.
   featureCurrentLecturer: boolean;
 };
 
@@ -55,10 +51,8 @@ const SECTIONS: Seed[] = [
   [mockSectionId("hk1-2026", "POLI1001.01"), "POLI1001.01", "Triết học Mác - Lênin", null, "Khoa Lý luận chính trị", "multiple-choice"],
 ];
 
-// Lớp tính điểm theo đồ án (bảng điểm mẫu: chuyên cần, đồ án, cuối kỳ) không có ca thi giữa kỳ.
 const PROJECT_GRADED = new Set(["COMP1070.01", "COMP1031.01"]);
 
-// Học phần học nửa đầu học kỳ: đã thi cuối kỳ, khớp bảng điểm mẫu đã công bố của lớp này.
 const EARLY_FINISH = new Set(["MATH1011.01"]);
 
 const ROOMS_FOR: Record<ExamFormat, string[]> = {
@@ -69,23 +63,19 @@ const ROOMS_FOR: Record<ExamFormat, string[]> = {
   project: ["B.302", "A.305"],
 };
 
-// Giờ thi mẫu nằm trong các ca thi của trường (form chọn đúng các giờ này).
 const START_TIMES = EXAM_START_TIMES.slice(0, 4);
 const PAPER_STATUSES: ExamPaperStatus[] = ["approved", "submitted", "not-submitted"];
 
-// Đề cuối kỳ bị Phòng Khảo thí trả lại, giảng viên cần nộp lại.
 const RETURNED: Record<string, string> = {
   "COMP1020.02": "Đáp án câu 3 chưa có thang điểm chi tiết; trang bìa đề thiếu thời gian làm bài và quy định được dùng tài liệu.",
 };
 
 const REVIEWER_NAME = "Trần Minh Khoa";
 
-// Ngày làm việc gần nhất từ ngày cho trước trở đi (không thi chủ nhật).
 function workday(date: dayjs.Dayjs) {
   return date.day() === 0 ? date.add(1, "day") : date;
 }
 
-// Đợt thi cuối kỳ: 10 ngày làm việc từ thứ hai 04/01/2027.
 const FINAL_DAYS = Array.from({ length: 12 }, (_, index) => dayjs("2027-01-04").add(index, "day"))
   .filter((day) => day.day() !== 0)
   .slice(0, 10);
@@ -114,7 +104,6 @@ function build(seed: Seed, index: number, kind: "midterm" | "final"): ExamSeed {
           { kind: "paper", fileName: `De thi ${fileStem}.pdf`, sizeBytes: 0 },
           { kind: "answer-key", fileName: `Dap an ${fileStem}.pdf`, sizeBytes: 0 },
         ];
-  // Hạn nộp đề luôn trước giờ thi: giữa kỳ 5 ngày trước; cuối kỳ là một mốc chung trong vài ngày tới.
   const paperDeadline = kind === "midterm" || early ? startsAt.subtract(5, "day").hour(17).minute(0).toISOString() : mockDate(5 + (index % 4), "17:00");
   return {
     id: mockId(`exam-session:thi-${kind}-${code.toLowerCase()}`),
@@ -143,7 +132,6 @@ function build(seed: Seed, index: number, kind: "midterm" | "final"): ExamSeed {
 const MIDTERMS = SECTIONS.flatMap((seed, index) => (PROJECT_GRADED.has(seed[1]) ? [] : [build(seed, index, "midterm")]));
 const FINALS = SECTIONS.map((seed, index) => build(seed, index, "final"));
 
-// Ca thi bù giữa kỳ (dự kiến) cho sinh viên được hoãn thi giữa kỳ COMP1020.01.
 const MAKEUP_BASE = MIDTERMS.find((exam) => exam.classCode === "COMP1020.01")!;
 const MAKEUP: ExamSeed = {
   ...MAKEUP_BASE,
@@ -163,7 +151,6 @@ const MAKEUP: ExamSeed = {
 
 export const EXAM_SESSIONS: ExamSeed[] = [...MIDTERMS, ...FINALS, MAKEUP];
 
-// Sinh viên (thứ tự trong danh sách lớp theo mã) được hoãn thi giữa kỳ COMP1020.01 và thi ở ca bù trên.
 export const EXAM_DEFERRAL_SEED = {
   id: mockId("exam-deferral:comp1020.01-midterm"),
   classSectionId: MAKEUP_BASE.classSectionId,
@@ -173,7 +160,6 @@ export const EXAM_DEFERRAL_SEED = {
   makeupSessionId: MAKEUP.id,
 };
 
-// Đề nghị đổi ca đang chờ của giảng viên 0 (ca coi thi đầu tiên chưa diễn ra được xếp cho giảng viên này).
 export const EXAM_SWAP_SEED = {
   id: mockId("exam-swap:gv0"),
   reason: "Trùng lịch họp hội đồng chấm luận văn của khoa",

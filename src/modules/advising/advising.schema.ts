@@ -5,7 +5,6 @@ import { lecturers, students } from "@/modules/users/users.schema";
 
 export const appointmentModeEnum = pgEnum("appointment_mode", ["in-person", "online"]);
 export const appointmentStatusEnum = pgEnum("appointment_status", ["scheduled", "done", "missed", "cancelled"]);
-// Có mặt hay vắng của từng sinh viên trong buổi hẹn (buổi nhóm ghi theo từng người); trống là chưa ghi nhận.
 export const appointmentAttendanceEnum = pgEnum("appointment_attendance", ["present", "absent"]);
 
 export const advisingAppointments = pgTable(
@@ -57,7 +56,6 @@ export const advisingNotes = pgTable(
       .notNull()
       .references(() => lecturers.id, { onDelete: "restrict" }),
     at: timestamp({ withTimezone: true }).notNull().defaultNow(),
-    // Ghi chú từ buổi hẹn trỏ về buổi đó; ghi chú độc lập (gọi điện, gặp ngoài lịch) để trống.
     appointmentId: uuid().references(() => advisingAppointments.id, { onDelete: "set null" }),
     topic: text().notNull(),
     content: text().notNull(),

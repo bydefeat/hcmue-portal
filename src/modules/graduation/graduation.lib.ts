@@ -21,7 +21,6 @@ import { administrativeClasses, studentDecisions, students } from "@/modules/use
 
 type Executor = Transaction | typeof db;
 
-// Đợt xét tốt nghiệp đang mở (chỉ một đợt mở một lúc); chưa mở đợt nào thì không xét.
 export async function openGraduationRound(executor: Executor = db): Promise<GraduationRound | null> {
   const [round] = await executor
     .select({ id: graduationRounds.id, name: graduationRounds.name, cohorts: graduationRounds.cohorts, updatedAt: graduationRounds.updatedAt })
@@ -32,8 +31,6 @@ export async function openGraduationRound(executor: Executor = db): Promise<Grad
   return round ? { ...round, updatedAt: round.updatedAt.toISOString() } : null;
 }
 
-// Học phí còn nợ của từng sinh viên trên mọi hóa đơn đã chốt (tổng phải nộp trừ đã nộp còn hiệu lực, không âm). Hóa đơn tạm tính
-// (học kỳ đang đăng ký, chưa chốt học phí) chưa phải khoản nợ.
 async function outstandingTuitionOf(executor: Executor, studentIds: string[]) {
   const rows = await executor
     .select({ studentId: tuitionInvoices.studentId, total: INVOICE_TOTAL_SQL, paid: INVOICE_PAID_SQL })
@@ -44,7 +41,6 @@ async function outstandingTuitionOf(executor: Executor, studentIds: string[]) {
   return owed;
 }
 
-// Quyết định kỷ luật đã ký (chưa thu hồi) đã có hiệu lực, mức lấy từ cột discipline_level của quyết định.
 async function disciplinesOf(executor: Executor, studentIds: string[]) {
   const rows = await executor
     .select({ studentId: studentDecisions.studentId, title: studentDecisions.title, effectiveDate: studentDecisions.effectiveDate, level: studentDecisions.disciplineLevel })
@@ -65,10 +61,6 @@ async function disciplinesOf(executor: Executor, studentIds: string[]) {
   return result;
 }
 
-// Dùng chung cho trang, action và test (không qua kiểm quyền: nơi gọi đã kiểm graduation.manage).
-// Sinh viên các khóa của đợt xét đang mở (đang học hoặc đã tốt nghiệp đợt trước) trong phạm vi của người xem, đã đánh giá từng điều kiện:
-// tín chỉ và học phần bắt buộc theo khung chương trình của đúng ngành, khóa; CPA, nợ theo lần học cuối; chứng chỉ trong hồ sơ; học phí từ
-// hóa đơn; kỷ luật từ quyết định đã ký. Ngưỡng theo bản quy chế đang áp dụng.
 export async function loadGraduationCandidates(viewer: Pick<Viewer, "faculty">, executor: Executor = db): Promise<{ round: GraduationRound | null; candidates: GraduationCandidate[] }> {
   const round = await openGraduationRound(executor);
   if (!round) return { round: null, candidates: [] };

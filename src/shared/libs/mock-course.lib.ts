@@ -28,8 +28,6 @@ const MAJOR_COURSES: Record<string, CourseSeed[]> = {
     ["COMP1250", "Học sâu", 3], ["COMP1260", "Internet vạn vật", 3], ["COMP1270", "Phát triển trò chơi", 3],
     ["COMP1280", "Khoa học dữ liệu", 3], ["COMP4990", "Khóa luận tốt nghiệp", 7],
   ],
-  // 38 học phần đầu (khóa 48 học đủ 8 kỳ × 6 học phần, gồm 10 học phần đại cương) đúng 106 tín chỉ để đủ 130 tín chỉ xét tốt nghiệp;
-  // khóa luận ở cuối đưa khung lên 135 tín chỉ của chương trình.
   "101": [
     ["MATH1011", "Giải tích 1", 3], ["MATH1012", "Đại số tuyến tính", 3], ["MATH2001", "Giải tích 2", 3], ["MATH1020", "Toán rời rạc", 3],
     ["MATH1013", "Xác suất thống kê", 3], ["MATH2010", "Hình học sơ cấp", 3], ["MATH2020", "Phương pháp dạy học môn Toán", 3], ["MATH2030", "Đại số đại cương", 3],
@@ -44,9 +42,6 @@ const MAJOR_COURSES: Record<string, CourseSeed[]> = {
   ],
 };
 
-// Ngành chưa có danh mục học phần riêng: 37 học phần chuyên ngành (học phần thứ 4, 8, 12... là 2 tín chỉ, đủ số lượng twoCredit)
-// và học phần thực tập 4 tín chỉ trước 4 học phần cuối, cộng 24 tín chỉ đại cương bằng đúng tổng tín chỉ của chương trình.
-// Mã đuôi 5 để không trùng học phần đã khai báo riêng trong danh mục (ENGL2010, PSYC2010...).
 const GENERATED_MAJORS: Record<string, { prefix: string; topic: string; internship: string; twoCredit: number }> = {
   "601": { prefix: "LITR", topic: "Ngữ văn", internship: "Thực tập sư phạm", twoCredit: 4 },
   "751": { prefix: "ENGL", topic: "Tiếng Anh", internship: "Thực tập nghề nghiệp", twoCredit: 7 },

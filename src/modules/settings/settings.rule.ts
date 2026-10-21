@@ -33,7 +33,6 @@ const STANDING = z
   .refine((standing) => standing.good > standing.average, { path: ["average"], message: "Thấp hơn ngưỡng Khá" })
   .refine((standing) => standing.average > standing.weak, { path: ["weak"], message: "Thấp hơn ngưỡng Trung bình" });
 
-// Quy chế lưu jsonb nên phải kiểm đủ từng tham số ở đây; DB chỉ kiểm có đủ 6 nhóm (regulations_rules_object).
 export const REGULATION_RULES_SCHEMA = z.object({
   grading: z.object({
     scale: z
@@ -43,7 +42,6 @@ export const REGULATION_RULES_SCHEMA = z.object({
       .refine((scale) => scale.every((step, index) => index === 0 || step.min < scale[index - 1].min), "Thang điểm chữ phải xếp ngưỡng giảm dần từ A đến F")
       .refine((scale) => scale.every((step, index) => index === 0 || step.point4 <= scale[index - 1].point4), "Điểm thang 4 không được tăng khi ngưỡng giảm")
       .refine((scale) => scale.at(-1)?.min === 0 && scale.at(-1)?.letter === "F", "Mức thấp nhất phải là F, bắt đầu từ 0 điểm")
-      // Ngưỡng so với điểm tổng kết đã làm tròn một chữ số nên chỉ nhận tối đa một chữ số thập phân.
       .refine((scale) => scale.every((step) => Number.isInteger(Math.round(step.min * 1000) / 100)), "Ngưỡng điểm chữ lấy tối đa một chữ số thập phân"),
     roundingStep: z.literal([...ROUNDING_STEPS], "Chọn 0,1, 0,5 hoặc 1"),
     standing: STANDING,
@@ -102,7 +100,6 @@ export const REGULATION_SAVE_SCHEMA = z.object({
 
 export type RegulationSaveInput = z.input<typeof REGULATION_SAVE_SCHEMA>;
 
-// Số hiệu phiên bản theo năm áp dụng: 2026.1, 2026.2...
 export function nextRegulationVersion(versions: string[], effectiveFrom: string) {
   const year = effectiveFrom.slice(0, 4);
   const used = versions.filter((version) => version.startsWith(`${year}.`)).map((version) => Number(version.slice(5)) || 0);
@@ -123,7 +120,6 @@ function valueAt(rules: RegulationRules, path: string): unknown {
 
 const point = (value: number | undefined) => (value === undefined ? "Không có" : String(value).replace(".", ","));
 
-// Các tham số đổi giữa hai bản quy chế, ghi vào nhật ký thao tác. Bản cũ có thể thiếu tham số mới thêm sau.
 export function regulationChanges(before: RegulationRules, after: RegulationRules): AuditChange[] {
   const changes: AuditChange[] = [];
   for (const [path, field] of Object.entries(REGULATION_FIELD_LABEL) as [RegulationFieldPath, string][]) {
@@ -144,7 +140,6 @@ export function regulationChanges(before: RegulationRules, after: RegulationRule
 export const CALENDAR_EVENT_SCHEMA = z
   .object({
     termId: z.uuid("Chưa chọn học kỳ"),
-    // Thời gian học kỳ, đợt đăng ký lấy từ trang Học kỳ; ở đây chỉ nhập mốc khác.
     kind: z.enum(MANUAL_CALENDAR_EVENT_KINDS, "Chưa chọn loại (thời gian học kỳ, đợt đăng ký sửa ở trang Học kỳ)"),
     title: z.string().trim().min(1, "Chưa nhập tên mốc").max(160, "Tối đa 160 ký tự"),
     startDate: z.iso.date("Chưa chọn thời gian"),
@@ -170,13 +165,11 @@ export function reportCellText(cell: ReportCell): string | number {
   return typeof cell === "object" ? cell.text : cell;
 }
 
-// Tên tệp theo định dạng đã chọn lúc xuất: báo cáo theo học kỳ ghi mã học kỳ, báo cáo số liệu hiện tại ghi ngày xuất.
 export function reportFileName(reportKey: string, termCode: string | null, format: string | undefined, exportedOn?: string) {
   const suffix = termCode ?? exportedOn ?? "hien-tai";
   return `${reportKey}-${suffix}.${format === "xlsx" || format === "pdf" ? format : "csv"}`;
 }
 
-// Mốc tự nhập nằm trong học kỳ (cho phép giáp trước, sau CALENDAR_TERM_MARGIN_DAYS ngày); trả câu báo hoặc null.
 export function calendarEventTermReason(event: { startDate: string; endDate: string }, term: { startDate: string; endDate: string; shortName: string }) {
   const from = dayjs(term.startDate).subtract(CALENDAR_TERM_MARGIN_DAYS, "day");
   const to = dayjs(term.endDate).add(CALENDAR_TERM_MARGIN_DAYS, "day");

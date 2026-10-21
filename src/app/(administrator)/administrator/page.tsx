@@ -65,7 +65,6 @@ export default async function Page() {
   const students = allStudents.filter((student) => inScope(viewer, student.faculty));
   const sections = allSections.filter((section) => inScope(viewer, section.faculty));
   const warnings = allWarnings.filter((warning) => inScope(viewer, warning.faculty));
-  // Đơn đang chờ ở bước vai trò này xử lý được (quyền tính ở server như trang Đơn từ).
   const openRequests = allRequests.filter((request) => request.can.decide);
   const overdueRequests = openRequests.filter((request) => request.isOverdue).length;
 

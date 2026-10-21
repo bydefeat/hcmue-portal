@@ -4,7 +4,6 @@ import type { AnnouncementAudience, AnnouncementFormValues, AnnouncementStatus, 
 
 export const SLUG_PATTERN = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 
-// Đường dẫn thông báo từ tiêu đề: bỏ dấu, chữ thường, nối bằng gạch ngang (khớp CHECK announcements_slug_format).
 export function slugify(value: string) {
   return (
     normalizeSearch(value)
@@ -15,7 +14,6 @@ export function slugify(value: string) {
   );
 }
 
-// Trùng đường dẫn thì thêm hậu tố -2, -3... theo số nhỏ nhất còn trống.
 export function uniqueSlug(base: string, taken: string[]) {
   const used = new Set(taken);
   if (!used.has(base)) return base;
@@ -43,11 +41,9 @@ export const ANNOUNCEMENT_AUDIENCE_SCHEMA = z
     ...audience,
     cohorts: [...new Set(audience.cohorts)].toSorted((a, b) => a - b),
     facultyIds: [...new Set(audience.facultyIds)],
-    // Khóa, ngành chỉ áp cho sinh viên.
     majorIds: audience.students ? [...new Set(audience.majorIds)] : [],
   }));
 
-// Dùng chung cho form và server action; thời điểm hẹn giờ phải sau hiện tại được kiểm thêm ở action.
 export const ANNOUNCEMENT_SCHEMA = z
   .object({
     title: z.string().trim().min(1, "Chưa nhập tiêu đề").max(160, "Tối đa 160 ký tự"),
@@ -66,7 +62,6 @@ export const ANNOUNCEMENT_SCHEMA = z
 
 export type AnnouncementInput = z.input<typeof ANNOUNCEMENT_SCHEMA>;
 
-// Thông báo có tới người xem này không: sinh viên đúng khóa, ngành, khoa (danh sách rỗng là không lọc); giảng viên đúng khoa.
 export function announcementVisibleTo(audience: AnnouncementAudience, viewer: AnnouncementViewer) {
   const facultyOk = audience.facultyIds.length === 0 || audience.facultyIds.includes(viewer.facultyId);
   if (viewer.kind === "lecturer") return audience.lecturers && facultyOk;
@@ -78,7 +73,6 @@ export function announcementVisibleTo(audience: AnnouncementAudience, viewer: An
   );
 }
 
-// Trang công khai chỉ hiện thông báo có gửi sinh viên; thông báo chỉ cho giảng viên không công khai cho khách.
 export function isPublicAudience(audience: AnnouncementAudience) {
   return audience.students;
 }
@@ -98,7 +92,6 @@ export function audienceLabel(audience: AnnouncementAudience, names: { faculties
   return faculty ? `${parts.join(", ")} · ${faculty}` : parts.join(", ");
 }
 
-// Thông báo đã từng đăng (đã đăng, hẹn giờ đã tới giờ, đã gỡ) không đưa về nháp được: phải gỡ để còn dấu vết.
 export function draftBlockedReason(liveStatus: AnnouncementStatus | null, nextStatus: AnnouncementStatus) {
   if (nextStatus === "draft" && (liveStatus === "published" || liveStatus === "archived")) {
     return "Thông báo đã đăng không lưu nháp lại được. Sửa và đăng tiếp, hoặc gỡ thông báo.";

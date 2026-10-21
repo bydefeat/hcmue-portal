@@ -13,35 +13,29 @@ import { buildSpreadsheet, readSpreadsheet, XLSX_MIME } from "@/shared/libs/spre
 type StudentImportModalProps = {
   open: boolean;
   existingCodes: string[];
-  // Mã ngành và khóa hợp lệ, đọc từ DB.
   catalog: ImportCatalog;
   onClose: () => void;
-  // Trả true khi server đã ghi xong, modal mới đóng.
   onImport: (values: StudentFormValues[], options: { provisionAccounts: boolean }) => Promise<boolean>;
 };
 
-// Bỏ dòng tiêu đề; số dòng tính theo tệp (dòng 1 là tiêu đề) để người dùng tìm lại trong Excel.
 function importRows(rows: string[][]): ImportRow[] {
   return rows.slice(1).map((cells, index) => ({ line: index + 2, cells }));
 }
 
 const BIRTH_DATE_COLUMN = IMPORT_COLUMNS.indexOf("Ngày sinh");
 
-// Ô ngày sinh lưu số ngày kiểu Excel (đếm từ 30/12/1899) khi ô bị định dạng chữ hoặc số: đổi về dd/mm/yyyy như tệp CSV.
 function excelSerialDate(value: string) {
   if (!/^\d{5}$/.test(value)) return value;
   const date = new Date(Date.UTC(1899, 11, 30) + Number(value) * 86_400_000);
   return `${String(date.getUTCDate()).padStart(2, "0")}/${String(date.getUTCMonth() + 1).padStart(2, "0")}/${date.getUTCFullYear()}`;
 }
 
-// .xlsx đọc bằng exceljs ngay trên trình duyệt (chỉ tải thư viện khi chọn tệp Excel); ô ngày của Excel đổi thành dd/mm/yyyy như tệp CSV.
 async function readImportFile(file: File): Promise<string[][]> {
   if (!file.name.toLowerCase().endsWith(".xlsx")) return parseCsv(await file.text());
   const rows = await readSpreadsheet(await file.arrayBuffer());
   return rows.map((cells, index) => (index === 0 ? cells : cells.map((cell, column) => (column === BIRTH_DATE_COLUMN ? excelSerialDate(cell) : cell))));
 }
 
-// Tệp mẫu Excel cùng cột với tệp CSV; cột mã, ngày, điện thoại định dạng chữ để Excel không bỏ số 0 ở đầu hay tự đổi ngày.
 async function downloadTemplateXlsx() {
   const [header, ...rows] = parseCsv(templateCsv());
   const bytes = await buildSpreadsheet(

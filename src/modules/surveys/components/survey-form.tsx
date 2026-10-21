@@ -13,7 +13,6 @@ type SurveyFormProps = {
   survey: Survey;
   task: StudentSurveyTask | null;
   onClose: () => void;
-  // Trả lỗi theo ô từ server (khóa là id câu hỏi), không có lỗi thì trả undefined.
   onSubmit: (task: StudentSurveyTask, values: SurveyFormValues) => Promise<Record<string, string> | undefined>;
 };
 

@@ -1,17 +1,13 @@
 import "server-only";
 import { createHash, createHmac } from "node:crypto";
 
-// Client S3 tối thiểu (AWS S3, Cloudflare R2, MinIO) cho kho tệp: PutObject, GetObject, DeleteObject, ListObjectsV2, ký
-// AWS Signature V4 bằng node:crypto. Không dùng @aws-sdk/client-s3 vì chỉ cần 4 lệnh này, còn SDK kéo theo vài chục gói.
 
 export type S3Config = {
-  // Bỏ trống thì dùng AWS: https://s3.<region>.amazonaws.com. R2: https://<account>.r2.cloudflarestorage.com, MinIO: http://host:9000.
   endpoint?: string;
   region: string;
   bucket: string;
   accessKeyId: string;
   secretAccessKey: string;
-  // MinIO và nhiều S3 tự dựng chỉ nhận /<bucket>/<key>; AWS và R2 nhận được cả <bucket>.<host>/<key>.
   forcePathStyle: boolean;
 };
 
@@ -32,13 +28,11 @@ export class S3Error extends Error {
 const sha256Hex = (data: string | Uint8Array) => createHash("sha256").update(data).digest("hex");
 const hmac = (key: string | Buffer, data: string) => createHmac("sha256", key).update(data).digest();
 
-// Mã hóa URI theo SigV4: giữ A-Z a-z 0-9 - _ . ~, còn lại %XX viết hoa; khóa đối tượng giữ dấu gạch chéo.
 export function uriEncode(value: string, keepSlash = false) {
   const encoded = encodeURIComponent(value).replace(/[!'()*]/g, (char) => `%${char.charCodeAt(0).toString(16).toUpperCase()}`);
   return keepSlash ? encoded.replace(/%2F/g, "/") : encoded;
 }
 
-// Xếp theo tên rồi theo giá trị (đã mã hóa), không xếp cả chuỗi "tên=giá trị": "a-b" phải đứng sau "a".
 function sortedQuery(pairs: [string, string][]) {
   return pairs
     .toSorted(([a, x], [b, y]) => (a < b ? -1 : a > b ? 1 : x < y ? -1 : x > y ? 1 : 0))
@@ -61,8 +55,6 @@ export type SignInput = {
   date: Date;
 };
 
-// Ký request theo AWS Signature Version 4 (header Authorization). Query của `url` phải đã mã hóa bằng uriEncode và xếp
-// theo tên để chuỗi gửi đi trùng chuỗi đã ký. Trả về các header cần gửi kèm (đã gồm x-amz-date, x-amz-content-sha256).
 export function signRequest(input: SignInput): Record<string, string> {
   const timestamp = amzDate(input.date);
   const day = timestamp.slice(0, 8);
@@ -92,7 +84,6 @@ export function signRequest(input: SignInput): Record<string, string> {
   return { ...rest, authorization: `AWS4-HMAC-SHA256 Credential=${input.accessKeyId}/${scope},SignedHeaders=${signedHeaders},Signature=${signature}` };
 }
 
-// Địa chỉ đối tượng (key) hoặc bucket (key null) theo kiểu path-style hoặc virtual-hosted.
 export function s3Url(config: S3Config, key: string | null, query: [string, string][] = []) {
   const base = new URL(config.endpoint ?? `https://s3.${config.region}.amazonaws.com`);
   const prefix = base.pathname.replace(/\/+$/, "");
@@ -134,7 +125,6 @@ function xmlTag(xml: string, tag: string) {
   return match ? xmlText(match[1]) : null;
 }
 
-// Lỗi S3 trả XML <Error><Code>...</Code></Error>; chỉ giữ mã lỗi, không đưa URL hay header (có chữ ký) vào thông báo.
 async function failed(response: Response, operation: string): Promise<never> {
   const body = await response.text().catch(() => "");
   throw new S3Error(response.status, xmlTag(body, "Code") ?? response.statusText, operation);
@@ -146,8 +136,6 @@ export async function s3PutObject(config: S3Config, key: string, data: Uint8Arra
   await response.body?.cancel();
 }
 
-// Trả luồng nội dung để route tải xuống chuyển thẳng cho trình duyệt, không đệm cả tệp trong bộ nhớ. Hết giờ chỉ tính tới lúc
-// nhận header: người tải mạng chậm làm luồng đọc chậm, không được cắt giữa chừng.
 export async function s3GetObject(config: S3Config, key: string): Promise<{ body: ReadableStream<Uint8Array>; size: number } | null> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(new Error("S3 GET quá thời gian chờ")), REQUEST_TIMEOUT_MS);
@@ -165,7 +153,6 @@ export async function s3GetObject(config: S3Config, key: string): Promise<{ body
   return { body: response.body, size: Number(response.headers.get("content-length") ?? 0) };
 }
 
-// S3 trả 204 cả khi khóa không tồn tại; một số bản tự dựng trả 404, coi như đã xóa.
 export async function s3DeleteObject(config: S3Config, key: string) {
   const response = await send(config, "DELETE", key);
   if (!response.ok && response.status !== 404) await failed(response, `DELETE ${key}`);
@@ -174,7 +161,6 @@ export async function s3DeleteObject(config: S3Config, key: string) {
 
 export type S3Object = { key: string; lastModified: Date };
 
-// ListObjectsV2 theo tiền tố, đi hết các trang bằng continuation-token (mỗi trang tối đa 1000 khóa, máy chủ có thể trả ít hơn).
 export async function s3ListObjects(config: S3Config, prefix: string): Promise<S3Object[]> {
   const objects: S3Object[] = [];
   let token: string | null = null;

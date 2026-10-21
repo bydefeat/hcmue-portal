@@ -12,8 +12,6 @@ import type { SeedContext } from "./context";
 
 const CHUNK = 1000;
 
-// Buổi học sinh từ lịch tuần của mọi lớp đang mở trong khoảng ngày học của lớp. Buổi trước hôm nay coi như giảng viên
-// đã điểm danh (trạng thái theo dữ liệu mẫu); buổi hôm nay trở đi để trống cho giảng viên điểm danh.
 export async function seedSchedule(tx: Transaction, _context: SeedContext) {
   const sections = await tx.select().from(classSections).where(eq(classSections.status, "open"));
   const sectionIds = sections.map((section) => section.id);
@@ -26,7 +24,6 @@ export async function seedSchedule(tx: Transaction, _context: SeedContext) {
       .where(and(inArray(enrollments.classSectionId, sectionIds), eq(enrollments.status, "enrolled"))),
   ]);
   const today = dayjs().format("YYYY-MM-DD");
-  // Lịch năm học seed sau bước này nên đọc ngày nghỉ lễ từ dữ liệu mẫu, cùng nguồn với bảng calendar_events.
   const holidays = CALENDAR_EVENTS.filter((event) => event.kind === "holiday");
 
   const sessionRows: (typeof classSessions.$inferInsert)[] = [];

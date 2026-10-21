@@ -64,7 +64,6 @@ function revalidateGrades() {
   revalidatePath("/administrator/grade-publishing");
 }
 
-// Giảng viên chỉ thao tác trên bảng điểm lớp mình dạy.
 async function requireOwnSection(lecturerId: string, classSectionId: string) {
   const [section] = await db
     .select({ id: classSections.id, code: classSections.code, courseName: courses.name, lecturerId: classSections.lecturerId, termName: terms.name, termEnd: terms.endDate })
@@ -76,8 +75,6 @@ async function requireOwnSection(lecturerId: string, classSectionId: string) {
   return section;
 }
 
-// Khóa dòng bảng điểm trong giao dịch để lưu điểm và chốt điểm không chen nhau. Lớp chưa có bảng điểm thì tạo với cột mặc định,
-// hạn nhập theo quy chế (ngày thi cuối kỳ của lớp, chưa có lịch thi thì ngày kết thúc học kỳ, cộng số ngày nhập điểm).
 async function lockSheet(tx: Transaction, section: { id: string; termEnd: string }) {
   const [existing] = await tx.select().from(gradeSheets).where(eq(gradeSheets.classSectionId, section.id)).for("update");
   if (existing) return existing;
@@ -131,7 +128,6 @@ export async function saveGradeScores(input: GradeScoresSaveInput): Promise<Acti
           .where(or(...cleared.map((cell) => and(eq(gradeScores.gradeComponentId, cell.gradeComponentId), eq(gradeScores.enrollmentId, cell.enrollmentId)))));
       }
       const [row] = await tx.update(gradeSheets).set({ savedAt: new Date() }).where(eq(gradeSheets.id, sheet.id)).returning({ savedAt: gradeSheets.savedAt });
-      // Mỗi lần lưu (tự lưu gộp các ô sửa liên tiếp) ghi một dòng nhật ký, không ghi từng ô.
       await recordAudit(tx, {
         actor: lecturerActor(session.user.id, lecturer),
         action: "update",
@@ -149,11 +145,8 @@ export async function saveGradeScores(input: GradeScoresSaveInput): Promise<Acti
   }
 }
 
-// Bảng điểm khác đề cương đã công bố mà chưa ghi lý do khi chốt.
 class SyllabusMismatchError extends Error {}
 
-// Chốt điểm. Bảng điểm phải khớp cách tính điểm của đề cương đã công bố (cột, trọng số); khác thì chặn, trừ khi giảng viên ghi lý
-// do (lý do vào nhật ký thao tác để khoa thấy khi duyệt).
 export async function lockGradeSheet(classSectionId: string, options: { syllabusReason?: string | null } = {}): Promise<ActionResult<{ status: GradeSheetStatus; lockedAt: string }>> {
   const lecturer = await getCurrentLecturer();
   const session = await requireSession();
@@ -186,7 +179,6 @@ export async function lockGradeSheet(classSectionId: string, options: { syllabus
           summary: `Chốt điểm ${section.code} dù khác đề cương đã công bố (${mismatches.join(" ")}). Lý do: ${syllabusReason}`,
         });
       }
-      // Sinh viên đang được hoãn thi được để trống điểm (công bố thì nhận I), cùng cách đếm với trigger grade_sheets_status_flow.
       const notDeferred = sql`NOT EXISTS (SELECT 1 FROM ${examDeferrals} WHERE ${examDeferrals.enrollmentId} = ${enrollments.id})`;
       const [[{ columns }], [{ students: enrolled, required }], [{ filled }]] = await Promise.all([
         tx.select({ columns: sql<number>`count(*)::int` }).from(gradeComponents).where(eq(gradeComponents.gradeSheetId, sheet.id)),
@@ -227,7 +219,6 @@ export async function lockGradeSheet(classSectionId: string, options: { syllabus
   }
 }
 
-// Bảng điểm cùng khoa của học phần, khóa dòng để duyệt, trả lại, công bố không chen nhau.
 async function sheetsInScope(tx: Transaction, classSectionIds: string[], faculty: string | null, status: GradeSheetStatus) {
   const rows = await tx
     .select({
@@ -319,7 +310,6 @@ export async function returnGradeSheet(input: GradeSheetReturnInput): Promise<Ac
   }
 }
 
-// Công bố: điểm tổng kết từng sinh viên ghi vào course_results, nguồn của bảng điểm, GPA và CPA.
 export async function publishGradeSheets(classSectionIds: string[]): Promise<ActionResult<{ classSectionIds: string[] }>> {
   const viewer = await requirePermission("grades.publish");
   const parsed = parseInput(GRADE_SHEETS_SCHEMA, { classSectionIds });
@@ -348,7 +338,6 @@ export async function publishGradeSheets(classSectionIds: string[]): Promise<Act
           : (await tx.select({ id: examDeferrals.enrollmentId }).from(examDeferrals).where(inArray(examDeferrals.enrollmentId, roster.map((entry) => entry.id)))).map((row) => row.id),
       );
       const recordedAt = new Date();
-      // Điểm chữ, thang 4 quy đổi theo bản quy chế áp dụng ngày công bố và lưu vào course_results; quy chế đổi sau không đổi điểm đã công bố.
       const { grading } = await regulationAt(tx);
       const results = sheets.flatMap((sheet) => {
         const columns = components.filter((component) => component.gradeSheetId === sheet.id);
@@ -358,7 +347,6 @@ export async function publishGradeSheets(classSectionIds: string[]): Promise<Act
             const row = Object.fromEntries(columns.map((column) => [column.key, scoreOf.get(`${column.id}:${entry.id}`) ?? null]));
             const total = weightedScore(columns, row, grading.roundingStep);
             const base = { studentId: entry.studentId, courseId: entry.courseId, termId: entry.termId, enrollmentId: entry.id, source: "class" as const, recordedAt };
-            // Được hoãn thi mà chưa đủ điểm: nhận I (chưa hoàn thiện), thi bù có điểm thì đề nghị sửa điểm thay I bằng điểm thật.
             if (total === null && deferred.has(entry.id)) return { ...base, score10: null, letter: "I", point4: null };
             if (total === null) throw new GradeActionError("Có bảng điểm còn ô trống, trả lại cho giảng viên nhập đủ trước khi công bố.");
             return { ...base, ...courseGrade(total, grading.scale) };
@@ -389,7 +377,6 @@ export async function publishGradeSheets(classSectionIds: string[]): Promise<Act
           summary: `Công bố điểm lớp ${sheet.code} cho ${count} sinh viên`,
         });
       }
-      // Mỗi lớp một thông báo cho sinh viên có điểm tổng kết vừa công bố.
       for (const sheet of sheets) {
         await notifyStudents(
           tx,
@@ -413,7 +400,6 @@ export async function publishGradeSheets(classSectionIds: string[]): Promise<Act
   }
 }
 
-// Cố vấn xử lý cảnh báo của sinh viên lớp mình; Phòng Đào tạo, khoa xử lý trong phạm vi được phân quyền (warnings.manage).
 export async function advanceAcademicWarning(id: string, from: WarningStatus): Promise<ActionResult<{ id: string; status: WarningStatus }>> {
   const session = await requireSession();
   const parsed = parseInput(WARNING_ADVANCE_SCHEMA, { id, from });
@@ -439,7 +425,6 @@ export async function advanceAcademicWarning(id: string, from: WarningStatus): P
   const [lecturer] = session.roles.includes("lecturer")
     ? await db.select({ id: lecturers.id }).from(lecturers).where(eq(lecturers.userId, session.user.id))
     : [];
-  // Cán bộ cần quyền xử lý cảnh báo (quyền xem báo cáo thôi chưa đủ) và đúng phạm vi khoa.
   if (!lecturer || lecturer.id !== warning.advisorId) {
     const viewer = await requirePermission("warnings.manage");
     if (!inScope(viewer, warning.faculty)) forbidden();
@@ -452,7 +437,6 @@ export async function advanceAcademicWarning(id: string, from: WarningStatus): P
         .set({ status: next })
         .where(and(eq(academicWarnings.id, warning.id), eq(academicWarnings.status, parsed.data.from)))
         .returning({ id: academicWarnings.id, status: academicWarnings.status });
-      // Bước "gửi thông báo": báo sinh viên trên cổng (chưa có dịch vụ email).
       if (updated?.status === "notified") {
         await notifyStudents(tx, [warning.studentId], {
           kind: "grade",
@@ -473,7 +457,6 @@ export async function advanceAcademicWarning(id: string, from: WarningStatus): P
   }
 }
 
-// Giảng viên sửa cột điểm khi bảng điểm còn nháp hoặc bị trả lại. Lớp chưa có bảng điểm thì tạo bảng (cột mặc định) rồi thay cột.
 export async function saveGradeComponents(input: GradeComponentsSaveInput): Promise<ActionResult<{ components: GradeComponent[] }>> {
   const lecturer = await getCurrentLecturer();
   const session = await requireSession();
@@ -507,7 +490,6 @@ export async function saveGradeComponents(input: GradeComponentsSaveInput): Prom
   }
 }
 
-// Xuất bảng điểm đã lưu ra .xlsx (nội dung base64). Nơi gọi lưu nháp trước để tệp có điểm mới nhất.
 export async function exportGradeSheetExcel(classSectionId: string): Promise<ActionResult<{ fileName: string; base64: string; mimeType: string }>> {
   const lecturer = await getCurrentLecturer();
   const parsed = parseInput(GRADE_SHEET_SCHEMA, { classSectionId });
@@ -529,7 +511,6 @@ export async function exportGradeSheetExcel(classSectionId: string): Promise<Act
 
 type PdfFile = { fileName: string; base64: string; mimeType: string };
 
-// Bảng điểm lớp bản PDF để in, ký nộp khoa: chỉ khi đã chốt (điểm không còn đổi), chỉ lớp giảng viên dạy.
 export async function exportGradeSheetPdf(classSectionId: string): Promise<ActionResult<PdfFile>> {
   const lecturer = await getCurrentLecturer();
   const parsed = parseInput(GRADE_SHEET_SCHEMA, { classSectionId });
@@ -559,13 +540,11 @@ async function transcriptFile(student: { id: string; code: string; fullName: str
   return { fileName: `bang-diem-${student.code.replace(/\./g, "")}.pdf`, base64: bytesToBase64(bytes), mimeType: PDF_MIME };
 }
 
-// Sinh viên tải bảng điểm của chính mình (không nhận mã sinh viên từ trình duyệt).
 export async function downloadOwnTranscriptPdf(): Promise<ActionResult<PdfFile>> {
   const student = await getCurrentStudent();
   return actionOk(await transcriptFile(student));
 }
 
-// Cán bộ có quyền xem sinh viên tải bảng điểm của sinh viên trong phạm vi khoa mình.
 export async function downloadStudentTranscriptPdf(studentId: string): Promise<ActionResult<PdfFile>> {
   const viewer = await requirePermission("students.view");
   const student = isUuid(studentId) ? await getStudent(studentId) : null;
@@ -574,7 +553,6 @@ export async function downloadStudentTranscriptPdf(studentId: string): Promise<A
   return actionOk(await transcriptFile(student));
 }
 
-// Đọc tệp .xlsx theo mẫu đã xuất, trả các ô điểm để bảng nhập điểm điền và lưu nháp như khi gõ tay.
 export async function readGradeSheetExcel(formData: FormData): Promise<ActionResult<{ changes: ScoreChange[]; errors: string[] }>> {
   const lecturer = await getCurrentLecturer();
   const parsed = parseInput(GRADE_SHEET_SCHEMA, { classSectionId: formData.get("classSectionId") });
@@ -595,7 +573,6 @@ export async function readGradeSheetExcel(formData: FormData): Promise<ActionRes
   return actionOk(parseScoreMatrix(matrix, sheet.components, roster));
 }
 
-// Phòng Đào tạo (phạm vi toàn trường) sinh cảnh báo học vụ cho một học kỳ đã kết thúc; chạy lại không sinh trùng.
 export async function generateAcademicWarnings(termId: string): Promise<ActionResult<WarningSyncResult>> {
   const viewer = await requirePermission("reports.view");
   if (!can(viewer, "grades.publish") || viewer.faculty !== null) forbidden();

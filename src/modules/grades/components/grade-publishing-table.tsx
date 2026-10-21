@@ -32,7 +32,6 @@ export type PublishingRow = {
 
 type GradePublishingTableProps = {
   rows: PublishingRow[];
-  // Điểm chữ của thang điểm quy chế đang áp dụng, từ cao xuống thấp.
   letters: string[];
   canApprove: boolean;
   canPublish: boolean;

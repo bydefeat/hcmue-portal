@@ -30,7 +30,6 @@ import { SectionCard } from "@/shared/components/ui/section-card";
 type PageProps = { params: Promise<{ studentCode: string }> };
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
-  // Tiêu đề trang cũng là dữ liệu: kiểm quyền và phạm vi khoa như trang, không lộ tên sinh viên khoa khác qua <title>.
   const viewer = await requirePermission("students.view");
   const { studentCode } = await params;
   const student = await getStudentByCode(studentCode);
@@ -53,7 +52,6 @@ export default async function Page({ params }: PageProps) {
     getAuditLog({ entityType: "student", entityId: student.id }),
     getCurrentWarnings([student.id]),
   ]);
-  // Hạn mức và hiển thị theo cảnh báo chính thức (đã gửi thông báo), không theo mức dự báo từ điểm hiện có.
   const warning = warnings[student.id];
   const advisorName = assignments.find((assignment) => assignment.className === student.className)?.advisorName ?? null;
   const [targetTerm, currentTerm] = await Promise.all([getRegistrationTargetTerm(), getCurrentTerm()]);
@@ -63,12 +61,10 @@ export default async function Page({ params }: PageProps) {
     getStudentEnrollments(student.id, currentTerm.id),
     getRegistrationHolds(student.id),
     getCourses(),
-    // Cùng hàm hạn mức với server (cảnh báo học vụ đã ban hành, đợt áp dụng, học kỳ hè, tín chỉ còn lại của chương trình).
     getCreditLimits(student.id, targetTerm.id),
   ]);
   const registrationEvents = await getRegistrationEvents(student.id, targetTerm.id);
   const hasResults = standing.cpa4 !== null;
-  // Đăng ký hộ, hủy đăng ký chỉ cho người có quyền cấu hình đăng ký; vai trò chỉ xem hồ sơ không thấy khối này.
   const canRegister = can(viewer, "registration.manage");
 
   return (

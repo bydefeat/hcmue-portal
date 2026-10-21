@@ -15,7 +15,6 @@ type Fail = (text: string) => void;
 
 export type ReassignCandidate = { id: string; label: string; faculty: string };
 
-// Phòng Đào tạo xử lý thay bước đang chờ: đồng ý, không đồng ý hoặc bỏ qua, bắt buộc ghi lý do.
 export function SuperviseModal({ request, open, onClose, onDone, onFail }: { request: RequestView; open: boolean; onClose: () => void; onDone: Done; onFail: Fail }) {
   const [form] = Form.useForm<{ decision: "approved" | "rejected" | "skipped"; reason: string }>();
   const [isPending, startTransition] = useTransition();
@@ -67,7 +66,6 @@ export function SuperviseModal({ request, open, onClose, onDone, onFail }: { req
   );
 }
 
-// Chuyển bước cố vấn, giảng viên chưa xử lý cho giảng viên khác.
 export function ReassignModal({
   request,
   candidates,
@@ -136,7 +134,6 @@ export function ReassignModal({
   );
 }
 
-// Người gửi bổ sung minh chứng theo yêu cầu của người xử lý.
 export function SupplementForm({ request, onDone, onFail }: { request: RequestView; onDone: Done; onFail: Fail }) {
   const [note, setNote] = useState("");
   const picker = useAttachmentPicker(onFail);
@@ -167,7 +164,6 @@ export function SupplementForm({ request, onDone, onFail }: { request: RequestVi
   );
 }
 
-// Gửi lại đơn bị từ chối: kế thừa nội dung, chọn giữ minh chứng cũ, sửa lý do, thêm tệp.
 export function ResubmitModal({ request, open, onClose, onDone, onFail }: { request: RequestView; open: boolean; onClose: () => void; onDone: Done; onFail: Fail }) {
   const [form] = Form.useForm<{ reason: string; keepAttachmentIds: string[] }>();
   const picker = useAttachmentPicker(onFail);

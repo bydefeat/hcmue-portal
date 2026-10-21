@@ -29,7 +29,6 @@ export const EXAM_PAPER_STATUS: Record<ExamPaperStatus, StatusMeta> = {
   returned: { label: "Bị trả lại, cần nộp lại", tone: "danger" },
 };
 
-// Lý do trả lại đề (DB chặn bằng exam_sessions_paper_return_reason).
 export const EXAM_RETURN_REASON_MAX = 500;
 
 export const LECTURER_EXAMS_HREF = "/lecturer/exams";
@@ -44,14 +43,11 @@ export const ADMIN_EXAMS_HREF = "/administrator/exams";
 
 export const STUDENT_EXAMS_HREF = "/application/exams";
 
-// Mỗi phòng thi ít nhất 2 cán bộ coi thi (quy chế thi), tối đa 4.
 export const PROCTORS_PER_ROOM = 2;
 export const MAX_PROCTORS_PER_ROOM = 4;
 
-// Giờ bắt đầu các ca thi của trường (giờ Việt Nam); form chọn trong danh sách này, server cũng chỉ nhận các giờ này.
 export const EXAM_START_TIMES = ["07:30", "09:30", "13:30", "15:30", "17:30"] as const;
 
-// Đề thi và đáp án: mỗi tệp một PDF tối đa 20 MB (DB chặn bằng exam_sessions_paper_size_range).
 export const EXAM_PAPER_LIMIT = { bytes: 20 * MB, kinds: ["pdf"] as UploadKind[] };
 
 export const EXAM_PAPER_FILE_LABEL: Record<ExamPaperFileKind, string> = {

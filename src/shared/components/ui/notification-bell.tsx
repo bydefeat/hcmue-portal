@@ -17,14 +17,11 @@ export type BellItem = {
   kindLabel: string;
 };
 
-// Lưu trạng thái đã đọc (server action do layout của cổng truyền vào). Không truyền thì chỉ đánh dấu tại chỗ.
 export type MarkNotificationsRead = (input: { ids: string[] }) => Promise<unknown>;
-// Đánh dấu đã đọc mọi thông báo chưa đọc của cổng ở server (kể cả dòng không có trong chuông), như trang Thông báo.
 export type MarkAllNotificationsRead = () => Promise<unknown>;
 
 type NotificationBellProps = {
   items: BellItem[];
-  // Số chưa đọc đếm ở server trên toàn bộ thông báo (items chỉ là vài dòng mới nhất).
   unreadCount?: number;
   viewAllHref: string;
   onMarkRead?: MarkNotificationsRead;
@@ -36,7 +33,6 @@ const VISIBLE = 6;
 export function NotificationBell({ items, unreadCount, viewAllHref, onMarkRead, onMarkAllRead }: NotificationBellProps) {
   const [open, setOpen] = useState(false);
   const [readIds, setReadIds] = useState<string[]>([]);
-  // Mốc "đọc hết": mọi thông báo tới thông báo mới nhất đang có coi như đã đọc; thông báo đến sau vẫn hiện chưa đọc.
   const [readAllUpTo, setReadAllUpTo] = useState<string | null>(null);
   const isRead = (item: BellItem) => item.isRead || readIds.includes(item.id) || (readAllUpTo !== null && item.createdAt <= readAllUpTo);
   const unreadShown = items.filter((item) => !isRead(item)).length;

@@ -50,13 +50,10 @@ const original = alias(examSessions, "exam_original");
 const displayName = (table: { title: AnyPgColumn; fullName: AnyPgColumn }) => sql<string>`${table.title} || ' ' || ${table.fullName}`;
 
 type RowOptions = {
-  // Tên tệp đề, đáp án chỉ trả cho ca mà hàm này cho phép (giảng viên dạy lớp, Phòng Khảo thí trong phạm vi khoa).
   showPapers?: (row: { lecturerId: string | null; faculty: string }) => boolean;
-  // Tính xung đột trên toàn học kỳ (trang Phòng Khảo thí); trang khác không cần.
   withConflicts?: boolean;
 };
 
-// Ca thi kèm lớp, giảng viên dạy lớp, phòng (số thí sinh từng phòng), cán bộ coi thi, đề nghị đổi ca và xung đột.
 async function examRows(where: SQL, options: RowOptions = {}): Promise<ExamSession[]> {
   const showPapers = options.showPapers ?? (() => false);
   const rows = await db
@@ -87,7 +84,6 @@ async function examRows(where: SQL, options: RowOptions = {}): Promise<ExamSessi
       reviewerName: reviewer.name,
       paperReviewedAt: examSessions.paperReviewedAt,
       paperReturnReason: examSessions.paperReturnReason,
-      // Sinh viên cần xếp: ca thi bù là số đã chọn; ca thường là đang học trừ người được hoãn kỳ thi này.
       expectedCandidates: sql<number>`CASE WHEN ${examSessions.kind}::text = 'makeup'
         THEN (SELECT count(*) FROM exam_candidates c WHERE c.exam_session_id = ${examSessions.id})
         ELSE (SELECT count(*) FROM enrollments e WHERE e.class_section_id = ${examSessions.classSectionId} AND e.status = 'enrolled'
@@ -187,14 +183,12 @@ async function examRows(where: SQL, options: RowOptions = {}): Promise<ExamSessi
   });
 }
 
-// Cán bộ có quyền về thi theo vai trò đang dùng; tài khoản không phải cán bộ thì null.
 async function examStaff(roles: string[], permission: Permission) {
   if (!roles.includes("admin")) return null;
   const viewer = await getViewer();
   return can(viewer, permission) ? viewer : null;
 }
 
-// Lịch thi của học kỳ cho Phòng Khảo thí: xung đột tính trên toàn học kỳ; đề thi chỉ hiện cho người có quyền duyệt đề.
 export async function getExamSessions(termId: string) {
   const viewer = await requirePermission("exams.manage");
   if (!isUuid(termId)) return [];
@@ -210,8 +204,6 @@ export async function getExamSession(id: string) {
   return exam ?? null;
 }
 
-// Tệp đề thi hoặc đáp án để tải xuống: chỉ giảng viên dạy lớp (người nộp đề) và cán bộ có quyền duyệt đề trong phạm vi khoa.
-// Cán bộ tải đề được ghi nhật ký.
 export async function getExamPaperFile(examSessionId: string, kind: ExamPaperFileKind) {
   const { user, roles } = await requireSession();
   if (!isUuid(examSessionId)) return null;
@@ -256,8 +248,6 @@ export async function getExamPaperFile(examSessionId: string, kind: ExamPaperFil
   return { storageKey: file.storageKey, fileName: file.fileName, contentType: file.contentType };
 }
 
-// Ca thi của lớp giảng viên dạy và ca giảng viên được phân công coi thi. Chỉ chính giảng viên đó xem được; đề nghị đổi ca chỉ
-// thấy của chính mình.
 export async function getExamsForLecturer(lecturerId: string) {
   const { user } = await requireSession();
   if (!isUuid(lecturerId)) return [];
@@ -271,7 +261,6 @@ export async function getExamsForLecturer(lecturerId: string) {
   return rows.map((row) => ({ ...row, swapRequests: row.swapRequests.filter((swap) => swap.requesterId === lecturerId || swap.substituteId === lecturerId) }));
 }
 
-// Lịch thi theo lớp cho giảng viên dạy lớp hoặc cán bộ quản lý thi trong phạm vi khoa (sinh viên dùng getStudentExams).
 export async function getExamsForClassSections(classSectionIds: string[]) {
   const { user, roles } = await requireSession();
   const ids = classSectionIds.filter(isUuid);
@@ -290,8 +279,6 @@ export async function getExamsForClassSections(classSectionIds: string[]) {
   return rows.filter((row) => own.has(row.classSectionId) || (manager !== null && inScope(manager, row.faculty)));
 }
 
-// Lịch thi của sinh viên đang đăng nhập: chỉ ca đã công bố (hoặc đã thi) mà sinh viên có tên trong danh sách thi, chỉ trường
-// công khai (không cán bộ coi thi, đề thi, đề nghị đổi ca), kèm phòng và số báo danh của chính sinh viên.
 export async function getStudentExams(termId: string): Promise<{ exams: StudentExam[]; deferrals: { classSectionId: string; kind: string }[] }> {
   const student = await getCurrentStudent();
   if (!isUuid(termId)) return { exams: [], deferrals: [] };
@@ -331,8 +318,6 @@ export async function getStudentExams(termId: string): Promise<{ exams: StudentE
   return { exams: rows, deferrals };
 }
 
-// Danh sách thí sinh của ca theo phòng, số báo danh (để xem, in PDF): Phòng Khảo thí trong phạm vi khoa, giảng viên dạy lớp và
-// cán bộ coi thi của ca.
 export async function getExamRoster(examSessionId: string): Promise<{ exam: ExamSession; rows: ExamRosterRow[] } | null> {
   const { user, roles } = await requireSession();
   if (!isUuid(examSessionId)) return null;
@@ -363,8 +348,6 @@ export async function getExamRoster(examSessionId: string): Promise<{ exam: Exam
   return { exam, rows: rows.map((row) => ({ ...row, studentCode: formatStudentCode(row.studentCode) })) };
 }
 
-// Tổng số tiết kế hoạch, tiết đã học và tiết vắng (gồm vắng có phép) của từng đăng ký. Buổi thực hành chỉ tính cho sinh viên
-// của nhóm đó; buổi chưa điểm danh tính vào kế hoạch nhưng chưa tính vắng.
 function attendanceTotals(where: SQL) {
   const periods = sql`(${classSessions.endPeriod} - ${classSessions.startPeriod} + 1)`;
   return db
@@ -397,7 +380,6 @@ function attendanceTotals(where: SQL) {
     .groupBy(enrollments.id, examEligibilityOverrides.reason);
 }
 
-// Sinh viên vắng quá ngưỡng quy chế (trên tổng số tiết kế hoạch) trong học kỳ, kèm quyết định cho dự thi còn hiệu lực nếu có.
 export async function getExamEligibility(termId: string, limitPercent: number): Promise<ExamEligibilityRow[]> {
   await requirePermission("exams.manage");
   if (!isUuid(termId)) return [];
@@ -448,7 +430,6 @@ export async function getExamEligibility(termId: string, limitPercent: number): 
     .toSorted((a, b) => a.sectionCode.localeCompare(b.sectionCode) || b.ratio - a.ratio || a.fullName.localeCompare(b.fullName, "vi"));
 }
 
-// Chuyên cần của sinh viên đang đăng nhập trong các lớp của học kỳ, để biết có bị cấm thi không.
 export async function getStudentExamAttendance(termId: string): Promise<ExamAttendance[]> {
   const student = await getCurrentStudent();
   if (!isUuid(termId)) return [];
@@ -456,7 +437,6 @@ export async function getStudentExamAttendance(termId: string): Promise<ExamAtte
   return rows.map((row) => ({ classSectionId: row.classSectionId, absentPeriods: row.absent, plannedPeriods: row.planned, heldPeriods: row.held, overrideReason: row.overrideReason }));
 }
 
-// Sinh viên được hoãn thi của học kỳ (Phòng Khảo thí), kèm đã có ca thi bù chưa.
 export async function getExamDeferrals(termId: string): Promise<ExamDeferralRow[]> {
   await requirePermission("exams.manage");
   if (!isUuid(termId)) return [];
@@ -487,7 +467,6 @@ export async function getExamDeferrals(termId: string): Promise<ExamDeferralRow[
   return rows.map((row) => ({ ...row, studentCode: formatStudentCode(row.studentCode), decidedAt: row.decidedAt.toISOString() }));
 }
 
-// Lớp mở của học kỳ để tạo ca thi (kèm đã có ca giữa kỳ, cuối kỳ chưa).
 export async function getExamClassOptions(termId: string): Promise<ExamClassOption[]> {
   await requirePermission("exams.manage");
   if (!isUuid(termId)) return [];
@@ -508,7 +487,6 @@ export async function getExamClassOptions(termId: string): Promise<ExamClassOpti
     .orderBy(asc(classSections.code));
 }
 
-// Sinh viên đang học lớp (để chọn hoãn thi, thi bù).
 export async function getSectionStudents(classSectionId: string) {
   await requirePermission("exams.manage");
   if (!isUuid(classSectionId)) return [];

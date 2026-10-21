@@ -41,7 +41,6 @@ type GradingTableProps = {
   classId: string;
   returnReason?: string | null;
   requestOptions?: GradeChangeRequestOptions;
-  // Cột theo đề cương đã công bố của lớp, gợi ý khi sửa cột điểm.
   suggestedComponents?: GradeComponent[] | null;
 };
 
@@ -68,13 +67,11 @@ export function GradingTable({ sheet, students, classCode, classId, returnReason
   const [savedAt, setSavedAt] = useState(sheet.savedAt);
   const [version, setVersion] = useState(0);
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
-  // Bảng điểm khác đề cương đã công bố: chốt phải ghi lý do (server cũng chặn).
   const [syllabusReason, setSyllabusReason] = useState("");
   const [needsSyllabusReason, setNeedsSyllabusReason] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isLocking, startLocking] = useTransition();
   const inputs = useRef(new Map<string, HTMLInputElement>());
-  // Ô đã sửa chưa lưu; các lần lưu nối tiếp nhau để chốt điểm luôn chạy sau lần lưu cuối.
   const pending = useRef(new Map<string, ScoreChange>());
   const saving = useRef<Promise<boolean>>(Promise.resolve(true));
 
@@ -91,7 +88,6 @@ export function GradingTable({ sheet, students, classCode, classId, returnReason
         setSavedAt(result.data.savedAt);
         return true;
       }
-      // Lưu không được thì giữ lại các ô chưa bị sửa tiếp để lần sau gửi lại.
       for (const change of changes) {
         const id = `${change.studentId}:${change.key}`;
         if (!pending.current.has(id)) pending.current.set(id, change);
@@ -108,7 +104,6 @@ export function GradingTable({ sheet, students, classCode, classId, returnReason
     return () => clearTimeout(timer);
   }, [version, flush]);
 
-  // Rời trang khi còn ô chưa lưu thì lưu nốt.
   useEffect(() => () => void flush(), [flush]);
 
   const { filled, total } = useMemo(() => {
@@ -165,7 +160,6 @@ export function GradingTable({ sheet, students, classCode, classId, returnReason
 
   const exportFile = async () => {
     setIsExporting(true);
-    // Lưu nốt ô vừa sửa để tệp có điểm mới nhất.
     await flush();
     const result = await exportGradeSheetExcel(classSectionId);
     setIsExporting(false);

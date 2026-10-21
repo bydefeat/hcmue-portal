@@ -30,7 +30,6 @@ export const REGULATION: RegulationSettings = {
   graduation: { retakeLimitPercent: 5, downgradeDisciplineLevel: "warning", downgradeStandings: ["excellent", "very-good"], languageMinLevel: "B1", requireItCertificate: true },
 };
 
-// Tham số của bản quy chế đang áp dụng trong dữ liệu mẫu, seed và test dùng để tính điểm, cảnh báo như app.
 export const REGULATION_RULES: RegulationRules = {
   grading: REGULATION.grading,
   credits: REGULATION.credits,
@@ -40,7 +39,6 @@ export const REGULATION_RULES: RegulationRules = {
   graduation: REGULATION.graduation,
 };
 
-// Các bản quy chế cũ: 2023.1 chưa có hạn mức riêng cho sinh viên bị cảnh báo, 2021.1 chưa có điểm cộng (B+, C+, D+).
 export const REGULATION_VERSIONS: (RegulationVersion & { id: string; rules: RegulationRules })[] = [
   { version: "2025.1", effectiveFrom: "2025-09-01", decision: "2150/QĐ-ĐHSP", summary: "Cảnh báo học vụ 3 mức, giới hạn 14 tín chỉ cho sinh viên bị cảnh báo." },
   { version: "2023.1", effectiveFrom: "2023-09-01", decision: "1980/QĐ-ĐHSP", summary: "Áp dụng thang điểm chữ có điểm cộng (B+, C+, D+)." },
@@ -56,7 +54,6 @@ export const REGULATION_VERSIONS: (RegulationVersion & { id: string; rules: Regu
   return { ...version, id: mockId(`regulation:${version.version}`), rules };
 });
 
-// Mốc tự nhập; thời gian học kỳ và đợt đăng ký lấy từ học kỳ, đợt đăng ký nên không có ở đây.
 function range(termId: string, kind: ManualCalendarEventKind, title: string, start: string, end: string, audience = "Toàn trường"): Omit<CalendarEvent, "source"> {
   return { id: mockId(`calendar:${termId}:${kind}:${start}`), termId, kind, title, startDate: start, endDate: end, audience };
 }

@@ -48,7 +48,6 @@ const ownStudentId = cache(async (userId: string) => {
   return row?.id ?? null;
 });
 
-// Giảng viên chỉ đọc kết quả của sinh viên lớp mình cố vấn hoặc đang, đã học lớp học phần mình dạy.
 const lecturerReach = cache(async (userId: string, key: string) => {
   const ids = key.split(",");
   const [lecturer] = await db.select({ id: lecturers.id }).from(lecturers).where(eq(lecturers.userId, userId));
@@ -75,7 +74,6 @@ const lecturerReach = cache(async (userId: string, key: string) => {
   return reachable.length === ids.length;
 });
 
-// Sinh viên chỉ đọc kết quả của chính mình; giảng viên chỉ sinh viên mình dạy hoặc cố vấn; cán bộ đọc theo quyền của trang từng cổng.
 async function requireResultAccess(studentIds: string[]) {
   const session = await requireSession();
   if (session.roles.includes("admin")) return;
@@ -97,7 +95,6 @@ const currentTermId = cache(async () => {
   return row?.id ?? null;
 });
 
-// Bảng điểm của một sinh viên, cache theo request: trang sinh viên gọi cả bảng điểm lẫn xếp loại mà chỉ đọc DB một lần.
 const transcriptOf = cache(async (studentId: string): Promise<TranscriptTerm[]> => {
   const transcripts = await loadTranscripts(db, [studentId], { currentTermId: await currentTermId(), withOngoing: true });
   return transcripts.get(studentId) ?? [];
@@ -118,19 +115,16 @@ export async function getStudentStandings(studentIds: string[]): Promise<Student
   return studentIds.map((id) => computeStanding(id, transcripts.get(id) ?? [], rules));
 }
 
-// Cảnh báo chính thức đang có hiệu lực (đã gửi thông báo, học kỳ có cảnh báo đã ban hành gần nhất) của các sinh viên.
 export async function getCurrentWarnings(studentIds: string[]): Promise<Record<string, CurrentWarning>> {
   await requireResultAccess(studentIds);
   return Object.fromEntries(await currentWarnings(db, studentIds));
 }
 
-// Khóa đang xét tốt nghiệp theo đợt xét đang mở (cấu hình ở trang Xét tốt nghiệp).
 const graduatingCohorts = cache(async () => {
   const [round] = await db.select({ cohorts: graduationRounds.cohorts }).from(graduationRounds).where(eq(graduationRounds.isOpen, true)).limit(1);
   return round?.cohorts ?? [];
 });
 
-// Xếp loại học lực theo khoa đến hết học kỳ đã kết thúc gần nhất, tổng hợp trong SQL; không gồm khóa đang xét tốt nghiệp.
 export async function getStandingSummary(): Promise<FacultyStandingSummary[]> {
   await requireRole("admin");
   const [regulation, cohorts] = await Promise.all([getRegulation(), graduatingCohorts()]);
@@ -160,8 +154,6 @@ export async function getStandingSummary(): Promise<FacultyStandingSummary[]> {
   );
 }
 
-// Cảnh báo học vụ của một học kỳ (bỏ trống là học kỳ xét gần nhất), mức nặng và CPA thấp lên đầu.
-// Giảng viên (cố vấn) chỉ đọc cảnh báo của sinh viên mình phụ trách; cán bộ đọc toàn trường rồi trang lọc theo khoa.
 export async function getAcademicWarnings(studentIds?: string[], termId?: string): Promise<AcademicWarning[]> {
   const session = await requireStaff();
   if (studentIds === undefined && !session.roles.includes("admin")) forbidden();
@@ -208,8 +200,6 @@ export async function getAcademicWarnings(studentIds?: string[], termId?: string
     .toSorted((a, b) => b.level - a.level || a.cpa4 - b.cpa4);
 }
 
-// Đề xuất xét buộc thôi học sau một học kỳ: sinh viên có cảnh báo ở học kỳ đó và bị cảnh báo đủ số học kỳ chính liên tiếp theo quy chế,
-// hoặc ở mức 3. Chỉ là danh sách cho Phòng Đào tạo; quyết định buộc thôi học lập ở mục Quyết định sinh viên.
 export async function getExpulsionProposals(termId: string): Promise<ExpulsionProposal[]> {
   await requireRole("admin");
   if (!isUuid(termId)) return [];
@@ -255,12 +245,8 @@ export async function getExpulsionProposals(termId: string): Promise<ExpulsionPr
     .toSorted((a, b) => b.consecutiveWarnings - a.consecutiveWarnings || b.level - a.level || a.cpa4 - b.cpa4);
 }
 
-// Bảng điểm lớp kèm trạng thái (theo hạn nhập và số ngày nhắc của quy chế) và quy đổi điểm của bản quy chế đang áp dụng,
-// để trang nhập điểm, duyệt điểm tính tổng và điểm chữ đúng như lúc công bố.
 export type GradeSheetView = GradeSheet & { state: GradeSheetState; grading: GradingRules };
 
-// Bảng điểm của nhiều lớp trong vài câu lệnh. Lớp chưa có bảng điểm thì trả bảng nháp mặc định, hạn nhập tính theo quy chế
-// (ngày thi cuối kỳ hoặc ngày kết thúc học kỳ cộng số ngày nhập điểm); lưu lần đầu mới tạo dòng với đúng hạn đó.
 async function sheetViews(sectionIds: string[]): Promise<GradeSheetView[]> {
   const ids = [...new Set(sectionIds.filter(isUuid))];
   if (ids.length === 0) return [];
@@ -352,7 +338,6 @@ export async function getGradeSheetSummaries(classSectionIds: string[]): Promise
 
 export type WarningTermOption = { id: string; name: string; warnings: number; canGenerate: boolean };
 
-// Học kỳ có cảnh báo hoặc xét được cảnh báo (học kỳ chính đã kết thúc), mới nhất lên đầu.
 export async function getWarningTerms(): Promise<WarningTermOption[]> {
   await requireStaff();
   const today = schoolToday();
@@ -366,7 +351,6 @@ export async function getWarningTerms(): Promise<WarningTermOption[]> {
     .filter((row) => row.warnings > 0 || row.canGenerate);
 }
 
-// Cột điểm theo đề cương đã công bố của lớp, để giảng viên dùng làm cột của bảng điểm. Chưa công bố thì không gợi ý.
 export async function getSyllabusComponents(classSectionId: string): Promise<GradeComponent[] | null> {
   await requireStaff();
   if (!isUuid(classSectionId)) return null;

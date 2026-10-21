@@ -9,8 +9,6 @@ import { STUDENTS } from "@/modules/users/users.mock";
 import { studentDecisions } from "@/modules/users/users.schema";
 import type { SeedContext } from "./context";
 
-// Đợt xét tốt nghiệp đang mở (khóa 48) và hồ sơ xét tốt nghiệp của các khóa trong đợt: chứng chỉ đã xác nhận. Học phí, kỷ luật suy ra
-// từ hóa đơn và quyết định khi xét. Sinh viên đã tốt nghiệp ở đợt trước thì hồ sơ đã chốt.
 export async function seedGraduation(tx: Transaction, context: SeedContext) {
   await tx.insert(graduationRounds).values({ ...GRADUATION_ROUND, createdByUserId: context.adminUserId });
   const verifiedAt = new Date(mockDate(-20, "10:00"));
@@ -30,8 +28,6 @@ export async function seedGraduation(tx: Transaction, context: SeedContext) {
   });
   await tx.insert(graduationRecords).values(rows);
 
-  // Một sinh viên khóa đang xét có CPA Xuất sắc bị kỷ luật mức cảnh cáo trong thời gian học: đủ điều kiện nhưng hạng tốt nghiệp bị giảm
-  // một mức theo quy chế (minh họa giảm hạng trên trang Xét tốt nghiệp).
   const disciplined = STUDENTS.map((student, index) => ({ student, index })).find(({ student, index }) => {
     if (!GRADUATION_ROUND.cohorts.includes(student.cohort) || student.status !== "studying" || student.majorCode !== "104") return false;
     const standing = computeStanding(student.id, buildTranscript(mockTranscriptTerms(index)), standingRulesOf(REGULATION_RULES));

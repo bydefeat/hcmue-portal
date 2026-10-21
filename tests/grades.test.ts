@@ -60,7 +60,6 @@ describe("grades: quy đổi điểm theo quy chế", () => {
   test("điểm chữ và thang 4 đúng ở các mốc của thang điểm quy chế", () => {
     assert.deepEqual([8.5, 8.4, 8, 7, 6.5, 5.5, 5, 4, 3.9, 0].map((score) => letterOf(score, SCALE).letter), ["A", "B+", "B+", "B", "C+", "C", "D+", "D", "F", "F"]);
     assert.equal(letterOf(6.9, SCALE).point4, 2.5);
-    // Thang điểm khác (quy chế cũ không có điểm cộng) cho kết quả khác.
     const old = SCALE.filter((step) => !step.letter.endsWith("+"));
     assert.equal(letterOf(8.2, old).letter, "B");
   });
@@ -73,7 +72,6 @@ describe("grades: quy đổi điểm theo quy chế", () => {
     ];
     assert.equal(weightedScore(components, { attendance: 10, midterm: 7.25, final: 6.5 }, 0.1), 7.1);
     assert.equal(weightedScore(components, { attendance: 10, midterm: 7, final: null }, 0.1), null);
-    // 0,02×10 + 0,30×30 + 6,43×60 = 395 → đúng 3,95, làm tròn lên 4,0 (số thực cho 3,9499... và làm tròn sai thành 3,9).
     assert.equal(weightedScore(components, { attendance: 0.02, midterm: 0.3, final: 6.43 }, 0.1), 4);
     assert.equal(weightedScore(components, { attendance: 1.15, midterm: 1.15, final: 1.15 }, 0.1), 1.2);
     assert.equal(weightedScore(components, { attendance: 7, midterm: 7, final: 7.24 }, 0.5), 7);
@@ -93,10 +91,8 @@ describe("grades: quy đổi điểm theo quy chế", () => {
   });
 
   test("trung bình làm tròn 2 chữ số tính trên số nguyên (khớp round của Postgres)", () => {
-    // (2,5×2 + 3,5×1) / 3 = 2,8333 → 2,83; (1,5×1 + 2×1) / 2 = 1,75 đúng.
     assert.equal(creditAverage([{ credits: 2, point4: 2.5, score10: null }, { credits: 1, point4: 3.5, score10: null }], "point4"), 2.83);
     assert.equal(creditAverage([{ credits: 1, point4: 1.5, score10: null }, { credits: 1, point4: 2, score10: null }], "point4"), 1.75);
-    // 8,25 trung bình đúng nửa: lên 8,25 → giữ; (8,24 + 8,25)/2 = 8,245 → 8,25.
     assert.equal(creditAverage([{ credits: 1, point4: null, score10: 8.24 }, { credits: 1, point4: null, score10: 8.25 }], "score10"), 8.25);
   });
 });
@@ -110,8 +106,6 @@ describe("grades: GPA, CPA theo lần học cuối, cảnh báo học vụ", () 
   const transcript = buildTranscript(sample);
 
   test("GPA kỳ theo học phần trong kỳ; CPA tính lần học cuối của mỗi học phần; kỳ đang học không có CPA", () => {
-    // HK1: (4*3 + 2*2 + 0*3) / 8 = 2,00. HK2: (3*3 + 4*4) / 7 = 3,57. CPA hết HK2 theo lần cuối: A 4, B 2, C 3 (học lại), D 4
-    // = (12 + 4 + 9 + 16) / 12 = 3,42 (nếu tính mọi lần học thì là 2,73).
     assert.equal(transcript[0].gpa4, 2);
     assert.equal(transcript[0].gpa10, 6);
     assert.equal(transcript[1].gpa4, 3.57);
@@ -132,7 +126,6 @@ describe("grades: GPA, CPA theo lần học cuối, cảnh báo học vụ", () 
     const improved = buildTranscript([sample[0], { ...sample[1], courses: [graded("B", 2, 4.5)] }]);
     const lower = improved[1].courses[0];
     assert.equal(lower.retakeKind, "improve");
-    // Học cải thiện ra điểm thấp hơn vẫn tính lần cuối.
     assert.equal(improved[1].cpa4, creditAverage([graded("A", 3, 9), graded("B", 2, 4.5), graded("C", 3, 3)], "point4"));
   });
 
@@ -145,7 +138,6 @@ describe("grades: GPA, CPA theo lần học cuối, cảnh báo học vụ", () 
     assert.equal(standing.lastTermGpa4, 3.57);
     assert.equal(standing.standing, "very-good");
     assert.equal(standing.warningLevel, 0);
-    // Đạt rồi học cải thiện bị F: lần cuối F nên đang nợ, không tích lũy học phần đó.
     const failedAgain = computeStanding("sv", buildTranscript([sample[0], { ...sample[1], courses: [graded("A", 3, 2)] }]), RULES);
     assert.equal(failedAgain.earnedCredits, 2);
     assert.equal(failedAgain.failedCredits, 6);
@@ -255,7 +247,6 @@ describe("grades: kiểm dữ liệu nhập điểm", () => {
 
 class Rollback extends Error {}
 
-// Chạy trong một giao dịch rồi hủy, không để lại dữ liệu; mỗi lệnh lỗi chạy trong savepoint riêng.
 async function inRollback(run: (tx: Transaction) => Promise<void>) {
   await db
     .transaction(async (tx) => {
@@ -362,7 +353,6 @@ describe("grades: ràng buộc ở DB", () => {
         await messageOf(tx, (inner) => inner.update(gradeComponents).set({ label: "Cuối kỳ mới" }).where(eq(gradeComponents.id, components[1].id))),
         GRADES_CONSTRAINT_MESSAGE.grade_components_sheet_locked,
       );
-      // Khoa trả lại thì giảng viên sửa được tiếp.
       await tx.update(gradeSheets).set({ status: "returned", returnReason: "Kiểm tra lại cột cuối kỳ" }).where(eq(gradeSheets.id, sheet.id));
       await tx.update(gradeScores).set({ score: 9 }).where(eq(gradeScores.enrollmentId, roster[0].id));
     });
@@ -461,7 +451,6 @@ describe("grades: sửa cột điểm", () => {
         });
         await inner.execute(sql`SET CONSTRAINTS ALL IMMEDIATE`);
       });
-      // SET CONSTRAINTS giữ tới hết giao dịch ngoài, trả lại kiểm lúc commit cho các bước sau.
       const deferred = () => tx.execute(sql`SET CONSTRAINTS ALL DEFERRED`);
       await deferred();
       const saved = await tx.select().from(gradeComponents).where(eq(gradeComponents.gradeSheetId, sheet.id)).orderBy(gradeComponents.position);
@@ -649,7 +638,6 @@ describe("grades: sinh cảnh báo học vụ", () => {
       const [updated] = await tx.select().from(academicWarnings).where(eq(academicWarnings.studentId, weak.id));
       assert.equal(updated.level, 2);
 
-      // Đã gửi thông báo thì sinh lại không đổi mức; ghi thẳng vào DB cũng bị chặn.
       await tx.update(academicWarnings).set({ status: "notified" }).where(eq(academicWarnings.id, updated.id));
       await tx.update(courseResults).set(grade(2)).where(eq(courseResults.studentId, weak.id));
       const fourth = await syncAcademicWarnings(tx, term.id);
@@ -691,7 +679,6 @@ describe("grades: lần học cuối và cảnh báo chính thức trên DB", ()
         .insert(students)
         .values({ code: "TEST-LA-1", fullName: "Sinh viên kiểm thử học lại", gender: "male", dateOfBirth: "2010-01-01", email: "test-la-1@student.hcmue.edu.vn", administrativeClassId: homeClass.id })
         .returning();
-      // Lần 1: 3 học phần F (9 tín chỉ nợ, mức 2 theo quy chế). Lần 2: học lại đạt cả 3.
       await tx.insert(courseResults).values([
         ...pool.map((course) => ({ studentId: student.id, courseId: course.id, termId: first.id, source: "legacy" as const, ...grade(2) })),
         ...pool.map((course) => ({ studentId: student.id, courseId: course.id, termId: second.id, source: "legacy" as const, ...grade(8) })),
@@ -703,7 +690,6 @@ describe("grades: lần học cuối và cảnh báo chính thức trên DB", ()
       const [transcript] = [...(await loadTranscripts(tx, [student.id])).values()];
       const standing = computeStanding(student.id, transcript, RULES);
       assert.deepEqual([standing.failedCredits, standing.earnedCredits, standing.cpa4, standing.retakeCredits], [0, 9, 3.5, 9]);
-      // Tổng hợp trong SQL ra cùng kết quả với hàm thuần.
       const aggregate = (await cumulativeResults(tx)).get(student.id);
       assert.deepEqual(aggregate, { cpa4: 3.5, cpa10: 8, earnedCredits: 9, failedCredits: 0 });
     });

@@ -8,7 +8,6 @@ import type { SeedContext } from "./context";
 
 export const syllabusIdOf = (classSectionId: string) => mockId(`syllabus:${classSectionId}`);
 
-// Đề cương (kèm chuẩn đầu ra, kế hoạch tuần, đánh giá), thông báo lớp và lượt đã đọc.
 export async function seedTeaching(tx: Transaction, _context: SeedContext) {
   await tx.insert(syllabi).values(
     SYLLABI.map((syllabus) => ({
@@ -36,7 +35,6 @@ export async function seedTeaching(tx: Transaction, _context: SeedContext) {
     ),
   );
 
-  // Người đăng là giảng viên dạy lớp đó.
   const sectionIds = [...new Set(CLASS_ANNOUNCEMENTS.map((announcement) => announcement.classSectionId))];
   const sections = await tx.select({ id: classSections.id, lecturerId: classSections.lecturerId }).from(classSections).where(inArray(classSections.id, sectionIds));
   const lecturerOf = new Map(sections.map((section) => [section.id, section.lecturerId!]));
@@ -56,7 +54,6 @@ export async function seedTeaching(tx: Transaction, _context: SeedContext) {
     })),
   );
 
-  // Số lượt đã đọc của dữ liệu mẫu: lấy đủ số sinh viên đầu danh sách lớp, đọc sau khi đăng vài giờ.
   const reads: (typeof classAnnouncementReads.$inferInsert)[] = [];
   for (const announcement of CLASS_ANNOUNCEMENTS) {
     if (announcement.readCount === 0) continue;

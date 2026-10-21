@@ -12,22 +12,18 @@ import { administrativeClasses, lecturerLoadNorms, lecturers, staffMembers, stud
 import { by, type SeedContext } from "./context";
 
 export const ADMIN = { code: "CB0021", name: "Trần Minh Khoa", unit: "Phòng Đào tạo", email: "khoatm@hcmue.edu.vn" };
-// Cán bộ Phòng Kế hoạch - Tài chính: chỉ có vai trò finance-office (học phí, khóa đăng ký học phí), để thử menu và quyền tuition.manage.
 export const FINANCE = { code: "CB0034", name: "Nguyễn Thị Thu Hà", unit: "Phòng Kế hoạch - Tài chính", email: "hantt@hcmue.edu.vn" };
 
 export const classIdOf = (className: string) => mockId(`class:${className}`);
 
-// Tài khoản đăng nhập, giảng viên, cán bộ, lớp sinh hoạt, sinh viên, quyết định, vai trò quản trị.
 export async function seedPeople(tx: Transaction, context: SeedContext) {
   const currentStudent = STUDENTS.find((student) => student.id === CURRENT_STUDENT_ID)!;
   const currentLecturer = LECTURERS.find((lecturer) => lecturer.id === CURRENT_LECTURER_ID)!;
   const studentCode = normalizeStudentCode(currentStudent.code);
-  // Giảng viên, cán bộ đăng nhập bằng mã hồ sơ như sinh viên dùng MSSV.
   const lecturerLogin = staffAccountIdentity(currentLecturer.code);
   const adminLogin = staffAccountIdentity(ADMIN.code);
   const financeLogin = staffAccountIdentity(FINANCE.code);
 
-  // Tài khoản seed coi như đã kích hoạt (đã đăng nhập) để bảng tài khoản hiện "Đang dùng"; hồ sơ khác để "Chưa cấp".
   const lastSignInAt = new Date();
   const userRows = await tx
     .insert(user)
@@ -116,7 +112,6 @@ export async function seedPeople(tx: Transaction, context: SeedContext) {
     .returning();
   const roleByKey = by(roleRows, (row) => row.key);
   await tx.insert(rolePermissions).values(ROLES.flatMap((role) => role.permissions.map((permission) => ({ roleId: roleByKey.get(role.id)!.id, permission }))));
-  // Tài khoản admin seed có 2 vai trò để thử đổi vai trò: Trưởng phòng Đào tạo (mặc định) và Quản trị hệ thống (có quyền Phân quyền).
   await tx.insert(roleAssignments).values({ userId: adminUser.id, roleId: roleByKey.get("academic-head")!.id, grantedByUserId: adminUser.id });
   await tx.insert(roleAssignments).values({ userId: adminUser.id, roleId: roleByKey.get("system-admin")!.id, grantedByUserId: adminUser.id });
   await tx.insert(roleAssignments).values({ userId: financeUser.id, roleId: roleByKey.get("finance-office")!.id, grantedByUserId: adminUser.id });
@@ -137,7 +132,6 @@ type DecisionSeed = {
   student: Student;
   kind: DecisionKind;
   status: DecisionStatus;
-  // Ngày ký so với hôm nay (âm là đã qua); hiệu lực mặc định 7 ngày sau ngày ký.
   daysAgo: number;
   title: string;
   basis: string;
@@ -150,15 +144,11 @@ type DecisionSeed = {
 
 const day = (offset: number) => schoolTime().add(offset, "day").format("YYYY-MM-DD");
 
-// Quyết định mẫu khớp tình trạng sinh viên trong seed: mỗi sinh viên bảo lưu, tạm ngừng học có quyết định đã ký và đã có hiệu lực;
-// quyết định chờ ký, dự thảo dành cho sinh viên đang học. Sinh viên đã tốt nghiệp khóa 48 được công nhận ở đợt xét trước
-// (hồ sơ xét tốt nghiệp đã chốt), quyết định đợt đó không nhập lại vào hệ thống. Người ký là Trưởng phòng Đào tạo (có quyền ký).
 function decisionSeeds(signerUserId: string, signerLabel: string) {
   const studying = STUDENTS.filter((student) => student.status === "studying" && student.id !== CURRENT_STUDENT_ID);
   let cursor = 0;
   const nextStudying = () => studying[(cursor += 37) % studying.length];
   const current = STUDENTS.find((student) => student.id === CURRENT_STUDENT_ID)!;
-  // Sinh viên ngành Sư phạm Toán học chuyển từ lớp Sư phạm Vật lý cùng khóa.
   const transferred = studying.find((student) => student.majorCode === "101" && STUDENTS.some((other) => other.majorCode === "102" && other.cohort === student.cohort))!;
   const physicsClass = STUDENTS.find((other) => other.majorCode === "102" && other.cohort === transferred.cohort)!.className;
 
@@ -198,7 +188,6 @@ function decisionSeeds(signerUserId: string, signerLabel: string) {
       basis: "Đơn xin bảo lưu của sinh viên",
       revokeReason: "Sinh viên rút đơn trước ngày quyết định có hiệu lực",
     },
-    // Ký trước ngày hiệu lực: tác vụ decision-effects đổi tình trạng đúng ngày.
     { student: nextStudying(), kind: "reserve", status: "signed", daysAgo: -2, effectiveIn: 12, title: "Bảo lưu kết quả học tập học kỳ 2, năm học 2026-2027", basis: "Đơn xin bảo lưu vì lý do sức khỏe, có giấy xác nhận của bệnh viện" },
     ...STUDENTS.filter((student) => student.status === "reserved").map((student) => ({
       student,

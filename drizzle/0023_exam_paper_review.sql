@@ -1,8 +1,0 @@
-ALTER TYPE "public"."exam_paper_status" ADD VALUE 'returned';--> statement-breakpoint
-ALTER TABLE "exam_sessions" ADD COLUMN "paper_reviewed_by_user_id" uuid;--> statement-breakpoint
-ALTER TABLE "exam_sessions" ADD COLUMN "paper_reviewed_at" timestamp with time zone;--> statement-breakpoint
-ALTER TABLE "exam_sessions" ADD COLUMN "paper_return_reason" text;--> statement-breakpoint
-ALTER TABLE "exam_sessions" ADD CONSTRAINT "exam_sessions_paper_reviewed_by_user_id_user_id_fk" FOREIGN KEY ("paper_reviewed_by_user_id") REFERENCES "public"."user"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
-CREATE INDEX "exam_sessions_paper_reviewed_by_user_id_index" ON "exam_sessions" USING btree ("paper_reviewed_by_user_id");--> statement-breakpoint
-ALTER TABLE "exam_sessions" ADD CONSTRAINT "exam_sessions_paper_review_fields" CHECK (("exam_sessions"."paper_status"::text IN ('approved', 'returned') OR ("exam_sessions"."paper_reviewed_at" IS NULL AND "exam_sessions"."paper_reviewed_by_user_id" IS NULL)) AND ("exam_sessions"."paper_status"::text <> 'returned' OR "exam_sessions"."paper_reviewed_at" IS NOT NULL) AND ("exam_sessions"."paper_reviewed_by_user_id" IS NULL OR "exam_sessions"."paper_reviewed_at" IS NOT NULL));--> statement-breakpoint
-ALTER TABLE "exam_sessions" ADD CONSTRAINT "exam_sessions_paper_return_reason" CHECK (("exam_sessions"."paper_status"::text = 'returned') = ("exam_sessions"."paper_return_reason" IS NOT NULL) AND ("exam_sessions"."paper_return_reason" IS NULL OR length(btrim("exam_sessions"."paper_return_reason")) BETWEEN 1 AND 500));

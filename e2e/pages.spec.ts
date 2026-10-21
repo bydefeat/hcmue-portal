@@ -97,6 +97,7 @@ const REDIRECTS: [role: "student" | "lecturer" | "admin", from: string, to: RegE
 async function checkPage(page: Page, path: string) {
   const response = await page.goto(path);
   expect(response?.status(), `HTTP của ${path}`).toBe(200);
+  expect(new URL(page.url()).pathname, `${path} bị chuyển hướng`).toBe(new URL(path, page.url()).pathname);
   await expect(page.getByRole("heading", { level: 1 }).first()).toBeVisible();
   await page.waitForLoadState("networkidle");
   const main = page.locator("main").first();

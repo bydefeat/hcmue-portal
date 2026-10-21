@@ -3,7 +3,7 @@ import { Card } from "antd";
 import { ArrowRight } from "defeat-icons-react";
 import { PublicAnnouncementItem } from "@/modules/announcements/components/public-announcement-item";
 import { getPublishedAnnouncements } from "@/modules/announcements/announcements.query";
-import { getActiveRegistrationPeriods, getCurrentTerm, getRegistrationPeriods, getRegistrationTargetTerm } from "@/modules/course-registration/course-registration.query";
+import { getPublicRegistrationSchedule } from "@/modules/course-registration/course-registration.query";
 import { REGISTRATION_PERIOD_STATE } from "@/modules/course-registration/course-registration.constant";
 import { CALENDAR_EVENT_LABEL } from "@/modules/settings/settings.constant";
 import { getCalendarEvents } from "@/modules/settings/settings.query";
@@ -20,11 +20,9 @@ const PORTALS = [
 ];
 
 export default async function Page() {
-  const [currentTerm, targetTerm] = await Promise.all([getCurrentTerm(), getRegistrationTargetTerm()]);
-  const [announcements, periods, active, events] = await Promise.all([
+  const [{ currentTerm, targetTerm, periods, active }, announcements, events] = await Promise.all([
+    getPublicRegistrationSchedule(),
     getPublishedAnnouncements(6),
-    getRegistrationPeriods(targetTerm.id),
-    getActiveRegistrationPeriods(),
     getCalendarEvents(),
   ]);
   const today = dayjs().startOf("day");

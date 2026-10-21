@@ -9,6 +9,7 @@ import { requireSession } from "@/modules/authentication/authentication.query";
 import { creditLimitsFor, loadSections, registrationActivityOf, registrationStudentOf, termFactsOf } from "@/modules/course-registration/course-registration.lib";
 import { conflictsOf, periodState } from "@/modules/course-registration/course-registration.constant";
 import { computeWorkloads, normHoursOf, periodsPerWeekOf, TEACHING_WEEKS } from "@/modules/course-registration/teaching-assignment.rule";
+import { regulationAt } from "@/modules/settings/settings.lib";
 import { getRegulation } from "@/modules/settings/settings.query";
 import {
   classSections,
@@ -66,9 +67,23 @@ export const getRegistrationTargetTerm = cache(async (): Promise<Term> => {
   return all.find((entry) => entry.isRegistrationTarget) ?? (await getCurrentTerm());
 });
 
-async function periodRows(where?: SQL): Promise<RegistrationPeriod[]> {
+async function periodRows(where?: SQL, options: { counts: boolean } = { counts: true }): Promise<RegistrationPeriod[]> {
   const periods = await db.select().from(registrationPeriods).where(where).orderBy(asc(registrationPeriods.opensAt));
   if (periods.length === 0) return [];
+  if (!options.counts) {
+    return periods.map((period) => ({
+      id: period.id,
+      termId: period.termId,
+      name: period.name,
+      cohorts: period.cohorts,
+      opensAt: period.opensAt.toISOString(),
+      closesAt: period.closesAt.toISOString(),
+      minCredits: period.minCredits,
+      maxCredits: period.maxCredits,
+      eligibleStudents: 0,
+      registeredStudents: 0,
+    }));
+  }
   const cohorts = [...new Set(periods.flatMap((period) => period.cohorts))];
   const termIds = [...new Set(periods.map((period) => period.termId))];
   const [eligible, registered] = await Promise.all([
@@ -107,6 +122,25 @@ export async function getRegistrationPeriods(termId?: string) {
   if (termId !== undefined && !isUuid(termId)) return [];
   const [rows, regulation] = await Promise.all([periodRows(termId ? eq(registrationPeriods.termId, termId) : undefined), getRegulation()]);
   return rows.map((period) => periodState(period, regulation.workflow.registrationClosingSoonHours));
+}
+
+export async function getPublicRegistrationSchedule() {
+  const all = await db.select(termColumns).from(terms).orderBy(asc(terms.startDate));
+  const currentTerm = all.find((entry) => entry.isCurrent);
+  if (!currentTerm) throw new Error("Chưa đặt học kỳ hiện tại (terms.is_current)");
+  const targetTerm = all.find((entry) => entry.isRegistrationTarget) ?? currentTerm;
+  const [targetRows, openRows, regulation] = await Promise.all([
+    periodRows(eq(registrationPeriods.termId, targetTerm.id), { counts: false }),
+    periodRows(sql`${registrationPeriods.closesAt} > now()`, { counts: false }),
+    regulationAt(db),
+  ]);
+  const closingSoonHours = regulation.workflow.registrationClosingSoonHours;
+  return {
+    currentTerm,
+    targetTerm,
+    periods: targetRows.map((period) => periodState(period, closingSoonHours)),
+    active: openRows.map((period) => periodState(period, closingSoonHours)).filter((period) => period.state === "open" || period.state === "closing"),
+  };
 }
 
 export async function getActiveRegistrationPeriods() {

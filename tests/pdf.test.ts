@@ -254,7 +254,7 @@ describe("pdf: server action tải PDF kiểm quyền như trang", () => {
       .innerJoin(administrativeClasses, eq(administrativeClasses.id, students.administrativeClassId))
       .innerJoin(majors, eq(majors.id, administrativeClasses.majorId))
       .innerJoin(faculties, eq(faculties.id, majors.facultyId))
-      .where(eq(students.code, "5001104009"));
+      .where(eq(students.code, "5001104013"));
     student = { ...studentRows[0], userId: studentRows[0].userId! };
     const [other] = await db
       .select({ id: students.id, faculty: faculties.name })
@@ -332,7 +332,7 @@ describe("pdf: server action tải PDF kiểm quyền như trang", () => {
     const { text } = readPdf(await asRequest(cookies.student, () => grades.downloadOwnTranscriptPdf()));
     assert.ok(text.includes("BẢNG ĐIỂM HỌC TẬP"));
     assert.ok(text.includes(student.fullName));
-    assert.ok(text.includes("50.01.104.009"));
+    assert.ok(text.includes("50.01.104.013"));
     assert.ok(text.includes("Xếp loại:"));
     await expectForbidden(() => asRequest(cookies.student, () => grades.downloadStudentTranscriptPdf(otherStudent.id)));
     await expectForbidden(() => asRequest(cookies.student, () => grades.exportGradeSheetPdf(otherStudent.id)));

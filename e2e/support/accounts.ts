@@ -1,7 +1,7 @@
 export const PASSWORD = process.env.DEFEAT_SEED_ACCOUNT_PASSWORD || "Hcmue@2026";
 
 export const SEED_ACCOUNTS = {
-  student: { login: "50.01.104.009", name: "Phạm Gia Đạt", home: "/application/dashboard" },
+  student: { login: "50.01.104.013", name: "Phạm Gia Đạt", home: "/application/dashboard" },
   lecturer: { login: "GV104011", name: "ThS. Phạm Thùy Hạnh", home: "/lecturer" },
   admin: { login: "CB0021", name: "Trần Minh Khoa", home: "/administrator" },
 } as const;

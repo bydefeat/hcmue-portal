@@ -44,14 +44,14 @@ test.describe("đăng nhập sai", () => {
 
   test("đăng nhập bằng mã số, không bằng email (sinh viên lẫn cán bộ)", async ({ page }) => {
     await page.goto("/authentication/sign-in");
-    await page.getByLabel("Tên đăng nhập").fill("5001104009@student.hcmue.edu.vn");
+    await page.getByLabel("Tên đăng nhập").fill("5001104013@student.hcmue.edu.vn");
     await page.getByLabel("Mật khẩu").fill(PASSWORD);
     await page.getByRole("button", { name: "Đăng nhập" }).click();
     await expect(page.getByText("Đăng nhập bằng mã số sinh viên hoặc mã số cán bộ, giảng viên").first()).toBeVisible();
     await expect(page).toHaveURL(/\/authentication\/sign-in/);
 
     const response = await page.request.post("/api/auth/sign-in/email", {
-      data: { email: "5001104009@student.hcmue.edu.vn", password: PASSWORD },
+      data: { email: "5001104013@student.hcmue.edu.vn", password: PASSWORD },
       headers: { origin: new URL(page.url()).origin },
     });
     expect(response.status()).toBe(401);

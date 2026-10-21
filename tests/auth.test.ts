@@ -12,7 +12,7 @@ import { formatLoginName, isLoginName, isStaffCode, normalizeLoginName, staffAcc
 import { formatStudentCode, isStudentCode, normalizeStudentCode, studentEmailOf } from "@/shared/libs/student-code.lib";
 
 const PASSWORD = process.env.DEFEAT_SEED_ACCOUNT_PASSWORD || "Hcmue@2026";
-const STUDENT_CODE = "5001104009";
+const STUDENT_CODE = "5001104013";
 const LECTURER_CODE = "GV104011";
 const STAFF_CODE = "CB0021";
 const LOCKOUT_GHOST = "TT9990001";
@@ -164,7 +164,7 @@ describe("đăng nhập", () => {
     for (const [path, body] of [
       ["/update-user", { name: "Tên giả" }],
       ["/update-user", { username: "5001104013" }],
-      ["/is-username-available", { username: "5001104009" }],
+      ["/is-username-available", { username: "5001104013" }],
       ["/forget-password/email-otp", { email: "khoatm@hcmue.edu.vn" }],
       ["/delete-user", {}],
     ] as const) {

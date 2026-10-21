@@ -81,7 +81,7 @@ test("học phí hiện số phải nộp và nội dung chuyển khoản", asyn
   await page.goto("/application/tuition");
   await expect(page.getByRole("heading", { name: "Học kỳ 1, năm học 2026-2027", level: 2 })).toBeVisible();
   await expect(page.getByRole("listitem").filter({ hasText: "Tổng phải nộp" }).filter({ hasText: "7.503.600 đ" })).toBeVisible();
-  await expect(page.getByRole("row", { name: /Nội dung/ }).filter({ hasText: "HP 5001104009 HK1-2026" })).toBeVisible();
+  await expect(page.getByRole("row", { name: /Nội dung/ }).filter({ hasText: "HP 5001104013 HK1-2026" })).toBeVisible();
 });
 
 test("gửi đơn kèm tệp PDF, tải lại được tệp, rồi hủy đơn", async ({ page }) => {

@@ -54,7 +54,7 @@ before(async () => {
     .innerJoin(administrativeClasses, eq(administrativeClasses.id, students.administrativeClassId))
     .innerJoin(majors, eq(majors.id, administrativeClasses.majorId))
     .innerJoin(lecturers, eq(lecturers.id, administrativeClasses.advisorId))
-    .where(eq(students.code, "5001104009"));
+    .where(eq(students.code, "5001104013"));
   student = { id: row.id, userId: row.userId!, advisorId: row.advisorId!, advisorUserId: row.advisorUserId!, facultyId: row.facultyId };
   const [other] = await db
     .select({ id: lecturers.id, userId: lecturers.userId })

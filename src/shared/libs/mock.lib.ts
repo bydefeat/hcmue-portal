@@ -107,7 +107,7 @@ export function mockStudentIdentity(index: number): MockStudentIdentity {
   return {
     id: mockId(`student:${index}`),
     index,
-    code: formatStudentCode(`${cohort}01${major.code}${String(sequence * 7 + (index % 5)).padStart(3, "0")}`),
+    code: index === 12 ? "50.01.104.013" : formatStudentCode(`${cohort}01${major.code}${String(sequence * 7 + (index % 5)).padStart(3, "0")}`),
     fullName,
     gender,
     cohort,
